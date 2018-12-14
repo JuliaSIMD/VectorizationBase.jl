@@ -1,6 +1,14 @@
 module VectorizationBase
 
-export pick_vector_width
+export  Vec,
+        VE,
+        SVec,
+        AbstractStructVec,
+        AbstractSIMDVector,
+        extract_data,
+        pick_vector_width,
+        num_vector_load_expr,
+        vectorizable
 
 const VE{T} = Core.VecElement{T}
 const Vec{N,T} = NTuple{N,VE{T}}

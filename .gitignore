@@ -4,4 +4,5 @@
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
-src/vector_sizes.jl
+src/cpu_info.jl
+deps/build.log
