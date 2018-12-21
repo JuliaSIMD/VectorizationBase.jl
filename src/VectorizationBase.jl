@@ -1,5 +1,7 @@
 module VectorizationBase
 
+import LinearAlgebra: conj, adjoint
+
 export  Vec,
         VE,
         SVec,
@@ -17,6 +19,12 @@ abstract type AbstractStructVec{N,T} end
 struct SVec{N,T} <: AbstractStructVec{N,T}
     data::Vec{N,T}
 end
+SVec{N,T}(x::T) where {N,T} = SVec(ntuple(i -> VE(x), Val(N)))
+@inline Base.length(::AbstractStructVec{N}) where N = N
+@inline Base.size(::AbstractStructVec{N}) where N = (N,)
+@inline Base.eltype(::AbstractStructVec{N,T}) where {N,T} = T
+@inline conj(v::AbstractStructVec) = v # so that things like dot products work.
+@inline adjoint(v::AbstractStructVec) = v # so that things like dot products work.
 
 const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 
