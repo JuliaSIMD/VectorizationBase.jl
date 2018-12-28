@@ -24,6 +24,9 @@ end
 function SVec{N,T}(x::Number) where {N,T}
     SVec(ntuple(i -> VE(T(x)), Val(N)))
 end
+function SVec{N,T}(x::Vararg{<:Number,N}) where {N,T}
+    SVec(ntuple(i -> VE(T(x[i])), Val(N)))
+end
 function SVec(v::Vec{N,T}) where {N,T}
     SVec{N,T}(v)
 end
@@ -32,6 +35,7 @@ end
 @inline Base.eltype(::AbstractStructVec{N,T}) where {N,T} = T
 @inline conj(v::AbstractStructVec) = v # so that things like dot products work.
 @inline adjoint(v::AbstractStructVec) = v # so that things like dot products work.
+@inline Base.getindex(v::SVec, i::Integer) = v.data[i].value
 
 function Base.one(::Type{<:AbstractStructVec{N,T}}) where {N,T}
     SVec{N,T}(one(T))
