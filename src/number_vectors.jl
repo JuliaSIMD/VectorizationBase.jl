@@ -10,6 +10,7 @@ function num_vector_load_expr(mod, N::Expr, W)
     end
     q
 end
+num_vector_load_expr(mod, N::Symbol, W) = :(divrem($N, $W))
 ### Generic fallbacks
 ### PaddedMatrices provide methods that determinalistically provide r = 0
 @inline function length_loads(A, ::Val{W}) where W

@@ -43,6 +43,12 @@ end
 function Base.one(::AbstractStructVec{N,T}) where {N,T}
     SVec{N,T}(one(T))
 end
+function Base.zero(::Type{<:AbstractStructVec{N,T}}) where {N,T}
+    SVec{N,T}(zero(T))
+end
+function Base.zero(::AbstractStructVec{N,T}) where {N,T}
+    SVec{N,T}(zero(T))
+end
 
 const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 
