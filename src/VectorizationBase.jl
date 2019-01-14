@@ -21,13 +21,13 @@ struct SVec{N,T} <: AbstractStructVec{N,T}
     SVec{N,T}(v) where {N,T} = new(v)
 end
 # SVec{N,T}(x) where {N,T} = SVec(ntuple(i -> VE(T(x)), Val(N)))
-function SVec{N,T}(x::Number) where {N,T}
+@inline function SVec{N,T}(x::Number) where {N,T}
     SVec(ntuple(i -> VE(T(x)), Val(N)))
 end
-function SVec{N,T}(x::Vararg{<:Number,N}) where {N,T}
+@inline function SVec{N,T}(x::Vararg{<:Number,N}) where {N,T}
     SVec(ntuple(i -> VE(T(x[i])), Val(N)))
 end
-function SVec(v::Vec{N,T}) where {N,T}
+@inline function SVec(v::Vec{N,T}) where {N,T}
     SVec{N,T}(v)
 end
 @inline Base.length(::AbstractStructVec{N}) where N = N
