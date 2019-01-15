@@ -1,3 +1,6 @@
+
+power2check(x) = ( ~(x & (x - 1)) ) == -1
+
 function pick_vector_width(N::Integer, ::Type{T} = Float64) where T
     T_size = sizeof(T)
     W = REGISTER_SIZE ÷ T_size
