@@ -55,6 +55,20 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 @inline extract_data(v) = v
 @inline extract_data(v::SVec) = v.data
 
+
+"""
+A wrapper to the base pointer type, that supports pointer arithmetic.
+"""
+struct vpointer{T}
+    ptr::Ptr{T}
+    @inline vpointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
+end
+@inline Base.:+(ptr::vpointer{T}, i) where {T} = vpointer(ptr.ptr + sizeof(T)*i)
+@inline Base.:+(i, ptr::vpointer{T}) where {T} = vpointer(ptr.ptr + sizeof(T)*i)
+@inline Base.:-(ptr::vpointer{T}, i) where {T} = vpointer(ptr.ptr - sizeof(T)*i)
+@inline vpointer(A) = vpointer(pointer(A))
+@inline Base.eltype(::vpointer{T}) where {T} = T
+
 """
 vectorizable(x) returns a representation of x convenient for vectorization.
 The generic fallback simply returns pointer(x):
@@ -65,7 +79,8 @@ however pointers are sometimes not the ideal representation, and othertimes
 they are not possible in Julia (eg for stack-allocated objects). This interface
 allows one to customize behavior via making use of the type system.
 """
-@inline vectorizable(x) = pointer(x)
+@inline vectorizable(x) = vpointer(x)
+
 
 
 

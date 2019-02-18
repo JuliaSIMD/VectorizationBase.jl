@@ -13,9 +13,19 @@ end
 num_vector_load_expr(mod, N::Symbol, W) = :(divrem($N, $W))
 ### Generic fallbacks
 ### PaddedMatrices provide methods that determinalistically provide r = 0
-@inline function length_loads(A, ::Val{W}) where W
-    divrem(length(A), W)
+@generated function length_loads(A, ::Val{W}) where W
+    Wshift = round(Int, log2(W))
+    quote
+        $(Expr(:meta, :inline))
+        N = length(A)
+        N >> $Wshift, N & $(W - 1)
+    end
 end
-@inline function size_loads(A, dim, ::Val{W}) where W
-    divrem(size(A, dim), W)
+@generated function size_loads(A, dim, ::Val{W}) where W
+    Wshift = round(Int, log2(W))
+    quote
+        $(Expr(:meta, :inline))
+        N = size(A, dim)
+        N >> $Wshift, N & $(W - 1)
+    end
 end
