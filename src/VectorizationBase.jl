@@ -82,7 +82,19 @@ allows one to customize behavior via making use of the type system.
 @inline vectorizable(x) = vpointer(x)
 
 
-
+function mask_type(W)
+    if W <= 8
+        return UInt8
+    elseif W <= 16
+        return UInt16
+    elseif W <= 32
+        return UInt32
+    elseif W <= 64
+        return UInt64
+    else#if W <= 128
+        return UInt128
+    end
+end
 
 
 include("cpu_info.jl")
