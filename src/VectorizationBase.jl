@@ -68,6 +68,12 @@ end
 @inline Base.:-(ptr::vpointer{T}, i) where {T} = vpointer(ptr.ptr - sizeof(T)*i)
 @inline vpointer(A) = vpointer(pointer(A))
 @inline Base.eltype(::vpointer{T}) where {T} = T
+@inline Base.unsafe_load(ptr::vpointer) = unsafe_load(ptr.ptr)
+@inline Base.unsafe_load(ptr::vpointer, i::Integer) = unsafe_load(ptr.ptr, i)
+@inline Base.unsafe_store!(ptr::vpointer{T}, v::T) where {T} = Base.unsafe_store!(ptr.ptr, v)
+@inline Base.unsafe_store!(ptr::vpointer{T}, v::T, i::Integer) where {T} = Base.unsafe_store!(ptr.ptr, v, i)
+@inline Base.getindex(ptr::vpointer{T}) where {T} = Base.unsafe_load(ptr.ptr)
+@inline Base.getindex(ptr::vpointer{T}, i) where {T} = Base.unsafe_load(ptr.ptr, i)
 
 """
 vectorizable(x) returns a representation of x convenient for vectorization.
@@ -80,6 +86,7 @@ they are not possible in Julia (eg for stack-allocated objects). This interface
 allows one to customize behavior via making use of the type system.
 """
 @inline vectorizable(x) = vpointer(x)
+@inline vectorizable(x::vpointer) = x
 
 
 function mask_type(W)
