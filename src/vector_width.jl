@@ -1,8 +1,16 @@
 
 power2check(x) = ( ~(x & (x - 1)) ) == -1
 
+function intlog2(N)
+    # u = UInt64(0x43300000) << 32
+    # u += N
+    u = 0x4330000000000000 + N
+    d = reinterpret(Float64,u) - 4503599627370496.0
+    u = (reinterpret(Int64, d) >> 52) - 1023
+end
+
 @generated function T_shift(::Type{T}) where {T}
-    round(Int, log2(sizeof(T)))
+    intlog2(sizeof(T))
 end
 @generated function pick_vector_width(::Type{T} = Float64) where T
     shift = T_shift(T)
@@ -11,7 +19,7 @@ end
 @generated function pick_vector_width_shift(::Type{T} = Float64) where T
     shift = T_shift(T)
     W = REGISTER_SIZE >> shift
-    Wshift = round(Int, log2(W))
+    Wshift = intlog2(W)
     W, Wshift
 end
 function pick_vector_width(N::Integer, ::Type{T} = Float64) where T
