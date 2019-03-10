@@ -6,7 +6,8 @@ function num_vector_load_expr(mod, N::Expr, W)
     elseif N.args[1] == :size && length(N.args) == 3
         q = :(($mod).VectorizationBase.size_loads($(N.args[2]), $(N.args[3]), Val{$W}()))
     else
-        q = :(divrem($N, $W))
+        Wshift = intlog2(W)
+        q = :($N >> $Wshift, $N & $(W-1))
     end
     q
 end
