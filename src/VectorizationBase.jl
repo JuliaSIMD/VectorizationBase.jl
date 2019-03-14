@@ -103,6 +103,20 @@ function mask_type(W)
     end
 end
 
+@generated function mask_type(::Type{T}, ::Val{P}) where {T,P}
+    W = pick_vector_width(P, T)
+    if W <= 8
+        return UInt8
+    elseif W <= 16
+        return UInt16
+    elseif W <= 32
+        return UInt32
+    elseif W <= 64
+        return UInt64
+    else#if W <= 128
+        return UInt128
+    end
+end
 
 include("cpu_info.jl")
 include("vector_width.jl")
