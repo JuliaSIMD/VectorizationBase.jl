@@ -30,6 +30,7 @@ end
 @inline function SVec(v::Vec{N,T}) where {N,T}
     SVec{N,T}(v)
 end
+@inline SVec(v::SVec) = v
 @inline Base.length(::AbstractStructVec{N}) where N = N
 @inline Base.size(::AbstractStructVec{N}) where N = (N,)
 @inline Base.eltype(::AbstractStructVec{N,T}) where {N,T} = T
