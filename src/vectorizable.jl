@@ -99,8 +99,10 @@ end
 @inline Base.:-(ptr::vpointer{T}, i) where {T} = vpointer(ptr.ptr - sizeof(T)*i)
 @inline vpointer(A) = vpointer(pointer(A))
 @inline Base.eltype(::vpointer{T}) where {T} = T
+@inline load(ptr::vpointer) = load(ptr.ptr)
 @inline Base.unsafe_load(ptr::vpointer) = load(ptr.ptr)
 @inline Base.unsafe_load(ptr::vpointer{T}, i::Integer) where {T} = load(ptr.ptr + (i-1) * sizeof(T))
+@inline store!(ptr::vpointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.unsafe_store!(ptr::vpointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.unsafe_store!(ptr::vpointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
 @inline Base.getindex(ptr::vpointer{T}) where {T} = load(ptr.ptr)
@@ -118,10 +120,3 @@ allows one to customize behavior via making use of the type system.
 """
 @inline vectorizable(x) = vpointer(x)
 @inline vectorizable(x::vpointer) = x
-
-
-
-
-
-
-
