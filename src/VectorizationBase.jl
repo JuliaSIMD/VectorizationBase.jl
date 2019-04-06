@@ -57,38 +57,12 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 @inline extract_data(v::SVec) = v.data
 
 
-function mask_type(W)
-    if W <= 8
-        return UInt8
-    elseif W <= 16
-        return UInt16
-    elseif W <= 32
-        return UInt32
-    elseif W <= 64
-        return UInt64
-    else#if W <= 128
-        return UInt128
-    end
-end
 
-@generated function mask_type(::Type{T}, ::Val{P}) where {T,P}
-    W = pick_vector_width(P, T)
-    if W <= 8
-        return UInt8
-    elseif W <= 16
-        return UInt16
-    elseif W <= 32
-        return UInt32
-    elseif W <= 64
-        return UInt64
-    else#if W <= 128
-        return UInt128
-    end
-end
 
 include("vectorizable.jl")
 include("cpu_info.jl")
 include("vector_width.jl")
 include("number_vectors.jl")
+include("masks.jl")
 
 end # module
