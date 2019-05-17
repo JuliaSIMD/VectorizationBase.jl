@@ -25,9 +25,10 @@ llvmtype(::Type{Float16}) = "half"
 llvmtype(::Type{Float32}) = "float"
 llvmtype(::Type{Float64}) = "double"
 
+const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UInt32,UInt64,UInt128,Float16,Float32,Float64}
 
 
-@generated function load(ptr::Ptr{T}) where {T}
+@generated function load(ptr::Ptr{T}) where {T <: LLVMCompatible}
     # @assert isa(Aligned, Bool)
     ptyp = llvmtype(Int)
     typ = llvmtype(T)
@@ -54,7 +55,7 @@ llvmtype(::Type{Float64}) = "double"
         T, Tuple{Ptr{T}}, ptr)
     end
 end
-@generated function store!(ptr::Ptr{T}, v::T) where {T}
+@generated function store!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
     ptyp = llvmtype(Int)
     typ = llvmtype(T)
     # vtyp = "<$N x $typ>"
@@ -80,7 +81,9 @@ end
         Cvoid, Tuple{Ptr{T}, T}, ptr, v)
     end
 end
-
+# Fall back definitions
+@inline load(ptr::Ptr) = Base.unsafe_load(ptr)
+@inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
 
 
 
