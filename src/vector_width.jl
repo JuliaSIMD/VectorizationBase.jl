@@ -14,11 +14,11 @@ end
 end
 @generated function pick_vector_width(::Type{T} = Float64) where T
     shift = T_shift(T)
-    REGISTER_SIZE >> shift
+    max(1, REGISTER_SIZE >> shift)
 end
 @generated function pick_vector_width_shift(::Type{T} = Float64) where T
     shift = T_shift(T)
-    W = REGISTER_SIZE >> shift
+    W = max(1, REGISTER_SIZE >> shift)
     Wshift = intlog2(W)
     W, Wshift
 end
