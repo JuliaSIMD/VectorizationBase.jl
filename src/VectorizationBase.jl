@@ -38,6 +38,10 @@ end
 @inline adjoint(v::AbstractStructVec) = v # so that things like dot products work.
 @inline Base.getindex(v::SVec, i::Integer) = v.data[i].value
 
+@inline function SVec{N,T}(v::SVec{N,T2}) where {N,T,T2}
+    @inbounds SVec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
+end
+
 function Base.one(::Type{<:AbstractStructVec{N,T}}) where {N,T}
     SVec{N,T}(one(T))
 end
