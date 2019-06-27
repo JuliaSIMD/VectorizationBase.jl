@@ -110,6 +110,8 @@ end
 @inline Base.unsafe_store!(ptr::vpointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
 @inline Base.getindex(ptr::vpointer{T}) where {T} = load(ptr.ptr)
 @inline Base.getindex(ptr::vpointer{T}, i) where {T} = load(ptr.ptr + (i-1)*sizeof(T) )
+@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::vpointer{T}) where {T} = ptr.ptr
+@inline Base.pointer(ptr::vpointer) = ptr.ptr
 
 """
 vectorizable(x) returns a representation of x convenient for vectorization.
