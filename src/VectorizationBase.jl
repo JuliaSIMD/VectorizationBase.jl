@@ -68,5 +68,6 @@ include("cpu_info.jl")
 include("vector_width.jl")
 include("number_vectors.jl")
 include("masks.jl")
+include("allignment.jl")
 
 end # module

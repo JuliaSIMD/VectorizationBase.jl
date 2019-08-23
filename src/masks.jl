@@ -22,13 +22,13 @@ end
     U = mask_type(T)
     quote
         $(Expr(:meta,:inline))
-        $(U(2))^r - $(one(U))
+        one($U) << r - $(one(U))
     end
 end
 @generated function max_mask(::Type{T}) where {T}
     W = pick_vector_width(T)
     U = mask_type(W)
-    U(2^W-1)
+    one(U)<<W - one(U)
 end
 
 @generated function mask(::Type{T}, rem::Integer) where {T}
