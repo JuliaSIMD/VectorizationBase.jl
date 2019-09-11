@@ -34,7 +34,7 @@ end
 @generated function mask(::Type{T}, rem::Integer) where {T}
     M = mask_type(T)
     W = pick_vector_width(T)
-    tup = Expr(:tuple, [Base.unsafe_trunc(M, 2^w - 1) for w in 0:W]...) 
+    tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
         $tup[rem+1]
@@ -44,7 +44,7 @@ end
 @generated function mask(::Val{W}, rem::Integer) where {W}
     M = mask_type(W)
 #    W = pick_vector_width(T)
-    tup = Expr(:tuple, [Base.unsafe_trunc(M, 2^w - 1) for w in 0:W]...) 
+    tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
         $tup[rem+1]

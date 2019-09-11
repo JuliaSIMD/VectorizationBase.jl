@@ -1,7 +1,5 @@
 module VectorizationBase
 
-import LinearAlgebra: conj, adjoint
-
 export  Vec,
         VE,
         SVec,
@@ -34,8 +32,8 @@ end
 @inline Base.length(::AbstractStructVec{N}) where N = N
 @inline Base.size(::AbstractStructVec{N}) where N = (N,)
 @inline Base.eltype(::AbstractStructVec{N,T}) where {N,T} = T
-@inline conj(v::AbstractStructVec) = v # so that things like dot products work.
-@inline adjoint(v::AbstractStructVec) = v # so that things like dot products work.
+@inline Base.conj(v::AbstractStructVec) = v # so that things like dot products work.
+@inline Base.adjoint(v::AbstractStructVec) = v # so that things like dot products work.
 @inline Base.getindex(v::SVec, i::Integer) = v.data[i].value
 
 @inline function SVec{N,T}(v::SVec{N,T2}) where {N,T,T2}
@@ -68,6 +66,6 @@ include("cpu_info.jl")
 include("vector_width.jl")
 include("number_vectors.jl")
 include("masks.jl")
-include("allignment.jl")
+include("alignment.jl")
 
 end # module
