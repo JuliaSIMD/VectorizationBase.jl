@@ -1,7 +1,23 @@
 
 # Convert Julia types to LLVM types
+const LLVMTYPE = Dict{DataType,String}(
+    Bool => "i8",   # Julia represents Tuple{Bool} as [1 x i8]    
+    Int8 => "i8",
+    Int16 => "i16",
+    Int32 => "i32",
+    Int64 => "i64",
+    Int128 => "i128",
+    UInt8 => "i8",
+    UInt16 => "i16",
+    UInt32 => "i32",
+    UInt64 => "i64",
+    UInt128 => "i128",
+    Float16 => "half",
+    Float32 => "float",
+    Float64 => "double"
+)
+llvmtype(x)::String = LLVMTYPE[x]
 
-llvmtype(::Type{Bool}) = "i8"   # Julia represents Tuple{Bool} as [1 x i8]
 
 # llvmtype(::Type{Bool8}) = "i8"
 # llvmtype(::Type{Bool16}) = "i16"
@@ -9,21 +25,6 @@ llvmtype(::Type{Bool}) = "i8"   # Julia represents Tuple{Bool} as [1 x i8]
 # llvmtype(::Type{Bool64}) = "i64"
 # llvmtype(::Type{Bool128}) = "i128"
 
-llvmtype(::Type{Int8}) = "i8"
-llvmtype(::Type{Int16}) = "i16"
-llvmtype(::Type{Int32}) = "i32"
-llvmtype(::Type{Int64}) = "i64"
-llvmtype(::Type{Int128}) = "i128"
-
-llvmtype(::Type{UInt8}) = "i8"
-llvmtype(::Type{UInt16}) = "i16"
-llvmtype(::Type{UInt32}) = "i32"
-llvmtype(::Type{UInt64}) = "i64"
-llvmtype(::Type{UInt128}) = "i128"
-
-llvmtype(::Type{Float16}) = "half"
-llvmtype(::Type{Float32}) = "float"
-llvmtype(::Type{Float64}) = "double"
 
 const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UInt32,UInt64,UInt128,Float16,Float32,Float64}
 
