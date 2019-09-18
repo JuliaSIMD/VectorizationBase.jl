@@ -93,26 +93,44 @@ end
 
 """
 A wrapper to the base pointer type, that supports pointer arithmetic.
+Note that this (sort of) supports both 0 and 1 based indexing.
+x = [1, 2, 3, 4, 5, 6, 7, 8];
+ptrx = Pointer(x);
+load(ptrx)
+# 1
+load(ptrx + 1)
+# 2
+ptrx[]
+# 1
+(ptrx+1)[]
+# 2
+ptrx[1]
+# 1
+ptrx[2]
+# 2
 """
-struct vpointer{T}
+struct Pointer{T}
     ptr::Ptr{T}
-    @inline vpointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
+    @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
-@inline Base.:+(ptr::vpointer{T}, i) where {T} = vpointer(ptr.ptr + sizeof(T)*i)
-@inline Base.:+(i, ptr::vpointer{T}) where {T} = vpointer(ptr.ptr + sizeof(T)*i)
-@inline Base.:-(ptr::vpointer{T}, i) where {T} = vpointer(ptr.ptr - sizeof(T)*i)
-@inline vpointer(A) = vpointer(pointer(A))
-@inline Base.eltype(::vpointer{T}) where {T} = T
-@inline load(ptr::vpointer) = load(ptr.ptr)
-@inline Base.unsafe_load(ptr::vpointer) = load(ptr.ptr)
-@inline Base.unsafe_load(ptr::vpointer{T}, i::Integer) where {T} = load(ptr.ptr + (i-1) * sizeof(T))
-@inline store!(ptr::vpointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline Base.unsafe_store!(ptr::vpointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline Base.unsafe_store!(ptr::vpointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
-@inline Base.getindex(ptr::vpointer{T}) where {T} = load(ptr.ptr)
-@inline Base.getindex(ptr::vpointer{T}, i) where {T} = load(ptr.ptr + (i-1)*sizeof(T) )
-@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::vpointer{T}) where {T} = ptr.ptr
-@inline Base.pointer(ptr::vpointer) = ptr.ptr
+@inline Base.:+(ptr::Pointer{T}, i) where {T} = Pointer(ptr.ptr + sizeof(T)*i)
+@inline Base.:+(i, ptr::Pointer{T}) where {T} = Pointer(ptr.ptr + sizeof(T)*i)
+@inline Base.:-(ptr::Pointer{T}, i) where {T} = Pointer(ptr.ptr - sizeof(T)*i)
+@inline Base.:+(ptr::Pointer{Cvoid}, i) = Pointer(ptr.ptr + i)
+@inline Base.:+(i, ptr::Pointer{Cvoid}) = Pointer(ptr.ptr + i)
+@inline Base.:-(ptr::Pointer{Cvoid}, i) = Pointer(ptr.ptr - i)
+@inline Pointer(A) = Pointer(pointer(A))
+@inline Base.eltype(::Pointer{T}) where {T} = T
+@inline load(ptr::Pointer) = load(ptr.ptr)
+@inline Base.unsafe_load(ptr::Pointer) = load(ptr.ptr)
+@inline Base.unsafe_load(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + (i-1) * sizeof(T))
+@inline store!(ptr::Pointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline Base.unsafe_store!(ptr::Pointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline Base.unsafe_store!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
+@inline Base.getindex(ptr::Pointer{T}) where {T} = load(ptr.ptr)
+@inline Base.getindex(ptr::Pointer{T}, i) where {T} = load(ptr.ptr + (i-1)*sizeof(T) )
+@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::Pointer{T}) where {T} = ptr.ptr
+@inline Base.pointer(ptr::Pointer) = ptr.ptr
 
 """
 vectorizable(x) returns a representation of x convenient for vectorization.
@@ -124,5 +142,5 @@ however pointers are sometimes not the ideal representation, and othertimes
 they are not possible in Julia (eg for stack-allocated objects). This interface
 allows one to customize behavior via making use of the type system.
 """
-@inline vectorizable(x) = vpointer(x)
-@inline vectorizable(x::vpointer) = x
+@inline vectorizable(x) = Pointer(x)
+@inline vectorizable(x::Pointer) = x
