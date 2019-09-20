@@ -85,7 +85,7 @@ end
 # Fall back definitions
 @inline load(ptr::Ptr) = Base.unsafe_load(ptr)
 @inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
-
+@inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(reinterpret(Ptr{T1}, ptr))
 
 
 
@@ -131,6 +131,7 @@ end
 @inline Base.getindex(ptr::Pointer{T}, i) where {T} = load(ptr.ptr + (i-1)*sizeof(T) )
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::Pointer{T}) where {T} = ptr.ptr
 @inline Base.pointer(ptr::Pointer) = ptr.ptr
+
 
 """
 vectorizable(x) returns a representation of x convenient for vectorization.

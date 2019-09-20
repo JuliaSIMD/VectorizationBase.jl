@@ -100,7 +100,13 @@ for (T, N) in zip(FTypes,Wv)
         end
     end
 end
-
+@testset "nextpow2" begin
+    @test all(i -> VectorizationBase.nextpow2(i) == i, 0:2)
+    for j in 1:10
+        l, u = (1<<j)+1, 1<<(j+1)
+        @test all(i -> VectorizationBase.nextpow2(i) == u, l:u)
+    end
+end
 end
 
 @testset "vectorizable.jl" begin

@@ -8,3 +8,4 @@ src/cpu_info.jl
 deps/build.log
 src/#*#
 tests/#*#
+*~
