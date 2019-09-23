@@ -11,7 +11,7 @@ function intlog2(N::I) where {I <: Integer}
     u = 8sizeof(I) - 1 - leading_zeros(N)
     Base.unsafe_trunc(I, u)
 end
-
+ispow2(x::Integer) = (x & (x - 1)) == zero(x)
 function nextpow2(W)
     one(W) << (8sizeof(W) - leading_zeros(W-1))
     # W -= 1
