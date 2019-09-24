@@ -37,6 +37,7 @@ end
 end
 function pick_vector_width(N::Integer, ::Type{T} = Float64) where {T}
     W = pick_vector_width(T)
+    N > W && return W
     TwoN = 2N
     while W >= TwoN
         W >>= 1
@@ -45,6 +46,7 @@ function pick_vector_width(N::Integer, ::Type{T} = Float64) where {T}
 end
 function pick_vector_width_shift(N::Integer, ::Type{T} = Float64) where {T}
     W, Wshift = pick_vector_width_shift(T)
+    N > W && return W, Wshift
     TwoN = 2N
     while W >= TwoN
         W >>= 1
