@@ -1,5 +1,4 @@
 
-power2check(x) = ( ~(x & (x - 1)) ) == -1
 
 function intlog2(N::I) where {I <: Integer}
     # This version may be slightly faster when vectorized?

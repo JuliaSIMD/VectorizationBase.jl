@@ -10,6 +10,8 @@ W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 @test extract_data(zero(SVec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === extract_data(SVec{4,Float64}(0.0))
 @test extract_data(one(SVec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === extract_data(SVec{4,Float64}(1.0))
 v = SVec((VE(1.0),VE(2.0),VE(3.0),VE(4.0)))
+@test length(v) == 4 == first(size(v))
+@test eltype(v) == Float64
 for i in 1:4
     @test i == v[i]
     @test i === SVec{4,Int}(v)[i]
@@ -82,14 +84,15 @@ A = randn(13, 17); L = length(A); M, N = size(A);
 end
 
 @testset "vector_width.jl" begin
-@test all(VectorizationBase.power2check, 0:1)
-@test all(i -> !any(VectorizationBase.power2check, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.power2check(1 << i), 2:9)
+@test all(VectorizationBase.ispow2, 0:1)
+@test all(i -> !any(VectorizationBase.ispow2, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.ispow2(1 << i), 2:9)
 @test all(i ->  VectorizationBase.intlog2(1 << i) == i, 0:(Int == Int64 ? 53 : 30))
 FTypes = (Float16, Float32, Float64)
 Wv = ntuple(i -> VectorizationBase.REGISTER_SIZE >> i, Val(3))
 for (T, N) in zip(FTypes, Wv)
     W, Wshift = VectorizationBase.pick_vector_width_shift(:IGNORE_ME, T)
-    @test W == 1 << Wshift == VectorizationBase.pick_vector_width(T) == N
+    @test W == 1 << Wshift == VectorizationBase.pick_vector_width(T) == N == VectorizationBase.pick_vector_width(:IGNORE_ME, T)
+    @test Vec{W,T} == VectorizationBase.pick_vector(Val(W), T) == VectorizationBase.pick_vector(T)
     while true
         W >>= 1
         W == 0 && break
@@ -98,23 +101,15 @@ for (T, N) in zip(FTypes, Wv)
         for n in W+1:2W
             W3, Wshift3 = VectorizationBase.pick_vector_width_shift(n, T)
             @test W2 << 1 == W3 == 1 << (Wshift2+1) == 1 << Wshift3 == VectorizationBase.pick_vector_width(n, T) == W << 1
+            @test VectorizationBase.pick_vector(Val(W), T) == Vec{W,T}
         end
     end
 end
-@testset "nextpow2" begin
-    @test all(i -> VectorizationBase.nextpow2(i) == i, 0:2)
-    for j in 1:10
-        l, u = (1<<j)+1, 1<<(j+1)
-        @test all(i -> VectorizationBase.nextpow2(i) == u, l:u)
-    end
-end
-@testset "ispow2" begin
-    @test all(VectorizationBase.ispow2, 0:2)
-    for j in 1:10
-        l, u = (1<<j)+1, 1<<(j+1)
-        @test all(i -> !VectorizationBase.ispow2(i), l:u-1)
-        @test ispow2(u)
-    end
+
+@test all(i -> VectorizationBase.nextpow2(i) == i, 0:2)
+for j in 1:10
+    l, u = (1<<j)+1, 1<<(j+1)
+    @test all(i -> VectorizationBase.nextpow2(i) == u, l:u)
 end
 
 end
@@ -123,12 +118,18 @@ end
 A = Float64.(0:15)
 ptr_A = pointer(A)
 vA = VectorizationBase.vectorizable(A)
-vA == VectorizationBase.vectorizable(ptr_A)
-@test all(i -> A[i+1] === VectorizationBase.load(ptr_A + 8i) === VectorizationBase.load(vA + i) === vA[i+1] === (vA+i)[] === Float64(i), 0:15)
+@test eltype(vA) == Float64
+@test Base.unsafe_convert(Ptr{Float64}, vA) === ptr_A === pointer(vA)
+@test vA == VectorizationBase.vectorizable(ptr_A) == VectorizationBase.vectorizable(vA)
+@test all(i -> A[i+1] === VectorizationBase.load(ptr_A + 8i) === VectorizationBase.load(vA + i) === VectorizationBase.load(i + vA) === VectorizationBase.load(vA - (-i)) === unsafe_load(vA + i) === unsafe_load(vA, i+1) === vA[i+1] === (vA+i)[] === Float64(i), 0:15)
 VectorizationBase.store!(vA+3, 99.9)
 @test (vA + 3)[] === vA[4] ===  99.9 === VectorizationBase.load(ptr_A + 8*3)
 VectorizationBase.store!(ptr_A+8*4, 999.9)
 @test (vA + 4)[] === vA[5] === 999.9 === VectorizationBase.load(ptr_A + 8*4)
+unsafe_store!(vA+3, -99.9)
+@test (vA + 3)[] === vA[4] ===  -99.9 === VectorizationBase.load(ptr_A + 8*3)
+unsafe_store!(vA, -999.9, 5)
+@test (vA + 4)[] === vA[5] === -999.9 === VectorizationBase.load(ptr_A + 8*4)
 end
 
 end
