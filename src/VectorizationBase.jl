@@ -64,6 +64,7 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 @inline extract_data(v::SVec) = v.data
 
 @inline firstval(x::Vec) = first(x).value
+@inline firstval(x::SVec) = first(extract_data(x)).value
 @inline firstval(x) = first(x)
 
 include("vectorizable.jl")
