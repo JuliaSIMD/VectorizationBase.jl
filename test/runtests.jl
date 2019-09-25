@@ -17,6 +17,7 @@ end
 @test zero(v) === zero(typeof(v))
 @test one(v) === one(typeof(v))
 @test SVec{W32,Float32}(one(SVec{W32,Float64})) === SVec(one(SVec{W32,Float32})) === one(SVec{W32,Float32})
+@test firstval(v) === firstval(extract_data(v)) === 1.0
 end
 
 @testset "alignment.jl" begin
@@ -86,7 +87,7 @@ end
 @test all(i ->  VectorizationBase.intlog2(1 << i) == i, 0:(Int == Int64 ? 53 : 30))
 FTypes = (Float16, Float32, Float64)
 Wv = ntuple(i -> VectorizationBase.REGISTER_SIZE >> i, Val(3))
-for (T, N) in zip(FTypes,Wv)
+for (T, N) in zip(FTypes, Wv)
     W, Wshift = VectorizationBase.pick_vector_width_shift(:IGNORE_ME, T)
     @test W == 1 << Wshift == VectorizationBase.pick_vector_width(T) == N
     while true
@@ -107,6 +108,15 @@ end
         @test all(i -> VectorizationBase.nextpow2(i) == u, l:u)
     end
 end
+@testset "ispow2" begin
+    @test all(VectorizationBase.ispow2, 0:2)
+    for j in 1:10
+        l, u = (1<<j)+1, 1<<(j+1)
+        @test all(i -> !VectorizationBase.ispow2(i), l:u-1)
+        @test ispow2(u)
+    end
+end
+
 end
 
 @testset "vectorizable.jl" begin

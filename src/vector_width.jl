@@ -27,11 +27,11 @@ end
 end
 @generated function pick_vector_width(::Type{T} = Float64) where {T}
     shift = T_shift(T)
-    max(1, REGISTER_SIZE >> shift)
+    max(1, REGISTER_SIZE >>> shift)
 end
 @generated function pick_vector_width_shift(::Type{T} = Float64) where {T}
     shift = T_shift(T)
-    W = max(1, REGISTER_SIZE >> shift)
+    W = max(1, REGISTER_SIZE >>> shift)
     Wshift = intlog2(W)
     W, Wshift
 end
@@ -40,7 +40,7 @@ function pick_vector_width(N::Integer, ::Type{T} = Float64) where {T}
     N > W && return W
     TwoN = 2N
     while W >= TwoN
-        W >>= 1
+        W >>>= 1
     end
     W
 end
@@ -49,7 +49,7 @@ function pick_vector_width_shift(N::Integer, ::Type{T} = Float64) where {T}
     N > W && return W, Wshift
     TwoN = 2N
     while W >= TwoN
-        W >>= 1
+        W >>>= 1
         Wshift -= 1
     end
     W, Wshift

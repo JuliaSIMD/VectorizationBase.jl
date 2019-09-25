@@ -34,9 +34,9 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
     ptyp = llvmtype(Int)
     typ = llvmtype(T)
     # vtyp = "<$N x $typ>"
-    decls = []
+    # decls = String[]
     # push!(decls, "!0 = !{!0}")
-    instrs = []
+    instrs = String[]
     # if Aligned
     #     align = N * sizeof(T)
     # else
@@ -52,7 +52,7 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
     push!(instrs, "ret $typ %res")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($((join(decls, "\n"), join(instrs, "\n"))),
+        Base.llvmcall($(join(instrs, "\n")),
         T, Tuple{Ptr{T}}, ptr)
     end
 end
@@ -60,9 +60,9 @@ end
     ptyp = llvmtype(Int)
     typ = llvmtype(T)
     # vtyp = "<$N x $typ>"
-    decls = []
+    # decls = String[]
     # push!(decls, "!0 = !{!0}")
-    instrs = []
+    instrs = String[]
     # if Aligned
     # align = N * sizeof(T)
     # else
@@ -78,7 +78,7 @@ end
     push!(instrs, "ret void")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($((join(decls, "\n"), join(instrs, "\n"))),
+        Base.llvmcall($(join(instrs, "\n")),
         Cvoid, Tuple{Ptr{T}, T}, ptr, v)
     end
 end

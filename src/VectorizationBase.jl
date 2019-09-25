@@ -3,6 +3,7 @@ module VectorizationBase
 export  Vec,
         VE,
         SVec,
+        firstval,
         # AbstractStructVec,
         # AbstractSIMDVector,
         extract_data,
@@ -62,8 +63,8 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 @inline extract_data(v) = v
 @inline extract_data(v::SVec) = v.data
 
-
-
+@inline firstval(x::Vec) = first(x).value
+@inline firstval(x) = first(x)
 
 include("vectorizable.jl")
 include("cpu_info.jl")
