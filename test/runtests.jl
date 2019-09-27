@@ -1,8 +1,8 @@
 using VectorizationBase
 using Test
 
-W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
-W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
+const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
+const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 
 
 A = randn(13, 17); L = length(A); M, N = size(A);
