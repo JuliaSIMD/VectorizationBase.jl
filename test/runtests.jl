@@ -4,12 +4,17 @@ using Test
 W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 
+
+A = randn(13, 17); L = length(A); M, N = size(A);
+
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
+@test first(A) === A[1]
 @testset "Struct-Wrapped Vec" begin
 @test extract_data(zero(SVec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === extract_data(SVec{4,Float64}(0.0))
-@test extract_data(one(SVec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === extract_data(SVec{4,Float64}(1.0))
+@test extract_data(one(SVec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === extract_data(SVec{4,Float64}(1.0)) === extract_data(extract_data(SVec{4,Float64}(1.0)))
 v = SVec((VE(1.0),VE(2.0),VE(3.0),VE(4.0)))
+@test v === SVec{4,Float64}(1, 2, 3, 4) === conj(v) === v'
 @test length(v) == 4 == first(size(v))
 @test eltype(v) == Float64
 for i in 1:4
@@ -39,6 +44,20 @@ end
 @test all(i -> VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == 4cld(i,4), 1:VectorizationBase.REGISTER_SIZE)
 @test all(i -> VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == 4cld(i,4), 1+VectorizationBase.REGISTER_SIZE:2VectorizationBase.REGISTER_SIZE)
 @test all(i -> VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == 4cld(i,4), (1:VectorizationBase.REGISTER_SIZE) .+ 29VectorizationBase.REGISTER_SIZE)
+
+@test reinterpret(Int, VectorizationBase.align(pointer(A))) % VectorizationBase.REGISTER_SIZE === 0
+
+@test all(i -> VectorizationBase.aligntrunc(i) == 0, 0:VectorizationBase.REGISTER_SIZE-1)
+@test all(i -> VectorizationBase.aligntrunc(i) == VectorizationBase.REGISTER_SIZE, VectorizationBase.REGISTER_SIZE:2VectorizationBase.REGISTER_SIZE-1)
+@test all(i -> VectorizationBase.aligntrunc(i) == 9VectorizationBase.REGISTER_SIZE, (0:VectorizationBase.REGISTER_SIZE-1) .+ 9VectorizationBase.REGISTER_SIZE)
+
+@test all(i -> VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == 8div(i,8), 1:VectorizationBase.REGISTER_SIZE)
+@test all(i -> VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == 8div(i,8), 1+VectorizationBase.REGISTER_SIZE:2VectorizationBase.REGISTER_SIZE)
+@test all(i -> VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == 8div(i,8), (1:VectorizationBase.REGISTER_SIZE) .+ 29VectorizationBase.REGISTER_SIZE)
+
+@test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == 4div(i,4), 1:VectorizationBase.REGISTER_SIZE)
+@test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == 4div(i,4), 1+VectorizationBase.REGISTER_SIZE:2VectorizationBase.REGISTER_SIZE)
+@test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == 4div(i,4), (1:VectorizationBase.REGISTER_SIZE) .+ 29VectorizationBase.REGISTER_SIZE)
 
 end
 
@@ -76,7 +95,6 @@ end
 end
 
 @testset "number_vectors.jl" begin
-A = randn(13, 17); L = length(A); M, N = size(A);
 # eval(VectorizationBase.num_vector_load_expr(@__MODULE__, :(size(A)), 8)) # doesn't work?
 @test VectorizationBase.length_loads(A, Val(8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__, :((() -> 13*17)()), 8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__, 13*17, 8)) == divrem(length(A), 8)
 @test VectorizationBase.size_loads(A,1, Val(8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__, :((() -> 13   )()), 8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__, 13   , 8)) == divrem(size(A,1), 8)

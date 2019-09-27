@@ -5,6 +5,6 @@ align(x, n) = (nm1 = n - 1; (x + nm1) & -n)
 align(x, ::Type{T}) where {T} = align(x, REGISTER_SIZE ÷ sizeof(T))
 aligntrunc(x, n) = x & -n
 aligntrunc(x) = aligntrunc(x, REGISTER_SIZE)
-aligntrunc(x, ::Type{T}) where {T} = x > pick_vector_width(T) ? aligntrunc(x, REGISTER_SIZE ÷ sizeof(T)) : x
+aligntrunc(x, ::Type{T}) where {T} = aligntrunc(x, REGISTER_SIZE ÷ sizeof(T))
 
 
