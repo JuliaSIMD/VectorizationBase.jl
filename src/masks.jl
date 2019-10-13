@@ -18,13 +18,7 @@ end
 @generated function mask_type(::Type{T}) where {T}
     mask_type(pick_vector_width(T))
 end
-@generated function mask_from_remainder(::Type{T}, r) where {T}
-    U = mask_type(T)
-    quote
-        $(Expr(:meta,:inline))
-        one($U) << r - $(one(U))
-    end
-end
+
 @generated function max_mask(::Type{T}) where {T}
     W = pick_vector_width(T)
     U = mask_type(W)
@@ -37,7 +31,8 @@ end
     tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
-        $tup[rem+1]
+        # @inbounds $tup[rem+1]
+        one($M) << (r & $(typemax(M)-one(M))) - $(one(M))
     end
 end
 
@@ -47,6 +42,7 @@ end
     tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
-        $tup[rem+1]
+        # @inbounds $tup[rem+1]
+        one($U) << (r & $(typemax(M)-one(M))) - $(one(M))
     end
 end
