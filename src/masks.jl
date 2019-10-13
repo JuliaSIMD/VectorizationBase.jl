@@ -32,7 +32,7 @@ end
     quote
         $(Expr(:meta,:inline))
         # @inbounds $tup[rem+1]
-        one($M) << (r & $(typemax(M)-one(M))) - $(one(M))
+        one($M) << (rem & $(typemax(M))) - $(one(M))
     end
 end
 
@@ -43,6 +43,6 @@ end
     quote
         $(Expr(:meta,:inline))
         # @inbounds $tup[rem+1]
-        one($U) << (r & $(typemax(M)-one(M))) - $(one(M))
+        one($M) << (rem & $(typemax(M))) - $(one(M))
     end
 end
