@@ -142,15 +142,19 @@ vA = VectorizationBase.vectorizable(A)
 @test eltype(vA) == Float64
 @test Base.unsafe_convert(Ptr{Float64}, vA) === ptr_A === pointer(vA)
 @test vA == VectorizationBase.vectorizable(ptr_A) == VectorizationBase.vectorizable(vA)
-@test all(i -> A[i+1] === VectorizationBase.load(ptr_A + 8i) === VectorizationBase.load(vA + i) === VectorizationBase.load(i + vA) === VectorizationBase.load(vA - (-i)) === unsafe_load(vA + i) === unsafe_load(vA, i+1) === vA[i+1] === (vA+i)[] === Float64(i), 0:15)
+@test all(i -> A[i+1] === VectorizationBase.load(ptr_A + 8i) === VectorizationBase.load(vA + i) === VectorizationBase.load(vA,i) === VectorizationBase.load(i + vA) === VectorizationBase.load(vA - (-i)) === unsafe_load(vA + i) === unsafe_load(vA, i+1) === vA[i] === (vA+i)[] === Float64(i), 0:15)
 VectorizationBase.store!(vA+3, 99.9)
-@test (vA + 3)[] === vA[4] ===  99.9 === VectorizationBase.load(ptr_A + 8*3)
+@test (vA + 3)[] === vA[3] ===  99.9 === VectorizationBase.load(ptr_A + 8*3) === VectorizationBase.load(vA, 3)
 VectorizationBase.store!(ptr_A+8*4, 999.9)
-@test (vA + 4)[] === vA[5] === 999.9 === VectorizationBase.load(ptr_A + 8*4)
+@test (vA + 4)[] === vA[4] === 999.9 === VectorizationBase.load(ptr_A + 8*4) === VectorizationBase.load(vA, 4)
 unsafe_store!(vA+3, -99.9)
-@test (vA + 3)[] === vA[4] ===  -99.9 === VectorizationBase.load(ptr_A + 8*3)
+@test (vA + 3)[] === vA[3] ===  -99.9 === VectorizationBase.load(ptr_A + 8*3) === VectorizationBase.load(vA, 3)
 unsafe_store!(vA, -999.9, 5)
-@test (vA + 4)[] === vA[5] === -999.9 === VectorizationBase.load(ptr_A + 8*4)
+@test (vA + 4)[] === vA[4] === -999.9 === VectorizationBase.load(ptr_A + 8*4) === VectorizationBase.load(vA, 4)
+(vA+3)[] = -9999.9
+@test (vA + 3)[] === vA[3] ===  -9999.9 === VectorizationBase.load(ptr_A + 8*3) === VectorizationBase.load(vA, 3)
+vA[4] = -99999.9
+@test (vA + 4)[] === vA[4] === -99999.9 === VectorizationBase.load(ptr_A + 8*4) === VectorizationBase.load(vA, 4)
 end
 
 end

@@ -93,7 +93,8 @@ end
 
 """
 A wrapper to the base pointer type, that supports pointer arithmetic.
-Note that this (sort of) supports both 0 and 1 based indexing.
+Note that `VectorizationBase.load` and `VectorizationBase.store!` are 0-indexed,
+while `Base.unsafe_load` and `Base.unsafe_store!` are 1-indexed.
 x = [1, 2, 3, 4, 5, 6, 7, 8];
 ptrx = Pointer(x);
 load(ptrx)
@@ -122,13 +123,17 @@ end
 @inline Pointer(A) = Pointer(pointer(A))
 @inline Base.eltype(::Pointer{T}) where {T} = T
 @inline load(ptr::Pointer) = load(ptr.ptr)
+@inline load(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + i * sizeof(T))
 @inline Base.unsafe_load(ptr::Pointer) = load(ptr.ptr)
 @inline Base.unsafe_load(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + (i-1) * sizeof(T))
 @inline store!(ptr::Pointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline store!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
 @inline Base.unsafe_store!(ptr::Pointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.unsafe_store!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
 @inline Base.getindex(ptr::Pointer{T}) where {T} = load(ptr.ptr)
-@inline Base.getindex(ptr::Pointer{T}, i) where {T} = load(ptr.ptr + (i-1)*sizeof(T) )
+@inline Base.getindex(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + i*sizeof(T) )
+@inline Base.setindex!(ptr::Pointer{T}, v::T) where {T} = store!(ptr, v)
+@inline Base.setindex!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::Pointer{T}) where {T} = ptr.ptr
 @inline Base.pointer(ptr::Pointer) = ptr.ptr
 
