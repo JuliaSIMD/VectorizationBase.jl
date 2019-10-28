@@ -150,3 +150,8 @@ allows one to customize behavior via making use of the type system.
 """
 @inline vectorizable(x) = Pointer(x)
 @inline vectorizable(x::Pointer) = x
+@inline vectorizable(x::Symmetric) = vectorizable(x.data)
+@inline vectorizable(x::LinearAlgebra.AbstractTriangular) = vectorizable(x.data)
+@inline vectorizable(x::Diagonal) = vectorizable(x.diag)
+
+

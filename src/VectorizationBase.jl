@@ -1,5 +1,7 @@
 module VectorizationBase
 
+using LinearAlgebra
+
 export  Vec,
         VE,
         SVec,

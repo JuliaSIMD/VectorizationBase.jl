@@ -6,5 +6,5 @@ align(x, ::Type{T}) where {T} = align(x, REGISTER_SIZE ÷ sizeof(T))
 aligntrunc(x, n) = x & -n
 aligntrunc(x) = aligntrunc(x, REGISTER_SIZE)
 aligntrunc(x, ::Type{T}) where {T} = aligntrunc(x, REGISTER_SIZE ÷ sizeof(T))
-
+alignment(x, N = 64) = reinterpret(Int, x) % N
 
