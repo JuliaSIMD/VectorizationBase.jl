@@ -122,7 +122,7 @@ for (T, N) in zip(FTypes, Wv)
         for n in W+1:2W
             W3, Wshift3 = VectorizationBase.pick_vector_width_shift(n, T)
             @test W2 << 1 == W3 == 1 << (Wshift2+1) == 1 << Wshift3 == VectorizationBase.pick_vector_width(n, T) == VectorizationBase.pick_vector_width(Val(n),T) == W << 1
-            @test VectorizationBase.pick_vector(Val(W), T) == Vec{W,T}
+            @test VectorizationBase.pick_vector(Val(W), T) == VectorizationBase.pick_vector(W, T) == Vec{W,T}
         end
     end
 end

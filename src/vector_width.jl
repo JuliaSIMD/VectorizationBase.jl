@@ -62,5 +62,5 @@ pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
 @generated pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
 
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
-@generated pick_vector(::Val{N}, ::Type{T}) where {N, T} = Vec{pick_vector_width(N, T),T}
-
+pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
+@generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
