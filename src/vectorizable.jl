@@ -85,7 +85,7 @@ end
 # Fall back definitions
 @inline load(ptr::Ptr) = Base.unsafe_load(ptr)
 @inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
-@inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(reinterpret(Ptr{T1}, ptr))
+@inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(Base.unsafe_convert(Ptr{T1}, ptr))
 
 
 
