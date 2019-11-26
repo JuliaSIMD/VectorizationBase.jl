@@ -3,19 +3,17 @@ module VectorizationBase
 using LinearAlgebra
 
 export  Vec,
-        VE,
-        SVec,
-        firstval,
-        # AbstractStructVec,
-        # AbstractSIMDVector,
-        extract_data,
-        pick_vector_width,
-        pick_vector_width_shift,
-        # num_vector_load_expr,
-        vectorizable,
-        Pointer,
-        load,
-        store!
+    VE,
+    SVec,
+    firstval,
+    extract_data,
+    pick_vector_width,
+    pick_vector_width_shift,
+    vectorizable,
+    Pointer,
+    ZeroInitializedPointer,
+    load,
+    store!
 
 const VE{T} = Core.VecElement{T}
 const Vec{N,T} = NTuple{N,VE{T}}

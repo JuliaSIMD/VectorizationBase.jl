@@ -110,32 +110,51 @@ ptrx[1]
 ptrx[2]
 # 2
 """
-struct Pointer{T}
+abstract type AbstractPointer{T} end
+struct Pointer{T} <: AbstractPointer{T}
     ptr::Ptr{T}
     @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
+struct ZeroInitializedPointer{T} <: AbstractPointer{T}
+    ptr::Ptr{T}
+    @inline ZeroInitializedPointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
+end
+
 @inline Base.:+(ptr::Pointer{T}, i) where {T} = Pointer(ptr.ptr + sizeof(T)*i)
 @inline Base.:+(i, ptr::Pointer{T}) where {T} = Pointer(ptr.ptr + sizeof(T)*i)
 @inline Base.:-(ptr::Pointer{T}, i) where {T} = Pointer(ptr.ptr - sizeof(T)*i)
 @inline Base.:+(ptr::Pointer{Cvoid}, i) = Pointer(ptr.ptr + i)
 @inline Base.:+(i, ptr::Pointer{Cvoid}) = Pointer(ptr.ptr + i)
 @inline Base.:-(ptr::Pointer{Cvoid}, i) = Pointer(ptr.ptr - i)
+@inline Base.:+(ptr::ZeroInitializedPointer{T}, i) where {T} = Pointer(ptr.ptr + sizeof(T)*i)
+@inline Base.:+(i, ptr::ZeroInitializedPointer{T}) where {T} = Pointer(ptr.ptr + sizeof(T)*i)
+@inline Base.:-(ptr::ZeroInitializedPointer{T}, i) where {T} = Pointer(ptr.ptr - sizeof(T)*i)
+@inline Base.:+(ptr::ZeroInitializedPointer{Cvoid}, i) = Pointer(ptr.ptr + i)
+@inline Base.:+(i, ptr::ZeroInitializedPointer{Cvoid}) = Pointer(ptr.ptr + i)
+@inline Base.:-(ptr::ZeroInitializedPointer{Cvoid}, i) = Pointer(ptr.ptr - i)
 @inline Pointer(A) = Pointer(pointer(A))
-@inline Base.eltype(::Pointer{T}) where {T} = T
+@inline ZeroInitializedPointer(A) = ZeroInitializedPointer(pointer(A))
+@inline Base.eltype(::AbstractPointer{T}) where {T} = T
 @inline load(ptr::Pointer) = load(ptr.ptr)
 @inline load(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + i * sizeof(T))
 @inline Base.unsafe_load(ptr::Pointer) = load(ptr.ptr)
 @inline Base.unsafe_load(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + (i-1) * sizeof(T))
-@inline store!(ptr::Pointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline store!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
-@inline Base.unsafe_store!(ptr::Pointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline Base.unsafe_store!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
+@inline load(ptr::ZeroInitializedPointer{T}) where {T} = zero(T)
+@inline load(ptr::ZeroInitializedPointer{T}, i::Integer) where {T} = zero(T)
+@inline Base.unsafe_load(ptr::ZeroInitializedPointer{T}) where {T} = zero(T)
+@inline Base.unsafe_load(ptr::ZeroInitializedPointer{T}, i::Integer) where {T} = zero(T)
+@inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
+@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
 @inline Base.getindex(ptr::Pointer{T}) where {T} = load(ptr.ptr)
 @inline Base.getindex(ptr::Pointer{T}, i::Integer) where {T} = load(ptr.ptr + i*sizeof(T) )
-@inline Base.setindex!(ptr::Pointer{T}, v::T) where {T} = store!(ptr, v)
-@inline Base.setindex!(ptr::Pointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
-@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::Pointer{T}) where {T} = ptr.ptr
-@inline Base.pointer(ptr::Pointer) = ptr.ptr
+@inline Base.getindex(ptr::ZeroInitializedPointer{T}) where {T} = zero(T)
+@inline Base.getindex(ptr::ZeroInitializedPointer{T}, i::Integer) where {T} = zero(T)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr, v)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
+@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
+@inline Base.pointer(ptr::AbstractPointer) = ptr.ptr
 
 
 """
@@ -149,9 +168,9 @@ they are not possible in Julia (eg for stack-allocated objects). This interface
 allows one to customize behavior via making use of the type system.
 """
 @inline vectorizable(x) = Pointer(x)
-@inline vectorizable(x::Pointer) = x
+@inline vectorizable(x::AbstractPointer) = x
 @inline vectorizable(x::Symmetric) = vectorizable(x.data)
 @inline vectorizable(x::LinearAlgebra.AbstractTriangular) = vectorizable(x.data)
 @inline vectorizable(x::Diagonal) = vectorizable(x.diag)
 
-
+@inline zeroinitialized(A::Pointer) = ZeroInitializedPointer(A.ptr)
