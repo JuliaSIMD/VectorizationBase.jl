@@ -34,17 +34,7 @@ end
     Wshift = intlog2(W)
     W, Wshift
 end
-function pick_vector_width(N::Integer, ::Type{T} = Float64) where {T}
-    W = pick_vector_width(T)
-    N > W && return W
-    TwoN = 2N
-    while W >= TwoN
-        W >>>= 1
-    end
-    W
-end
-function pick_vector_width_shift(N::Integer, ::Type{T} = Float64) where {T}
-    W, Wshift = pick_vector_width_shift(T)
+function downadjust_W_and_Wshift(N, W, Wshift)
     N > W && return W, Wshift
     TwoN = 2N
     while W >= TwoN
@@ -53,6 +43,25 @@ function pick_vector_width_shift(N::Integer, ::Type{T} = Float64) where {T}
     end
     W, Wshift
 end
+function pick_vector_width_shift(N::Integer, ::Type{T} = Float64) where {T}
+    W, Wshift = pick_vector_width_shift(T)
+    downadjust_W_and_Wshift(N, W, Wshift)
+end
+function pick_vector_width(N::Integer, ::Type{T} = Float64) where {T}
+    W = pick_vector_width(T)
+    first(downadjust_W_and_Wshift(N, W, 0))
+end
+function pick_vector_width_shift(N::Integer, size_T::Integer)
+    W = max(1, REGISTER_SIZE ÷ size_T)
+    Wshift = intlog2(W)
+    downadjust_W_and_Wshift(N, W, Wshift)
+end
+function pick_vector_width(N::Integer, size_T::Integer)
+    W = max(1, REGISTER_SIZE ÷ size_T)
+    first(downadjust_W_and_Wshift(N, W, 0))
+end
+
+
 pick_vector_width(::Symbol, T) = pick_vector_width(T)
 pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
 
