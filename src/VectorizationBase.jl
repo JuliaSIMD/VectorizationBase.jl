@@ -67,6 +67,15 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 @inline firstval(x::SVec) = first(extract_data(x)).value
 @inline firstval(x) = first(x)
 
+function Base.show(io::IO, v::SVec{W,T}) where {W,T}
+    print(io, "SVec{$W,$T}<")
+    for w ∈ 1:W
+        print(io, v[w])
+        w < W && print(io, ", ")
+    end
+    print(">")
+end
+
 include("vectorizable.jl")
 include("cpu_info.jl")
 include("vector_width.jl")
