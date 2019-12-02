@@ -82,5 +82,7 @@ include("vector_width.jl")
 include("number_vectors.jl")
 include("masks.jl")
 include("alignment.jl")
+include("precompile.jl")
+_precompile_()
 
 end # module
