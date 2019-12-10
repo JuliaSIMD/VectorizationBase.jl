@@ -46,3 +46,6 @@ end
         one($M) << (rem & $(typemax(M))) - $(one(M))
     end
 end
+
+unstable_mask(W, rem) = mask(Val(W), rem)
+
