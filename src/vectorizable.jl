@@ -123,6 +123,9 @@ struct Pointer{T} <: AbstractPointer{T}
     @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
 
+@inline vectorizable(ptr::AbstractPointer) = ptr
+@inline linearizeindices(ptr::AbstractPointer, i::CartesianIndex) = linearizeindices(ptr, i.I)
+
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
 struct PackedStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
@@ -229,11 +232,11 @@ const AbstractZeroInitializedPointer{T} = Union{
 
 # Now, to define indexing
 @inline load(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline load(ptr::AbstractZeroInitializedPointer{T}, i::Integer) where {T} = zero(T)
+@inline load(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 @inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}, i::Integer) where {T} = zero(T)
+@inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 @inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}, i::Integer) where {T} = zero(T)
+@inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 
 @inline load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 @inline unsafe_load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
@@ -243,7 +246,22 @@ const AbstractZeroInitializedPointer{T} = Union{
 @inline unsafe_load(ptr::AbstractInitializedPointer, i::Integer) = load((ptr + unitstep(ptr, i - 1)).ptr)
 @inline Base.getindex(ptr::AbstractInitializedPointer, i::Integer) = load((ptr + unitstep(ptr, i)).ptr)
 
+@inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 
+@inline store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!((ptr + unitstep(ptr, i)).ptr, v)
+@inline unsafe_store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!((ptr + unitstep(ptr, i - 1)).ptr, v)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!((ptr + unitstep(ptr, i)).ptr, v)
+
+
+@inline load(ptr::AbstractInitializedPointer, i) = load((ptr + unitstep(ptr, i)).ptr)
+@inline unsafe_load(ptr::AbstractInitializedPointer, i) = load((ptr + unitstep(ptr, i - 1)).ptr)
+@inline Base.getindex(ptr::AbstractInitializedPointer, i) = load((ptr + unitstep(ptr, i)).ptr)
+
+@inline store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!((ptr + linearizeindices(ptr, i)).ptr, v)
+@inline unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!((ptr + linearizeindices(ptr, i - 1)).ptr, v)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!((ptr + linearizeindices(ptr, i)).ptr, v)
 
 
 # @inline Base.stride(ptr::AbstractPointer{Cvoid}) = 1
@@ -257,22 +275,8 @@ const AbstractZeroInitializedPointer{T} = Union{
 @inline ZeroInitializedPointer(A) = ZeroInitializedPointer(pointer(A))
 # @inline DynamicStridedPointer(A::AbstractArray) = DynamicStridedPointer(pointer(A), stride(A,1))
 
-
-@inline Base.eltype(::AbstractPointer{T}) where {T} = T
-@inline load(ptr::AbstractPointer) = load(ptr.ptr)
-@inline load(ptr::AbstractPointer{T}, i::Integer) where {T} = load(ptr.ptr + i * sizeof(T))
-@inline Base.unsafe_load(ptr::AbstractPointer) = load(ptr.ptr)
-@inline Base.unsafe_load(ptr::AbstractPointer{T}, i::Integer) where {T} = load(ptr.ptr + (i-1) * sizeof(T))
-@inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
-@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + (i-1)*sizeof(T), v)
-@inline Base.getindex(ptr::AbstractPointer{T}) where {T} = load(ptr.ptr)
-@inline Base.getindex(ptr::AbstractPointer{T}, i::Integer) where {T} = load(ptr.ptr + i*sizeof(T) )
-@inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr, v)
-@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!(ptr.ptr + i * sizeof(T), v)
-@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
 @inline Base.pointer(ptr::AbstractPointer) = ptr.ptr
+@inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
 
 
 """
