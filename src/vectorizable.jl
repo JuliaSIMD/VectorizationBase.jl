@@ -1,3 +1,5 @@
+## 
+
 
 # Convert Julia types to LLVM types
 const LLVMTYPE = Dict{DataType,String}(
@@ -117,14 +119,14 @@ ptrx[2]
 # 2
 """
 abstract type AbstractPointer{T} end
-@inline unitstep(::AbstractPointer, i::Integer) = i
+@inline gep(ptr::AbstractPointer{T}, i::Integer) where {T} = ptr.ptr + i*sizeof(T)
+@inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
 struct Pointer{T} <: AbstractPointer{T}
     ptr::Ptr{T}
     @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
 
-@inline vectorizable(ptr::AbstractPointer) = ptr
-@inline linearizeindices(ptr::AbstractPointer, i::CartesianIndex) = linearizeindices(ptr, i.I)
+
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
 struct PackedStridedPointer{T,N} <: AbstractStridedPointer{T}
@@ -149,33 +151,56 @@ struct ZeroInitializedPackedStridedPointer{T,N} <: AbstractStridedPointer{T}
     strides::NTuple{N,Int}
 end
 const AbstractPackedStridedPointer{T,N} = Union{PackedStridedPointer{T,N},ZeroInitializedPackedStridedPointer{T,N}}
-@inline linearizeindices(ptr::AbstractPackedStridedPointer, i::NTuple) = first(i) + tdot(Base.tail(i), ptr.strides)
+@inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::NTuple)
+    ptr.ptr + first(i) + tdot(Base.tail(i), ptr.strides)
+end
+@inline function gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple) where {T}
+    ptr.ptr + sizeof(T) * (first(i) + tdot(Base.tail(i), ptr.strides))
+end
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
 const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroInitializedSparseStridedPointer{T,N}}
-@inline unitstep(ptr::AbstractSparseStridedPointer, i::Integer) = first(ptr.strides)*i
-@inline linearizeindices(ptr::AbstractSparseStridedPointer, i::NTuple) = tdot(i, ptr.strides)
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = ptr.ptr + first(ptr.strides)*i*max(1,sizeof(T))
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = ptr.ptr + tdot(i, ptr.strides)*max(1,sizeof(T))
 struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
 end
 const AbstractStaticStridedPointer{T,X} = Union{StaticStridedPointer{T,X},ZeroInitializedStaticStridedPointer{T,X}}
-@generated function unitstride(::AbstractStaticStridedPointer{T,X}) where {T,X}
-    Expr(:block, Expr(:meta,:inline), first(X.parameters)::Int)
-end
-@generated function unitstep(::AbstractStaticStridedPointer{T,X}, i::Integer) where {T,X}
+# @generated function unitstride(::AbstractStaticStridedPointer{T,X}) where {T,X}
+    # Expr(:block, Expr(:meta,:inline), first(X.parameters)::Int)
+# end
+@generated function gep(::AbstractStaticStridedPointer{T,X}, i::Integer) where {T,X}
     s = first(X.parameters)::Int
-    Expr(:block, Expr(:meta,:inline), s == 1 ? :i : Expr(:*, s, :i))
+    size_T = max(1, sizeof(T))
+    g = if s == 1
+        if size_T == 1
+            :i
+        else
+            Expr(:call, :*, size_T, :i)
+        end
+    else
+        if size_T == 1
+            Expr(:call, :*, s, :i)
+        else
+            Expr(:call, :*, s, size_T, :i)
+        end
+    end
+    Expr(:block, Expr(:meta,:inline), g)
 end
-@generated function linearindices(::AbstractStaticStridedPointer{T,X}, i::NTuple{N}) where {T,X,N}
+@generated function gep(ptr::AbstractStaticStridedPointer{T,X}, i::NTuple{N}) where {T,X,N}
     s = first(X.parameters)::Int
     ex = Expr(:call, :+)
     i1 = Expr(:ref, :i, 1)
     push!(ex.args, s == 1 ? i1 : Expr(:call, :*, s, i1))
     for n ∈ 2:N
         push!(ex.args, Expr(:call, :*, (X.parameters[n])::Int, Expr(:ref, :i, n)))
+    end
+    size_T = max(1, sizeof(T))
+    if size_T > 1
+        ex = Expr(:call, :*, size_T, ex)
     end
     Expr(
         :block,
@@ -184,10 +209,20 @@ end
             :macrocall,
             Symbol("@inbounds"),
             LineNumberNode(@__LINE__, @__FILE__),
-            ex
+            Expr(:call, :+, Expr(:(.), :ptr, QuoteNode(:ptr)), ex)
         )
     )
 end
+const AbstractInitializedStridedPointer{T} = Union{
+    PackedStridedPointer{T},
+    SparseStridedPointer{T},
+    StaticStridedPointer{T}
+}
+const AbstractZeroInitializedStridedPointer{T} = Union{
+    ZeroInitializedPackedStridedPointer{T},
+    ZeroInitializedSparseStridedPointer{T},
+    ZeroInitializedStaticStridedPointer{T}
+}
 const AbstractInitializedPointer{T} = Union{
     Pointer{T},
     PackedStridedPointer{T},
@@ -200,6 +235,14 @@ const AbstractZeroInitializedPointer{T} = Union{
     ZeroInitializedSparseStridedPointer{T},
     ZeroInitializedStaticStridedPointer{T}
 }
+
+@inline Base.stride(ptr::AbstractPackedStridedPointer, i) = isone(i) ? 1 : @inbounds ptr.strides[i-1]
+@inline Base.stride(ptr::AbstractSparseStridedPointer, i) = 1
+@generated function Base.stride(::AbstractStaticStridedPointer{T,X}, i) where {T,X}
+    Expr(:block, Expr(:meta, :inline), (X.parameters[i])::Int)
+end
+
+@inline gep(ptr::AbstractPointer, i::CartesianIndex) = gep(ptr, i.I)
 
 @inline Base.similar(::Pointer{T}, ptr::Ptr{T}) where {T} = Pointer(ptr)
 @inline Base.similar(::ZeroInitializedPointer{T}, ptr::Ptr{T}) where {T} = ZeroInitializedPointer(ptr)
@@ -242,26 +285,18 @@ const AbstractZeroInitializedPointer{T} = Union{
 @inline unsafe_load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 @inline Base.getindex(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 
-@inline load(ptr::AbstractInitializedPointer, i::Integer) = load((ptr + unitstep(ptr, i)).ptr)
-@inline unsafe_load(ptr::AbstractInitializedPointer, i::Integer) = load((ptr + unitstep(ptr, i - 1)).ptr)
-@inline Base.getindex(ptr::AbstractInitializedPointer, i::Integer) = load((ptr + unitstep(ptr, i)).ptr)
+@inline load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i))
+@inline unsafe_load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i - 1))
+@inline Base.getindex(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i))
 
 @inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 
-@inline store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!((ptr + unitstep(ptr, i)).ptr, v)
-@inline unsafe_store!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!((ptr + unitstep(ptr, i - 1)).ptr, v)
-@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i::Integer) where {T} = store!((ptr + unitstep(ptr, i)).ptr, v)
+@inline store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i), v)
+@inline unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i - 1), v)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i), v)
 
-
-@inline load(ptr::AbstractInitializedPointer, i) = load((ptr + unitstep(ptr, i)).ptr)
-@inline unsafe_load(ptr::AbstractInitializedPointer, i) = load((ptr + unitstep(ptr, i - 1)).ptr)
-@inline Base.getindex(ptr::AbstractInitializedPointer, i) = load((ptr + unitstep(ptr, i)).ptr)
-
-@inline store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!((ptr + linearizeindices(ptr, i)).ptr, v)
-@inline unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!((ptr + linearizeindices(ptr, i - 1)).ptr, v)
-@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!((ptr + linearizeindices(ptr, i)).ptr, v)
 
 
 # @inline Base.stride(ptr::AbstractPointer{Cvoid}) = 1
@@ -311,6 +346,22 @@ allows one to customize behavior via making use of the type system.
     end
 end
 
+
+@inline stridedpointer(x) = Pointer(x)
+@inline stridedpointer(A::DenseArray) = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+@generated function stridedpointer(A::SubArray{T,N,P,S,B}) where {T,N,P,S,B}
+    if first(S.parameters) <: Integer # nonunit stride 1
+        quote
+            $(Expr(:meta,:inline))
+            SparseStridedPointer{$T}(pointer(A), strides(A))
+        end
+    else
+        quote
+            $(Expr(:meta,:inline))
+            PackedStridedPointer{$T}(pointer(A), Base.tail(strides(A)))
+        end
+    end
+end
 
 
 # ### vectorizables
