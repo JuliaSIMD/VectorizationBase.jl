@@ -91,7 +91,7 @@ end
 
 
 
-@inline tdot(a::Tuple{Int}, b::Tuple{Int}) = @inbounds a[1] + b[1]
+@inline tdot(a::Tuple{Int}, b::Tuple{Int}) = @inbounds a[1] * b[1]
 @inline tdot(a::Tuple{Int,Int}, b::Tuple{Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2]
 @inline tdot(a::Tuple{Int,Int,Int}, b::Tuple{Int,Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
 @inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = first(a)*first(b) + tdot(Base.tail(a), Base.tail(b))
@@ -156,6 +156,12 @@ const AbstractPackedStridedPointer{T,N} = Union{PackedStridedPointer{T,N},ZeroIn
 end
 @inline function gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple) where {T}
     ptr.ptr + sizeof(T) * (first(i) + tdot(Base.tail(i), ptr.strides))
+end
+@inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::Tuple{Int})
+    ptr.ptr + first(i)
+end
+@inline function gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{Int}) where {T}
+    ptr.ptr + sizeof(T) * first(i)
 end
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
