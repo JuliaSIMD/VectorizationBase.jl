@@ -243,10 +243,16 @@ const AbstractZeroInitializedPointer{T} = Union{
 }
 
 @inline Base.stride(ptr::AbstractPackedStridedPointer, i) = isone(i) ? 1 : @inbounds ptr.strides[i-1]
-@inline Base.stride(ptr::AbstractSparseStridedPointer, i) = 1
+@inline Base.stride(ptr::AbstractSparseStridedPointer, i) = ptr.strides[i]
 @generated function Base.stride(::AbstractStaticStridedPointer{T,X}, i) where {T,X}
-    Expr(:block, Expr(:meta, :inline), (X.parameters[i])::Int)
+    Expr(:block, Expr(:meta, :inline), Expr(:getindex, Expr(:tuple, X.parameters...), :i))
 end
+@inline stride1(ptr::AbstractPackedStridedPointer) = 1
+@inline stride1(ptr::AbstractSparseStridedPointer) = first(ptr.strides)
+@generated function stride1(::AbstractStaticStridedPointer{T,X}) where {T,X}
+    Expr(:block, Expr(:meta, :inline), first(X.parameters)::Int)
+end
+
 
 @inline gep(ptr::AbstractPointer, i::CartesianIndex) = gep(ptr, i.I)
 
@@ -359,12 +365,12 @@ end
     if first(S.parameters) <: Integer # nonunit stride 1
         quote
             $(Expr(:meta,:inline))
-            SparseStridedPointer{$T}(pointer(A), strides(A))
+            SparseStridedPointer(pointer(A), strides(A))
         end
     else
         quote
             $(Expr(:meta,:inline))
-            PackedStridedPointer{$T}(pointer(A), Base.tail(strides(A)))
+            PackedStridedPointer(pointer(A), Base.tail(strides(A)))
         end
     end
 end
