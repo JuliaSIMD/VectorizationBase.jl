@@ -125,7 +125,7 @@ struct Pointer{T} <: AbstractPointer{T}
     ptr::Ptr{T}
     @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
-
+@inline Base.eltype(::AbstractPointer{T}) where {T} = T
 
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
@@ -288,19 +288,19 @@ end
 @inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 
 @inline load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
-@inline unsafe_load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
+@inline Base.unsafe_load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 @inline Base.getindex(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 
 @inline load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i))
-@inline unsafe_load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i - 1))
+@inline Base.unsafe_load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i - 1))
 @inline Base.getindex(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i))
 
 @inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 
 @inline store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i), v)
-@inline unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i - 1), v)
+@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i - 1), v)
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i), v)
 
 
