@@ -247,6 +247,7 @@ const AbstractZeroInitializedPointer{T} = Union{
 @generated function Base.stride(::AbstractStaticStridedPointer{T,X}, i) where {T,X}
     Expr(:block, Expr(:meta, :inline), Expr(:getindex, Expr(:tuple, X.parameters...), :i))
 end
+@inline stride1(x) = stride(x, 1)
 @inline stride1(ptr::AbstractPackedStridedPointer) = 1
 @inline stride1(ptr::AbstractSparseStridedPointer) = first(ptr.strides)
 @generated function stride1(::AbstractStaticStridedPointer{T,X}) where {T,X}
