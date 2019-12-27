@@ -361,6 +361,7 @@ end
 
 
 @inline stridedpointer(x) = Pointer(x)
+@inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
 @inline stridedpointer(A::DenseArray) = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 @generated function stridedpointer(A::SubArray{T,N,P,S,B}) where {T,N,P,S,B}
     if first(S.parameters) <: Integer # nonunit stride 1
