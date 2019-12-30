@@ -9,6 +9,8 @@ aligntrunc(x, ::Type{T}) where {T} = aligntrunc(x, REGISTER_SIZE ÷ sizeof(T))
 alignment(x, N = 64) = reinterpret(Int, x) % N
 
 function valloc(N::Int, ::Type{T} = Float64) where {T}
-    reinterpret(Ptr{T}, align(reinterpret(UInt,Libc.malloc(sizeof(T)*N + 63)), 64))
+    # We want alignment to both vector and cacheline-sized boundaries
+    a = max(REGISTER_SIZE, CACHELINE_SIZE) 
+    reinterpret(Ptr{T}, align(reinterpret(UInt,Libc.malloc(sizeof(T)*N + a - 1)), a))
 end
 
