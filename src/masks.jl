@@ -49,3 +49,18 @@ end
 
 unstable_mask(W, rem) = mask(Val(W), rem)
 
+@generated function masktable(::Val{W}, rem::Integer) where {W}
+    masks = Expr(:tuple)
+    for w ∈ 0:W-1
+        push!(masks.args, unstable_mask(W, w == 0 ? W : w))
+    end
+    Expr(
+        :block,
+        Expr(:meta,:inline),
+        Expr(
+            :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__),
+            Expr(:call, :getindex, masks, Expr(:call, :+, 1, :rem))
+        )
+    )
+end
+
