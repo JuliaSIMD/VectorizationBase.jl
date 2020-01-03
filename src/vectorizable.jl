@@ -376,6 +376,10 @@ end
         end
     end
 end
+@inline stridedpointer(A::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = Pointer(parent(A))
+@inline function stridedpointer(A::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
+    SparseStridedPointer(pointer(parent(A)), reverse(strides(A)))
+end
 
 
 # ### vectorizables
