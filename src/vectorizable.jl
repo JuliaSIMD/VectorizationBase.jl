@@ -126,6 +126,7 @@ struct Pointer{T} <: AbstractPointer{T}
     @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
+@inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
@@ -376,9 +377,10 @@ end
         end
     end
 end
-@inline stridedpointer(A::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = Pointer(parent(A))
-@inline function stridedpointer(A::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
-    SparseStridedPointer(pointer(parent(A)), reverse(strides(A)))
+@inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = Pointer(parent(B))
+@inline function stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
+    pB = parent(B)
+    SparseStridedPointer(pointer(pB), reverse(strides(pB)))
 end
 
 
