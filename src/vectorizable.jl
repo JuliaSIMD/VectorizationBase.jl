@@ -88,7 +88,7 @@ end
 @inline load(ptr::Ptr) = Base.unsafe_load(ptr)
 @inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
 @inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(Base.unsafe_convert(Ptr{T1}, ptr))
-
+@inline store!(ptr::Ptr{T1}, v::T2) where {T1,T2} = store!(ptr, convert(T1, v))
 
 
 @inline tdot(a::Tuple{Int}, b::Tuple{Int}) = @inbounds a[1] * b[1]
@@ -118,7 +118,7 @@ ptrx[1]
 ptrx[2]
 # 2
 """
-abstract type AbstractPointer{T} end
+abstract type AbstractPointer{T} end                                       
 @inline gep(ptr::AbstractPointer{T}, i::Integer) where {T} = ptr.ptr + i*sizeof(T)
 @inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
 struct Pointer{T} <: AbstractPointer{T}
@@ -127,7 +127,7 @@ struct Pointer{T} <: AbstractPointer{T}
 end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
 @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
-
+@inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
 struct PackedStridedPointer{T,N} <: AbstractStridedPointer{T}
