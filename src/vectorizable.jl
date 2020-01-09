@@ -16,10 +16,11 @@ const LLVMTYPE = Dict{DataType,String}(
     UInt128 => "i128",
     Float16 => "half",
     Float32 => "float",
-    Float64 => "double"
+    Float64 => "double",
+    Nothing => "void"
 )
 llvmtype(x)::String = LLVMTYPE[x]
-
+const JuliaPointerType = LLVMTYPE[Int]
 
 # llvmtype(::Type{Bool8}) = "i8"
 # llvmtype(::Type{Bool16}) = "i16"
@@ -33,7 +34,7 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
 
 @generated function load(ptr::Ptr{T}) where {T <: LLVMCompatible}
     # @assert isa(Aligned, Bool)
-    ptyp = llvmtype(Int)
+    ptyp = JuliaPointerType
     typ = llvmtype(T)
     # vtyp = "<$N x $typ>"
     # decls = String[]
@@ -59,7 +60,7 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
     end
 end
 @generated function store!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
-    ptyp = llvmtype(Int)
+    ptyp = JuliaPointerType
     typ = llvmtype(T)
     # vtyp = "<$N x $typ>"
     # decls = String[]
@@ -118,8 +119,47 @@ ptrx[1]
 ptrx[2]
 # 2
 """
-abstract type AbstractPointer{T} end                                       
-@inline gep(ptr::AbstractPointer{T}, i::Integer) where {T} = ptr.ptr + i*sizeof(T)
+abstract type AbstractPointer{T} end
+
+@generated function gep(ptr::Ptr{T}, i::I) where {T, I <: Integer}
+    ptyp = JuliaPointerType
+    typ = llvmtype(T)
+    ityp = llvmtype(I)
+    instrs = String[]
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
+    push!(instrs, "%offsetptr = getelementptr inbounds $typ, $typ* %ptr, $ityp %1")
+    push!(instrs, "%iptr = ptrtoint $typ* %offsetptr to $ptyp")
+    push!(instrs, "ret $ptyp %iptr")
+    quote
+        Base.llvmcall(
+            $(join(instrs, "\n")),
+            Ptr{$T}, Tuple{Ptr{$T}, $I},
+            ptr, i
+        )
+    end
+end
+@inline gep(ptr::AbstractPointer, i::Integer) = gep(ptr.ptr, i)
+@generated function gep(ptr::Ptr{T}, i::NTuple{W,Core.VecElement{I}}) where {W, T, I <: Integer}
+    ptyp = JuliaPointerType
+    typ = llvmtype(T)
+    ityp = llvmtype(I)
+    vityp = "<$W x $ityp>"
+    vptyp = "<$W x $ptyp>"
+    instrs = String[]
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
+    push!(instrs, "%offsetptr = getelementptr inbounds $typ, $typ* %ptr, $vityp %1")
+    push!(instrs, "%iptr = ptrtoint <$W x $typ*> %offsetptr to $vptyp")
+    push!(instrs, "ret $vptyp %iptr")
+    quote
+        Base.llvmcall(
+            $(join(instrs, "\n")),
+            NTuple{$W,Core.VecElement{Ptr{$T}}}, Tuple{Ptr{$T}, NTuple{W,Core.VecElement{$I}}},
+            ptr, i
+        )
+    end    
+end
+@inline gep(ptr, v::SVec) = gep(v, extract_data(v))
+@inline gep(ptr::AbstractPointer, i::NTuple{W,Core.VecElement{I}}) where {W,I<:Integer} = gep(ptr.ptr, i)
 @inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
 struct Pointer{T} <: AbstractPointer{T}
     ptr::Ptr{T}
@@ -155,23 +195,19 @@ const AbstractPackedStridedPointer{T,N} = Union{PackedStridedPointer{T,N},ZeroIn
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::NTuple)
     ptr.ptr + first(i) + tdot(Base.tail(i), ptr.strides)
 end
-@inline function gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple) where {T}
-    ptr.ptr + sizeof(T) * (first(i) + tdot(Base.tail(i), ptr.strides))
-end
+@inline gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple) where {T} = gep(ptr, first(i) + tdot(Base.tail(i), ptr.strides))
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::Tuple{Int})
     ptr.ptr + first(i)
 end
-@inline function gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{Int}) where {T}
-    ptr.ptr + sizeof(T) * first(i)
-end
+@inline gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{Int}) where {T} = gep(ptr, first(i))
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
 const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroInitializedSparseStridedPointer{T,N}}
-@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = ptr.ptr + first(ptr.strides)*i*max(1,sizeof(T))
-@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = ptr.ptr + tdot(i, ptr.strides)*max(1,sizeof(T))
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = gep(ptr, first(ptr.strides)*i)
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = gep(ptr, tdot(i, ptr.strides))
 struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
 end
@@ -179,21 +215,12 @@ const AbstractStaticStridedPointer{T,X} = Union{StaticStridedPointer{T,X},ZeroIn
 # @generated function unitstride(::AbstractStaticStridedPointer{T,X}) where {T,X}
     # Expr(:block, Expr(:meta,:inline), first(X.parameters)::Int)
 # end
-@generated function gep(::AbstractStaticStridedPointer{T,X}, i::Integer) where {T,X}
+@generated function gep(ptr::AbstractStaticStridedPointer{T,X}, i::Integer) where {T,X}
     s = first(X.parameters)::Int
-    size_T = max(1, sizeof(T))
     g = if s == 1
-        if size_T == 1
-            :i
-        else
-            Expr(:call, :*, size_T, :i)
-        end
+        Expr(:call, :gep, :ptr, :i)
     else
-        if size_T == 1
-            Expr(:call, :*, s, :i)
-        else
-            Expr(:call, :*, s, size_T, :i)
-        end
+        Expr(:call, :gep, :ptr, Expr(:call, :*, :i, s))
     end
     Expr(:block, Expr(:meta,:inline), g)
 end
@@ -205,10 +232,6 @@ end
     for n ∈ 2:N
         push!(ex.args, Expr(:call, :*, (X.parameters[n])::Int, Expr(:ref, :i, n)))
     end
-    size_T = max(1, sizeof(T))
-    if size_T > 1
-        ex = Expr(:call, :*, size_T, ex)
-    end
     Expr(
         :block,
         Expr(:meta,:inline),
@@ -216,7 +239,7 @@ end
             :macrocall,
             Symbol("@inbounds"),
             LineNumberNode(@__LINE__, @__FILE__),
-            Expr(:call, :+, Expr(:(.), :ptr, QuoteNode(:ptr)), ex)
+            Expr(:call, :gep, :ptr, ex)
         )
     )
 end
