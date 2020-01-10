@@ -29,7 +29,7 @@ end
 # @inline function SVec(v::Vec{N,T}) where {N,T}
     # SVec{N,T}(v)
 # end
-@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: ScalarTypes}
+@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Union{Ptr,Integer,Float16,Float32,Float64}}
     typ = llvmtype(T)
     vtyp = vtyp1 = "<$W x $typ>"
     instrs = String[]
