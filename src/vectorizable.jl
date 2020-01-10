@@ -206,8 +206,8 @@ struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     strides::NTuple{N,Int}
 end
 const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroInitializedSparseStridedPointer{T,N}}
-@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = gep(ptr, first(ptr.strides)*i)
-@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = gep(ptr, tdot(i, ptr.strides))
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = gep(ptr.ptr, first(ptr.strides)*i)
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = gep(ptr.ptr, tdot(i, ptr.strides))
 struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
 end
@@ -387,14 +387,14 @@ end
 @inline stridedpointer(x) = Pointer(x)
 @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
 @inline stridedpointer(A::DenseArray) = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
-@inline function broadcaststridedpointer(A::DenseArray{T,N}) where {T,N}
-    stridesA = strides(A)
-    sizeA = size(A)
-    PackedStridedPointer(
-        pointer(A),
-        ntuple(n -> sizeA[n+1] == 1 ? 0 : stridesA[n+1], Val(N-1))
-    )
-end
+# @inline function broadcaststridedpointer(A::DenseArray{T,N}) where {T,N}
+#     stridesA = strides(A)
+#     sizeA = size(A)
+#     PackedStridedPointer(
+#         pointer(A),
+#         ntuple(n -> sizeA[n+1] == 1 ? 0 : stridesA[n+1], Val(N-1))
+#     )
+# end
 @generated function stridedpointer(A::SubArray{T,N,P,S,B}) where {T,N,P,S,B}
     if first(S.parameters) <: Integer # nonunit stride 1
         quote
