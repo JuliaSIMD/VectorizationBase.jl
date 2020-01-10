@@ -35,24 +35,19 @@ end
 @inline Base.eltype(::AbstractStructVec{N,T}) where {N,T} = T
 @inline Base.conj(v::AbstractStructVec) = v # so that things like dot products work.
 @inline Base.adjoint(v::AbstractStructVec) = v # so that things like dot products work.
+@inline Base.transpose(v::AbstractStructVec) = v # so that things like dot products work.
 @inline Base.getindex(v::SVec, i::Integer) = v.data[i].value
 
 # @inline function SVec{N,T}(v::SVec{N,T2}) where {N,T,T2}
     # @inbounds SVec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
 # end
 
-function Base.one(::Type{<:AbstractStructVec{N,T}}) where {N,T}
-    SVec{N,T}(one(T))
-end
-function Base.one(::AbstractStructVec{N,T}) where {N,T}
-    SVec{N,T}(one(T))
-end
-function Base.zero(::Type{<:AbstractStructVec{N,T}}) where {N,T}
-    SVec{N,T}(zero(T))
-end
-function Base.zero(::AbstractStructVec{N,T}) where {N,T}
-    SVec{N,T}(zero(T))
-end
+@inline Base.one(::Type{<:AbstractStructVec{N,T}}) where {N,T} = SVec{N,T}(one(T))
+@inline Base.one(::AbstractStructVec{N,T}) where {N,T} = SVec{N,T}(one(T))
+@inline Base.zero(::Type{<:AbstractStructVec{N,T}}) where {N,T} = SVec{N,T}(zero(T))
+@inline Base.zero(::AbstractStructVec{N,T}) where {N,T} = SVec{N,T}(zero(T))
+
+
 
 const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 
