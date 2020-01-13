@@ -12,11 +12,11 @@ export Vec, VE, SVec,
     load, store!, vbroadcast
 
 const VE{T} = Core.VecElement{T}
-const Vec{N,T} = NTuple{N,VE{T}}
+const Vec{W,T} = NTuple{W,VE{T}}
 
-abstract type AbstractStructVec{N,T} end
-struct SVec{N,T} <: AbstractStructVec{N,T}
-    data::Vec{N,T}
+abstract type AbstractStructVec{W,T} end
+struct SVec{W,T} <: AbstractStructVec{W,T}
+    data::Vec{W,T}
     # SVec{N,T}(v) where {N,T} = new(v)
 end
 # SVec{N,T}(x) where {N,T} = SVec(ntuple(i -> VE(T(x)), Val(N)))
@@ -59,8 +59,13 @@ end
 @inline vzero(::Type{SVec{N,T}}) where {N,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
 @inline vone(::Type{T}) where {T} = one(T)
 @inline vzero(::Type{T}) where {T} = zero(T)
-@inline VectorizationBase.SVec{W,T}(s::T) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
+@inline VectorizationBase.SVec{W}(s::T) where {W,T<:Number} = SVec(vbroadcast(Vec{W,T}, s))
+@inline VectorizationBase.SVec{W,T}(s::T) where {W,T<:Number} = SVec(vbroadcast(Vec{W,T}, s))
 @inline VectorizationBase.SVec{W,T}(s::Number) where {W,T} = SVec(vbroadcast(Vec{W,T}, convert(T, s)))
+
+@inline VectorizationBase.SVec{W}(v::Vec{W,T}) where {W,T<:Number} = SVec(v)
+@inline VectorizationBase.SVec{W}(v::SVec{W,T}) where {W,T<:Number} = v
+
 
 
 @inline Base.length(::AbstractStructVec{N}) where N = N
