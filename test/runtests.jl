@@ -19,11 +19,11 @@ v = SVec((VE(1.0),VE(2.0),VE(3.0),VE(4.0)))
 @test eltype(v) == Float64
 for i in 1:4
     @test i == v[i]
-    @test i === SVec{4,Int}(v)[i]
+    # @test i === SVec{4,Int}(v)[i] # should use fptosi (ie, vconvert defined in SIMDPirates).
 end
 @test zero(v) === zero(typeof(v))
 @test one(v) === one(typeof(v))
-@test SVec{W32,Float32}(one(SVec{W32,Float64})) === SVec(one(SVec{W32,Float32})) === one(SVec{W32,Float32})
+# @test SVec{W32,Float32}(one(SVec{W32,Float64})) === SVec(one(SVec{W32,Float32})) === one(SVec{W32,Float32}) # conversions should be tested in SIMDPirates
 @test firstval(v) === firstval(extract_data(v)) === 1.0
 end
 
