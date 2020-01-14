@@ -195,11 +195,11 @@ const AbstractPackedStridedPointer{T,N} = Union{PackedStridedPointer{T,N},ZeroIn
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::NTuple)
     ptr.ptr + first(i) + tdot(Base.tail(i), ptr.strides)
 end
-@inline gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple) where {T} = gep(ptr, first(i) + tdot(Base.tail(i), ptr.strides))
+@inline gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple{N,I}) where {T,N,I<:Integer} = gep(ptr, first(i) + tdot(Base.tail(i), ptr.strides))
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::Tuple{Int})
     ptr.ptr + first(i)
 end
-@inline gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{Int}) where {T} = gep(ptr, first(i))
+@inline gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{I}) where {T,I<:Integer} = gep(ptr, first(i))
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
