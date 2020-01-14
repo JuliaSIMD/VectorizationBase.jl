@@ -95,7 +95,7 @@ end
 @inline tdot(a::Tuple{Int}, b::Tuple{Int}) = @inbounds a[1] * b[1]
 @inline tdot(a::Tuple{Int,Int}, b::Tuple{Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2]
 @inline tdot(a::Tuple{Int,Int,Int}, b::Tuple{Int,Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
-@inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = first(a)*first(b) + tdot(Base.tail(a), Base.tail(b))
+@inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = @inbounds first(a)*first(b) + tdot(Base.tail(a), Base.tail(b))
 
 
 
@@ -193,21 +193,21 @@ struct ZeroInitializedPackedStridedPointer{T,N} <: AbstractStridedPointer{T}
 end
 const AbstractPackedStridedPointer{T,N} = Union{PackedStridedPointer{T,N},ZeroInitializedPackedStridedPointer{T,N}}
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::NTuple)
-    ptr.ptr + first(i) + tdot(Base.tail(i), ptr.strides)
+    @inbounds ptr.ptr + first(i) + tdot(Base.tail(i), ptr.strides)
 end
-@inline gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple{N,I}) where {T,N,I<:Integer} = gep(ptr, first(i) + tdot(Base.tail(i), ptr.strides))
+@inline gep(ptr::AbstractPackedStridedPointer{T}, i::NTuple{N,I}) where {T,N,I<:Integer} = @inbounds gep(ptr, first(i) + tdot(Base.tail(i), ptr.strides))
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::Tuple{Int})
     ptr.ptr + first(i)
 end
-@inline gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{I}) where {T,I<:Integer} = gep(ptr, first(i))
+@inline gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{I}) where {T,I<:Integer} = @inbounds gep(ptr, first(i))
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
 const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroInitializedSparseStridedPointer{T,N}}
-@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = gep(ptr.ptr, first(ptr.strides)*i)
-@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = gep(ptr.ptr, tdot(i, ptr.strides))
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = @inbounds gep(ptr.ptr, first(ptr.strides)*i)
+@inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = @inbounds gep(ptr.ptr, tdot(i, ptr.strides))
 struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
 end
@@ -267,13 +267,13 @@ const AbstractZeroInitializedPointer{T} = Union{
 }
 
 @inline Base.stride(ptr::AbstractPackedStridedPointer, i) = isone(i) ? 1 : @inbounds ptr.strides[i-1]
-@inline Base.stride(ptr::AbstractSparseStridedPointer, i) = ptr.strides[i]
+@inline Base.stride(ptr::AbstractSparseStridedPointer, i) = @inbounds ptr.strides[i]
 @generated function Base.stride(::AbstractStaticStridedPointer{T,X}, i) where {T,X}
     Expr(:block, Expr(:meta, :inline), Expr(:getindex, Expr(:tuple, X.parameters...), :i))
 end
 @inline stride1(x) = stride(x, 1)
 @inline stride1(ptr::AbstractPackedStridedPointer) = 1
-@inline stride1(ptr::AbstractSparseStridedPointer) = first(ptr.strides)
+@inline stride1(ptr::AbstractSparseStridedPointer) = @inbounds first(ptr.strides)
 @generated function stride1(::AbstractStaticStridedPointer{T,X}) where {T,X}
     Expr(:block, Expr(:meta, :inline), first(X.parameters)::Int)
 end
@@ -386,7 +386,7 @@ end
 
 @inline stridedpointer(x) = Pointer(x)
 @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
-@inline stridedpointer(A::DenseArray) = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+@inline stridedpointer(A::DenseArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 # @inline function broadcaststridedpointer(A::DenseArray{T,N}) where {T,N}
 #     stridesA = strides(A)
 #     sizeA = size(A)
@@ -404,7 +404,7 @@ end
     else
         quote
             $(Expr(:meta,:inline))
-            PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+            @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
         end
     end
 end
