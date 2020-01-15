@@ -78,3 +78,27 @@ pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
+
+struct _MM{W}
+    i::Int
+end
+@inline Base.:(+)(i::_MM{W}, j) where {W} = _MM{W}(i.i + j)
+@inline Base.:(+)(i, j::_MM{W}) where {W} = _MM{W}(i + j.i)
+@inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
+@inline Base.:(*)(i::_MM{W}, j) where {W} = _MM{W}(i.i * j)
+@inline Base.:(*)(i, j::_MM{W}) where {W} = _MM{W}(i * j.i)
+@inline Base.:(*)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i * j.i)
+@inline Base.:(<)(i::_MM, j) = i.i < j
+@inline Base.:(<)(i::_MM, j::_MM) = i.i < j.i
+@inline Base.:(<)(i, j::_MM) = i < j.i
+@inline Base.:(>)(i::_MM, j) = i.i > j
+@inline Base.:(>)(i, j::_MM) = i > j.i
+@inline Base.:(>)(i::_MM, j::_MM) = i.i > j.i
+@inline Base.:(==)(i::_MM, j) = i.i == j
+@inline Base.:(==)(i, j::_MM) = i == j.i
+@inline Base.:(==)(i::_MM, j::_MM) = i.i == j.i
+@inline Base.:(!=)(i::_MM, j) = i.i != j
+@inline Base.:(!=)(i, j::_MM) = i != j.i
+@inline Base.:(!=)(i::_MM, j::_MM) = i.i != j.i
+
+
