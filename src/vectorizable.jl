@@ -158,7 +158,8 @@ end
         )
     end    
 end
-@inline gep(ptr, v::SVec) = gep(v, extract_data(v))
+@inline gep(ptr::Ptr, v::SVec) = gep(ptr, extract_data(v))
+@inline gep(ptr::AbstractPointer, v::SVec) = gep(ptr, extract_data(v))
 @inline gep(ptr::AbstractPointer, i::NTuple{W,Core.VecElement{I}}) where {W,I<:Integer} = gep(ptr.ptr, i)
 @inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
 struct Pointer{T} <: AbstractPointer{T}

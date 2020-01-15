@@ -100,5 +100,5 @@ end
 @inline Base.:(!=)(i::_MM, j) = i.i != j
 @inline Base.:(!=)(i, j::_MM) = i != j.i
 @inline Base.:(!=)(i::_MM, j::_MM) = i.i != j.i
-
+@inline extract_data(i::_MM) = i.i
 
