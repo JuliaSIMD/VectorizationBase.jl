@@ -53,10 +53,10 @@ end
 @inline vbroadcast(::Type{SVec{W,T}}, v::SVec{W,T}) where {W,T} = v
 @inline vbroadcast(::Type{SVec{W,T}}, v::Vec{W,T}) where {W,T} = SVec(v)
 
-@inline vone(::Type{Vec{N,T}}) where {N,T} = vbroadcast(Vec{W,T}, one(T))
-@inline vzero(::Type{Vec{N,T}}) where {N,T} = vbroadcast(Vec{W,T}, zero(T))
-@inline vone(::Type{SVec{N,T}}) where {N,T} = SVec(vbroadcast(Vec{W,T}, one(T)))
-@inline vzero(::Type{SVec{N,T}}) where {N,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
+@inline vone(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, one(T))
+@inline vzero(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, zero(T))
+@inline vone(::Type{SVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, one(T)))
+@inline vzero(::Type{SVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
 @inline vone(::Type{T}) where {T} = one(T)
 @inline vzero(::Type{T}) where {T} = zero(T)
 @inline VectorizationBase.SVec{W}(s::T) where {W,T<:Number} = SVec(vbroadcast(Vec{W,T}, s))
