@@ -82,6 +82,8 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 struct _MM{W}
     i::Int
 end
+@inline _MM(::Val{W}) where {W} = _MM{W}(0)
+@inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline Base.:(+)(i::_MM{W}, j) where {W} = _MM{W}(i.i + j)
 @inline Base.:(+)(i, j::_MM{W}) where {W} = _MM{W}(i + j.i)
 @inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
