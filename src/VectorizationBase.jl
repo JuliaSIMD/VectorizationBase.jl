@@ -93,6 +93,8 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 
 @inline extract_data(v) = v
 @inline extract_data(v::SVec) = v.data
+@inline extract_value(v::Vec{W,T}, i) where {W,T} = v[i].value
+@inline extract_value(v::SVec{W,T}, i) where {W,T} = v.data[i].value
 
 @inline firstval(x::Vec) = first(x).value
 @inline firstval(x::SVec) = first(extract_data(x)).value
@@ -107,6 +109,7 @@ function Base.show(io::IO, v::SVec{W,T}) where {W,T}
     print(">")
 end
 
+include("static.jl")
 include("vectorizable.jl")
 include("cpu_info.jl")
 include("vector_width.jl")

@@ -169,9 +169,10 @@ end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
 @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 @inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
+@inline vectorizable(A) = Pointer(pointer(A))
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
-# abstract type AbstractPackedStridedPointer{T,N} <: AbstractStridedPointer{T} end
+# abstract type AbstractPackedStridedObject{T,N} <: AbstractStridedPointer{T} end
 struct PackedStridedPointer{T,N} <: AbstractStridedPointer{T}#AbstractPackedStridedPointer{T,N}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
@@ -206,6 +207,8 @@ end
     ptr.ptr + first(i)
 end
 @inline gep(ptr::AbstractPackedStridedPointer{T,0}, i::Tuple{I}) where {T,I<:Integer} = @inbounds gep(ptr.ptr, first(i))
+
+
 
 struct ZeroInitializedRowMajorStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
@@ -379,42 +382,14 @@ end
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
 
 
-"""
-vectorizable(x) returns a representation of x convenient for vectorization.
-The generic fallback simply returns pointer(x):
-
-@inline vectorizable(x) = pointer(x)
-
-however pointers are sometimes not the ideal representation, and othertimes
-they are not possible in Julia (eg for stack-allocated objects). This interface
-allows one to customize behavior via making use of the type system.
-"""
-@inline vectorizable(x) = Pointer(x)
-@inline vectorizable(x::AbstractPointer) = x
-@inline vectorizable(x::Symmetric) = vectorizable(x.data)
-@inline vectorizable(x::LinearAlgebra.AbstractTriangular) = vectorizable(x.data)
-@inline vectorizable(x::Diagonal) = vectorizable(x.diag)
-
 @inline zeroinitialized(A::Pointer) = ZeroInitializedPointer(A.ptr)
 
-@generated function vectorizable(A::SubArray{T,N,P,S,B}) where {T,N,P,S,B}
-    if first(S.parameters) <: Integer # nonunit stride 1
-        quote
-            $(Expr(:meta,:inline))
-            DynamicStridedPointer{$T}(pointer(A), stride(A,1))
-        end
-    else
-        quote
-            $(Expr(:meta,:inline))
-            Pointer{$T}(pointer(A))
-        end
-    end
-end
 
 
 @inline stridedpointer(x) = x#Pointer(x)
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
 @inline stridedpointer(A::AbstractArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+@inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
 # @inline stridedpointer(A::DenseArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 
 # @inline function broadcaststridedpointer(A::DenseArray{T,N}) where {T,N}
@@ -425,20 +400,11 @@ end
 #         ntuple(n -> sizeA[n+1] == 1 ? 0 : stridesA[n+1], Val(N-1))
 #     )
 # end
-@generated function stridedpointer(A::SubArray{T,N,P,S,B}) where {T,N,P,S,B}
-    if first(S.parameters) <: Integer # nonunit stride 1
-        quote
-            $(Expr(:meta,:inline))
-            SparseStridedPointer(pointer(A), strides(A))
-        end
-    else
-        quote
-            $(Expr(:meta,:inline))
-            @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
-        end
-    end
-end
+@inline stridedpointer(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
+@inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}} = SparseStridedPointer(pointer(A), strides(A))
+@inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S} = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 @inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer(parent(B))
+
 @inline function stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
     pB = parent(B)
     RowMajorStridedPointer(pointer(pB), Base.tail(strides(pB)))
@@ -449,32 +415,35 @@ end
 end
 
 @inline stridedpointer(x::Number) = x
+@inline stridedpointer(x::AbstractRange) = x
 @inline stridedpointer(ptr::Ptr) = ptr
 @inline stridedpointer(ptr::AbstractPointer) = ptr
 
-# ### vectorizables
-# # Extensible interface code is at risk of world age issues if it uses generated functions.
-# # Extensibility is necessary here, therefore generated functions are avoided.
-# abstract type AbstractStrideDescription{I} end
-# struct Dense{I,N} <: AbstractStrideDescription{I}
-#     strides::NTuple{N,Int}
-# end
-# @inline Dense{I}(strides::NTuple{N,Int}) = Dense{I,N}(strides)
-# struct Packed{I,N} <: AbstractStrideDescription{I}
-#     strides::NTuple{N,Int}
-# end
-# @inline Packed{I}(strides::NTuple{N,Int}) = Packed{I,N}(strides)
-# struct Spaced{I,N} <: AbstractStrideDescription{I}
-#     strides::NTuple{N,Int}
-# end
-# struct Static{I,X} <: AbstractStrideDescription{I} end
-# @inline indices(A::DenseArray, ::Val{I}) where {I} = Dense{I}(Base.tail(strides(A)))
-# @inline subarray_indices(strides::NTuple{N,Int}, i::Integer, ::Val{I}) where {I} = Spaced{I}(strides)
-# @inline subarray_indices(strides::NTuple{N,Int}, i::UnitRange, ::Val{I}) where {I} = Packed{I,N}(Base.tail(strides))
-# @inline indices(A::SubArray, ::Val{I}) where {I} = subarray_indices(strides(A), A.indices, Val{I}())
 
-# @inline function vectorizables(args::Tuple{Dense{I1},a::Dense{I2}}) where {I1, I2}
-    
-# end
+struct StaticStridedStruct{T,X,S} <: AbstractStridedPointer{T}
+    ptr::S
+    offset::Int # keeps track of offset, incase of nested gep calls
+end
+@inline StaticStridedStruct{T,X}(s::S) where {T,X,S} = StaticStridedStruct{T,X,S}(s, 0)
+@inline StaticStridedStruct{T,X}(s::S, i::Int) where {T,X,S} = StaticStridedStruct{T,X,S}(s, i)
+@inline gep(ptr::StaticStridedStruct{T,X,S}, i::Integer) where {T,X,S} = StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i)
+# Trying to avoid generated functions
+@inline gep(ptr::StaticStridedStruct{T,X,S}, i::Tuple{<:Integer}) where {T,X,S} = @inbounds StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i[1])
+@inline function gep(ptr::StaticStridedStruct{T,Tuple{A},S}, i::Tuple{<:Integer,<:Integer}) where {T,A,S}
+    @inbounds StaticStridedStruct{T,Tuple{A},S}(ptr.ptr, ptr.offset + i[1] + A * i[2])
+end
+@inline function gep(ptr::StaticStridedStruct{T,Tuple{A,B},S}, i::Tuple{<:Integer,<:Integer,<:Integer}) where {T,A,B,S}
+    @inbounds StaticStridedStruct{T,Tuple{A,B},S}(ptr.ptr, ptr.offset + i[1] + A*i[2] + B*i[3])
+end
+@inline function gep(ptr::StaticStridedStruct{T,Tuple{A,B,C},S}, i::Tuple{<:Integer,<:Integer,<:Integer,<:Integer}) where {T,A,B,C,S}
+    @inbounds StaticStridedStruct{T,Tuple{A,B,C},S}(ptr.ptr, ptr.offset + i[1] + A*i[2] + B*i[3] + C*i[4] )
+end
 
+@generated tupletype_to_tuple(::Type{T}) where {T<:Tuple} = Expr(:block, Expr(:meta,:inline), Expr(:tuple, T.parameters...))
+@inline function gep(ptr::StaticStridedStruct{T,X,S}, i::NTuple{N}) where {T,X,S,N}
+    strides = tupletype_to_tuple(X)
+    StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + first(i) + tdot(strides, Base.tail(i)))
+end
+
+@inline load(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1] + 1]
 
