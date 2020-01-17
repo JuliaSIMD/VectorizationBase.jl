@@ -171,7 +171,12 @@ end
 @inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
-struct PackedStridedPointer{T,N} <: AbstractStridedPointer{T}
+# abstract type AbstractPackedStridedPointer{T,N} <: AbstractStridedPointer{T} end
+struct PackedStridedPointer{T,N} <: AbstractStridedPointer{T}#AbstractPackedStridedPointer{T,N}
+    ptr::Ptr{T}
+    strides::NTuple{N,Int}
+end
+struct RowMajorStridedPointer{T,N} <: AbstractStridedPointer{T}#AbstractPackedStridedPointer{T,N}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
@@ -200,7 +205,29 @@ end
 @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::Tuple{Int})
     ptr.ptr + first(i)
 end
-@inline gep(ptr::AbstractPackedStridedPointer{T}, i::Tuple{I}) where {T,I<:Integer} = @inbounds gep(ptr, first(i))
+@inline gep(ptr::AbstractPackedStridedPointer{T,0}, i::Tuple{I}) where {T,I<:Integer} = @inbounds gep(ptr.ptr, first(i))
+
+struct ZeroInitializedRowMajorStridedPointer{T,N} <: AbstractStridedPointer{T}
+    ptr::Ptr{T}
+    strides::NTuple{N,Int}
+end
+const AbstractRowMajorStridedPointer{T,N} = Union{RowMajorStridedPointer{T,N},ZeroInitializedRowMajorStridedPointer{T,N}}
+@inline function gep(ptr::AbstractRowMajorStridedPointer{Cvoid,N}, i::NTuple) where {N}
+    j = last(i)
+    s = ptr.strides
+    @inbounds for n ∈ 1:N
+        j += s[1 + N - n]*i[n]
+    end
+    j
+end
+@inline gep(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I<:Integer} = @inbounds gep(ptr.ptr, i[1])
+@inline gep(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I,I}) where {T,I<:Integer} = @inbounds gep(ptr.ptr, i[1]*ptr.strides[1] + i[2])
+@inline gep(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I,I,I}) where {T,I<:Integer} = @inbounds gep(ptr.ptr, i[1]*ptr.strides[2] + i[2]*ptr.strides[1] + i[3])
+@inline gep(ptr::AbstractRowMajorStridedPointer{T}, i::NTuple{N,I}) where {T,N,I<:Integer} = (ri = reverse(i); @inbounds gep(ptr.ptr, first(ri) + tdot(ptr.strides, Base.tail(ri))))
+@inline function gep(ptr::AbstractRowMajorStridedPointer{Cvoid,0}, i::Tuple{Int})
+    ptr.ptr + first(i)
+end
+
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
@@ -385,9 +412,11 @@ allows one to customize behavior via making use of the type system.
 end
 
 
-@inline stridedpointer(x) = Pointer(x)
-@inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
-@inline stridedpointer(A::DenseArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+@inline stridedpointer(x) = x#Pointer(x)
+# @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
+@inline stridedpointer(A::AbstractArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+# @inline stridedpointer(A::DenseArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+
 # @inline function broadcaststridedpointer(A::DenseArray{T,N}) where {T,N}
 #     stridesA = strides(A)
 #     sizeA = size(A)
@@ -409,12 +438,19 @@ end
         end
     end
 end
-@inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = Pointer(parent(B))
+@inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer(parent(B))
 @inline function stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
     pB = parent(B)
-    SparseStridedPointer(pointer(pB), reverse(strides(pB)))
+    RowMajorStridedPointer(pointer(pB), Base.tail(strides(pB)))
+end
+@inline function stridedpointer(C::Union{Adjoint{T,A},Transpose{T,A}}) where {T, P, B, A <: SubArray{T,2,P,Tuple{Int,Vararg},B}}
+    pC = parent(C)
+    SparseStridedPointer(pointer(pC), reverse(strides(pC)))
 end
 
+@inline stridedpointer(x::Number) = x
+@inline stridedpointer(ptr::Ptr) = ptr
+@inline stridedpointer(ptr::AbstractPointer) = ptr
 
 # ### vectorizables
 # # Extensible interface code is at risk of world age issues if it uses generated functions.
