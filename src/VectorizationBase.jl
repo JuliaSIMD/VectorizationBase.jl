@@ -9,6 +9,8 @@ export Vec, VE, SVec,
     pick_vector_width_shift,
     vectorizable, stridedpointer,
     Pointer, ZeroInitializedPointer,
+    PackedStridedPointer, RowMajorStridedPointer,
+    StaticStridedPointer, StaticStridedStruct,
     load, store!, vbroadcast
 
 const VE{T} = Core.VecElement{T}

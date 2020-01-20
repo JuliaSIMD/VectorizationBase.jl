@@ -215,6 +215,7 @@ struct ZeroInitializedRowMajorStridedPointer{T,N} <: AbstractStridedPointer{T}
     strides::NTuple{N,Int}
 end
 const AbstractRowMajorStridedPointer{T,N} = Union{RowMajorStridedPointer{T,N},ZeroInitializedRowMajorStridedPointer{T,N}}
+@inline LinearAlgebra.Transpose(ptr::RowMajorStridedPointer) = PackedStridedPointer(ptr.ptr, ptr.strides)
 @inline function gep(ptr::AbstractRowMajorStridedPointer{Cvoid,N}, i::NTuple) where {N}
     j = last(i)
     s = ptr.strides
