@@ -141,7 +141,7 @@ ptr_A = pointer(A)
 vA = VectorizationBase.stridedpointer(A)
 @test eltype(vA) == Float64
 @test Base.unsafe_convert(Ptr{Float64}, vA) === ptr_A === pointer(vA)
-@test vA == VectorizationBase.stridedpointer(ptr_A) == VectorizationBase.stridedpointer(vA)
+@test vA == VectorizationBase.stridedpointer(vA)
 @test all(i -> A[i+1] === VectorizationBase.load(ptr_A + 8i) === VectorizationBase.load(vA,(i,)) === Float64(i), 0:15)
 VectorizationBase.store!(vA, 99.9, (3,))
 @test 99.9 === VectorizationBase.load(ptr_A + 8*3) === VectorizationBase.load(vA, (3,))
