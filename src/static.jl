@@ -44,6 +44,13 @@ end
 @inline Base.:&(::Static{N}, i) where {N} = N & i
 @inline Base.:&(i, ::Static{N}) where {N} = N & i
 @inline Base.:&(::Static{M}, ::Static{N}) where {M,N} = M & N
+@inline Base.:>(::Static{N}, i) where {N} = N > i
+@inline Base.:>(i, ::Static{N}) where {N} = i > N
+@inline Base.:>(::Static{M}, ::Static{N}) where {M,N} = M > N
+@inline Base.:<(::Static{N}, i) where {N} = N < i
+@inline Base.:<(i, ::Static{N}) where {N} = i < N
+@inline Base.:<(::Static{M}, ::Static{N}) where {M,N} = M < N
+
 
 @generated staticm1(::Static{N}) where {N} = Static{N-1}()
 @inline staticm1(N::Integer) = N - 1
