@@ -1,7 +1,7 @@
 name = "VectorizationBase"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 authors = ["Chris Elrod <elrodc@gmail.com>"]
-version = "0.1.10"
+version = "0.1.11"
 
 [deps]
 CpuId = "adafc99b-e345-5852-983c-f28acb93d879"
@@ -9,7 +9,7 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 CpuId = "0.2.2"
-julia = "1.0.0"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
