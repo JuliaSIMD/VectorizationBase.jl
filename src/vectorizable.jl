@@ -354,6 +354,7 @@ end
 @inline Base.unsafe_load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 @inline Base.getindex(ptr::AbstractInitializedPointer) = load(ptr.ptr)
 
+@inline load(ptr::AbstractInitializedPointer{T}, ::Tuple{}) where {T} = load(ptr.ptr)
 @inline load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i))
 @inline Base.unsafe_load(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i - 1))
 @inline Base.getindex(ptr::AbstractInitializedPointer, i) = load(gep(ptr, i))

@@ -16,6 +16,9 @@ end
 @inline Base.:(:)(::Static{L}, U::Int) where {L} = StaticLowerUnitRange{L}(U)
 @inline Base.:(:)(L::Int, ::Static{U}) where {U} = StaticUpperUnitRange{U}(L)
 
+@inline StaticLowerUnitRange{L}(::Static{U}) where {L,U} = StaticUnitRange{L,U}()
+@inline StaticUpperUnitRange{U}(::Static{L}) where {L,U} = StaticUnitRange{L,U}()
+
 @inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
 @inline maybestaticlength(A) = length(A)
 
