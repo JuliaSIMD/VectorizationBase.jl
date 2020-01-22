@@ -275,10 +275,18 @@ end
         )
     )
 end
+
+struct StaticStridedStruct{T,X,S} <: AbstractStridedPointer{T}
+    ptr::S
+    offset::Int # keeps track of offset, incase of nested gep calls
+end
+
 const AbstractInitializedStridedPointer{T} = Union{
     PackedStridedPointer{T},
+    RowMajorStridedPointer{T},
     SparseStridedPointer{T},
-    StaticStridedPointer{T}
+    StaticStridedPointer{T},
+    StaticStridedStruct{T}
 }
 const AbstractZeroInitializedStridedPointer{T} = Union{
     ZeroInitializedPackedStridedPointer{T},
@@ -288,8 +296,10 @@ const AbstractZeroInitializedStridedPointer{T} = Union{
 const AbstractInitializedPointer{T} = Union{
     Pointer{T},
     PackedStridedPointer{T},
+    RowMajorStridedPointer{T},
     SparseStridedPointer{T},
-    StaticStridedPointer{T}
+    StaticStridedPointer{T},
+    StaticStridedStruct{T}
 }
 const AbstractZeroInitializedPointer{T} = Union{
     ZeroInitializedPointer{T},
@@ -422,10 +432,6 @@ end
 @inline stridedpointer(ptr::AbstractPointer) = ptr
 
 
-struct StaticStridedStruct{T,X,S} <: AbstractStridedPointer{T}
-    ptr::S
-    offset::Int # keeps track of offset, incase of nested gep calls
-end
 @inline StaticStridedStruct{T,X}(s::S) where {T,X,S} = StaticStridedStruct{T,X,S}(s, 0)
 @inline StaticStridedStruct{T,X}(s::S, i::Int) where {T,X,S} = StaticStridedStruct{T,X,S}(s, i)
 @inline gep(ptr::StaticStridedStruct{T,X,S}, i::Integer) where {T,X,S} = StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i)
@@ -467,7 +473,7 @@ end
 
 @generated function subsetview(ptr::RowMajorStridedPointer{T, N}, ::Val{I}, i::Integer) where {I, T, N}
     if N + 1 == I
-        Expr(
+        return Expr(
             :block, Expr(:meta, :inline),
             Expr(:(=), :p, Expr(:call, :gep, Expr(:(.), :ptr, QuoteNode(:ptr)), :i)),
             Expr(:call, :SparseStridedPointer, :p, Expr(:call, :reverse, Expr(:(.), :ptr, QuoteNode(:strides))))
