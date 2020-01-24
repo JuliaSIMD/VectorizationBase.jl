@@ -24,7 +24,14 @@ end
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = Static{N}() # should we assert that i == 1?
 @inline maybestaticlength(::NTuple{N}) where {N} = Static{N}()
-
+@inline maybestaticsize(::Adjoint{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = Static{1}()
+@inline maybestaticsize(::Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = Static{1}()
+@inline maybestaticlength(B::Adjoint) = maybestaticlength(parent(B))
+@inline maybestaticlength(B::Transpose) = maybestaticlength(parent(B))
+@inline maybestaticsize(B::Adjoint{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
+@inline maybestaticsize(B::Adjoint{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
+@inline maybestaticsize(B::Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
+@inline maybestaticsize(B::Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
 
 @inline Base.:+(::Static{N}, i) where {N} = N + i
 @inline Base.:+(i, ::Static{N}) where {N} = N + i
