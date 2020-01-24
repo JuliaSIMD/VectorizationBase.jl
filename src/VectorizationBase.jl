@@ -31,6 +31,7 @@ end
 # @inline function SVec(v::Vec{N,T}) where {N,T}
     # SVec{N,T}(v)
 # end
+@inline SVec(u::Unsigned) = u # Unsigned integers are treated as vectors of bools
 @inline SVec(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
 @generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Union{Ptr,Integer,Float16,Float32,Float64}}
