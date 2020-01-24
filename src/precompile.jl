@@ -1,6 +1,16 @@
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{4},Int64})
     precompile(Tuple{typeof(VectorizationBase.mask),Val{8},Int64})
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{4},Float64})
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{8},Float64})
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{8},Int32})
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{16},Int32})
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{8},Float32})
+    precompile(Tuple{typeof(VectorizationBase.mask),Val{16},Float32})
+    precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Type{Int64}})
+    precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Type{Int32}})
+    precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Type{Float64}})
     precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Type{Float32}})
     precompile(Tuple{typeof(VectorizationBase.unstable_mask),Int64,Int64})
 end
