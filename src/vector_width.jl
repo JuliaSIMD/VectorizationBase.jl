@@ -11,8 +11,8 @@ function intlog2(N::I) where {I <: Integer}
     Base.unsafe_trunc(I, u)
 end
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
-function nextpow2(W)
-    one(W) << (8sizeof(W) - leading_zeros(W-1))
+nextpow2(W) = one(W) << (8sizeof(W) - leading_zeros(W-1))
+prevpow2(W) = one(W) << (8sizeof(W) - leading_zeros(W)-1)
     # W -= 1
     # W |= W >> 1
     # W |= W >> 2
@@ -20,7 +20,7 @@ function nextpow2(W)
     # W |= W >> 8
     # W |= W >> 16
     # W + 1
-end
+
 @generated function T_shift(::Type{T}) where {T}
     intlog2(sizeof(T))
 end
