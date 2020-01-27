@@ -46,6 +46,18 @@ end
         Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
     end
 end
+@generated function vzero(::Type{Vec{W,T}}) where {W,T}
+    typ = llvmtype(T)
+    vtyp = vtyp1 = "<$W x $typ>"
+    instrs = """
+    ret $vtyp zeroinitializer
+    """
+    quote
+        $(Expr(:meta,:inline))
+        Base.llvmcall($instrs, Vec{$W,$T}, Tuple{}, )
+    end
+end
+# @inline vzero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline vbroadcast(::Val{W}, s::T) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
 @inline vbroadcast(::Val{W}, ptr::Ptr{T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, VectorizationBase.load(ptr)))
 @inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1,T2} = vbroadcast(Vec{W,T1}, convert(T1,s))
@@ -57,9 +69,10 @@ end
 @inline vbroadcast(::Type{SVec{W,T}}, v::Vec{W,T}) where {W,T} = SVec(v)
 
 @inline vone(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, one(T))
-@inline vzero(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, zero(T))
+# @inline vzero(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, zero(T))
 @inline vone(::Type{SVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, one(T)))
-@inline vzero(::Type{SVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
+@inline vzero(::Val{W}, ::Type{T}) where {W,T} = SVec(vzero(Vec{W,T}))
+@inline vzero(::Type{SVec{W,T}}) where {W,T} = SVec(vzero(Vec{W,T}))
 @inline vone(::Type{T}) where {T} = one(T)
 @inline vzero(::Type{T}) where {T} = zero(T)
 @inline VectorizationBase.SVec{W}(s::T) where {W,T<:Number} = SVec(vbroadcast(Vec{W,T}, s))
