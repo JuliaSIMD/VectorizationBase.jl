@@ -245,6 +245,23 @@ const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroIn
 struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
 end
+@generated function LinearAlgebra.Transpose(ptr::StaticStridedPointer{T,X}) where {T,X}
+    tup = Expr(:curly, :Tuple)
+    N = length(X.parameters)
+    for n ∈ N:-1:1
+        push!(tup.args, (X.parameters[n])::Int)
+    end
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :StaticStridedPointer, T, tup), Expr(:(.), :ptr, QuoteNode(:ptr))))
+end
+@generated function LinearAlgebra.Transpose(ptr::ZeroInitializedStaticStridedPointer{T,X}) where {T,X}
+    tup = Expr(:curly, :Tuple)
+    N = length(X.parameters)
+    for n ∈ N:-1:1
+        push!(tup.args, (X.parameters[n])::Int)
+    end
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :ZeroInitializedStaticStridedPointer, T, tup), Expr(:(.), :ptr, QuoteNode(:ptr))))
+end
+
 const AbstractStaticStridedPointer{T,X} = Union{StaticStridedPointer{T,X},ZeroInitializedStaticStridedPointer{T,X}}
 # @generated function unitstride(::AbstractStaticStridedPointer{T,X}) where {T,X}
     # Expr(:block, Expr(:meta,:inline), first(X.parameters)::Int)

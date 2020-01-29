@@ -11,7 +11,12 @@ struct StaticUpperUnitRange{U} <: AbstractRange{Int}
     L::Int
 end
 
-
+@inline Base.first(::StaticUnitRange{L}) where {L} = L
+@inline Base.first(::StaticLowerUnitRange{L}) where {L} = L
+@inline Base.first(r::StaticUpperUnitRange) = r.L
+@inline Base.last(::StaticUnitRange{L,U}) where {L,U} = U
+@inline Base.last(r::StaticLowerUnitRange) = r.U
+@inline Base.last(::StaticUpperUnitRange{U}) where {U} = U
 @inline Base.:(:)(::Static{L}, ::Static{U}) where {L,U} = StaticUnitRange{L,U}()
 @inline Base.:(:)(::Static{L}, U::Int) where {L} = StaticLowerUnitRange{L}(U)
 @inline Base.:(:)(L::Int, ::Static{U}) where {U} = StaticUpperUnitRange{U}(L)
