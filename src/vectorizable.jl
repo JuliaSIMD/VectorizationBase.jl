@@ -418,6 +418,7 @@ end
 
 
 @inline stridedpointer(x) = x#Pointer(x)
+@inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
 @inline stridedpointer(A::AbstractArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
@@ -565,4 +566,9 @@ end
         Expr(:call, Expr(:curly, :StaticStridedStruct, T, Xa), :p, :offset)
     )
 end
+
+@inline stridedpointer(A::AbstractArray, indices::Tuple) = stridedpointer(view(A, indices...))
+@inline stridedpointer(A::AbstractArray, ::Type{Transpose}) = stridedpointer(transpose(A))
+@inline stridedpointer(A::AbstractArray, ::Type{Adjoint}) = stridedpointer(adjoint(A))
+@inline stridedpointer(A::AbstractArray, ::Nothing) = stridedpointer(A)
 
