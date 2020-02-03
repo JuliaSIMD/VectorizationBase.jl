@@ -99,6 +99,7 @@ end
 
 @inline tdot(a::Tuple{Int}, b::Tuple{N,Int}) where {N} = @inbounds a[1]*b[1]
 @inline tdot(a::Tuple{N,Int}, b::Tuple{Int}) where {N} = @inbounds a[1]*b[1]
+# @inline tdot(a::Tuple{Int,Int}, b::Tuple{Int}) where {N} = @inbounds a[1]*b[1]
 @inline tdot(a::NTuple{M,Int}, b::NTuple{N,Int}) where {M,N} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
 
 
@@ -351,8 +352,8 @@ end
 @inline Base.similar(p::StaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = StaticStridedPointer{T,X}(ptr)
 @inline Base.similar(p::ZeroInitializedStaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = ZeroInitializedStaticStridedPointer{T,X}(ptr)
 
-@inline elstride(::AbstractPointer{T}) where {T} = sizeof(T)
-@inline elstride(::AbstractPointer{Cvoid}) = 1
+# @inline elstride(::AbstractPointer{T}) where {T} = sizeof(T)
+# @inline elstride(::AbstractPointer{Cvoid}) = 1
 # @inline unitstride(ptr::AbstractSparseStridedPointer{T}) where {T} = sizeof(T) * first(ptr.strides)
 # @generated function unitstride(
 #     ::AbstractStaticStridedPointer{T,X}
@@ -365,9 +366,9 @@ end
 # for ptype ∈ (:Pointer, :PackedStridedPointer, :SparseStridedPointer, :StaticStridedPointer,
              # :ZeroInitializedPointer, :ZeroInitializedPackedStridedPointer, :ZeroInitializedSparseStridedPointer, :ZeroInitializedStaticStridedPointer)
 
-@inline Base.:+(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, ptr.ptr + elstride(ptr)*i)
-@inline Base.:+(i, ptr::AbstractPointer{T}) where {T} = similar(ptr, ptr.ptr + elstride(ptr)*i)
-@inline Base.:-(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, ptr.ptr - elstride(ptr)*i)
+@inline Base.:+(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, i))
+@inline Base.:+(i, ptr::AbstractPointer{T}) where {T} = similar(ptr, gep(ptr.ptr, i))
+@inline Base.:-(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, - i))
 
 # end
 
@@ -448,7 +449,7 @@ end
 
 @inline stridedpointer(x::Number) = x
 @inline stridedpointer(x::AbstractRange) = x
-@inline stridedpointer(ptr::Ptr) = ptr
+@inline stridedpointer(ptr::Pointer) = PackedStridedPointer(pointer(ptr), tuple())
 @inline stridedpointer(ptr::AbstractPointer) = ptr
 
 
@@ -571,4 +572,18 @@ end
 @inline stridedpointer(A::AbstractArray, ::Type{Transpose}) = stridedpointer(transpose(A))
 @inline stridedpointer(A::AbstractArray, ::Type{Adjoint}) = stridedpointer(adjoint(A))
 @inline stridedpointer(A::AbstractArray, ::Nothing) = stridedpointer(A)
+
+@inline filter_strides_by_dimequal1(sz::NTuple{N,Int}, st::NTuple{N,Int}) where {N} = @inbounds ntuple(n -> sz[n] == 1 ? 0 : st[n], Val{N}())
+
+@inline function stridedpointer_for_broadcast(A::AbstractArray{T,N}) where {T,N}
+    PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
+end
+@inline stridedpointer_for_broadcast(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer_for_broadcast(parent(B))
+@inline stridedpointer_for_broadcast(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
+@inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}}
+    SparseStridedPointer(pointer(A), filter_strides_by_dimequal1(size(A), strides(A)))
+end
+@inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S}
+    PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
+end
 
