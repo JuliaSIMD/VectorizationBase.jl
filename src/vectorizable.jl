@@ -270,9 +270,9 @@ const AbstractStaticStridedPointer{T,X} = Union{StaticStridedPointer{T,X},ZeroIn
 @generated function gep(ptr::AbstractStaticStridedPointer{T,X}, i::Integer) where {T,X}
     s = first(X.parameters)::Int
     g = if s == 1
-        Expr(:call, :gep, :ptr, :i)
+        Expr(:call, :gep, Expr(:(.), :ptr. QuoteNode(:ptr)), :i)
     else
-        Expr(:call, :gep, :ptr, Expr(:call, :*, :i, s))
+        Expr(:call, :gep, Expr(:(.), :ptr. QuoteNote(:ptr)), Expr(:call, :*, :i, s))
     end
     Expr(:block, Expr(:meta,:inline), g)
 end
@@ -291,7 +291,7 @@ end
             :macrocall,
             Symbol("@inbounds"),
             LineNumberNode(@__LINE__, @__FILE__),
-            Expr(:call, :gep, :ptr, ex)
+            Expr(:call, :gep, Expr(:(.), :ptr, QuoteNode(:ptr)), ex)
         )
     )
 end

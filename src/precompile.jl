@@ -4,5 +4,6 @@ function _precompile_()
     precompile(Tuple{typeof(VectorizationBase.llvmtype),Type{T} where T})
     precompile(Tuple{typeof(VectorizationBase.mask),Val{16},Int64})
     precompile(Tuple{typeof(VectorizationBase.mask),Val{8},Int64})
+    precompile(Tuple{typeof(VectorizationBase.mask_type),Type{Float32}})
     precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Type{Float32}})
 end
