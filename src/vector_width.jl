@@ -86,21 +86,33 @@ end
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline Base.:(+)(i::_MM{W}, j) where {W} = _MM{W}(i.i + j)
 @inline Base.:(+)(i, j::_MM{W}) where {W} = _MM{W}(i + j.i)
+@inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i + j)
+@inline Base.:(+)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i + j.i)
 @inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
 @inline Base.:(*)(i::_MM{W}, j) where {W} = _MM{W}(i.i * j)
 @inline Base.:(*)(i, j::_MM{W}) where {W} = _MM{W}(i * j.i)
+@inline Base.:(*)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i * j)
+@inline Base.:(*)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i * j.i)
 @inline Base.:(*)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i * j.i)
 @inline Base.:(<)(i::_MM, j) = i.i < j
-@inline Base.:(<)(i::_MM, j::_MM) = i.i < j.i
 @inline Base.:(<)(i, j::_MM) = i < j.i
+@inline Base.:(<)(i::_MM, ::Static{j}) where {j} = i.i < j
+@inline Base.:(<)(::Static{i}, j::_MM) where {i} = i < j.i
+@inline Base.:(<)(i::_MM, j::_MM) = i.i < j.i
 @inline Base.:(>)(i::_MM, j) = i.i > j
 @inline Base.:(>)(i, j::_MM) = i > j.i
+@inline Base.:(>)(i::_MM, ::Static{j}) where {j} = i.i > j
+@inline Base.:(>)(::Static{i}, j::_MM) where {i} = i > j.i
 @inline Base.:(>)(i::_MM, j::_MM) = i.i > j.i
 @inline Base.:(==)(i::_MM, j) = i.i == j
 @inline Base.:(==)(i, j::_MM) = i == j.i
+@inline Base.:(==)(i::_MM, ::Static{j}) where {j} = i.i == j
+@inline Base.:(==)(::Static{i}, j::_MM) where {i} = i == j.i
 @inline Base.:(==)(i::_MM, j::_MM) = i.i == j.i
 @inline Base.:(!=)(i::_MM, j) = i.i != j
 @inline Base.:(!=)(i, j::_MM) = i != j.i
+@inline Base.:(!=)(i::_MM, ::Static{j}) where {j} = i.i != j
+@inline Base.:(!=)(::Static{i}, j::_MM) where {i} = i != j.i
 @inline Base.:(!=)(i::_MM, j::_MM) = i.i != j.i
 @inline extract_data(i::_MM) = i.i
 
