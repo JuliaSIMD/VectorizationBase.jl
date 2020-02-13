@@ -36,7 +36,7 @@ end
 end
 function downadjust_W_and_Wshift(N, W, Wshift)
     N > W && return W, Wshift
-    TwoN = 2N
+    TwoN = N << 1
     while W >= TwoN
         W >>>= 1
         Wshift -= 1
@@ -69,6 +69,20 @@ pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
 
 @generated pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}()
 @generated pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
+
+@generated function pick_vector_width_val(vargs...)
+    sT = 16
+    for v ∈ vargs
+        sT = min(sT, sizeof(v.parameters[1]))
+    end
+    Val{REGISTER_SIZE ÷ sT}()
+end
+@generated function adjust_W(::Val{N}, ::Val{W}) where {N,W}
+    W1 = first(downadjust_W_and_Wshift(N, W, 0))
+    Val{W1}()
+end
+pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_vector_width_val(vargs...))
+
 @inline valmul(::Val{W}, i) where {W} = W*i
 @inline valadd(::Val{W}, i) where {W} = W + i
 @inline valsub(::Val{W}, i) where {W} = W - i
@@ -89,11 +103,11 @@ end
 @inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i + j)
 @inline Base.:(+)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i + j.i)
 @inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
-@inline Base.:(*)(i::_MM{W}, j) where {W} = _MM{W}(i.i * j)
-@inline Base.:(*)(i, j::_MM{W}) where {W} = _MM{W}(i * j.i)
-@inline Base.:(*)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i * j)
-@inline Base.:(*)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i * j.i)
-@inline Base.:(*)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i * j.i)
+# @inline Base.:(*)(i::_MM{W}, j) where {W} = _MM{W}(i.i * j)
+# @inline Base.:(*)(i, j::_MM{W}) where {W} = _MM{W}(i * j.i)
+# @inline Base.:(*)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i * j)
+# @inline Base.:(*)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i * j.i)
+# @inline Base.:(*)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i * j.i)
 @inline Base.:(<)(i::_MM, j) = i.i < j
 @inline Base.:(<)(i, j::_MM) = i < j.i
 @inline Base.:(<)(i::_MM, ::Static{j}) where {j} = i.i < j

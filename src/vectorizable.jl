@@ -33,64 +33,41 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
 
 
 @generated function load(ptr::Ptr{T}) where {T <: LLVMCompatible}
-    # @assert isa(Aligned, Bool)
     ptyp = JuliaPointerType
     typ = llvmtype(T)
-    # vtyp = "<$N x $typ>"
-    # decls = String[]
-    # push!(decls, "!0 = !{!0}")
     instrs = String[]
-    # if Aligned
-    #     align = N * sizeof(T)
-    # else
-        align = 1#sizeof(T)   # This is overly optimistic
-    # end
-    flags = [""]
-    if align > 0
-        push!(flags, "align $align")
-    end
+    alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "%res = load $typ, $typ* %ptr" * join(flags, ", "))
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment")
     push!(instrs, "ret $typ %res")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($(join(instrs, "\n")),
-        T, Tuple{Ptr{T}}, ptr)
+        Base.llvmcall($(join(instrs, "\n")), T, Tuple{Ptr{T}}, ptr)
     end
 end
 @generated function store!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
-    # vtyp = "<$N x $typ>"
-    # decls = String[]
-    # push!(decls, "!0 = !{!0}")
     instrs = String[]
-    # if Aligned
-    # align = N * sizeof(T)
-    # else
-    align = 1#sizeof(T)   # This is overly optimistic
-    # end
-    flags = [""]
-    if align > 0
-        push!(flags, "align $align")
-    end
+    alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "store $typ %1, $typ* %ptr" * join(flags, ", "))
+    push!(instrs, "store $typ %1, $typ* %ptr, align $alignment")
     push!(instrs, "ret void")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($(join(instrs, "\n")),
-        Cvoid, Tuple{Ptr{T}, T}, ptr, v)
+        Base.llvmcall($(join(instrs, "\n")), Cvoid, Tuple{Ptr{T}, T}, ptr, v)
     end
 end
+# @inline load(ptr::Ptr{T}) = load(ptr, Val{1}())
+# @inline store!(ptr::Ptr{T}, v) = store!(ptr, v, Val{1}())
+
 # Fall back definitions
 @inline load(ptr::Ptr) = Base.unsafe_load(ptr)
 @inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
 @inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(Base.unsafe_convert(Ptr{T1}, ptr))
 @inline store!(ptr::Ptr{T1}, v::T2) where {T1,T2} = store!(ptr, convert(T1, v))
-
 
 @inline tdot(a::Tuple{Int}, b::Tuple{Int}) = @inbounds a[1] * b[1]
 @inline tdot(a::Tuple{Int,Int}, b::Tuple{Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2]
@@ -165,6 +142,7 @@ end
 @inline gep(ptr::AbstractPointer, v::SVec) = gep(ptr, extract_data(v))
 @inline gep(ptr::AbstractPointer, i::NTuple{W,Core.VecElement{I}}) where {W,I<:Integer} = gep(ptr.ptr, i)
 @inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
+
 struct Pointer{T} <: AbstractPointer{T}
     ptr::Ptr{T}
     @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
@@ -188,7 +166,8 @@ struct SparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
-struct StaticStridedPointer{T,X} <: AbstractStridedPointer{T}
+abstract type AbstractStaticStridedPointer{T,X} <: AbstractStridedPointer{T} end
+struct StaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
     ptr::Ptr{T}
 end
 
@@ -243,7 +222,7 @@ end
 const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroInitializedSparseStridedPointer{T,N}}
 @inline gep(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = @inbounds gep(ptr.ptr, first(ptr.strides)*i)
 @inline gep(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = @inbounds gep(ptr.ptr, tdot(i, ptr.strides))
-struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStridedPointer{T}
+struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
     ptr::Ptr{T}
 end
 @generated function LinearAlgebra.Transpose(ptr::StaticStridedPointer{T,X}) where {T,X}
@@ -263,7 +242,6 @@ end
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :ZeroInitializedStaticStridedPointer, T, tup), Expr(:(.), :ptr, QuoteNode(:ptr))))
 end
 
-const AbstractStaticStridedPointer{T,X} = Union{StaticStridedPointer{T,X},ZeroInitializedStaticStridedPointer{T,X}}
 # @generated function unitstride(::AbstractStaticStridedPointer{T,X}) where {T,X}
     # Expr(:block, Expr(:meta,:inline), first(X.parameters)::Int)
 # end
@@ -276,13 +254,21 @@ const AbstractStaticStridedPointer{T,X} = Union{StaticStridedPointer{T,X},ZeroIn
     end
     Expr(:block, Expr(:meta,:inline), g)
 end
+function indprod(X::Core.SimpleVector, i)
+    Xᵢ = (X[i])::Int
+    iᵢ = Expr(:ref, :i, i)
+    Xᵢ == 1 ? iᵢ : Expr(:call, :*, Xᵢ, iᵢ)
+end
 @generated function gep(ptr::AbstractStaticStridedPointer{T,X}, i::NTuple{N}) where {T,X,N}
-    s = first(X.parameters)::Int
-    ex = Expr(:call, :+)
-    i1 = Expr(:ref, :i, 1)
-    push!(ex.args, s == 1 ? i1 : Expr(:call, :*, s, i1))
-    for n ∈ 2:min(N, length(X.parameters))
-        push!(ex.args, Expr(:call, :*, (X.parameters[n])::Int, Expr(:ref, :i, n)))
+    Xv = X.parameters
+    M = min(N, length(X.parameters))
+    if M == 1
+        ind = indprod(Xv, 1)
+    else
+        ind = Expr(:call, :+)
+        for m ∈ 1:M
+            push!(ind.args, indprod(Xv, m))
+        end
     end
     Expr(
         :block,
@@ -291,12 +277,12 @@ end
             :macrocall,
             Symbol("@inbounds"),
             LineNumberNode(@__LINE__, @__FILE__),
-            Expr(:call, :gep, Expr(:(.), :ptr, QuoteNode(:ptr)), ex)
+            Expr(:call, :gep, Expr(:(.), :ptr, QuoteNode(:ptr)), ind)
         )
     )
 end
 
-struct StaticStridedStruct{T,X,S} <: AbstractStridedPointer{T}
+struct StaticStridedStruct{T,X,S} <: AbstractStaticStridedPointer{T,X}
     ptr::S
     offset::Int # keeps track of offset, incase of nested gep calls
 end
@@ -333,13 +319,9 @@ const AbstractZeroInitializedPointer{T} = Union{
 @generated function Base.stride(::AbstractStaticStridedPointer{T,X}, i) where {T,X}
     Expr(:block, Expr(:meta, :inline), Expr(:getindex, Expr(:tuple, X.parameters...), :i))
 end
-@inline stride1(x) = stride(x, 1)
-@inline stride1(ptr::AbstractPackedStridedPointer) = 1
-@inline stride1(ptr::AbstractSparseStridedPointer) = @inbounds first(ptr.strides)
-@generated function stride1(::AbstractStaticStridedPointer{T,X}) where {T,X}
-    Expr(:block, Expr(:meta, :inline), first(X.parameters)::Int)
-end
-
+@inline LinearAlgebra.stride1(ptr::AbstractPackedStridedPointer) = 1
+@inline LinearAlgebra.stride1(ptr::AbstractSparseStridedPointer) = @inbounds first(ptr.strides)
+@inline LinearAlgebra.stride1(::AbstractStaticStridedPointer{T,<:Tuple{X,Vararg}}) where {T,X} = X
 
 @inline gep(ptr::AbstractPointer, i::CartesianIndex) = gep(ptr, i.I)
 
@@ -453,26 +435,26 @@ end
 @inline stridedpointer(ptr::AbstractPointer) = ptr
 
 
-@inline StaticStridedStruct{T,X}(s::S) where {T,X,S} = StaticStridedStruct{T,X,S}(s, 0)
-@inline StaticStridedStruct{T,X}(s::S, i::Int) where {T,X,S} = StaticStridedStruct{T,X,S}(s, i)
-@inline gep(ptr::StaticStridedStruct{T,X,S}, i::Integer) where {T,X,S} = StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i)
-# Trying to avoid generated functions
-@inline gep(ptr::StaticStridedStruct{T,X,S}, i::Tuple{<:Integer}) where {T,X,S} = @inbounds StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i[1])
-@inline function gep(ptr::StaticStridedStruct{T,Tuple{A},S}, i::Tuple{<:Integer,<:Integer}) where {T,A,S}
-    @inbounds StaticStridedStruct{T,Tuple{A},S}(ptr.ptr, ptr.offset + i[1] + A * i[2])
-end
-@inline function gep(ptr::StaticStridedStruct{T,Tuple{A,B},S}, i::Tuple{<:Integer,<:Integer,<:Integer}) where {T,A,B,S}
-    @inbounds StaticStridedStruct{T,Tuple{A,B},S}(ptr.ptr, ptr.offset + i[1] + A*i[2] + B*i[3])
-end
-@inline function gep(ptr::StaticStridedStruct{T,Tuple{A,B,C},S}, i::Tuple{<:Integer,<:Integer,<:Integer,<:Integer}) where {T,A,B,C,S}
-    @inbounds StaticStridedStruct{T,Tuple{A,B,C},S}(ptr.ptr, ptr.offset + i[1] + A*i[2] + B*i[3] + C*i[4] )
-end
+# @inline StaticStridedStruct{T,X}(s::S) where {T,X,S} = StaticStridedStruct{T,X,S}(s, 0)
+# @inline StaticStridedStruct{T,X}(s::S, i::Int) where {T,X,S} = StaticStridedStruct{T,X,S}(s, i)
+# @inline gep(ptr::StaticStridedStruct{T,X,S}, i::Integer) where {T,X,S} = StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i)
+# # Trying to avoid generated functions
+# @inline gep(ptr::StaticStridedStruct{T,X,S}, i::Tuple{<:Integer}) where {T,X,S} = @inbounds StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i[1])
+# @inline function gep(ptr::StaticStridedStruct{T,Tuple{A},S}, i::Tuple{<:Integer,<:Integer}) where {T,A,S}
+#     @inbounds StaticStridedStruct{T,Tuple{A},S}(ptr.ptr, ptr.offset + i[1] + A * i[2])
+# end
+# @inline function gep(ptr::StaticStridedStruct{T,Tuple{A,B},S}, i::Tuple{<:Integer,<:Integer,<:Integer}) where {T,A,B,S}
+#     @inbounds StaticStridedStruct{T,Tuple{A,B},S}(ptr.ptr, ptr.offset + i[1] + A*i[2] + B*i[3])
+# end
+# @inline function gep(ptr::StaticStridedStruct{T,Tuple{A,B,C},S}, i::Tuple{<:Integer,<:Integer,<:Integer,<:Integer}) where {T,A,B,C,S}
+#     @inbounds StaticStridedStruct{T,Tuple{A,B,C},S}(ptr.ptr, ptr.offset + i[1] + A*i[2] + B*i[3] + C*i[4] )
+# end
 
-@generated tupletype_to_tuple(::Type{T}) where {T<:Tuple} = Expr(:block, Expr(:meta,:inline), Expr(:tuple, T.parameters...))
-@inline function gep(ptr::StaticStridedStruct{T,X,S}, i::NTuple{N}) where {T,X,S,N}
-    strides = tupletype_to_tuple(X)
-    StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + first(i) + tdot(strides, Base.tail(i)))
-end
+# @generated tupletype_to_tuple(::Type{T}) where {T<:Tuple} = Expr(:block, Expr(:meta,:inline), Expr(:tuple, T.parameters...))
+# @inline function gep(ptr::StaticStridedStruct{T,X,S}, i::NTuple{N}) where {T,X,S,N}
+#     strides = tupletype_to_tuple(X)
+#     StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + first(i) + tdot(strides, Base.tail(i)))
+# end
 
 @inline load(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1] + 1]
 
