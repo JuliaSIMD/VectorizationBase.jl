@@ -98,6 +98,7 @@ struct _MM{W}
 end
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
+
 @inline Base.:(+)(i::_MM{W}, j) where {W} = _MM{W}(i.i + j)
 @inline Base.:(+)(i, j::_MM{W}) where {W} = _MM{W}(i + j.i)
 @inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i + j)
