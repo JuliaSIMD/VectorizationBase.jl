@@ -22,13 +22,6 @@ const LLVMTYPE = Dict{DataType,String}(
 llvmtype(x)::String = LLVMTYPE[x]
 const JuliaPointerType = LLVMTYPE[Int]
 
-# llvmtype(::Type{Bool8}) = "i8"
-# llvmtype(::Type{Bool16}) = "i16"
-# llvmtype(::Type{Bool32}) = "i32"
-# llvmtype(::Type{Bool64}) = "i64"
-# llvmtype(::Type{Bool128}) = "i128"
-
-
 const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UInt32,UInt64,UInt128,Float16,Float32,Float64}
 
 
@@ -60,8 +53,6 @@ end
         Base.llvmcall($(join(instrs, "\n")), Cvoid, Tuple{Ptr{T}, T}, ptr, v)
     end
 end
-# @inline load(ptr::Ptr{T}) = load(ptr, Val{1}())
-# @inline store!(ptr::Ptr{T}, v) = store!(ptr, v, Val{1}())
 
 # Fall back definitions
 @inline load(ptr::Ptr) = Base.unsafe_load(ptr)
@@ -242,9 +233,6 @@ end
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :ZeroInitializedStaticStridedPointer, T, tup), Expr(:(.), :ptr, QuoteNode(:ptr))))
 end
 
-# @generated function unitstride(::AbstractStaticStridedPointer{T,X}) where {T,X}
-    # Expr(:block, Expr(:meta,:inline), first(X.parameters)::Int)
-# end
 @generated function gep(ptr::AbstractStaticStridedPointer{T,X}, i::Integer) where {T,X}
     s = first(X.parameters)::Int
     g = if s == 1
@@ -334,25 +322,9 @@ end
 @inline Base.similar(p::StaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = StaticStridedPointer{T,X}(ptr)
 @inline Base.similar(p::ZeroInitializedStaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = ZeroInitializedStaticStridedPointer{T,X}(ptr)
 
-# @inline elstride(::AbstractPointer{T}) where {T} = sizeof(T)
-# @inline elstride(::AbstractPointer{Cvoid}) = 1
-# @inline unitstride(ptr::AbstractSparseStridedPointer{T}) where {T} = sizeof(T) * first(ptr.strides)
-# @generated function unitstride(
-#     ::AbstractStaticStridedPointer{T,X}
-# ) where {T,X}
-#     s = sizeof(T)*first(X.parameters)::Int
-#     Expr(:block, Expr(:meta,:inline), s)
-# end
-
-# Pointer arithmetic
-# for ptype ∈ (:Pointer, :PackedStridedPointer, :SparseStridedPointer, :StaticStridedPointer,
-             # :ZeroInitializedPointer, :ZeroInitializedPackedStridedPointer, :ZeroInitializedSparseStridedPointer, :ZeroInitializedStaticStridedPointer)
-
 @inline Base.:+(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, i))
 @inline Base.:+(i, ptr::AbstractPointer{T}) where {T} = similar(ptr, gep(ptr.ptr, i))
 @inline Base.:-(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, - i))
-
-# end
 
 # Now, to define indexing
 @inline load(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
@@ -380,18 +352,8 @@ end
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(gep(ptr, i), v)
 
 
-
-# @inline Base.stride(ptr::AbstractPointer{Cvoid}) = 1
-# @inline Base.stride(ptr::AbstractPointer{T}) where {T} = sizeof(T)
-# @inline Base.stride(ptr::DynamicStridedPointer{T}) where {T} = sizeof(T)*ptr.stride
-# @inline Base.stride(ptr::StaticStridedPointer{T,S}) where {T,S} = sizeof(T)*S
-# @inline Base.stride(ptr::DynamicStridedPointer{Cvoid}) = ptr.stride
-# @inline Base.stride(ptr::StaticStridedPointer{Cvoid,S}) where {S} = S
-
 @inline Pointer(A) = Pointer(pointer(A))
 @inline ZeroInitializedPointer(A) = ZeroInitializedPointer(pointer(A))
-# @inline DynamicStridedPointer(A::AbstractArray) = DynamicStridedPointer(pointer(A), stride(A,1))
-
 @inline Base.pointer(ptr::AbstractPointer) = ptr.ptr
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
 
@@ -405,16 +367,6 @@ end
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
 @inline stridedpointer(A::AbstractArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
-# @inline stridedpointer(A::DenseArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
-
-# @inline function broadcaststridedpointer(A::DenseArray{T,N}) where {T,N}
-#     stridesA = strides(A)
-#     sizeA = size(A)
-#     PackedStridedPointer(
-#         pointer(A),
-#         ntuple(n -> sizeA[n+1] == 1 ? 0 : stridesA[n+1], Val(N-1))
-#     )
-# end
 @inline stridedpointer(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}} = SparseStridedPointer(pointer(A), strides(A))
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S} = PackedStridedPointer(pointer(A), Base.tail(strides(A)))

@@ -13,6 +13,17 @@ export Vec, VE, SVec,
     StaticStridedPointer, StaticStridedStruct,
     load, store!, vbroadcast
 
+# @static if VERSION < v"1.4"
+#     # I think this is worth using, and simple enough that I may as well.
+#     # I'll uncomment when I find a place to use it.
+#     function only(x)
+#         @boundscheck length(x) == 0 && throw(ArgumentError("Collection is empty, must contain exactly 1 element"))
+#         @boundscheck length(x) > 1 && throw(ArgumentError("Collection has multiple elements, must contain exactly 1 element"))
+#         @inbounds x[1]
+#     end
+#     export only
+# end
+
 const VE{T} = Core.VecElement{T}
 const Vec{W,T} = NTuple{W,VE{T}}
 
