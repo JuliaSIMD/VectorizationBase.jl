@@ -364,6 +364,7 @@ end
 
 @inline stridedpointer(x) = x#Pointer(x)
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
+@inline stridedpointer(x::Union{LowerTriangular,UpperTriangular}) = stridedpointer(parent(x))
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
 @inline stridedpointer(A::AbstractArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
