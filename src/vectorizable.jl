@@ -92,6 +92,22 @@ ptrx[2]
 """
 abstract type AbstractPointer{T} end
 
+@generated function gepbyte(ptr::Ptr, i::I) where {T, I <: Integer}
+    ptyp = JuliaPointerType
+    ityp = llvmtype(I)
+    instrs = String[]
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to i8*")
+    push!(instrs, "%offsetptr = getelementptr inbounds i8, i8* %ptr, $ityp %1")
+    push!(instrs, "%iptr = ptrtoint i8* %offsetptr to $ptyp")
+    push!(instrs, "ret $ptyp %iptr")
+    quote
+        Base.llvmcall(
+            $(join(instrs, "\n")),
+            Ptr{$T}, Tuple{Ptr{$T}, $I},
+            ptr, i
+        )
+    end
+end
 @generated function gep(ptr::Ptr{T}, i::I) where {T, I <: Integer}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
@@ -521,4 +537,11 @@ end
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S}
     PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
+
+
+struct MappedStridedPointer{F, T, P <: AbstractPointer{T}}
+    f::F
+    ptr::P
+end
+@inline load(ptr::MappedStridedPointer) = ptr.f(load(ptr.ptr))
 
