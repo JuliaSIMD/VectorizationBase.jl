@@ -47,7 +47,7 @@ end
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
 @generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Union{Ptr,Integer,Float16,Float32,Float64}}
     typ = llvmtype(T)
-    vtyp = vtyp1 = "<$W x $typ>"
+    vtyp = "<$W x $typ>"
     instrs = String[]
     push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
     push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
@@ -59,7 +59,7 @@ end
 end
 @generated function vzero(::Type{Vec{W,T}}) where {W,T}
     typ = llvmtype(T)
-    vtyp = vtyp1 = "<$W x $typ>"
+    vtyp = "<$W x $typ>"
     instrs = """
     ret $vtyp zeroinitializer
     """
