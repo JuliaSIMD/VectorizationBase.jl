@@ -45,7 +45,31 @@ end
 @inline SVec(u::Unsigned) = u # Unsigned integers are treated as vectors of bools
 @inline SVec(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
-@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Union{Ptr,Integer,Float16,Float32,Float64}}
+@generated function vbroadcast(::Type{Vec{W,Ptr{T}}}, s::Ptr{T}) where {W, T}
+    typ = "i$(8sizeof(Int))"
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s )
+    end
+end
+@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Integer}
+    typ = "i$(8sizeof(T))"
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
+    end
+end
+@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Union{Float16,Float32,Float64}}
     typ = llvmtype(T)
     vtyp = "<$W x $typ>"
     instrs = String[]
@@ -72,6 +96,7 @@ end
 @inline vbroadcast(::Val{W}, s::T) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
 @inline vbroadcast(::Val{W}, ptr::Ptr{T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, VectorizationBase.load(ptr)))
 @inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1,T2} = vbroadcast(Vec{W,T1}, convert(T1,s))
+@inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1<:Integer,T2<:Integer} = vbroadcast(Vec{W,T1}, s % T1)
 @inline vbroadcast(::Type{Vec{W,T}}, ptr::Ptr{T}) where {W,T} = vbroadcast(Vec{W,T}, VectorizationBase.load(ptr))
 @inline vbroadcast(::Type{Vec{W,T}}, ptr::Ptr) where {W,T} = vbroadcast(Vec{W,T}, Base.unsafe_convert(Ptr{T},ptr))
 @inline vbroadcast(::Type{SVec{W,T}}, s) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
