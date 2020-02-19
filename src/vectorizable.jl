@@ -280,7 +280,7 @@ end
         Expr(
             :macrocall,
             Symbol("@inbounds"),
-            LineNumberNode(@__LINE__, @__FILE__),
+            LineNumberNode(@__LINE__, Symbol(@__FILE__)),
             Expr(:call, :gep, Expr(:(.), :ptr, QuoteNode(:ptr)), ind)
         )
     )
@@ -432,13 +432,13 @@ end
 @generated function subsetview(ptr::PackedStridedPointer{T, N}, ::Val{I}, i::Integer) where {I, T, N}
     I > N + 1 && return :ptr
     strides = Expr(:tuple, [Expr(:ref, :s, n) for n ∈ 1:N if n != I-1]...)
-    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__), Expr(:ref, :s, I - 1)))
+    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, I - 1)))
     Expr(
         :block,
         Expr(:meta, :inline),
         Expr(:(=), :p, Expr(:(.), :ptr, QuoteNode(:ptr))),
         Expr(:(=), :s, Expr(:(.), :ptr, QuoteNode(:strides))),
-        Expr(:(=), :strides, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__), strides)),
+        Expr(:(=), :strides, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), strides)),
         Expr(:(=), :gp, Expr(:call, :gep, :p, offset)),
         Expr(:call, :PackedStridedPointer, :gp, :strides)
     )
@@ -456,13 +456,13 @@ end
     end
     strideind = N + 1 - I
     strides = Expr(:tuple, [Expr(:ref, :s, n) for n ∈ 1:N if n != strideind]...)
-    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__), Expr(:ref, :s, strideind)))
+    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, strideind)))
     Expr(
         :block,
         Expr(:meta, :inline),
         Expr(:(=), :p, Expr(:(.), :ptr, QuoteNode(:ptr))),
         Expr(:(=), :s, Expr(:(.), :ptr, QuoteNode(:strides))),
-        Expr(:(=), :strides, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__), strides)),
+        Expr(:(=), :strides, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), strides)),
         Expr(:(=), :gp, Expr(:call, :gep, :p, offset)),
         Expr(:call, :RowMajorStridedPointer, :gp, :strides)
     )
@@ -471,13 +471,13 @@ end
 @generated function subsetview(ptr::SparseStridedPointer{T, N}, ::Val{I}, i::Integer) where {I, T, N}
     I > N && return :ptr
     strides = Expr(:tuple, [Expr(:ref, :s, n) for n ∈ 1:N if n != I]...)
-    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__), Expr(:ref, :s, I)))
+    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, I)))
     Expr(
         :block,
         Expr(:meta, :inline),
         Expr(:(=), :p, Expr(:(.), :ptr, QuoteNode(:ptr))),
         Expr(:(=), :s, Expr(:(.), :ptr, QuoteNode(:strides))),
-        Expr(:(=), :strides, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__), strides)),
+        Expr(:(=), :strides, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), strides)),
         Expr(:(=), :gp, Expr(:call, :gep, :p, offset)),
         Expr(:call, :SparseStridedPointer, :gp, :strides)
     )

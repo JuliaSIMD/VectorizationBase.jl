@@ -58,7 +58,7 @@ unstable_mask(W, rem) = mask(Val(W), rem)
         :block,
         Expr(:meta,:inline),
         Expr(
-            :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, @__FILE__),
+            :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)),
             Expr(:call, :getindex, masks, Expr(:call, :+, 1, :rem))
         )
     )
