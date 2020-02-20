@@ -7,11 +7,11 @@ export Vec, VE, SVec,
     extract_data,
     pick_vector_width,
     pick_vector_width_shift,
-    vectorizable, stridedpointer,
-    Pointer, ZeroInitializedPointer,
+    stridedpointer,
+    ZeroInitializedPointer,
     PackedStridedPointer, RowMajorStridedPointer,
     StaticStridedPointer, StaticStridedStruct,
-    load, store!, vbroadcast
+    load, store!, vbroadcast, Static
 
 # @static if VERSION < v"1.4"
 #     # I think this is worth using, and simple enough that I may as well.

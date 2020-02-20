@@ -27,6 +27,10 @@ end
 @inline StaticUpperUnitRange{U}(::Static{L}) where {L,U} = StaticUnitRange{L,U}()
 
 @inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
+@inline maybestaticsize(A::AbstractArray{<:Any,0}, ::Val{1:2}) = (1, 1)
+@inline maybestaticsize(A::AbstractVector, ::Val{1:2}) = (length(A), 1)
+@inline maybestaticsize(A::AbstractMatrix, ::Val{1:2}) = size(A)
+@inline maybestaticsize(A::AbstractArray, ::Val{1:2}) = (size(A,1),size(A,2))
 @inline maybestaticlength(A) = length(A)
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = Static{N}() # should we assert that i == 1?

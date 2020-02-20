@@ -56,6 +56,7 @@ end
 
 # Fall back definitions
 @inline load(ptr::Ptr) = Base.unsafe_load(ptr)
+@inline load(ptr::Ptr, i::Int) = load(gep(ptr, i))
 @inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
 @inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(Base.unsafe_convert(Ptr{T1}, ptr))
 @inline store!(ptr::Ptr{T1}, v::T2) where {T1,T2} = store!(ptr, convert(T1, v))
@@ -157,7 +158,6 @@ end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
 @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 @inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
-@inline vectorizable(A) = Pointer(pointer(A))
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
 # abstract type AbstractPackedStridedObject{T,N} <: AbstractStridedPointer{T} end
