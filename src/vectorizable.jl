@@ -151,12 +151,12 @@ end
 @inline gep(ptr::AbstractPointer, i::NTuple{W,Core.VecElement{I}}) where {W,I<:Integer} = gep(ptr.ptr, i)
 @inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
 
-struct Pointer{T} <: AbstractPointer{T}
+struct Reference{T} <: AbstractPointer{T}
     ptr::Ptr{T}
-    @inline Pointer(ptr::Ptr{T}) where {T} = new{T}(ptr)
+    @inline Reference(ptr::Ptr{T}) where {T} = new{T}(ptr)
 end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
-@inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
+# @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 @inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
