@@ -111,6 +111,7 @@ end
 @inline vzero(::Type{SVec{W,T}}) where {W,T} = SVec(vzero(Vec{W,T}))
 @inline vone(::Type{T}) where {T} = one(T)
 @inline vzero(::Type{T}) where {T} = zero(T)
+@inline vzero() = vzero(pick_vector_width_val(Float64), Float64)
 @inline VectorizationBase.SVec{W}(s::T) where {W,T<:Number} = SVec(vbroadcast(Vec{W,T}, s))
 @inline VectorizationBase.SVec{W,T}(s::T) where {W,T<:Number} = SVec(vbroadcast(Vec{W,T}, s))
 @inline VectorizationBase.SVec{W,T}(s::Number) where {W,T} = SVec(vbroadcast(Vec{W,T}, convert(T, s)))
