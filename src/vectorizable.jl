@@ -95,15 +95,17 @@ end
 @inline store!(ptr::Ptr{T1}, v::T2) where {T1<:Integer,T2<:Integer} = store!(ptr, v % T1)
 # @inline store!(ptr::Ptr{T1}, v::T2) where {T1,T2} = store!(ptr, convert(T1, v))
 
-@inline tdot(a::Tuple{Int}, b::Tuple{Int}) = @inbounds a[1] * b[1]
-@inline tdot(a::Tuple{Int,Int}, b::Tuple{Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2]
-@inline tdot(a::Tuple{Int,Int,Int}, b::Tuple{Int,Int,Int}) = @inbounds a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
+
+@inline tdot(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = @inbounds a[1] * b[1]
+@inline tdot(a::Tuple{I1,I3}, b::Tuple{I2,I4}) where {I1,I2,I3,I4} = @inbounds a[1]*b[1] + a[2]*b[2]
+@inline tdot(a::Tuple{I1,I3,I5}, b::Tuple{I2,I4,I6}) where {I1,I2,I3,I4,I5,I6} = @inbounds a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
 # @inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
 
-@inline tdot(a::Tuple{Int}, b::Tuple{N,Int}) where {N} = @inbounds a[1]*b[1]
-@inline tdot(a::Tuple{N,Int}, b::Tuple{Int}) where {N} = @inbounds a[1]*b[1]
-# @inline tdot(a::Tuple{Int,Int}, b::Tuple{Int}) where {N} = @inbounds a[1]*b[1]
-@inline tdot(a::NTuple{M,Int}, b::NTuple{N,Int}) where {M,N} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
+@inline tdot(a::Tuple{I}, b::Tuple{}) where {I} = @inbounds a[1]
+@inline tdot(a::Tuple{}, b::Tuple{I}) where {I} = @inbounds b[1]
+@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2}) where {I1,I2} = @inbounds a[1]*b[1]
+@inline tdot(a::Tuple{I1}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds a[1]*b[1]
+@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
 
 
 """
@@ -193,11 +195,19 @@ end
 # @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 # @inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
 
-@inline load(ptr::AbstractPointer, i...) = load(ptr.ptr, offset(ptr, i...))
-@inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Number} = store!(ptr.ptr, v, offset(ptr, i...))
-@inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = store!(ptr.ptr, v, offset(ptr, i...))
-@inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = store!(ptr.ptr, v % T1, offset(ptr, i...))
-@inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1,T2} = store!(ptr.ptr, convert(T1,v), offset(ptr, i...))
+@inline load(ptr::AbstractPointer, i::Tuple) = load(ptr.ptr, offset(ptr, i))
+@inline load(ptr::AbstractPointer, i::Tuple, u::Unsigned) = load(ptr.ptr, offset(ptr, i), u)
+@inline store!(ptr::AbstractPointer, v, i::Tuple) = store!(ptr.ptr, v, offset(ptr, i))
+@inline store!(ptr::AbstractPointer, v, i::Tuple, u::Unsigned) = store!(ptr.ptr, v, offset(ptr, i), u)
+@inline store!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = store!(ptr, convert(T, v), i)
+@inline store!(ptr::Ptr{T}, v::Integer, i::Integer) where {T <: Integer} = store!(ptr, v % T, i)
+# @inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = store!(ptr.ptr, v, offset(ptr, i...))
+# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = store!(ptr.ptr, v % T1, offset(ptr, i...))
+# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Number,T2<:Number} = store!(ptr.ptr, convert(T1,v), offset(ptr, i...))
+# @inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Number} = store!(ptr.ptr, v, offset(ptr, i...))
+# @inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = store!(ptr.ptr, v, offset(ptr, i...))
+# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = store!(ptr.ptr, v % T1, offset(ptr, i...))
+# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Number,T2<:Number} = store!(ptr.ptr, convert(T1,v), offset(ptr, i...))
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
 # abstract type AbstractPackedStridedObject{T,N} <: AbstractStridedPointer{T} end
@@ -231,11 +241,14 @@ const AbstractPackedStridedPointer{T,N} = Union{PackedStridedPointer{T,N},ZeroIn
 # @inline function gep(ptr::AbstractPackedStridedPointer{Cvoid}, i::NTuple)
     # @inbounds ptr.ptr + first(i) + tdot(Base.tail(i), ptr.strides)
 # end
-@inline offset(ptr::AbstractPackedStridedPointer{T}, i::NTuple{N,I}) where {T,N,I<:Integer} = @inbounds i[1] + tdot(Base.tail(i), ptr.strides)
+@inline offset(ptr::AbstractPackedStridedPointer{T}, i::Tuple{}) where {T} = 0
+@inline offset(ptr::AbstractPackedStridedPointer{T}, i::Tuple{I}) where {T,I} = @inbounds i[1]
+@inline offset(ptr::AbstractPackedStridedPointer{T}, i::Tuple{I,Vararg}) where {T,I} = @inbounds i[1] + tdot(Base.tail(i), ptr.strides)
 # @inline function offset(ptr::AbstractPackedStridedPointer{Cvoid}, i::Tuple{Int})
     # ptr.ptr + first(i)
 # end
-@inline offset(ptr::AbstractPackedStridedPointer{T,0}, i::Tuple{I}) where {T,I<:Integer} = @inbounds i[1]
+@inline offset(ptr::AbstractPackedStridedPointer{T,0}, i::Tuple{I,Vararg}) where {T,I} = @inbounds i[1]
+@inline offset(ptr::AbstractPackedStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]
 @inline offset(ptr::AbstractPackedStridedPointer, i::Integer) = i
 @inline offset(ptr::RowMajorStridedPointer, i::Integer) = i
 # @inline offset(ptr::AbstractSparseStridedPointer, i::Integer) = i * @inbounds ptr.strides[1]
@@ -258,14 +271,14 @@ const AbstractRowMajorStridedPointer{T,N} = Union{RowMajorStridedPointer{T,N},Ze
     end
     j
 end
-@inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I<:Integer} = @inbounds i[1]
-@inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I,I}) where {T,I<:Integer} = @inbounds i[1]*ptr.strides[1] + i[2]
-@inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I,I,I}) where {T,I<:Integer} = @inbounds i[1]*ptr.strides[2] + i[2]*ptr.strides[1] + i[3]
-@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::NTuple{N,I}) where {T,N,I<:Integer} = (ri = reverse(i); @inbounds ri[1] + tdot(ptr.strides, Base.tail(ri)))
+@inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]
+@inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds i[1]*ptr.strides[1] + i[2]
+@inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds i[1]*ptr.strides[2] + i[2]*ptr.strides[1] + i[3]
+@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T,N} = (ri = reverse(i); @inbounds ri[1] + tdot(ptr.strides, Base.tail(ri)))
 # @inline function offset(ptr::AbstractRowMajorStridedPointer{Cvoid,0}, i::Tuple{Int})
     # ptr.ptr + first(i)
 # end
-@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::NTuple) where {T} = offset(PackedStridedPointer(ptr.ptr, reverse(ptr.strides)), i)
+# @inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T} = offset(PackedStridedPointer(ptr.ptr, reverse(ptr.strides)), i)
 
 struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
     ptr::Ptr{T}
@@ -273,7 +286,7 @@ struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractStridedPointer{T}
 end
 const AbstractSparseStridedPointer{T,N} = Union{SparseStridedPointer{T,N},ZeroInitializedSparseStridedPointer{T,N}}
 @inline offset(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = @inbounds ptr.strides[1]*i
-@inline offset(ptr::AbstractSparseStridedPointer{T}, i::NTuple) where {T} = @inbounds tdot(i, ptr.strides)
+@inline offset(ptr::AbstractSparseStridedPointer{T}, i::Tuple) where {T} = @inbounds tdot(i, ptr.strides)
 struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
     ptr::Ptr{T}
 end
@@ -303,7 +316,8 @@ function indprod(X::Core.SimpleVector, i)
     iᵢ = Expr(:ref, :i, i)
     Xᵢ == 1 ? iᵢ : Expr(:call, :*, Xᵢ, iᵢ)
 end
-@generated function offset(ptr::AbstractStaticStridedPointer{T,X}, i::NTuple{N}) where {T,X,N}
+@generated function offset(ptr::AbstractStaticStridedPointer{T,X}, i::I) where {T,X,I<:Tuple}
+    N = length(I.parameters)
     Xv = X.parameters
     M = min(N, length(X.parameters))
     if M == 1
@@ -390,20 +404,22 @@ end
 @inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
 @inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 
-@inline load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
-@inline Base.unsafe_load(ptr::AbstractInitializedPointer) = load(ptr.ptr)
-@inline Base.getindex(ptr::AbstractInitializedPointer) = load(ptr.ptr)
+@inline load(ptr::AbstractPointer) = load(ptr.ptr)
+@inline Base.unsafe_load(ptr::AbstractPointer) = load(ptr.ptr)
+@inline Base.getindex(ptr::AbstractPointer) = load(ptr.ptr)
 
-@inline load(ptr::AbstractInitializedPointer{T}, ::Tuple{}) where {T} = load(ptr.ptr)
-@inline load(ptr::AbstractInitializedPointer, i) = load(ptr.ptr, offset(ptr, i))
-@inline Base.unsafe_load(ptr::AbstractInitializedPointer, i) = load(ptr.ptr, offset(ptr, i - 1))
-@inline Base.getindex(ptr::AbstractInitializedPointer, i) = load(ptr.ptr, offset(ptr, i))
+@inline load(ptr::AbstractPointer{T}, ::Tuple{}) where {T} = load(ptr.ptr)
+# @inline load(ptr::AbstractPointer, i::Tuple) = load(ptr.ptr, offset(ptr, i))
+# @inline load(ptr::AbstractPointer, i::Tuple, u::Unsigned) = load(ptr.ptr, offset(ptr, i), u)
+@inline Base.unsafe_load(ptr::AbstractPointer, i) = load(ptr.ptr, offset(ptr, i - 1))
+@inline Base.getindex(ptr::AbstractPointer, i) = load(ptr.ptr, offset(ptr, i))
 
 @inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
 
-@inline store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(ptr.ptr, v, offset(ptr, i))
+# @inline store!(ptr::AbstractPointer{T}, v, i::Tuple) where {T} = store!(ptr.ptr, v, offset(ptr, i))
+# @inline store!(ptr::AbstractPointer{T}, v, i::Tuple, u::Unsigned) where {T} = store!(ptr.ptr, v, offset(ptr, i), u)
 @inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(ptr.ptr, v, offset(ptr, i - 1))
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(ptr.ptr, v, offset(ptr, i))
 

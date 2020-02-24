@@ -146,6 +146,7 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 
 @inline extract_data(v) = v
 @inline extract_data(v::SVec) = v.data
+@inline extract_data(v::AbstractStructVec) = v.data
 @inline extract_value(v::Vec{W,T}, i) where {W,T} = v[i].value
 @inline extract_value(v::SVec{W,T}, i) where {W,T} = v.data[i].value
 
