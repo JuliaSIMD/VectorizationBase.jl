@@ -25,7 +25,7 @@ const JuliaPointerType = LLVMTYPE[Int]
 const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UInt32,UInt64,UInt128,Float16,Float32,Float64}
 
 
-@generated function load(ptr::Ptr{T}) where {T <: LLVMCompatible}
+@generated function vload(ptr::Ptr{T}) where {T <: LLVMCompatible}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
@@ -39,7 +39,7 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
         Base.llvmcall($(join(instrs, "\n")), $T, Tuple{Ptr{$T}}, ptr)
     end
 end
-@generated function store!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
+@generated function vstore!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
@@ -53,7 +53,7 @@ end
         Base.llvmcall($(join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T}, ptr, v)
     end
 end
-@generated function load(ptr::Ptr{T}, i::I) where {T <: LLVMCompatible, I<:Integer}
+@generated function vload(ptr::Ptr{T}, i::I) where {T <: LLVMCompatible, I<:Integer}
     ityp = llvmtype(I)
     ptyp = JuliaPointerType
     typ = llvmtype(T)
@@ -69,7 +69,7 @@ end
         Base.llvmcall($(join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i)
     end
 end
-@generated function store!(ptr::Ptr{T}, v::T, i::I) where {T <: LLVMCompatible, I<:Integer}
+@generated function vstore!(ptr::Ptr{T}, v::T, i::I) where {T <: LLVMCompatible, I<:Integer}
     ityp = llvmtype(I)
     ptyp = JuliaPointerType
     typ = llvmtype(T)
@@ -87,13 +87,13 @@ end
 end
 
 # Fall back definitions
-@inline load(ptr::Ptr) = Base.unsafe_load(ptr)
-# @inline load(ptr::Ptr, i::Int) = load(gep(ptr, i))
-@inline store!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
-@inline load(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = load(Base.unsafe_convert(Ptr{T1}, ptr))
-@inline store!(ptr::Ptr{T1}, v::T2) where {T1,T2} = store!(ptr, convert(T1, v))
-@inline store!(ptr::Ptr{T1}, v::T2) where {T1<:Integer,T2<:Integer} = store!(ptr, v % T1)
-# @inline store!(ptr::Ptr{T1}, v::T2) where {T1,T2} = store!(ptr, convert(T1, v))
+@inline vload(ptr::Ptr) = Base.unsafe_load(ptr)
+# @inline vload(ptr::Ptr, i::Int) = vload(gep(ptr, i))
+@inline vstore!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
+@inline vload(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = vload(Base.unsafe_convert(Ptr{T1}, ptr))
+@inline vstore!(ptr::Ptr{T1}, v::T2) where {T1,T2} = vstore!(ptr, convert(T1, v))
+@inline vstore!(ptr::Ptr{T1}, v::T2) where {T1<:Integer,T2<:Integer} = vstore!(ptr, v % T1)
+# @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1,T2} = vstore!(ptr, convert(T1, v))
 
 
 @inline tdot(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = @inbounds a[1] * b[1]
@@ -110,13 +110,13 @@ end
 
 """
 A wrapper to the base pointer type, that supports pointer arithmetic.
-Note that `VectorizationBase.load` and `VectorizationBase.store!` are 0-indexed,
+Note that `VectorizationBase.vload` and `VectorizationBase.vstore!` are 0-indexed,
 while `Base.unsafe_load` and `Base.unsafe_store!` are 1-indexed.
 x = [1, 2, 3, 4, 5, 6, 7, 8];
 ptrx = Pointer(x);
-load(ptrx)
+vload(ptrx)
 # 1
-load(ptrx + 1)
+vload(ptrx + 1)
 # 2
 ptrx[]
 # 1
@@ -193,21 +193,21 @@ struct Reference{T} <: AbstractPointer{T}
 end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
 # @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
-# @inline store!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = store!(ptr, convert(T1, v), args...)
+# @inline vstore!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = vstore!(ptr, convert(T1, v), args...)
 
-@inline load(ptr::AbstractPointer, i::Tuple) = load(ptr.ptr, offset(ptr, i))
-@inline load(ptr::AbstractPointer, i::Tuple, u::Unsigned) = load(ptr.ptr, offset(ptr, i), u)
-@inline store!(ptr::AbstractPointer, v, i::Tuple) = store!(ptr.ptr, v, offset(ptr, i))
-@inline store!(ptr::AbstractPointer, v, i::Tuple, u::Unsigned) = store!(ptr.ptr, v, offset(ptr, i), u)
-@inline store!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = store!(ptr, convert(T, v), i)
-@inline store!(ptr::Ptr{T}, v::Integer, i::Integer) where {T <: Integer} = store!(ptr, v % T, i)
-# @inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = store!(ptr.ptr, v, offset(ptr, i...))
-# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = store!(ptr.ptr, v % T1, offset(ptr, i...))
-# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Number,T2<:Number} = store!(ptr.ptr, convert(T1,v), offset(ptr, i...))
-# @inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Number} = store!(ptr.ptr, v, offset(ptr, i...))
-# @inline store!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = store!(ptr.ptr, v, offset(ptr, i...))
-# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = store!(ptr.ptr, v % T1, offset(ptr, i...))
-# @inline store!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Number,T2<:Number} = store!(ptr.ptr, convert(T1,v), offset(ptr, i...))
+@inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, i))
+@inline vload(ptr::AbstractPointer, i::Tuple, u::Unsigned) = vload(ptr.ptr, offset(ptr, i), u)
+@inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, i))
+@inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Unsigned) = vstore!(ptr.ptr, v, offset(ptr, i), u)
+@inline vstore!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = vstore!(ptr, convert(T, v), i)
+@inline vstore!(ptr::Ptr{T}, v::Integer, i::Integer) where {T <: Integer} = vstore!(ptr, v % T, i)
+# @inline vstore!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = vstore!(ptr.ptr, v, offset(ptr, i...))
+# @inline vstore!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = vstore!(ptr.ptr, v % T1, offset(ptr, i...))
+# @inline vstore!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Number,T2<:Number} = vstore!(ptr.ptr, convert(T1,v), offset(ptr, i...))
+# @inline vstore!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Number} = vstore!(ptr.ptr, v, offset(ptr, i...))
+# @inline vstore!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = vstore!(ptr.ptr, v, offset(ptr, i...))
+# @inline vstore!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Integer,T2<:Integer} = vstore!(ptr.ptr, v % T1, offset(ptr, i...))
+# @inline vstore!(ptr::AbstractPointer{T1}, v::T2, i...) where {T1<:Number,T2<:Number} = vstore!(ptr.ptr, convert(T1,v), offset(ptr, i...))
 
 abstract type AbstractStridedPointer{T} <: AbstractPointer{T} end
 # abstract type AbstractPackedStridedObject{T,N} <: AbstractStridedPointer{T} end
@@ -397,31 +397,31 @@ end
 @inline Base.:-(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, - i))
 
 # Now, to define indexing
-@inline load(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline load(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
+@inline vload(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
+@inline vload(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 @inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
 @inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 @inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
 @inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 
-@inline load(ptr::AbstractPointer) = load(ptr.ptr)
-@inline Base.unsafe_load(ptr::AbstractPointer) = load(ptr.ptr)
-@inline Base.getindex(ptr::AbstractPointer) = load(ptr.ptr)
+@inline vload(ptr::AbstractPointer) = vload(ptr.ptr)
+@inline Base.unsafe_load(ptr::AbstractPointer) = vload(ptr.ptr)
+@inline Base.getindex(ptr::AbstractPointer) = vload(ptr.ptr)
 
-@inline load(ptr::AbstractPointer{T}, ::Tuple{}) where {T} = load(ptr.ptr)
-# @inline load(ptr::AbstractPointer, i::Tuple) = load(ptr.ptr, offset(ptr, i))
-# @inline load(ptr::AbstractPointer, i::Tuple, u::Unsigned) = load(ptr.ptr, offset(ptr, i), u)
-@inline Base.unsafe_load(ptr::AbstractPointer, i) = load(ptr.ptr, offset(ptr, i - 1))
-@inline Base.getindex(ptr::AbstractPointer, i) = load(ptr.ptr, offset(ptr, i))
+@inline vload(ptr::AbstractPointer{T}, ::Tuple{}) where {T} = vload(ptr.ptr)
+# @inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, i))
+# @inline vload(ptr::AbstractPointer, i::Tuple, u::Unsigned) = vload(ptr.ptr, offset(ptr, i), u)
+@inline Base.unsafe_load(ptr::AbstractPointer, i) = vload(ptr.ptr, offset(ptr, i - 1))
+@inline Base.getindex(ptr::AbstractPointer, i) = vload(ptr.ptr, offset(ptr, i))
 
-@inline store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
-@inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = store!(ptr.ptr, v)
+@inline vstore!(ptr::AbstractPointer{T}, v::T) where {T} = vstore!(ptr.ptr, v)
+@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = vstore!(ptr.ptr, v)
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T) where {T} = vstore!(ptr.ptr, v)
 
-# @inline store!(ptr::AbstractPointer{T}, v, i::Tuple) where {T} = store!(ptr.ptr, v, offset(ptr, i))
-# @inline store!(ptr::AbstractPointer{T}, v, i::Tuple, u::Unsigned) where {T} = store!(ptr.ptr, v, offset(ptr, i), u)
-@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(ptr.ptr, v, offset(ptr, i - 1))
-@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = store!(ptr.ptr, v, offset(ptr, i))
+# @inline vstore!(ptr::AbstractPointer{T}, v, i::Tuple) where {T} = vstore!(ptr.ptr, v, offset(ptr, i))
+# @inline vstore!(ptr::AbstractPointer{T}, v, i::Tuple, u::Unsigned) where {T} = vstore!(ptr.ptr, v, offset(ptr, i), u)
+@inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = vstore!(ptr.ptr, v, offset(ptr, i - 1))
+@inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = vstore!(ptr.ptr, v, offset(ptr, i))
 
 
 # @inline Pointer(A) = Pointer(pointer(A))
@@ -481,7 +481,7 @@ end
 #     StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + first(i) + tdot(strides, Base.tail(i)))
 # end
 
-@inline load(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1] + 1]
+@inline vload(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1] + 1]
 
 
 @inline subsetview(ptr::PackedStridedPointer, ::Val{1}, i::Integer) = SparseStridedPointer(gep(ptr.ptr, i), ptr.strides)
@@ -599,5 +599,5 @@ struct MappedStridedPointer{F, T, P <: AbstractPointer{T}}
     f::F
     ptr::P
 end
-@inline load(ptr::MappedStridedPointer) = ptr.f(load(ptr.ptr))
+@inline vload(ptr::MappedStridedPointer) = ptr.f(vload(ptr.ptr))
 

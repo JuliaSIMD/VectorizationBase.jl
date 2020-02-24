@@ -11,7 +11,7 @@ export Vec, VE, SVec,
     ZeroInitializedPointer,
     PackedStridedPointer, RowMajorStridedPointer,
     StaticStridedPointer, StaticStridedStruct,
-    load, store!, vbroadcast, Static
+    vload, vstore!, vbroadcast, Static
 
 # @static if VERSION < v"1.4"
 #     # I think this is worth using, and simple enough that I may as well.
@@ -81,6 +81,22 @@ end
         Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
     end
 end
+@generated function vbroadcast(::Type{Vec{W,T}}, ptr::Ptr{T}) where {W, T}
+    typ = llvmtype(T)
+    ptyp = JuliaPointerType
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    alignment = Base.datatype_alignment(T)
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment")
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %res, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{Ptr{$T}}, ptr )
+    end
+end
 @generated function vzero(::Type{Vec{W,T}}) where {W,T}
     typ = llvmtype(T)
     vtyp = "<$W x $typ>"
@@ -94,10 +110,9 @@ end
 end
 # @inline vzero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline vbroadcast(::Val{W}, s::T) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
-@inline vbroadcast(::Val{W}, ptr::Ptr{T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, VectorizationBase.load(ptr)))
+@inline vbroadcast(::Val{W}, ptr::Ptr{T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, ptr))
 @inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1,T2} = vbroadcast(Vec{W,T1}, convert(T1,s))
 @inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1<:Integer,T2<:Integer} = vbroadcast(Vec{W,T1}, s % T1)
-@inline vbroadcast(::Type{Vec{W,T}}, ptr::Ptr{T}) where {W,T} = vbroadcast(Vec{W,T}, VectorizationBase.load(ptr))
 @inline vbroadcast(::Type{Vec{W,T}}, ptr::Ptr) where {W,T} = vbroadcast(Vec{W,T}, Base.unsafe_convert(Ptr{T},ptr))
 @inline vbroadcast(::Type{SVec{W,T}}, s) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
 @inline vbroadcast(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
