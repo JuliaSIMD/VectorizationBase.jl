@@ -146,7 +146,7 @@ vA = VectorizationBase.stridedpointer(A)
 VectorizationBase.vstore!(vA, 99.9, (3,))
 @test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (3,))
 VectorizationBase.vstore!(ptr_A+8*4, 999.9)
-@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(vA, 4)
+@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4)
 end
 
 end
