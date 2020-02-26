@@ -2,7 +2,7 @@ module VectorizationBase
 
 using LinearAlgebra
 
-export Vec, VE, SVec,
+export Vec, VE, SVec, Mask, _MM,
     firstval, gep,
     extract_data,
     pick_vector_width,
@@ -25,13 +25,20 @@ export Vec, VE, SVec,
 # end
 
 const VE{T} = Core.VecElement{T}
-const Vec{W,T} = NTuple{W,VE{T}}
+const Vec{W,T<:Number} = NTuple{W,VE{T}}
 
-abstract type AbstractStructVec{W,T} end
+abstract type AbstractStructVec{W,T<:Number} end
 struct SVec{W,T} <: AbstractStructVec{W,T}
     data::Vec{W,T}
     # SVec{N,T}(v) where {N,T} = new(v)
 end
+struct Mask{W,U<:Unsigned} <: AbstractStructVec{W,Bool}
+    u::U
+end
+@inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
+# Const prop is good enough; added an @inferred test to make sure.
+@inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
+
 # SVec{N,T}(x) where {N,T} = SVec(ntuple(i -> VE(T(x)), Val(N)))
 # @inline function SVec{N,T}(x::Number) where {N,T}
     # SVec(ntuple(i -> VE(T(x)), Val(N)))
@@ -43,8 +50,11 @@ end
     # SVec{N,T}(v)
 # end
 @inline SVec(u::Unsigned) = u # Unsigned integers are treated as vectors of bools
+@inline SVec{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u) # Unsigned integers are treated as vectors of bools
 @inline SVec(v::SVec{W,T}) where {W,T} = v
+@inline SVec{W}(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
+@inline SVec{W}(v::Vec{W,T}) where {W,T} = SVec{W,T}(v)
 @generated function vbroadcast(::Type{Vec{W,Ptr{T}}}, s::Ptr{T}) where {W, T}
     typ = "i$(8sizeof(Int))"
     vtyp = "<$W x $typ>"
@@ -173,6 +183,16 @@ function Base.show(io::IO, v::SVec{W,T}) where {W,T}
     print(io, "SVec{$W,$T}<")
     for w ∈ 1:W
         print(io, v[w])
+        w < W && print(io, ", ")
+    end
+    print(">")
+end
+function Base.show(io::IO, m::Mask{W}) where {W}
+    bits = bitstring(extract_data(m))[end-W+1:end]
+    bitv = split(bits, "")
+    print(io, "Mask{$W,Bool}<")
+    for w ∈ 1:W
+        print(io, bitv[w])
         w < W && print(io, ", ")
     end
     print(">")

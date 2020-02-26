@@ -1,3 +1,36 @@
+
+
+
+@inline extract_data(m::Mask) = m.u
+@inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
+@inline Base.:(&)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
+@inline Base.:(&)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+
+@inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
+@inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
+
+@inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
+@inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
+@inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+
+@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = Mask{W}(b ? typemax(U) : m.u)
+@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = Mask{W}(b ? typemax(U) : m.u)
+
+@inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
+@inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
+@inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+
+@inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
+@inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
+
+@inline Base.:(<<)(m::Mask{W}, i) where {W} = Mask{W}(m.u << i)
+@inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >> i)
+@inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >>> i)
+
+@inline Base.:(~)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
+@inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
+
+
 function mask_type(W)
     if W <= 8
         return UInt8
@@ -22,7 +55,7 @@ end
 @generated function max_mask(::Type{T}) where {T}
     W = pick_vector_width(T)
     U = mask_type(W)
-    one(U)<<W - one(U)
+    Mask{W,U}(one(U)<<W - one(U))
 end
 
 @generated function mask(::Type{T}, rem::Integer) where {T}
@@ -32,7 +65,7 @@ end
     quote
         $(Expr(:meta,:inline))
         # @inbounds $tup[rem+1]
-        one($M) << (rem & $(typemax(M))) - $(one(M))
+        Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
     end
 end
 
@@ -43,7 +76,7 @@ end
     quote
         $(Expr(:meta,:inline))
         # @inbounds $tup[rem+1]
-        one($M) << (rem & $(typemax(M))) - $(one(M))
+        Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
     end
 end
 
@@ -52,15 +85,15 @@ unstable_mask(W, rem) = mask(Val(W), rem)
 @generated function masktable(::Val{W}, rem::Integer) where {W}
     masks = Expr(:tuple)
     for w ∈ 0:W-1
-        push!(masks.args, unstable_mask(W, w == 0 ? W : w))
+        push!(masks.args, extract_data(unstable_mask(W, w == 0 ? W : w)))
     end
     Expr(
         :block,
         Expr(:meta,:inline),
-        Expr(
+        Expr(:call, Expr(:curly, :Mask, W), Expr(
             :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)),
             Expr(:call, :getindex, masks, Expr(:call, :+, 1, :rem))
-        )
+        ))
     )
 end
 

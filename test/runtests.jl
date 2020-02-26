@@ -61,7 +61,9 @@ end
 
 end
 
-@testset "masks.jl" begin
+    @testset "masks.jl" begin
+    @test Mask{8,UInt8}(0x0f) === @inferred Mask(0x0f)
+    @test Mask{16,UInt16}(0x0f0f) === @inferred Mask(0x0f0f)
 @test all(w -> VectorizationBase.mask_type(w) == UInt8, 1:8)
 @test all(w -> VectorizationBase.mask_type(w) == UInt16, 9:16)
 @test all(w -> VectorizationBase.mask_type(w) == UInt32, 17:32)

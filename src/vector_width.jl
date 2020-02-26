@@ -73,7 +73,13 @@ pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
 @generated function pick_vector_width_val(vargs...)
     sT = 16
     for v ∈ vargs
-        sT = min(sT, sizeof(v.parameters[1]))
+        T = v.parameters[1]
+        if T == Bool
+            sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
+        else
+            sTv = sizeof(v.parameters[1])
+        end
+        sT = min(sT, sTv)
     end
     Val{REGISTER_SIZE ÷ sT}()
 end
@@ -93,13 +99,12 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
 
-struct _MM{W}
-    i::Int
-    @inline _MM{W}(i::Int) where {W} = new{W}(i)
-    @inline _MM{W}(i::Integer) where {W} = new{W}(i % Int)    
+struct _MM{W,I<:Number}
+    i::I
+    @inline _MM{W}(i::T) where {W,T} = new{W,T}(i)
 end
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
-@inline _MM(::Val{W}, i) where {W} = _MM{W}(i % Int)
+@inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 
 @inline Base.:(+)(i::_MM{W}, j::Integer) where {W} = _MM{W}(i.i + j)
 @inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(i + j.i)
