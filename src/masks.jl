@@ -13,8 +13,16 @@
 @inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
 @inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
 
-@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = Mask{W}(b ? typemax(U) : m.u)
-@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = Mask{W}(b ? typemax(U) : m.u)
+@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
+@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
+@inline Base.:(|)(m::Mask{16,UInt16}, b::Bool) where {W} = Mask{W}(b ? 0xffff : m.u)
+@inline Base.:(|)(b::Bool, m::Mask{16,UInt16}) where {W} = Mask{W}(b ? 0xffff : m.u)
+@inline Base.:(|)(m::Mask{8,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0xff : m.u)
+@inline Base.:(|)(b::Bool, m::Mask{8,UInt8}) where {W} = Mask{W}(b ? 0xff : m.u)
+@inline Base.:(|)(m::Mask{4,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x0f : m.u)
+@inline Base.:(|)(b::Bool, m::Mask{4,UInt8}) where {W} = Mask{W}(b ? 0x0f : m.u)
+@inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x03 : m.u)
+@inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) where {W} = Mask{W}(b ? 0x03 : m.u)
 
 @inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
 @inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
@@ -30,6 +38,7 @@
 @inline Base.:(~)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
 @inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
 
+@inline Base.count_ones(m::Mask) = count_ones(m.u)
 
 function mask_type(W)
     if W <= 8
@@ -57,6 +66,7 @@ end
     U = mask_type(W)
     Mask{W,U}(one(U)<<W - one(U))
 end
+@generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
 @generated function mask(::Type{T}, rem::Integer) where {T}
     M = mask_type(T)
