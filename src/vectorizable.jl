@@ -215,10 +215,18 @@ struct PackedStridedPointer{T,N} <: AbstractColumnMajorStridedPointer{T,N}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
+struct PackedStridedBitPointer{N} <: AbstractColumnMajorStridedPointer{Bool,N}
+    ptr::Ptr{UInt}
+    strides::NTuple{N,Int}
+end
 
 abstract type AbstractRowMajorStridedPointer{T,N} <: AbstractStridedPointer{T} end
 struct RowMajorStridedPointer{T,N} <: AbstractRowMajorStridedPointer{T,N}
     ptr::Ptr{T}
+    strides::NTuple{N,Int}
+end
+struct RowMajorStridedBitPointer{N} <: AbstractRowMajorStridedPointer{Bool,N}
+    ptr::Ptr{UInt}
     strides::NTuple{N,Int}
 end
 
@@ -227,11 +235,19 @@ struct SparseStridedPointer{T,N} <: AbstractSparseStridedPointer{T,N}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
+struct SparseStridedBitPointer{N} <: AbstractSparseStridedPointer{Bool,N}
+    ptr::Ptr{UInt}
+    strides::NTuple{N,Int}
+end
 
 abstract type AbstractStaticStridedPointer{T,X} <: AbstractStridedPointer{T} end
 struct StaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
     ptr::Ptr{T}
 end
+struct StaticStridedBitPointer{X} <: AbstractStaticStridedPointer{Bool,X}
+    ptr::Ptr{UInt}
+end
+const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPointer, SparseStridedBitPointer, StaticStridedBitPointer}
 
 struct ZeroInitializedPackedStridedPointer{T,N} <: AbstractColumnMajorStridedPointer{T,N}
     ptr::Ptr{T}
@@ -245,7 +261,7 @@ end
 @inline offset(ptr::AbstractColumnMajorStridedPointer{T,0}, i::Tuple{I,Vararg}) where {T,I} = @inbounds i[1]
 @inline offset(ptr::AbstractColumnMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]
 @inline offset(ptr::AbstractColumnMajorStridedPointer, i::Integer) = i
-@inline offset(ptr::RowMajorStridedPointer, i::Integer) = i
+@inline offset(ptr::AbstractRowMajorStridedPointer, i::Integer) = i
 # @inline offset(ptr::AbstractSparseStridedPointer, i::Integer) = i * @inbounds ptr.strides[1]
 # @inline offset(ptr::AbstractStaticStridedPointer{<:Any,<:Tuple{1,Vararg}}, i::Integer) = i
 # @inline offset(ptr::AbstractStaticStridedPointer{<:Any,<:Tuple{M,Vararg}}, i::Integer) where {M} = M*i
@@ -433,7 +449,19 @@ end
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
 @inline stridedpointer(x::Union{LowerTriangular,UpperTriangular}) = stridedpointer(parent(x))
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
-@inline stridedpointer(A::AbstractArray) = @inbounds PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+@inline stridedpointer(A::AbstractArray) = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
+@inline tailstrides(A::AbstractArray) = Base.tail(strides(A))
+@inline tailstrides(A::BitArray{1}) = tuple()
+@inline tailstrides(A::BitArray{2}) = (size(A,1),)
+@inline tailstrides(A::BitArray{3}) = (size(A,1),size(A,1)*size(A,2))
+@generated function tailstrides(A::BitArray{N}) where {N}
+    quote
+        (Base.Cartesian.@ntuple $(N-1) s) = size(A)
+        Base.Cartesian.@nexprs $(N-2) n -> s_{n+1} *= s_n
+        (Base.Cartesian.@ntuple $(N-1) s)
+    end
+end
+@inline stridedpointer(A::BitArray) = PackedStridedBitPointer(pointer(A.chunks), tailstrides(A))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
 @inline stridedpointer(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}} = SparseStridedPointer(pointer(A), strides(A))
@@ -443,6 +471,10 @@ end
 @inline function stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
     pB = parent(B)
     RowMajorStridedPointer(pointer(pB), Base.tail(strides(pB)))
+end
+@inline function stridedpointer(B::Union{Adjoint{Bool,A},Transpose{Bool,A}}) where {T,N,A <: BitArray{N}}
+    pB = parent(B)
+    RowMajorStridedBitPointer(pointer(pB.chunks), tailstrides(pB))
 end
 @inline function stridedpointer(C::Union{Adjoint{T,A},Transpose{T,A}}) where {T, P, B, A <: SubArray{T,2,P,Tuple{Int,Vararg},B}}
     pC = parent(C)
@@ -595,4 +627,5 @@ struct MappedStridedPointer{F, T, P <: AbstractPointer{T}}
     ptr::P
 end
 @inline vload(ptr::MappedStridedPointer) = ptr.f(vload(ptr.ptr))
+
 

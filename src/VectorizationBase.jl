@@ -11,7 +11,7 @@ export Vec, VE, SVec, Mask, _MM,
     ZeroInitializedPointer,
     PackedStridedPointer, RowMajorStridedPointer,
     StaticStridedPointer, StaticStridedStruct,
-    vload, vstore!, vbroadcast, Static
+    vload, vstore!, vbroadcast, Static, mask, masktable
 
 # @static if VERSION < v"1.4"
 #     # I think this is worth using, and simple enough that I may as well.
@@ -192,9 +192,9 @@ function Base.show(io::IO, m::Mask{W}) where {W}
     bits = bitstring(m)
     bitv = split(bits, "")
     print(io, "Mask{$W,Bool}<")
-    for w ∈ 1:W
-        print(io, bitv[w])
-        w < W && print(io, ", ")
+    for w ∈ 0:W-1
+        print(io, bitv[W-w])
+        w < W-1 && print(io, ", ")
     end
     print(">")
 end
