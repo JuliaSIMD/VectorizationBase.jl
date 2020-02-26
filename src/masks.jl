@@ -38,6 +38,10 @@
 @inline Base.:(~)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
 @inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
 
+@inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
+@inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
+@inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
+
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
 
 function mask_type(W)

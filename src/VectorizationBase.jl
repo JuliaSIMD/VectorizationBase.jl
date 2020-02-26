@@ -187,8 +187,9 @@ function Base.show(io::IO, v::SVec{W,T}) where {W,T}
     end
     print(">")
 end
+Base.bitstring(m::Mask{W}) where {W} = bitstring(extract_data(m))[end-W+1:end]
 function Base.show(io::IO, m::Mask{W}) where {W}
-    bits = bitstring(extract_data(m))[end-W+1:end]
+    bits = bitstring(m)
     bitv = split(bits, "")
     print(io, "Mask{$W,Bool}<")
     for w ∈ 1:W

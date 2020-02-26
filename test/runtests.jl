@@ -73,27 +73,27 @@ if VectorizationBase.REGISTER_SIZE == 64 # avx512
     @test VectorizationBase.mask_type(Float16) == UInt32
     @test VectorizationBase.mask_type(Float32) == UInt16
     @test VectorizationBase.mask_type(Float64) == UInt8
-    @test VectorizationBase.max_mask(Float16) === 0xffffffff # 32
-    @test VectorizationBase.max_mask(Float32) === 0xffff     # 16
-    @test VectorizationBase.max_mask(Float64) === 0xff       # 8
+    @test VectorizationBase.max_mask(Float16) == 0xffffffff # 32
+    @test VectorizationBase.max_mask(Float32) == 0xffff     # 16
+    @test VectorizationBase.max_mask(Float64) == 0xff       # 8
 elseif VectorizationBase.REGISTER_SIZE == 32 # avx or avx2
     @test VectorizationBase.mask_type(Float16) == UInt16
     @test VectorizationBase.mask_type(Float32) == UInt8
     @test VectorizationBase.mask_type(Float64) == UInt8
-    @test VectorizationBase.max_mask(Float16) === 0xffff     # 16
-    @test VectorizationBase.max_mask(Float32) === 0xff       # 8
-    @test VectorizationBase.max_mask(Float64) === 0x0f       # 4
+    @test VectorizationBase.max_mask(Float16) == 0xffff     # 16
+    @test VectorizationBase.max_mask(Float32) == 0xff       # 8
+    @test VectorizationBase.max_mask(Float64) == 0x0f       # 4
 elseif VectorizationBase.REGISTER_SIZE == 16 # sse
     @test VectorizationBase.mask_type(Float16) == UInt8
     @test VectorizationBase.mask_type(Float32) == UInt8
     @test VectorizationBase.mask_type(Float64) == UInt8
-    @test VectorizationBase.max_mask(Float16) === 0xff       # 8
-    @test VectorizationBase.max_mask(Float32) === 0x0f       # 4
-    @test VectorizationBase.max_mask(Float64) === 0x03       # 2
+    @test VectorizationBase.max_mask(Float16) == 0xff       # 8
+    @test VectorizationBase.max_mask(Float32) == 0x0f       # 4
+    @test VectorizationBase.max_mask(Float64) == 0x03       # 2
 end
 @test all(w -> bitstring(VectorizationBase.mask(Val( 8), w)) == reduce(*, ( 8 - i < w ? "1" : "0" for i in 1:8 )), 0:8 )
-@test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 0:16)
-@test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(Val(8), w), 0:W64)
+        @test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 0:16)
+@test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(VectorizationBase.pick_vector_width_val(Float64), w), 0:W64)
 end
 
 @testset "number_vectors.jl" begin
