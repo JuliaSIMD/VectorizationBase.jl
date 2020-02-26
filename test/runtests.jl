@@ -92,7 +92,7 @@ elseif VectorizationBase.REGISTER_SIZE == 16 # sse
     @test VectorizationBase.max_mask(Float64) == 0x03       # 2
 end
 @test all(w -> bitstring(VectorizationBase.mask(Val( 8), w)) == reduce(*, ( 8 - i < w ? "1" : "0" for i in 1:8 )), 0:8 )
-        @test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 0:16)
+@test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 0:16)
 @test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(VectorizationBase.pick_vector_width_val(Float64), w), 0:W64)
 end
 
