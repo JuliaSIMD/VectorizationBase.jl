@@ -39,6 +39,8 @@ end
 # Const prop is good enough; added an @inferred test to make sure.
 @inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
 
+@inline Base.broadcastable(v::AbstractStructVec) = Ref(v)
+
 # SVec{N,T}(x) where {N,T} = SVec(ntuple(i -> VE(T(x)), Val(N)))
 # @inline function SVec{N,T}(x::Number) where {N,T}
     # SVec(ntuple(i -> VE(T(x)), Val(N)))

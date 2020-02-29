@@ -10,4 +10,5 @@ function _precompile_()
     precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Type{Float32}})
     precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Val{73},Type{Float32}})
     precompile(Tuple{typeof(VectorizationBase.pick_vector_width),Val{73},Type{Float64}})
+    precompile(Tuple{typeof(which(VectorizationBase.pick_vector_width_val,(Vararg{Any,N} where N,)).generator.gen),Any,Any})
 end
