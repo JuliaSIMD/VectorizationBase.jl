@@ -3,7 +3,7 @@ module VectorizationBase
 using LinearAlgebra
 
 export Vec, VE, SVec, Mask, _MM,
-    firstval, gep,
+    firstval, gep, gesp,
     extract_data,
     pick_vector_width,
     pick_vector_width_shift,

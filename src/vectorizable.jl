@@ -249,11 +249,6 @@ struct StaticStridedBitPointer{X} <: AbstractStaticStridedPointer{Bool,X}
 end
 const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPointer, SparseStridedBitPointer, StaticStridedBitPointer}
 
-struct ZeroInitializedPackedStridedPointer{T,N} <: AbstractColumnMajorStridedPointer{T,N}
-    ptr::Ptr{T}
-    strides::NTuple{N,Int}
-end
-
 @inline offset(::AbstractColumnMajorStridedPointer, ::Tuple{}) = 0
 @inline offset(::AbstractColumnMajorStridedPointer, i::Tuple{I}) where {I} = @inbounds i[1]
 @inline offset(ptr::AbstractColumnMajorStridedPointer, i::Tuple{I,Vararg}) where {I} = @inbounds i[1] + tdot(Base.tail(i), ptr.strides)
@@ -265,23 +260,17 @@ end
 # @inline offset(ptr::AbstractSparseStridedPointer, i::Integer) = i * @inbounds ptr.strides[1]
 # @inline offset(ptr::AbstractStaticStridedPointer{<:Any,<:Tuple{1,Vararg}}, i::Integer) = i
 # @inline offset(ptr::AbstractStaticStridedPointer{<:Any,<:Tuple{M,Vararg}}, i::Integer) where {M} = M*i
-
-
-
-struct ZeroInitializedRowMajorStridedPointer{T,N} <: AbstractRowMajorStridedPointer{T,N}
-    ptr::Ptr{T}
-    strides::NTuple{N,Int}
-end
+@inline gep(ptr::AbstractStridedPointer, i::Tuple) = gep(ptr, offset(ptr, i))
+@inline gesp(ptr::PackedStridedPointer, i) = PackedStridedPointer(gep(ptr, i), ptr.strides)
+@inline gesp(ptr::PackedStridedBitPointer, i) = PackedStridedBitPointer(gep(ptr, i), ptr.strides)
+@inline gesp(ptr::RowMajorStridedPointer, i) = RowMajorStridedPointer(gep(ptr, i), ptr.strides)
+@inline gesp(ptr::RowMajorStridedBitPointer, i) = RowMajorStridedBitPointer(gep(ptr, i), ptr.strides)
+@inline gesp(ptr::SparseStridedPointer, i) = SparseStridedPointer(gep(ptr, i), ptr.strides)
+@inline gesp(ptr::SparseStridedBitPointer, i) = SparseStridedBitPointer(gep(ptr, i), ptr.strides)
+@inline gesp(ptr::StaticStridedPointer{T,X}, i) where {T,X} = StaticStridedPointer{T,X}(gep(ptr, i))
+@inline gesp(ptr::StaticStridedBitPointer{X}, i) where {X} = StaticStridedBitPointer{X}(gep(ptr, i))
 
 @inline LinearAlgebra.Transpose(ptr::RowMajorStridedPointer) = PackedStridedPointer(ptr.ptr, ptr.strides)
-@inline function gep(ptr::AbstractRowMajorStridedPointer{Cvoid,N}, i::NTuple) where {N}
-    j = last(i)
-    s = ptr.strides
-    @inbounds for n ∈ 1:N
-        j += s[1 + N - n]*i[n]
-    end
-    j
-end
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds i[1]*ptr.strides[1] + i[2]
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds i[1]*ptr.strides[2] + i[2]*ptr.strides[1] + i[3]
@@ -291,16 +280,12 @@ end
 # end
 # @inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T} = offset(PackedStridedPointer(ptr.ptr, reverse(ptr.strides)), i)
 
-struct ZeroInitializedSparseStridedPointer{T,N} <: AbstractSparseStridedPointer{T,N}
-    ptr::Ptr{T}
-    strides::NTuple{N,Int}
-end
-
 @inline offset(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = @inbounds ptr.strides[1]*i
 @inline offset(ptr::AbstractSparseStridedPointer{T}, i::Tuple) where {T} = @inbounds tdot(i, ptr.strides)
-struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
-    ptr::Ptr{T}
-end
+# struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
+    # ptr::Ptr{T}
+# end
+
 @generated function LinearAlgebra.Transpose(ptr::StaticStridedPointer{T,X}) where {T,X}
     tup = Expr(:curly, :Tuple)
     N = length(X.parameters)
@@ -308,14 +293,6 @@ end
         push!(tup.args, (X.parameters[n])::Int)
     end
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :StaticStridedPointer, T, tup), Expr(:(.), :ptr, QuoteNode(:ptr))))
-end
-@generated function LinearAlgebra.Transpose(ptr::ZeroInitializedStaticStridedPointer{T,X}) where {T,X}
-    tup = Expr(:curly, :Tuple)
-    N = length(X.parameters)
-    for n ∈ N:-1:1
-        push!(tup.args, (X.parameters[n])::Int)
-    end
-    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :ZeroInitializedStaticStridedPointer, T, tup), Expr(:(.), :ptr, QuoteNode(:ptr))))
 end
 
 @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,Vararg}}, i::Integer) where {T} = i
@@ -363,11 +340,6 @@ const AbstractInitializedStridedPointer{T} = Union{
     StaticStridedPointer{T},
     StaticStridedStruct{T}
 }
-const AbstractZeroInitializedStridedPointer{T} = Union{
-    ZeroInitializedPackedStridedPointer{T},
-    ZeroInitializedSparseStridedPointer{T},
-    ZeroInitializedStaticStridedPointer{T}
-}
 const AbstractInitializedPointer{T} = Union{
     # Pointer{T},
     PackedStridedPointer{T},
@@ -375,12 +347,6 @@ const AbstractInitializedPointer{T} = Union{
     SparseStridedPointer{T},
     StaticStridedPointer{T},
     StaticStridedStruct{T}
-}
-const AbstractZeroInitializedPointer{T} = Union{
-    # ZeroInitializedPointer{T},
-    ZeroInitializedPackedStridedPointer{T},
-    ZeroInitializedSparseStridedPointer{T},
-    ZeroInitializedStaticStridedPointer{T}
 }
 
 @inline Base.stride(ptr::AbstractColumnMajorStridedPointer, i) = isone(i) ? 1 : @inbounds ptr.strides[i-1]
@@ -395,25 +361,13 @@ end
 @inline offset(ptr::AbstractPointer, i::CartesianIndex) = offset(ptr, i.I)
 
 # @inline Base.similar(::Pointer{T}, ptr::Ptr{T}) where {T} = Pointer(ptr)
-# @inline Base.similar(::ZeroInitializedPointer{T}, ptr::Ptr{T}) where {T} = ZeroInitializedPointer(ptr)
 @inline Base.similar(p::PackedStridedPointer{T}, ptr::Ptr{T}) where {T} = PackedStridedPointer(ptr, p.strides)
-@inline Base.similar(p::ZeroInitializedPackedStridedPointer{T}, ptr::Ptr{T}) where {T} = ZeroInitializedPackedStridedPointer(ptr, p.strides)
 @inline Base.similar(p::SparseStridedPointer{T}, ptr::Ptr{T}) where {T} = SparseStridedPointer(ptr, p.strides)
-@inline Base.similar(p::ZeroInitializedSparseStridedPointer{T}, ptr::Ptr{T}) where {T} = ZeroInitializedSparseStridedPointer(ptr, p.strides)
 @inline Base.similar(p::StaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = StaticStridedPointer{T,X}(ptr)
-@inline Base.similar(p::ZeroInitializedStaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = ZeroInitializedStaticStridedPointer{T,X}(ptr)
 
 @inline Base.:+(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, i))
 @inline Base.:+(i, ptr::AbstractPointer{T}) where {T} = similar(ptr, gep(ptr.ptr, i))
 @inline Base.:-(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, - i))
-
-# Now, to define indexing
-@inline vload(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline vload(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
-@inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline Base.unsafe_load(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
-@inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}) where {T} = zero(T)
-@inline Base.getindex(ptr::AbstractZeroInitializedPointer{T}, i) where {T} = zero(T)
 
 @inline vload(ptr::AbstractPointer) = vload(ptr.ptr)
 @inline Base.unsafe_load(ptr::AbstractPointer) = vload(ptr.ptr)
@@ -436,14 +390,8 @@ end
 
 
 # @inline Pointer(A) = Pointer(pointer(A))
-# @inline ZeroInitializedPointer(A) = ZeroInitializedPointer(pointer(A))
 @inline Base.pointer(ptr::AbstractPointer) = ptr.ptr
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
-
-
-# @inline zeroinitialized(A::Pointer) = ZeroInitializedPointer(A.ptr)
-
-
 
 @inline stridedpointer(x) = x#Pointer(x)
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
