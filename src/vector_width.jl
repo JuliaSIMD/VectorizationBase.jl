@@ -10,6 +10,7 @@ function intlog2(N::I) where {I <: Integer}
     u = 8sizeof(I) - 1 - leading_zeros(N)
     Base.unsafe_trunc(I, u)
 end
+intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
 nextpow2(W) = one(W) << (8sizeof(W) - leading_zeros(W-1))
 prevpow2(W) = one(W) << (8sizeof(W) - leading_zeros(W)-1)
