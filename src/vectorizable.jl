@@ -162,7 +162,6 @@ end
         )
     end
 end
-@inline gep(ptr::AbstractPointer, i::Integer) = gep(ptr.ptr, i)
 @generated function gep(ptr::Ptr{T}, i::NTuple{W,Core.VecElement{I}}) where {W, T, I <: Integer}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
@@ -183,9 +182,7 @@ end
     end    
 end
 @inline gep(ptr::Ptr, v::SVec) = gep(ptr, extract_data(v))
-@inline gep(ptr::AbstractPointer, v::SVec) = gep(ptr, extract_data(v))
-@inline gep(ptr::AbstractPointer, i::NTuple{W,Core.VecElement{I}}) where {W,I<:Integer} = gep(ptr.ptr, i)
-@inline gep(ptr::AbstractPointer{Cvoid}, i::Integer) where {T} = ptr.ptr + i
+@inline gep(ptr::Ptr{Cvoid}, i::Integer) where {T} = ptr.ptr + i
 
 struct Reference{T} <: AbstractPointer{T}
     ptr::Ptr{T}
@@ -260,17 +257,28 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 # @inline offset(ptr::AbstractSparseStridedPointer, i::Integer) = i * @inbounds ptr.strides[1]
 # @inline offset(ptr::AbstractStaticStridedPointer{<:Any,<:Tuple{1,Vararg}}, i::Integer) = i
 # @inline offset(ptr::AbstractStaticStridedPointer{<:Any,<:Tuple{M,Vararg}}, i::Integer) where {M} = M*i
-@inline gep(ptr::AbstractStridedPointer, i::Tuple) = gep(ptr, offset(ptr, i))
-@inline gesp(ptr::PackedStridedPointer, i) = PackedStridedPointer(gep(ptr, i), ptr.strides)
-@inline gesp(ptr::PackedStridedBitPointer, i) = PackedStridedBitPointer(gep(ptr, i), ptr.strides)
-@inline gesp(ptr::RowMajorStridedPointer, i) = RowMajorStridedPointer(gep(ptr, i), ptr.strides)
-@inline gesp(ptr::RowMajorStridedBitPointer, i) = RowMajorStridedBitPointer(gep(ptr, i), ptr.strides)
-@inline gesp(ptr::SparseStridedPointer, i) = SparseStridedPointer(gep(ptr, i), ptr.strides)
-@inline gesp(ptr::SparseStridedBitPointer, i) = SparseStridedBitPointer(gep(ptr, i), ptr.strides)
-@inline gesp(ptr::StaticStridedPointer{T,X}, i) where {T,X} = StaticStridedPointer{T,X}(gep(ptr, i))
-@inline gesp(ptr::StaticStridedBitPointer{X}, i) where {X} = StaticStridedBitPointer{X}(gep(ptr, i))
+@inline gep(ptr::AbstractStridedPointer, i::Tuple) = gep(ptr.ptr, offset(ptr, i))
+@inline gesp(ptr::AbstractStridedPointer, i) = similar(ptr, gep(ptr, i))
 
-@inline LinearAlgebra.Transpose(ptr::RowMajorStridedPointer) = PackedStridedPointer(ptr.ptr, ptr.strides)
+@inline Base.similar(p::PackedStridedPointer, ptr::Ptr) = PackedStridedPointer(ptr, p.strides)
+@inline Base.similar(p::PackedStridedBitPointer, ptr::Ptr) = PackedStridedBitPointer(ptr, p.strides)
+@inline Base.similar(p::RowMajorStridedPointer, ptr::Ptr) = RowMajorStridedPointer(ptr, p.strides)
+@inline Base.similar(p::RowMajorStridedBitPointer, ptr::Ptr) = RowMajorStridedBitPointer(ptr, p.strides)
+@inline Base.similar(p::SparseStridedPointer, ptr::Ptr) = SparseStridedPointer(ptr, p.strides)
+@inline Base.similar(p::SparseStridedBitPointer, ptr::Ptr) = SparseStridedBitPointer(ptr, p.strides)
+@inline Base.similar(p::StaticStridedPointer{T,X}, i) where {T,X} = StaticStridedPointer{T,X}(ptr)
+@inline Base.similar(p::StaticStridedBitPointer{X}, i) where {X} = StaticStridedBitPointer{X}(ptr)
+
+# @inline gesp(ptr::PackedStridedPointer, i) = PackedStridedPointer(gep(ptr, i), ptr.strides)
+# @inline gesp(ptr::PackedStridedBitPointer, i) = PackedStridedBitPointer(gep(ptr, i), ptr.strides)
+# @inline gesp(ptr::RowMajorStridedPointer, i) = RowMajorStridedPointer(gep(ptr, i), ptr.strides)
+# @inline gesp(ptr::RowMajorStridedBitPointer, i) = RowMajorStridedBitPointer(gep(ptr, i), ptr.strides)
+# @inline gesp(ptr::SparseStridedPointer, i) = SparseStridedPointer(gep(ptr, i), ptr.strides)
+# @inline gesp(ptr::SparseStridedBitPointer, i) = SparseStridedBitPointer(gep(ptr, i), ptr.strides)
+# @inline gesp(ptr::StaticStridedPointer{T,X}, i) where {T,X} = StaticStridedPointer{T,X}(gep(ptr, i))
+# @inline gesp(ptr::StaticStridedBitPointer{X}, i) where {X} = StaticStridedBitPointer{X}(gep(ptr, i))
+
+@inline LinearAlgebra.transpose(ptr::RowMajorStridedPointer) = PackedStridedPointer(ptr.ptr, ptr.strides)
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds i[1]*ptr.strides[1] + i[2]
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds i[1]*ptr.strides[2] + i[2]*ptr.strides[1] + i[3]
@@ -286,7 +294,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
     # ptr::Ptr{T}
 # end
 
-@generated function LinearAlgebra.Transpose(ptr::StaticStridedPointer{T,X}) where {T,X}
+@generated function LinearAlgebra.transpose(ptr::StaticStridedPointer{T,X}) where {T,X}
     tup = Expr(:curly, :Tuple)
     N = length(X.parameters)
     for n ∈ N:-1:1
@@ -359,11 +367,6 @@ end
 @inline LinearAlgebra.stride1(::AbstractStaticStridedPointer{T,<:Tuple{X,Vararg}}) where {T,X} = X
 
 @inline offset(ptr::AbstractPointer, i::CartesianIndex) = offset(ptr, i.I)
-
-# @inline Base.similar(::Pointer{T}, ptr::Ptr{T}) where {T} = Pointer(ptr)
-@inline Base.similar(p::PackedStridedPointer{T}, ptr::Ptr{T}) where {T} = PackedStridedPointer(ptr, p.strides)
-@inline Base.similar(p::SparseStridedPointer{T}, ptr::Ptr{T}) where {T} = SparseStridedPointer(ptr, p.strides)
-@inline Base.similar(p::StaticStridedPointer{T,X}, ptr::Ptr{T}) where {T,X} = StaticStridedPointer{T,X}(ptr)
 
 @inline Base.:+(ptr::AbstractPointer{T}, i) where {T} = similar(ptr, gep(ptr.ptr, i))
 @inline Base.:+(i, ptr::AbstractPointer{T}) where {T} = similar(ptr, gep(ptr.ptr, i))

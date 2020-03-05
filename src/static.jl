@@ -1,30 +1,48 @@
+#TODO: Document interface to support static size
+# Define maybestaticsize, maybestaticlength, and maybestaticfirstindex
+
+
 
 struct Static{N} end
 Base.@pure Static(N) = Static{N}()
 
-struct StaticUnitRange{L,U} <: AbstractRange{Int} end
-Base.@pure StaticUnitRange(L,U) = StaticUnitRange{L,U}()
-struct StaticLowerUnitRange{L} <: AbstractRange{Int}
+abstract type AbstractStaticRange <: AbstractRange{Int} end
+# rank 2, but 3 unknowns; 5 types can express all different posibilities
+# 1: all unknown, UnitRange; 2: all three known (only two must be made explicit):
+struct StaticUnitRange{L,U} <: AbstractStaticRange end
+Base.@pure StaticUnitRange(L,U) = StaticUnitRange{L,U}() # Do I use this definition anywhere?
+# Then each specifying one of the three parameters
+struct StaticLowerUnitRange{L} <: AbstractStaticRange
     U::Int
 end
-struct StaticUpperUnitRange{U} <: AbstractRange{Int}
+struct StaticUpperUnitRange{U} <: AbstractStaticRange
+    L::Int
+end
+struct StaticLengthUnitRange{N} <: AbstractStaticRange
     L::Int
 end
 
-@inline Base.first(::StaticUnitRange{L}) where {L} = L
-@inline Base.first(::StaticLowerUnitRange{L}) where {L} = L
+@inline Base.first(::StaticUnitRange{L}) where {L} = Static{L}()
+@inline Base.first(::StaticLowerUnitRange{L}) where {L} = Static{L}()
 @inline Base.first(r::StaticUpperUnitRange) = r.L
-@inline Base.last(::StaticUnitRange{L,U}) where {L,U} = U
+@inline Base.first(r::StaticLengthUnitRange) = r.L
+@inline Base.last(::StaticUnitRange{L,U}) where {L,U} = Static{U}()
 @inline Base.last(r::StaticLowerUnitRange) = r.U
-@inline Base.last(::StaticUpperUnitRange{U}) where {U} = U
+@inline Base.last(::StaticUpperUnitRange{U}) where {U} = Static{U}()
+@inline Base.last(r::StaticLengthUnitRange{N}) where {N} = r.L + N - 1
+
 @inline Base.:(:)(::Static{L}, ::Static{U}) where {L,U} = StaticUnitRange{L,U}()
 @inline Base.:(:)(::Static{L}, U::Int) where {L} = StaticLowerUnitRange{L}(U)
 @inline Base.:(:)(L::Int, ::Static{U}) where {U} = StaticUpperUnitRange{U}(L)
+@inline unwrap(x) = x
+@inline unwrap(::Val{N}) where {N} = N
+@inline unwrap(::Type{Val{N}}) where {N} = N
 @inline unwrap(::Static{N}) where {N} = N
 @inline unwrap(::Type{Static{N}}) where {N} = N
 
 @inline StaticLowerUnitRange{L}(::Static{U}) where {L,U} = StaticUnitRange{L,U}()
 @inline StaticUpperUnitRange{U}(::Static{L}) where {L,U} = StaticUnitRange{L,U}()
+@generated StaticLengthUnitRange{N}(::Static{L}) where {L,N} = StaticUnitRange{L,L+N-1}()
 
 @inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
 @inline maybestaticsize(A::AbstractArray{<:Any,0}, ::Val{1:2}) = (1, 1)
@@ -32,6 +50,18 @@ end
 @inline maybestaticsize(A::AbstractMatrix, ::Val{1:2}) = size(A)
 @inline maybestaticsize(A::AbstractArray, ::Val{1:2}) = (size(A,1),size(A,2))
 @inline maybestaticlength(A) = length(A)
+
+@inline maybestaticfirstindex(A::AbstractArray, ::Val{I}) where {I} = firstindex(A, I)
+@inline maybestaticfirstindex(A::Array, ::Val{I}) where {I} = Static{1}()
+                  
+
+# @inline maybestaticeachindex(A::AbstractArray) = maybestaticrange(eachindex(A))
+
+@inline maybestaticrange(r::Base.OneTo) = StaticLowerUnitRange{1}(last(r))
+@inline maybestaticrange(r::UnitRange) = r
+@inline maybestaticrange(r::AbstractStaticRange) = r
+@inline maybestaticrange(r) = first(r):last(r)
+# @inline maybestaticaxis(A::AbstractArray, ::Val{I}) where {I} = maybestaticfirstindex(A, Val{I}()):maybestaticsize(A, Val{I}())
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = Static{N}() # should we assert that i == 1?
 @inline maybestaticlength(::NTuple{N}) where {N} = Static{N}()
@@ -94,3 +124,5 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 
 @generated staticm1(::Static{N}) where {N} = Static{N-1}()
 @inline staticm1(N::Integer) = N - 1
+@inline Base.ntuple(f::F, ::Static{N}) where {F,N} = ntuple(f, Val{N}())
+
