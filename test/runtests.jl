@@ -138,17 +138,17 @@ end
 end
 
 @testset "StridedPointer" begin
-A = Float64.(0:15)
+A = collect(Float64(0):Float64(15))
 ptr_A = pointer(A)
 vA = VectorizationBase.stridedpointer(A)
 @test eltype(vA) == Float64
 @test Base.unsafe_convert(Ptr{Float64}, vA) === ptr_A === pointer(vA)
 @test vA == VectorizationBase.stridedpointer(vA)
-@test all(i -> A[i+1] === VectorizationBase.vload(ptr_A + 8i) === VectorizationBase.vload(vA,(i,)) === Float64(i), 0:15)
-VectorizationBase.vstore!(vA, 99.9, (3,))
-@test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (3,))
+@test all(i -> A[i+1] === VectorizationBase.vload(ptr_A + 8i) === VectorizationBase.vload(vA, (i+1,)) === Float64(i), 0:15)
+VectorizationBase.vstore!(vA, 99.9, (4,))
+@test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (4,))
 VectorizationBase.vstore!(ptr_A+8*4, 999.9)
-@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4)
+@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4) === VectorizationBase.vload(vA, (5,))
 end
 
 end

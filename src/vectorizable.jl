@@ -89,7 +89,7 @@ end
 # Fall back definitions
 @inline vload(ptr::Ptr) = Base.unsafe_load(ptr)
 # @inline vload(ptr::Ptr, i::Int) = vload(gep(ptr, i))
-@inline vstore!(ptr::Ptr{T},v::T) where {T} = Base.unsafe_store!(ptr, v)
+@inline vstore!(ptr::Ptr{T}, v::T) where {T} = Base.unsafe_store!(ptr, v)
 @inline vload(::Type{T1}, ptr::Ptr{T2}) where {T1, T2} = vload(Base.unsafe_convert(Ptr{T1}, ptr))
 @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1,T2} = vstore!(ptr, convert(T1, v))
 @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1<:Integer,T2<:Integer} = vstore!(ptr, v % T1)
@@ -192,10 +192,11 @@ end
 # @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 # @inline vstore!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = vstore!(ptr, convert(T1, v), args...)
 
-@inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, i))
-@inline vload(ptr::AbstractPointer, i::Tuple, u::Union{Mask,Unsigned}) = vload(ptr.ptr, offset(ptr, i), u)
-@inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, i))
+@inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, staticm1(i)))
+@inline vload(ptr::AbstractPointer, i::Tuple, u::Union{Mask,Unsigned}) = vload(ptr.ptr, offset(ptr, staticm1(i)), u)
+@inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{Mask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, i), u)
+
 @inline vstore!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = vstore!(ptr, convert(T, v), i)
 @inline vstore!(ptr::Ptr{T}, v::Integer, i::Integer) where {T <: Integer} = vstore!(ptr, v % T, i)
 # @inline vstore!(ptr::AbstractPointer{T}, v::T, i...) where {T<:Integer} = vstore!(ptr.ptr, v, offset(ptr, i...))
@@ -459,7 +460,7 @@ end
 #     StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + first(i) + tdot(strides, Base.tail(i)))
 # end
 
-@inline vload(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1] + 1]
+@inline vload(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1]]
 
 
 @inline subsetview(ptr::PackedStridedPointer, ::Val{1}, i::Integer) = SparseStridedPointer(gep(ptr.ptr, i), ptr.strides)

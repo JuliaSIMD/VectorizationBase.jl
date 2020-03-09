@@ -1,7 +1,7 @@
 name = "VectorizationBase"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 authors = ["Chris Elrod <elrodc@gmail.com>"]
-version = "0.7.1"
+version = "0.8.0"
 
 [deps]
 CpuId = "adafc99b-e345-5852-983c-f28acb93d879"
