@@ -126,6 +126,30 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 @inline staticm1(N::Integer) = N - 1
 @inline staticm1(i::Tuple{}) = tuple()
 @inline staticm1(i::Tuple{I}) where {I} = @inbounds (i[1] - 1,)
-@inline staticm1(i::Tuple{I1,I2,Vararg}) where {I1,I2} = @inbounds (i[1] - 1, staticm1(Base.tail(i))...)
+@inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (i[1] - 1, i[2] - 1)
+@inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (i[1] - 1, staticm1(Base.tail(i))...)
 @inline Base.ntuple(f::F, ::Static{N}) where {F,N} = ntuple(f, Val{N}())
+
+
+
+@inline maybestaticfirst(A) = first(A)
+@inline maybestaticfirst(::StaticUnitRange{L}) where {L} = Static{L}()
+@inline maybestaticfirst(::StaticLowerUnitRange{L}) where {L} = Static{L}()
+@inline maybestaticfirst(::Base.OneTo) where {L} = Static{1}()
+
+@inline _maybestaticfirst(A::Tuple{}) = tuple()
+@inline _maybestaticfirst(A::Tuple{I}) where {I} = (maybestaticfirst(@inbounds(A[1])),)
+@inline _maybestaticfirst(A::Tuple{I1,I2}) where {I1,I2} = @inbounds (maybestaticfirst(A[1]), maybestaticfirst(A[2]))
+@inline _maybestaticfirst(A::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = (maybestaticfirst(@inbounds A[1]), maybestaticfirst(Base.tail(A))...)
+@inline maybestaticfirst(A::CartesianIndices) = CartesianVIndex(_maybestaticfirst(A.indices))
+
+
+@inline maybestaticlast(A) = last(A)
+@inline maybestaticlast(::StaticUnitRange{L,U}) where {L,U} = Static{U}()
+@inline maybestaticlast(::StaticUpperUnitRange{U}) where {U} = Static{U}()
+@inline _maybestaticlast(A::Tuple{}) = tuple()
+@inline _maybestaticlast(A::Tuple{I}) where {I} = (maybestaticlast(@inbounds(A[1])),)
+@inline _maybestaticlast(A::Tuple{I1,I2}) where {I1,I2} = @inbounds (maybestaticlast(A[1]), maybestaticlast(A[2]))
+@inline _maybestaticlast(A::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = (maybestaticlast(@inbounds A[1]), maybestaticlast(Base.tail(A))...)
+@inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))
 

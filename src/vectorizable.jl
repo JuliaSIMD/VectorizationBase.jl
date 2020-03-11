@@ -195,7 +195,7 @@ end
 @inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, staticm1(i)))
 @inline vload(ptr::AbstractPointer, i::Tuple, u::Union{Mask,Unsigned}) = vload(ptr.ptr, offset(ptr, staticm1(i)), u)
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
-@inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{Mask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, i), u)
+@inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{Mask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)), u)
 
 @inline vstore!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = vstore!(ptr, convert(T, v), i)
 @inline vstore!(ptr::Ptr{T}, v::Integer, i::Integer) where {T <: Integer} = vstore!(ptr, v % T, i)

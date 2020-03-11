@@ -203,6 +203,7 @@ function Base.show(io::IO, m::Mask{W}) where {W}
     print(">")
 end
 
+include("cartesianvindex.jl")
 include("static.jl")
 include("vectorizable.jl")
 include("cpu_info.jl")
