@@ -6,19 +6,19 @@
 struct Static{N} end
 Base.@pure Static(N) = Static{N}()
 
-abstract type AbstractStaticRange <: AbstractRange{Int} end
+abstract type AbstractStaticUnitRange <: AbstractUnitRange{Int} end
 # rank 2, but 3 unknowns; 5 types can express all different posibilities
 # 1: all unknown, UnitRange; 2: all three known (only two must be made explicit):
-struct StaticUnitRange{L,U} <: AbstractStaticRange end
+struct StaticUnitRange{L,U} <: AbstractStaticUnitRange end
 Base.@pure StaticUnitRange(L,U) = StaticUnitRange{L,U}() # Do I use this definition anywhere?
 # Then each specifying one of the three parameters
-struct StaticLowerUnitRange{L} <: AbstractStaticRange
+struct StaticLowerUnitRange{L} <: AbstractStaticUnitRange
     U::Int
 end
-struct StaticUpperUnitRange{U} <: AbstractStaticRange
+struct StaticUpperUnitRange{U} <: AbstractStaticUnitRange
     L::Int
 end
-struct StaticLengthUnitRange{N} <: AbstractStaticRange
+struct StaticLengthUnitRange{N} <: AbstractStaticUnitRange
     L::Int
 end
 
@@ -59,7 +59,7 @@ end
 
 @inline maybestaticrange(r::Base.OneTo) = StaticLowerUnitRange{1}(last(r))
 @inline maybestaticrange(r::UnitRange) = r
-@inline maybestaticrange(r::AbstractStaticRange) = r
+@inline maybestaticrange(r::AbstractStaticUnitRange) = r
 @inline maybestaticrange(r) = first(r):last(r)
 # @inline maybestaticaxis(A::AbstractArray, ::Val{I}) where {I} = maybestaticfirstindex(A, Val{I}()):maybestaticsize(A, Val{I}())
 
@@ -83,6 +83,12 @@ end
 @inline Base.:-(::Static{N}, i) where {N} = N - i
 @inline Base.:-(i, ::Static{N}) where {N} = i - N
 @inline Base.:-(::Static{M}, ::Static{N}) where {M,N} = M - N
+@inline Base.checked_add(::Static{N}, i) where {N} = Base.checked_add(N, i)
+@inline Base.checked_add(i, ::Static{N}) where {N} = Base.checked_add(i, N)
+@generated Base.checked_add(::Static{M}, ::Static{N}) where {M,N} = Static{Base.checked_add(M, N)}()
+@inline Base.checked_sub(::Static{N}, i) where {N} = Base.checked_sub(N, i)
+@inline Base.checked_sub(i, ::Static{N}) where {N} = Base.checked_sub(i, N)
+@generated Base.checked_sub(::Static{M}, ::Static{N}) where {M,N} = Static{Base.checked_sub(M, N)}()
 @inline Base.:>>(::Static{N}, i) where {N} = N >> i
 @inline Base.:>>(i, ::Static{N}) where {N} = i >> N
 @inline Base.:>>(::Static{M}, ::Static{N}) where {M,N} = M >> N
