@@ -22,6 +22,8 @@ struct StaticLengthUnitRange{N} <: AbstractStaticUnitRange
     L::Int
 end
 
+
+
 @inline Base.first(::StaticUnitRange{L}) where {L} = Static{L}()
 @inline Base.first(::StaticLowerUnitRange{L}) where {L} = Static{L}()
 @inline Base.first(r::StaticUpperUnitRange) = r.L
@@ -30,6 +32,8 @@ end
 @inline Base.last(r::StaticLowerUnitRange) = r.U
 @inline Base.last(::StaticUpperUnitRange{U}) where {U} = Static{U}()
 @inline Base.last(r::StaticLengthUnitRange{N}) where {N} = r.L + N - 1
+
+@inline Base.iterate(x::AbstractStaticUnitRange) = (i = unwrap(first(x)); (i,i))
 
 @inline Base.:(:)(::Static{L}, ::Static{U}) where {L,U} = StaticUnitRange{L,U}()
 @inline Base.:(:)(::Static{L}, U::Int) where {L} = StaticLowerUnitRange{L}(U)
