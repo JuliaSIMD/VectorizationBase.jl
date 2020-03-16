@@ -267,8 +267,8 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 @inline Base.similar(p::RowMajorStridedBitPointer, ptr::Ptr) = RowMajorStridedBitPointer(ptr, p.strides)
 @inline Base.similar(p::SparseStridedPointer, ptr::Ptr) = SparseStridedPointer(ptr, p.strides)
 @inline Base.similar(p::SparseStridedBitPointer, ptr::Ptr) = SparseStridedBitPointer(ptr, p.strides)
-@inline Base.similar(p::StaticStridedPointer{T,X}, i) where {T,X} = StaticStridedPointer{T,X}(ptr)
-@inline Base.similar(p::StaticStridedBitPointer{X}, i) where {X} = StaticStridedBitPointer{X}(ptr)
+@inline Base.similar(::StaticStridedPointer{T,X}, ptr::Ptr) where {T,X} = StaticStridedPointer{T,X}(ptr)
+@inline Base.similar(::StaticStridedBitPointer{X}, ptr::Ptr) where {X} = StaticStridedBitPointer{X}(ptr)
 
 # @inline gesp(ptr::PackedStridedPointer, i) = PackedStridedPointer(gep(ptr, i), ptr.strides)
 # @inline gesp(ptr::PackedStridedBitPointer, i) = PackedStridedBitPointer(gep(ptr, i), ptr.strides)
@@ -392,7 +392,6 @@ end
 @inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T, i) where {T} = vstore!(ptr.ptr, v, offset(ptr, i - 1))
 @inline Base.setindex!(ptr::AbstractPointer{T}, v::T, i) where {T} = vstore!(ptr.ptr, v, offset(ptr, i))
 
-
 # @inline Pointer(A) = Pointer(pointer(A))
 @inline Base.pointer(ptr::AbstractPointer) = ptr.ptr
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
@@ -438,7 +437,31 @@ end
 # @inline stridedpointer(ptr::Pointer) = PackedStridedPointer(pointer(ptr), tuple())
 @inline stridedpointer(ptr::AbstractPointer) = ptr
 
-
+@generated function noalias!(ptr::Ptr{T}) where {T}
+    ptyp = JuliaPointerType
+    typ = llvmtype(T)
+    funcname = "noalias" * typ
+    decls = "define noalias $typ* @$(funcname)($typ *%a) noinline { ret $typ* %a }"
+    instrs = [
+        "%ptr = inttoptr $ptyp %0 to $typ*",
+        "%naptr = call $typ* @$(funcname)($typ* %ptr)",
+        "%jptr = ptrtoint $typ* %naptr to $ptyp",
+        "ret $ptyp %jptr"
+    ]
+    quote
+        $(Expr(:meta,:inline))
+        Base.llvmcall(
+            $((decls, join(instrs, "\n"))),
+            Ptr{$T}, Tuple{Ptr{$T}}, ptr
+        )
+    end    
+end
+@inline noaliasstridedpointer(x) = stridedpointer(x)
+@inline noaliasstridedpointer(x::AbstractRange) = stridedpointer(x)
+@inline function noaliasstridedpointer(x::AbstractArray)
+    sptr = stridedpointer(x)
+    similar(sptr, noalias!(pointer(sptr)))
+end
 # @inline StaticStridedStruct{T,X}(s::S) where {T,X,S} = StaticStridedStruct{T,X,S}(s, 0)
 # @inline StaticStridedStruct{T,X}(s::S, i::Int) where {T,X,S} = StaticStridedStruct{T,X,S}(s, i)
 # @inline offset(ptr::StaticStridedStruct{T,X,S}, i::Integer) where {T,X,S} = StaticStridedStruct{T,X,S}(ptr.ptr, ptr.offset + i)
@@ -562,15 +585,15 @@ end
 @inline filter_strides_by_dimequal1(sz::NTuple{N,Int}, st::NTuple{N,Int}) where {N} = @inbounds ntuple(n -> sz[n] == 1 ? 0 : st[n], Val{N}())
 
 @inline function stridedpointer_for_broadcast(A::AbstractArray{T,N}) where {T,N}
-    PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
+    PackedStridedPointer(noalias!(pointer(A)), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
 @inline stridedpointer_for_broadcast(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer_for_broadcast(parent(B))
 @inline stridedpointer_for_broadcast(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}}
-    SparseStridedPointer(pointer(A), filter_strides_by_dimequal1(size(A), strides(A)))
+    SparseStridedPointer(noalias!(pointer(A)), filter_strides_by_dimequal1(size(A), strides(A)))
 end
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S}
-    PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
+    PackedStridedPointer(noalias!(pointer(A)), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
 
 
