@@ -29,14 +29,15 @@ const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UIn
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
+    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
     alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment")
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3")
     push!(instrs, "ret $typ %res")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($(join(instrs, "\n")), $T, Tuple{Ptr{$T}}, ptr)
+        Base.llvmcall(($decl,$(join(instrs, "\n"))), $T, Tuple{Ptr{$T}}, ptr)
     end
 end
 @generated function vstore!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
@@ -58,15 +59,16 @@ end
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
+    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
     alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%typptr = inttoptr $ptyp %0 to $typ*")
     push!(instrs, "%ptr = getelementptr inbounds $typ, $typ* %typptr, $ityp %1")
-    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment")
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3")
     push!(instrs, "ret $typ %res")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($(join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i)
+        Base.llvmcall($(decl, join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i)
     end
 end
 @generated function vstore!(ptr::Ptr{T}, v::T, i::I) where {T <: LLVMCompatible, I<:Integer}
@@ -83,6 +85,23 @@ end
     quote
         $(Expr(:meta, :inline))
         Base.llvmcall($(join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i)
+    end
+end
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::I) where {T <: LLVMCompatible, I<:Integer}
+    ityp = llvmtype(I)
+    ptyp = JuliaPointerType
+    typ = llvmtype(T)
+    instrs = String[]
+    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
+    alignment = Base.datatype_alignment(T)
+    # push!(flags, "!noalias !0")
+    push!(instrs, "%typptr = inttoptr $ptyp %0 to $typ*")
+    push!(instrs, "%ptr = getelementptr inbounds $typ, $typ* %typptr, $ityp %2")
+    push!(instrs, "store $typ %1, $typ* %ptr, align $alignment, !noalias !3")
+    push!(instrs, "ret void")
+    quote
+        $(Expr(:meta, :inline))
+        Base.llvmcall($(decl,join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i)
     end
 end
 
@@ -196,6 +215,9 @@ end
 @inline vload(ptr::AbstractPointer, i::Tuple, u::Union{Mask,Unsigned}) = vload(ptr.ptr, offset(ptr, staticm1(i)), u)
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{Mask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)), u)
+@inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple) = vnoaliasstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
+@inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{Mask,Unsigned}) = vnoaliasstore!(ptr.ptr, v, offset(ptr, staticm1(i)), u)
+@inline vnoaliasstore!(args...) = vstore!(args...) # generic fallback
 
 @inline vstore!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = vstore!(ptr, convert(T, v), i)
 @inline vstore!(ptr::Ptr{T}, v::Integer, i::Integer) where {T <: Integer} = vstore!(ptr, v % T, i)
@@ -441,7 +463,7 @@ end
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     funcname = "noalias" * typ
-    decls = "define noalias $typ* @$(funcname)($typ *%a) noinline { ret $typ* %a }"
+    decls = "define noalias $typ* @$(funcname)($typ *%a) willreturn noinline { ret $typ* %a }"
     instrs = [
         "%ptr = inttoptr $ptyp %0 to $typ*",
         "%naptr = call $typ* @$(funcname)($typ* %ptr)",
@@ -585,15 +607,15 @@ end
 @inline filter_strides_by_dimequal1(sz::NTuple{N,Int}, st::NTuple{N,Int}) where {N} = @inbounds ntuple(n -> sz[n] == 1 ? 0 : st[n], Val{N}())
 
 @inline function stridedpointer_for_broadcast(A::AbstractArray{T,N}) where {T,N}
-    PackedStridedPointer(noalias!(pointer(A)), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
+    PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
 @inline stridedpointer_for_broadcast(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer_for_broadcast(parent(B))
 @inline stridedpointer_for_broadcast(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}}
-    SparseStridedPointer(noalias!(pointer(A)), filter_strides_by_dimequal1(size(A), strides(A)))
+    SparseStridedPointer(pointer(A), filter_strides_by_dimequal1(size(A), strides(A)))
 end
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S}
-    PackedStridedPointer(noalias!(pointer(A)), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
+    PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
 
 

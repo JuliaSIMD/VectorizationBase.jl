@@ -75,27 +75,30 @@ end
 end
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
-@generated function mask(::Type{T}, rem::Integer) where {T}
+@generated function mask(::Type{T}, l::Integer) where {T}
     M = mask_type(T)
     W = pick_vector_width(T)
-    tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
+    # tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
+        rem = valrem(Val{$W}(), l - 1) + 1
         # @inbounds $tup[rem+1]
         Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
     end
 end
 
-@generated function mask(::Val{W}, rem::Integer) where {W}
+@generated function mask(::Val{W}, l::Integer) where {W}
     M = mask_type(W)
 #    W = pick_vector_width(T)
     tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
         # @inbounds $tup[rem+1]
+        rem = valrem(Val{$W}(), l - 1) + 1
         Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
     end
 end
+@generated mask(::Val{W}, ::Static{L}) where {W, L} = mask(Val(W), L)
 
 unstable_mask(W, rem) = mask(Val(W), rem)
 
@@ -109,7 +112,7 @@ unstable_mask(W, rem) = mask(Val(W), rem)
         Expr(:meta,:inline),
         Expr(:call, Expr(:curly, :Mask, W), Expr(
             :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)),
-            Expr(:call, :getindex, masks, Expr(:call, :+, 1, :rem))
+            Expr(:call, :getindex, masks, Expr(:call, :+, 1, Expr(:call, :valrem, Expr(:call, Expr(:curly, W)), :rem)))
         ))
     )
 end
