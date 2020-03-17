@@ -64,6 +64,13 @@ end
     @testset "masks.jl" begin
     @test Mask{8,UInt8}(0x0f) === @inferred Mask(0x0f)
     @test Mask{16,UInt16}(0x0f0f) === @inferred Mask(0x0f0f)
+    @test Mask{8,UInt8}(0xff) == mask(Val(8), 0)
+    @test Mask{8,UInt8}(0xff) == mask(Val(8), 8)
+    @test Mask{8,UInt8}(0xff) == mask(Val(8), 16)
+    @test Mask{8,UInt8}(0xff) == mask(Val(8), VectorizationBase.Static(0))
+    @test Mask{16,UInt16}(0xffff) == mask(Val(16), 0)
+    @test Mask{16,UInt16}(0xffff) == mask(Val(16), 16)
+    @test Mask{16,UInt16}(0xffff) == mask(Val(16), 32)
 @test all(w -> VectorizationBase.mask_type(w) == UInt8, 1:8)
 @test all(w -> VectorizationBase.mask_type(w) == UInt16, 9:16)
 @test all(w -> VectorizationBase.mask_type(w) == UInt32, 17:32)
@@ -91,9 +98,9 @@ elseif VectorizationBase.REGISTER_SIZE == 16 # sse
     @test VectorizationBase.max_mask(Float32) == 0x0f       # 4
     @test VectorizationBase.max_mask(Float64) == 0x03       # 2
 end
-@test all(w -> bitstring(VectorizationBase.mask(Val( 8), w)) == reduce(*, ( 8 - i < w ? "1" : "0" for i in 1:8 )), 0:8 )
-@test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 0:16)
-@test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(VectorizationBase.pick_vector_width_val(Float64), w), 0:W64)
+@test all(w -> bitstring(VectorizationBase.mask(Val( 8), w)) == reduce(*, ( 8 - i < w ? "1" : "0" for i in 1:8 )), 1:8 )
+@test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 1:16)
+@test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(VectorizationBase.pick_vector_width_val(Float64), w), 1:W64)
 end
 
 @testset "number_vectors.jl" begin
