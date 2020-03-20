@@ -6,6 +6,12 @@
 struct Static{N} end
 Base.@pure Static(N) = Static{N}()
 
+Base.CartesianIndex(I::Tuple{<:Static,Vararg}) = CartesianVIndex(I)
+Base.CartesianIndex(I::Tuple{<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
+Base.CartesianIndex(I::Tuple{<:Integer,<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
+Base.CartesianIndex(I::Tuple{<:Integer,<:Integer,<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
+Base.CartesianIndex(I::Tuple{<:Integer,<:Integer,<:Integer,<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
+
 abstract type AbstractStaticUnitRange <: AbstractUnitRange{Int} end
 # rank 2, but 3 unknowns; 5 types can express all different posibilities
 # 1: all unknown, UnitRange; 2: all three known (only two must be made explicit):
