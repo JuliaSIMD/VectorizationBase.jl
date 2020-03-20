@@ -123,6 +123,12 @@ end
     @boundscheck i > W && throw(BoundsError(m, i))
     getindexzerobased(m, i - 1)
 end
+@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{2})
+    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 1
+end
+@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{4})
+    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 2
+end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{8})
     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 3
 end
@@ -136,7 +142,7 @@ end
     Base.unsafe_convert(Ptr{UInt64}, ptr.ptr), i.i >> 6
 end
 
-@inline function bitload(ptr::AbstractBitPointer, i::_MM{W}) where {W}
+@inline function bitload(ptr::AbstractBitPointer, i::_MM)
     ptr, ind = ptr_index(ptr, i)
     Mask{W}(vload(ptr, ind))
 end
