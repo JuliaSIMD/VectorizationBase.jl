@@ -142,7 +142,7 @@ end
     Base.unsafe_convert(Ptr{UInt64}, ptr.ptr), i.i >> 6
 end
 
-@inline function bitload(ptr::AbstractBitPointer, i::_MM)
+@inline function bitload(ptr::AbstractBitPointer, i::_MM{W}) where {W}
     ptr, ind = ptr_index(ptr, i)
     Mask{W}(vload(ptr, ind))
 end
