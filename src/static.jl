@@ -151,7 +151,7 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 @inline maybestaticfirst(A) = first(A)
 @inline maybestaticfirst(::StaticUnitRange{L}) where {L} = Static{L}()
 @inline maybestaticfirst(::StaticLowerUnitRange{L}) where {L} = Static{L}()
-@inline maybestaticfirst(::Base.OneTo) where {L} = Static{1}()
+@inline maybestaticfirst(::Base.OneTo) = Static{1}()
 
 @inline _maybestaticfirst(A::Tuple{}) = tuple()
 @inline _maybestaticfirst(A::Tuple{I}) where {I} = (maybestaticfirst(@inbounds(A[1])),)
