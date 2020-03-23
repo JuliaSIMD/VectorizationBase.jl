@@ -30,13 +30,13 @@ end
 
 
 
-@inline Base.first(::StaticUnitRange{L}) where {L} = Static{L}()
-@inline Base.first(::StaticLowerUnitRange{L}) where {L} = Static{L}()
+@inline Base.first(::StaticUnitRange{L}) where {L} = L
+@inline Base.first(::StaticLowerUnitRange{L}) where {L} = L
 @inline Base.first(r::StaticUpperUnitRange) = r.L
 @inline Base.first(r::StaticLengthUnitRange) = r.L
-@inline Base.last(::StaticUnitRange{L,U}) where {L,U} = Static{U}()
+@inline Base.last(::StaticUnitRange{L,U}) where {L,U} = U
 @inline Base.last(r::StaticLowerUnitRange) = r.U
-@inline Base.last(::StaticUpperUnitRange{U}) where {U} = Static{U}()
+@inline Base.last(::StaticUpperUnitRange{U}) where {U} = U
 @inline Base.last(r::StaticLengthUnitRange{N}) where {N} = r.L + N - 1
 
 @inline Base.iterate(x::AbstractStaticUnitRange) = (i = unwrap(first(x)); (i,i))
@@ -70,7 +70,7 @@ end
 @inline maybestaticrange(r::Base.OneTo) = StaticLowerUnitRange{1}(last(r))
 @inline maybestaticrange(r::UnitRange) = r
 @inline maybestaticrange(r::AbstractStaticUnitRange) = r
-@inline maybestaticrange(r) = first(r):last(r)
+@inline maybestaticrange(r) = maybestaticfirst(r):maybestaticlast(r)
 # @inline maybestaticaxis(A::AbstractArray, ::Val{I}) where {I} = maybestaticfirstindex(A, Val{I}()):maybestaticsize(A, Val{I}())
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = Static{N}() # should we assert that i == 1?
