@@ -9,9 +9,9 @@
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
 
-@inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
-@inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
-@inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+@inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u | m2.u)
+@inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u | u)
+@inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u | m.u)
 
 @inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
 @inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
@@ -24,9 +24,9 @@
 @inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x03 : m.u)
 @inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) where {W} = Mask{W}(b ? 0x03 : m.u)
 
-@inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
-@inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
-@inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+@inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u ⊻ m2.u)
+@inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u ⊻ u)
+@inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u ⊻ m.u)
 
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
