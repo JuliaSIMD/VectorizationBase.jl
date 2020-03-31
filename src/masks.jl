@@ -60,6 +60,11 @@ function mask_type(W)
         return UInt128
     end
 end
+mask_type(::Val{4}) = UInt8
+mask_type(::Val{8}) = UInt8
+mask_type(::Val{16}) = UInt16
+mask_type(::Val{32}) = UInt32
+mask_type(::Val{64}) = UInt64
 
 @generated function mask_type(::Type{T}, ::Val{P}) where {T,P}
     mask_type(pick_vector_width(P, T))
@@ -146,7 +151,7 @@ end
     ptr, ind = ptr_index(ptr, i)
     Mask{W}(vload(ptr, ind))
 end
-@inline bitload(ptr::AbstractBitPointer, i, mask::Union{Unsigned,Mask}) = bitload(ptr, i)
+@inline bitload(ptr::AbstractBitPointer, i, ::Union{Unsigned,Mask}) = bitload(ptr, i)
 @inline bitload(ptr::AbstractBitPointer, i::Integer) = getindexzerobased(bitload(ptr, _MM{8}(i)), i & 7)
 
 # @inline function vstore!(ptr::AbstractBitPointer, m::Mask{8}, i::Integer)
@@ -234,10 +239,21 @@ end
     end
 end
 
-@inline vload(ptr::AbstractBitPointer, i::Tuple) = bitload(ptr, offset(ptr, i))
-@inline vload(ptr::AbstractBitPointer, i::Tuple, u::Mask) = bitload(ptr, offset(ptr, i), u)
-@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, i))
-@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::Mask) = bitstore!(ptr, v, offset(ptr, i), u)
+@inline vload(ptr::AbstractBitPointer, i::Tuple) = bitload(ptr, offset(ptr, staticm1(i)))
+@inline vload(ptr::AbstractBitPointer, i::Tuple, ::Mask) = vload(ptr, i)
+@inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{_MM{W},<:Integer}) where {W}
+    j -= 1
+    s = bptr.strides[1]
+    shift = (s * j) & (W - 1)
+    U = mask_type(Val{W}())
+    UW = widen(U)
+    ptr, ind = ptr_index(bptr, _MM{W}(i.i - 1 + j*s))
+    u = vload(Base.unsafe_convert(Ptr{UW}, gep(ptr, ind)))
+    # @show ind, shift, u
+    Mask{W}((u >>> shift) % U)
+end
+@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
+@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::Mask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), u) 
 
 
 
