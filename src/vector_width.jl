@@ -123,25 +123,30 @@ end
 # @inline Base.:(*)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i * j)
 # @inline Base.:(*)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i * j.i)
 # @inline Base.:(*)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i * j.i)
-@inline Base.:(<)(i::_MM, j::Integer) = i.i < j
-@inline Base.:(<)(i::Integer, j::_MM) = i < j.i
-@inline Base.:(<)(i::_MM, ::Static{j}) where {j} = i.i < j
-@inline Base.:(<)(::Static{i}, j::_MM) where {i} = i < j.i
-@inline Base.:(<)(i::_MM, j::_MM) = i.i < j.i
-@inline Base.:(>)(i::_MM, j::Integer) = i.i > j
-@inline Base.:(>)(i::Integer, j::_MM) = i > j.i
-@inline Base.:(>)(i::_MM, ::Static{j}) where {j} = i.i > j
-@inline Base.:(>)(::Static{i}, j::_MM) where {i} = i > j.i
-@inline Base.:(>)(i::_MM, j::_MM) = i.i > j.i
-@inline Base.:(==)(i::_MM, j::Integer) = i.i == j
-@inline Base.:(==)(i::Integer, j::_MM) = i == j.i
-@inline Base.:(==)(i::_MM, ::Static{j}) where {j} = i.i == j
-@inline Base.:(==)(::Static{i}, j::_MM) where {i} = i == j.i
-@inline Base.:(==)(i::_MM, j::_MM) = i.i == j.i
-@inline Base.:(!=)(i::_MM, j::Integer) = i.i != j
-@inline Base.:(!=)(i::Integer, j::_MM) = i != j.i
-@inline Base.:(!=)(i::_MM, ::Static{j}) where {j} = i.i != j
-@inline Base.:(!=)(::Static{i}, j::_MM) where {i} = i != j.i
-@inline Base.:(!=)(i::_MM, j::_MM) = i.i != j.i
+@inline scalar_less(i, j) = i < j
+@inline scalar_less(i::_MM, j::Integer) = i.i < j
+@inline scalar_less(i::Integer, j::_MM) = i < j.i
+@inline scalar_less(i::_MM, ::Static{j}) where {j} = i.i < j
+@inline scalar_less(::Static{i}, j::_MM) where {i} = i < j.i
+@inline scalar_less(i::_MM, j::_MM) = i.i < j.i
+@inline scalar_greater(i, j) = i > j
+@inline scalar_greater(i::_MM, j::Integer) = i.i > j
+@inline scalar_greater(i::Integer, j::_MM) = i > j.i
+@inline scalar_greater(i::_MM, ::Static{j}) where {j} = i.i > j
+@inline scalar_greater(::Static{i}, j::_MM) where {i} = i > j.i
+@inline scalar_greater(i::_MM, j::_MM) = i.i > j.i
+@inline scalar_equal(i, j) = i == j
+@inline scalar_equal(i::_MM, j::Integer) = i.i == j
+@inline scalar_equal(i::Integer, j::_MM) = i == j.i
+@inline scalar_equal(i::_MM, ::Static{j}) where {j} = i.i == j
+@inline scalar_equal(::Static{i}, j::_MM) where {i} = i == j.i
+@inline scalar_equal(i::_MM, j::_MM) = i.i == j.i
+@inline scalar_notequal(i, j) = i != j
+@inline scalar_notequal(i::_MM, j::Integer) = i.i != j
+@inline scalar_notequal(i::Integer, j::_MM) = i != j.i
+@inline scalar_notequal(i::_MM, ::Static{j}) where {j} = i.i != j
+@inline scalar_notequal(::Static{i}, j::_MM) where {i} = i != j.i
+@inline scalar_notequal(i::_MM, j::_MM) = i.i != j.i
+
 @inline extract_data(i::_MM) = i.i
 
