@@ -608,6 +608,7 @@ end
 
 @inline filter_strides_by_dimequal1(sz::NTuple{N,Int}, st::NTuple{N,Int}) where {N} = @inbounds ntuple(n -> sz[n] == 1 ? 0 : st[n], Val{N}())
 
+@inline stridedpointer_for_broadcast(A::AbstractRange) = A
 @inline function stridedpointer_for_broadcast(A::AbstractArray{T,N}) where {T,N}
     PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
