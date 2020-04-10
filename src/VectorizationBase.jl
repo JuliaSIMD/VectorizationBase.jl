@@ -23,6 +23,11 @@ export Vec, VE, SVec, Mask, _MM,
 #     end
 #     export only
 # end
+const IntTypes = Union{Int8, Int16, Int32, Int64, Int128}
+const UIntTypes = Union{UInt8, UInt16, UInt32, UInt64, UInt128}
+const IntegerTypes = Union{IntTypes, UIntTypes, Ptr, Bool}
+const FloatingTypes = Union{Float16, Float32, Float64}
+const ScalarTypes = Union{IntegerTypes, FloatingTypes}
 
 const VE{T} = Core.VecElement{T}
 const Vec{W,T<:Number} = NTuple{W,VE{T}}
@@ -35,6 +40,7 @@ end
 struct Mask{W,U<:Unsigned} <: AbstractStructVec{W,Bool}
     u::U
 end
+const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 # Const prop is good enough; added an @inferred test to make sure.
 @inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
@@ -186,7 +192,7 @@ const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
 function Base.show(io::IO, v::SVec{W,T}) where {W,T}
     print(io, "SVec{$W,$T}<")
     for w ∈ 1:W
-        print(io, v[w])
+        print(io, repr(v[w]))
         w < W && print(io, ", ")
     end
     print(">")

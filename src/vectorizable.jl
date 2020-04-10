@@ -606,7 +606,7 @@ end
 @inline stridedpointer(A::AbstractArray, ::Type{Adjoint}) = stridedpointer(adjoint(A))
 @inline stridedpointer(A::AbstractArray, ::Nothing) = stridedpointer(A)
 
-@inline filter_strides_by_dimequal1(sz::NTuple{N,Int}, st::NTuple{N,Int}) where {N} = @inbounds ntuple(n -> sz[n] == 1 ? 0 : st[n], Val{N}())
+@inline filter_strides_by_dimequal1(sz::NTuple{N,Int}, st::NTuple{N,Int}) where {N} = @inbounds ntuple(n -> isone(sz[n]) ? 0 : st[n], Val{N}())
 
 @inline stridedpointer_for_broadcast(A::AbstractRange) = A
 @inline function stridedpointer_for_broadcast(A::AbstractArray{T,N}) where {T,N}
@@ -620,7 +620,7 @@ end
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S}
     PackedStridedPointer(pointer(A), filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A))))
 end
-
+@inline stridedpointer_for_broadcast(A::BitArray) = stridedpointer(A)
 
 struct MappedStridedPointer{F, T, P <: AbstractPointer{T}}
     f::F

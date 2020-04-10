@@ -3,15 +3,15 @@
 
 @inline extract_data(m::Mask) = m.u
 @inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
-@inline Base.:(&)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u & u)
-@inline Base.:(&)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+@inline Base.:(&)(m::Mask{W}, u::UIntTypes) where {W} = Mask{W}(m.u & u)
+@inline Base.:(&)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u & m.u)
 
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
 
 @inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u | m2.u)
-@inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u | u)
-@inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u | m.u)
+@inline Base.:(|)(m::Mask{W}, u::UIntTypes) where {W} = Mask{W}(m.u | u)
+@inline Base.:(|)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u | m.u)
 
 @inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
 @inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
@@ -25,8 +25,8 @@
 @inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) where {W} = Mask{W}(b ? 0x03 : m.u)
 
 @inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u ⊻ m2.u)
-@inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = Mask{W}(m.u ⊻ u)
-@inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u ⊻ m.u)
+@inline Base.:(⊻)(m::Mask{W}, u::UIntTypes) where {W} = Mask{W}(m.u ⊻ u)
+@inline Base.:(⊻)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u ⊻ m.u)
 
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
@@ -39,11 +39,11 @@
 @inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
 
 @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
-@inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
-@inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
+@inline Base.:(==)(m::Mask{W}, u::UIntTypes) where {W} = m.u == u
+@inline Base.:(==)(u::UIntTypes, m::Mask{W}) where {W} = u == m.u
 @inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u != m2.u
-@inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = m.u != u
-@inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = u != m.u
+@inline Base.:(!=)(m::Mask{W}, u::UIntTypes) where {W} = m.u != u
+@inline Base.:(!=)(u::UIntTypes, m::Mask{W}) where {W} = u != m.u
 
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
 
@@ -122,6 +122,29 @@ unstable_mask(W, rem) = mask(Val(W), rem)
     )
 end
 
+@inline tomask(m::Mask) = m
+@generated function tomask(v::Vec{W,Bool}) where {W}
+    usize = W > 8 ? nextpow2(W) : 8
+    utyp = "i$(usize)"
+    U = mask_type(W)
+    instrs = String[]
+    push!(instrs, "%bitvec = trunc <$W x i8> %0 to <$W x i1>")
+    if usize == W
+        push!(instrs, "%mask = bitcast <$W x i1> %bitvec to i$(W)")
+    else
+        push!(instrs, "%maskshort = bitcast <$W x i1> %bitvec to i$(W)")
+        push!(instrs, "%mask = zext i$(W) %maskshort to i$(usize)")
+    end
+    push!(instrs, "ret i$(usize) %mask")
+    quote
+        $(Expr(:meta, :inline))
+        Mask{$W}(Base.llvmcall(
+            $(join(instrs, "\n")), $U, Tuple{Vec{$W,Bool}}, v
+        ))
+    end
+end
+@inline tomask(v::AbstractStructVec{<:Any,Bool}) = tomask(extract_data(v))
+
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
 @inline function Base.getindex(m::Mask{W}, i::Integer) where {W}
@@ -151,7 +174,7 @@ end
     ptr, ind = ptr_index(ptr, i)
     Mask{W}(vload(ptr, ind))
 end
-@inline bitload(ptr::AbstractBitPointer, i, ::Union{Unsigned,Mask}) = bitload(ptr, i)
+@inline bitload(ptr::AbstractBitPointer, i, ::Union{UIntTypes,Mask}) = bitload(ptr, i)
 @inline bitload(ptr::AbstractBitPointer, i::Integer) = getindexzerobased(bitload(ptr, _MM{8}(i)), i & 7)
 
 # @inline function vstore!(ptr::AbstractBitPointer, m::Mask{8}, i::Integer)
@@ -168,7 +191,7 @@ end
 
 @generated function bitstore!(
     ptr::Ptr{T}, v::Mask{W,U}, mask::Mask{W,U}
-) where {W,T,U<:Unsigned}
+) where {W,T,U<:UIntTypes}
     @assert isa(Aligned, Bool)
     ptyp = JuliaPointerType
     mtyp_input = llvmtype(U)
@@ -202,7 +225,7 @@ end
 end
 @generated function bitstore!(
     ptr::Ptr{T}, v::Mask{W,U}, ind::I, mask::Mask{W,U}
-) where {W,T,I<:Integer,U<:Unsigned}
+) where {W,T,I<:Integer,U<:UIntTypes}
     @assert isa(Aligned, Bool)
     ptyp = JuliaPointerType
     mtyp_input = llvmtype(U)
@@ -254,6 +277,8 @@ end
 end
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::Mask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), u) 
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::Mask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), u) 
 
 
 
