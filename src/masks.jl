@@ -123,6 +123,7 @@ unstable_mask(W, rem) = mask(Val(W), rem)
     )
 end
 
+@inline tomask(m::Unsigned) = m
 @inline tomask(m::Mask) = m
 @generated function tomask(v::Vec{W,Bool}) where {W}
     usize = W > 8 ? nextpow2(W) : 8
@@ -278,8 +279,8 @@ end
 end
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::Mask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), u) 
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::Mask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), u) 
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::AbstractMask, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::AbstractMask, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)), tomask(u))
 
 
 
