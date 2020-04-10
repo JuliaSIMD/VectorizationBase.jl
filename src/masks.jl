@@ -1,5 +1,6 @@
 
 
+@inline Base.zero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
 
 @inline extract_data(m::Mask) = m.u
 @inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
