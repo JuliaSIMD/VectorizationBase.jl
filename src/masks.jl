@@ -48,6 +48,9 @@
 
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
 
+@inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m.u)
+@inline Base.:(+)(i::Integer, m::Mask) = i + count_ones(m.u)
+
 function mask_type(W)
     if W <= 8
         return UInt8
