@@ -90,21 +90,28 @@ end
     # tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
-        rem = valrem(Val{$W}(), l - 1) + 1
         # @inbounds $tup[rem+1]
-        Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
+        # rem = valrem(Val{$W}(), l - 1) + 1
+        # Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
+        rem = valrem(Val{$W}(), (l % $M) - one($M)) + one($M)
+        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))) - rem))
     end
 end
 
 @generated function mask(::Val{W}, l::Integer) where {W}
     M = mask_type(W)
 #    W = pick_vector_width(T)
-    tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
+    # tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
         # @inbounds $tup[rem+1]
-        rem = valrem(Val{$W}(), l - 1) + 1
-        Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
+        # rem = valrem(Val{$W}(), l % $M)
+        # Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))) - rem))
+        # rem = valrem(Val{$W}(), l - 1) + 1
+        rem = valrem(Val{$W}(), (l % $M) - one($M)) + one($M)
+        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))) - rem))
+        # Mask{$W,$M}(one($M) << rem)
+        # Mask{$W,$M}(one($M) << (rem) - $(one(M)))
     end
 end
 @generated mask(::Val{W}, ::Static{L}) where {W, L} = mask(Val(W), L)

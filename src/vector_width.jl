@@ -95,6 +95,11 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 @inline valsub(::Val{W}, i) where {W} = W - i
 @inline valrem(::Val{W}, i) where {W} = i & (W - 1)
 @inline valmuladd(::Val{W}, b, c) where {W} = W*b + c
+@inline valmul(::Val{W}, i::T) where {W,T<:Integer} = (W % T)*i
+@inline valadd(::Val{W}, i::T) where {W,T<:Integer} = (W % T) + i
+@inline valsub(::Val{W}, i::T) where {W,T<:Integer} = (W % T) - i
+@inline valrem(::Val{W}, i::T) where {W,T<:Integer} = i & ((W % T) - one(T))
+@inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = (W % T)*b + c
 
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
