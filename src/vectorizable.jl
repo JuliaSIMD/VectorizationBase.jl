@@ -329,8 +329,8 @@ end
 
 @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,Vararg}}, i::Integer) where {T} = i
 @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Integer) where {N,T} = i*N
-@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,Vararg}}, i::Tuple{I}) where {T,I<:Integer} = i
-@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Tuple{I}) where {N,T,I<:Integer} = i*N
+@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,Vararg}}, i::Tuple{I}) where {T,I<:Integer} = first(i)
+@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Tuple{I}) where {N,T,I<:Integer} = first(i)*N
 function indprod(X::Core.SimpleVector, i)
     Xᵢ = (X[i])::Int
     iᵢ = Expr(:ref, :i, i)

@@ -84,6 +84,25 @@ end
 @inline maybestaticsize(B::Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
 @inline maybestaticsize(B::Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
 
+@inline Base.iszero(::Static{0}) = true
+@inline Base.iszero(::Static) = false
+@generated function Base.divrem(N::Integer, ::Static{L}) where {L}
+    if ispow2(L)
+        quote
+            $(Expr(:meta,:inline))
+            d = N >>> $(intlog2(L))
+            r = N & $(L-1)
+            d, r
+        end
+    else
+        quote
+            $(Expr(:meta,:inline))
+            divrem(N, $L)
+        end
+    end
+end
+@generated Base.divrem(::Static{N}, ::Static{D}) where {N,D} = divrem(N, D)
+
 @inline Base.:+(::Static{N}, i) where {N} = N + i
 @inline Base.:+(i, ::Static{N}) where {N} = N + i
 @inline Base.:+(::Static{M}, ::Static{N}) where {M,N} = M + N
@@ -137,7 +156,8 @@ end
 static_promote(::Static{M}, ::Static{N}) where {M, N} = throw("$M ≠ $N")
 static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 
-
+@generated staticp1(::Static{N}) where {N} = Static{N+1}()
+@inline staticp1(N::Integer) = N + 1
 @generated staticm1(::Static{N}) where {N} = Static{N-1}()
 @inline staticm1(N::Integer) = N - 1
 @inline staticm1(i::Tuple{}) = tuple()
