@@ -78,8 +78,10 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
         T = v.parameters[1]
         if T == Bool
             sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
+        elseif !AVX2 && T <: Integer
+            return Val{1}()
         else
-            sTv = sizeof(v.parameters[1])
+            sTv = sizeof(T)
         end
         sT = min(sT, sTv)
     end
