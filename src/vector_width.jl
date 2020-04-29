@@ -120,7 +120,7 @@ end
 @inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(i + j.i)
 @inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i + j)
 @inline Base.:(+)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i + j.i)
-@inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
+# @inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
 @inline Base.:(-)(i::_MM{W}, j::Integer) where {W} = _MM{W}(i.i - j)
 # @inline Base.:(-)(i::Integer, j::_MM{W}) where {W} = _MM{W}(i - j.i)
 @inline Base.:(-)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i - j)
