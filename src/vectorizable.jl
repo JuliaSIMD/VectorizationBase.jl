@@ -1,9 +1,9 @@
-## 
+##
 
 
 # Convert Julia types to LLVM types
 const LLVMTYPE = Dict{DataType,String}(
-    Bool => "i8",   # Julia represents Tuple{Bool} as [1 x i8]    
+    Bool => "i8",   # Julia represents Tuple{Bool} as [1 x i8]
     Int8 => "i8",
     Int16 => "i16",
     Int32 => "i32",
@@ -198,7 +198,7 @@ end
             NTuple{$W,Core.VecElement{Ptr{$T}}}, Tuple{Ptr{$T}, NTuple{W,Core.VecElement{$I}}},
             ptr, i
         )
-    end    
+    end
 end
 @inline gep(ptr::Ptr, v::SVec) = gep(ptr, extract_data(v))
 @inline gep(ptr::Ptr{Cvoid}, i::Integer) where {T} = ptr.ptr + i
@@ -404,7 +404,10 @@ end
 # @inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, i))
 # @inline vload(ptr::AbstractPointer, i::Tuple, u::Unsigned) = vload(ptr.ptr, offset(ptr, i), u)
 @inline Base.unsafe_load(ptr::AbstractPointer, i) = vload(ptr.ptr, offset(ptr, i - 1))
-@inline Base.getindex(ptr::AbstractPointer, i) = vload(ptr.ptr, offset(ptr, i))
+@inline Base.getindex(ptr::AbstractPointer, i) = vload(ptr, (i, ))
+@inline Base.getindex(ptr::AbstractPointer, i, j) = vload(ptr, (i, j))
+@inline Base.getindex(ptr::AbstractPointer, i, j, k) = vload(ptr, (i, j, k))
+@inline Base.getindex(ptr::AbstractPointer, i, j, k, rests...) = vload(ptr, (i, j, k, rests...))
 
 @inline vstore!(ptr::AbstractPointer{T}, v::T) where {T} = vstore!(ptr.ptr, v)
 @inline Base.unsafe_store!(ptr::AbstractPointer{T}, v::T) where {T} = vstore!(ptr.ptr, v)
@@ -420,6 +423,15 @@ end
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = ptr.ptr
 
 @inline stridedpointer(x) = x#Pointer(x)
+@inline function stridedpointer(x, i)
+    ptr = stridedpointer(x)
+    return ptr + offset(ptr, staticm1(i))
+end
+@inline function stridedpointer(x, i1, i2, I...)
+    ptr = stridedpointer(x)
+    idx = staticm1((i1, i2, I...))
+    return ptr + offset(ptr, idx)
+end
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
 @inline stridedpointer(x::Union{LowerTriangular,UpperTriangular}) = stridedpointer(parent(x))
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
@@ -478,7 +490,7 @@ end
             $((decls, join(instrs, "\n"))),
             Ptr{$T}, Tuple{Ptr{$T}}, ptr
         )
-    end    
+    end
 end
 @inline noaliasstridedpointer(x) = stridedpointer(x)
 @inline noaliasstridedpointer(x::AbstractRange) = stridedpointer(x)
@@ -627,5 +639,3 @@ struct MappedStridedPointer{F, T, P <: AbstractPointer{T}}
     ptr::P
 end
 @inline vload(ptr::MappedStridedPointer) = ptr.f(vload(ptr.ptr))
-
-
