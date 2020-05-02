@@ -156,6 +156,10 @@ VectorizationBase.vstore!(vA, 99.9, (4,))
 @test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (4,))
 VectorizationBase.vstore!(ptr_A+8*4, 999.9)
 @test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4) === VectorizationBase.vload(vA, (5,))
+B = rand(5, 5)
+vB = VectorizationBase.stridedpointer(B)
+@test vB[2, 3] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
+@test vB[4] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
 end
 
 end
