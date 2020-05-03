@@ -59,6 +59,9 @@ end
 @test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64), 1+VectorizationBase.REGISTER_SIZE:2VectorizationBase.REGISTER_SIZE)
 @test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64), (1:VectorizationBase.REGISTER_SIZE) .+ 29VectorizationBase.REGISTER_SIZE)
 
+a = Vector{Float64}(undef, 0)
+ptr = pointer(a)
+@test UInt(VectorizationBase.align(ptr, 1 << 12)) % (1 << 12) == 0
 end
 
     @testset "masks.jl" begin
