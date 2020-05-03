@@ -211,6 +211,7 @@ end
 # @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 # @inline vstore!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = vstore!(ptr, convert(T1, v), args...)
 
+@inline vload(v::Type{SVec{W,T}}, ptr::AbstractPointer) where {W,T} = vload(v, pointer(ptr))
 @inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, staticm1(i)))
 @inline vload(ptr::AbstractPointer, i::Tuple, u::Union{AbstractMask,Unsigned}) = vload(ptr.ptr, offset(ptr, staticm1(i)), u)
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
