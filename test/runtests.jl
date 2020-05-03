@@ -160,6 +160,7 @@ B = rand(5, 5)
 vB = VectorizationBase.stridedpointer(B)
 @test vB[2, 3] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
 @test vB[4] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
+@test vload(SVec{4,Float64}, vB) == SVec{4,Float64}(ntuple(i->B[i], Val(4)))
 end
 
 end
