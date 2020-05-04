@@ -148,7 +148,7 @@ ptrx[2]
 """
 abstract type AbstractPointer{T} end
 
-@generated function gepbyte(ptr::Ptr, i::I) where {T, I <: Integer}
+@generated function gepbyte(ptr::Ptr{T}, i::I) where {T, I <: Integer}
     ptyp = JuliaPointerType
     ityp = llvmtype(I)
     instrs = String[]
