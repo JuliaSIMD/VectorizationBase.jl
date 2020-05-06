@@ -155,7 +155,8 @@ end
 @inline VectorizationBase.SVec{W}(v::SVec{W,T}) where {W,T<:Number} = v
 
 @inline SVec{W,T}(v::Vararg{T,W}) where {W,T} = @inbounds SVec{W,T}(ntuple(Val(W)) do w Core.VecElement(v[w]) end)
-@inline SVec{W,T1}(v::Vararg{T2,W}) where {W,T1,T2} = @inbounds SVec{W,T1}(ntuple(Val(W)) do w Core.VecElement(convert(T1,v[w])) end)
+@inline SVec{W,T1}(v::Vararg{T2,W}) where {W,T1<:Number,T2<:Number} = @inbounds SVec{W,T1}(ntuple(Val(W)) do w Core.VecElement(convert(T1,v[w])) end)
+@inline SVec{1,T1}(v::Vararg{T2,1}) where {T1<:Number,T2<:Number} = @inbounds SVec{1,T1}((Core.VecElement(convert(T1,v[1])),))
 
 
 @inline Base.length(::AbstractStructVec{N}) where N = N

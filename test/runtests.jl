@@ -24,7 +24,8 @@ end
 @test zero(v) === zero(typeof(v))
 @test one(v) === one(typeof(v))
 # @test SVec{W32,Float32}(one(SVec{W32,Float64})) === SVec(one(SVec{W32,Float32})) === one(SVec{W32,Float32}) # conversions should be tested in SIMDPirates
-@test firstval(v) === firstval(extract_data(v)) === 1.0
+    @test firstval(v) === firstval(extract_data(v)) === 1.0
+    @test SVec{1,Int}(1) === SVec{1,Int}((Core.VecElement(1),))
 end
 
 @testset "alignment.jl" begin
