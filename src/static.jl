@@ -166,6 +166,10 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 @inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (i[1] - 1, staticm1(Base.tail(i))...)
 @inline Base.ntuple(f::F, ::Static{N}) where {F,N} = ntuple(f, Val{N}())
 
+struct LazyP1{T}
+    data::T
+end
+@inline staticm1(d::LazyP1) = d.data
 
 
 @inline maybestaticfirst(A) = first(A)
