@@ -74,18 +74,24 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
 
 @generated function pick_vector_width_val(vargs...)
     sT = 16
+    has_bool = false
+    demote_to_1 = false
     for v ∈ vargs
         T = v.parameters[1]
-        if T == Bool
-            sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
+        if T === Bool
+            #sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
+            has_bool = true#; sT = min(sT, sTv)
         elseif !AVX2 && T <: Integer
-            return Val{1}()
+            demote_to_1 = true
         else
-            sTv = sizeof(T)
+            sT = min(sT, sizeof(T))
         end
-        sT = min(sT, sTv)
     end
-    Val{REGISTER_SIZE ÷ sT}()
+    W = demote_to_1 ? 1 : REGISTER_SIZE ÷ sT
+    if has_bool
+        W = max(8,W)
+    end
+    Val{W}()
 end
 @generated function adjust_W(::Val{N}, ::Val{W}) where {N,W}
     W1 = first(downadjust_W_and_Wshift(N, W, 0))

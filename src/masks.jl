@@ -163,6 +163,9 @@ end
     @boundscheck i > W && throw(BoundsError(m, i))
     getindexzerobased(m, i - 1)
 end
+@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{1})
+    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i
+end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{2})
     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 1
 end
