@@ -451,6 +451,7 @@ end
 @inline stridedpointer(A::BitArray) = PackedStridedBitPointer(pointer(A.chunks), tailstrides(A))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
 @inline stridedpointer(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
+@inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{<:StepRange,Vararg}} = SparseStridedPointer(pointer(A), strides(A))
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}} = SparseStridedPointer(pointer(A), strides(A))
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S} = PackedStridedPointer(pointer(A), Base.tail(strides(A)))
 @inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer(parent(B))
