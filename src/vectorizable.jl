@@ -238,7 +238,7 @@ struct PackedStridedPointer{T,N} <: AbstractColumnMajorStridedPointer{T,N}
     strides::NTuple{N,Int}
 end
 struct PackedStridedBitPointer{N} <: AbstractColumnMajorStridedPointer{Bool,N}
-    ptr::Ptr{UInt}
+    ptr::Ptr{UInt64}
     strides::NTuple{N,Int}
 end
 
@@ -248,7 +248,7 @@ struct RowMajorStridedPointer{T,N} <: AbstractRowMajorStridedPointer{T,N}
     strides::NTuple{N,Int}
 end
 struct RowMajorStridedBitPointer{N} <: AbstractRowMajorStridedPointer{Bool,N}
-    ptr::Ptr{UInt}
+    ptr::Ptr{UInt64}
     strides::NTuple{N,Int}
 end
 
@@ -275,19 +275,19 @@ struct SparseStridedPointer{T,N} <: AbstractSparseStridedPointer{T,N}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
-struct SparseStridedBitPointer{N} <: AbstractSparseStridedPointer{Bool,N}
-    ptr::Ptr{UInt}
-    strides::NTuple{N,Int}
-end
+# struct SparseStridedBitPointer{N} <: AbstractSparseStridedPointer{Bool,N}
+#     ptr::Ptr{UInt64}
+#     strides::NTuple{N,Int}
+# end
 
 abstract type AbstractStaticStridedPointer{T,X} <: AbstractStridedPointer{T} end
 struct StaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
     ptr::Ptr{T}
 end
 struct StaticStridedBitPointer{X} <: AbstractStaticStridedPointer{Bool,X}
-    ptr::Ptr{UInt}
+    ptr::Ptr{UInt64}
 end
-const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPointer, SparseStridedBitPointer, StaticStridedBitPointer}
+const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPointer, StaticStridedBitPointer}#, SparseStridedBitPointer
 
 @inline offset(::AbstractColumnMajorStridedPointer, ::Tuple{}) = 0
 @inline offset(::AbstractColumnMajorStridedPointer, i::Tuple{I}) where {I} = @inbounds i[1]
@@ -309,7 +309,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 @inline Base.similar(p::RowMajorStridedPointer, ptr::Ptr) = RowMajorStridedPointer(ptr, p.strides)
 @inline Base.similar(p::RowMajorStridedBitPointer, ptr::Ptr) = RowMajorStridedBitPointer(ptr, p.strides)
 @inline Base.similar(p::SparseStridedPointer, ptr::Ptr) = SparseStridedPointer(ptr, p.strides)
-@inline Base.similar(p::SparseStridedBitPointer, ptr::Ptr) = SparseStridedBitPointer(ptr, p.strides)
+# @inline Base.similar(p::SparseStridedBitPointer, ptr::Ptr) = SparseStridedBitPointer(ptr, p.strides)
 @inline Base.similar(::StaticStridedPointer{T,X}, ptr::Ptr) where {T,X} = StaticStridedPointer{T,X}(ptr)
 @inline Base.similar(::StaticStridedBitPointer{X}, ptr::Ptr) where {X} = StaticStridedBitPointer{X}(ptr)
 @inline Base.similar(p::PermutedDimsStridedPointer{S1,S2}, ptr) where {S1,S2} = PermutedDimsStridedPointer{S1,S2}(similar(p.ptr, ptr))
