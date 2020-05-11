@@ -196,7 +196,7 @@ function Base.show(io::IO, v::SVec{W,T}) where {W,T}
         print(io, repr(v[w]))
         w < W && print(io, ", ")
     end
-    print(">")
+    print(io, ">")
 end
 Base.bitstring(m::Mask{W}) where {W} = bitstring(extract_data(m))[end-W+1:end]
 function Base.show(io::IO, m::Mask{W}) where {W}
@@ -207,7 +207,7 @@ function Base.show(io::IO, m::Mask{W}) where {W}
         print(io, bitv[W-w])
         w < W-1 && print(io, ", ")
     end
-    print(">")
+    print(io, ">")
 end
 
 include("cartesianvindex.jl")
