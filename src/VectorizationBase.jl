@@ -131,6 +131,8 @@ end
         SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
     end
 end
+
+
 # @inline vzero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline vbroadcast(::Val{W}, s::T) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
 @inline vbroadcast(::Val{W}, ptr::Ptr{T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, ptr))
