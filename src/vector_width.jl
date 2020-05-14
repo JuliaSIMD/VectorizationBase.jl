@@ -164,3 +164,22 @@ end
 
 @inline extract_data(i::_MM) = i.i
 
+
+
+for T ∈ [Float32,Float64,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64]#, Float16]
+    maxW = pick_vector_width(T)
+    typ = llvmtype(T)
+    for log2W ∈ 0:intlog2(maxW)
+        W = 1 << log2W
+        instrs = "ret <$W x $typ> zeroinitializer"
+        @eval @inline vzero(::Val{$W}, ::Type{$T}) = SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
+        vtyp = "<$W x $typ>"
+        instrs = """
+        %ie = insertelement $vtyp undef, $typ %0, i32 0
+        %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+        ret $vtyp %v
+        """
+        @eval @inline vbroadcast(::Val{$W}, s::$T) = SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
+    end
+end
+
