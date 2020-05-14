@@ -503,28 +503,37 @@ end
 @generated function noalias!(ptr::Ptr{T}) where {T}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
-    funcname = "noalias" * typ
-    decls = "define noalias $typ* @$(funcname)($typ *%a) willreturn noinline { ret $typ* %a }"
-    instrs = [
-        "%ptr = inttoptr $ptyp %0 to $typ*",
-        "%naptr = call $typ* @$(funcname)($typ* %ptr)",
-        "%jptr = ptrtoint $typ* %naptr to $ptyp",
-        "ret $ptyp %jptr"
-    ]
+    if Base.libllvm_version < v"10"
+        funcname = "noalias" * typ
+        decls = "define noalias $typ* @$(funcname)($typ *%a) willreturn noinline { ret $typ* %a }"
+        instrs = """
+            %ptr = inttoptr $ptyp %0 to $typ*
+            %naptr = call $typ* @$(funcname)($typ* %ptr)
+            %jptr = ptrtoint $typ* %naptr to $ptyp
+            ret $ptyp %jptr
+        """
+    else
+        decls = "declare void @llvm.assume(i1)"
+        instrs = """
+            %ptr = inttoptr $ptyp %0 to $typ*
+            call void @llvm.assume(i1 true) ["noalias"($typ* %ptr)]
+            %int = ptrtoint $typ* %ptr to $ptyp
+            ret $ptyp %int
+        """
+    end
     quote
         $(Expr(:meta,:inline))
         Base.llvmcall(
-            $((decls, join(instrs, "\n"))),
+            $((decls, instrs)),
             Ptr{$T}, Tuple{Ptr{$T}}, ptr
         )
     end
 end
+@inline noalias!(ptr::AbstractPointer) = similar(ptr, noalias!(pointer(ptr)))
+@inline noalias!(x::Any) = x
 @inline noaliasstridedpointer(x) = stridedpointer(x)
-@inline noaliasstridedpointer(x::AbstractRange) = stridedpointer(x)
-@inline function noaliasstridedpointer(x::AbstractArray)
-    sptr = stridedpointer(x)
-    similar(sptr, noalias!(pointer(sptr)))
-end
+@inline noaliasstridedpointer(A::AbstractRange) = stridedpointer(x)
+@inline noaliasstridedpointer(A::AbstractArray) = noalias!(stridedpointer(A))
 # @inline StaticStridedStruct{T,X}(s::S) where {T,X,S} = StaticStridedStruct{T,X,S}(s, 0)
 # @inline StaticStridedStruct{T,X}(s::S, i::Int) where {T,X,S} = StaticStridedStruct{T,X,S}(s, i)
 # @inline offset(ptr::StaticStridedStruct{T,X,S}, i::Integer) where {T,X,S} = StaticStridedStruct{T,X,S}(pointer(ptr), ptr.offset + i)
