@@ -115,16 +115,16 @@ end
 # @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1,T2} = vstore!(ptr, convert(T1, v))
 
 
-@inline tdot(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = @inbounds a[1] * b[1]
-@inline tdot(a::Tuple{I1,I3}, b::Tuple{I2,I4}) where {I1,I2,I3,I4} = @inbounds a[1]*b[1] + a[2]*b[2]
-@inline tdot(a::Tuple{I1,I3,I5}, b::Tuple{I2,I4,I6}) where {I1,I2,I3,I4,I5,I6} = @inbounds a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
+@inline tdot(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = @inbounds vmul(a[1], b[1])
+@inline tdot(a::Tuple{I1,I3}, b::Tuple{I2,I4}) where {I1,I2,I3,I4} = @inbounds vadd(vmul(a[1],b[1]), vmul(a[2],b[2]))
+@inline tdot(a::Tuple{I1,I3,I5}, b::Tuple{I2,I4,I6}) where {I1,I2,I3,I4,I5,I6} = @inbounds vadd(vadd(vmul(a[1],b[1]), vmul(a[2],b[2])), vmul(a[3],b[3]))
 # @inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
 
 @inline tdot(a::Tuple{I}, b::Tuple{}) where {I} = @inbounds a[1]
 @inline tdot(a::Tuple{}, b::Tuple{I}) where {I} = @inbounds b[1]
-@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2}) where {I1,I2} = @inbounds a[1]*b[1]
-@inline tdot(a::Tuple{I1}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds a[1]*b[1]
-@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
+@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2}) where {I1,I2} = @inbounds vmul(a[1],b[1])
+@inline tdot(a::Tuple{I1}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds vmul(a[1],b[1])
+@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds vadd(vmul(a[1],b[1]), tdot(Base.tail(a), Base.tail(b)))
 
 
 """
@@ -201,7 +201,7 @@ end
     end
 end
 @inline gep(ptr::Ptr, v::SVec) = gep(ptr, extract_data(v))
-@inline gep(ptr::Ptr{Cvoid}, i::Integer) where {T} = ptr + i
+@inline gep(ptr::Ptr{Cvoid}, i::Integer) where {T} = gepbyte(ptr, i)
 
 struct Reference{T} <: AbstractPointer{T}
     ptr::Ptr{T}
@@ -291,7 +291,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 
 @inline offset(::AbstractColumnMajorStridedPointer, ::Tuple{}) = 0
 @inline offset(::AbstractColumnMajorStridedPointer, i::Tuple{I}) where {I} = @inbounds i[1]
-@inline offset(ptr::AbstractColumnMajorStridedPointer, i::Tuple{I,Vararg}) where {I} = @inbounds i[1] + tdot(Base.tail(i), ptr.strides)
+@inline offset(ptr::AbstractColumnMajorStridedPointer, i::Tuple{I,Vararg}) where {I} = @inbounds vadd(i[1], tdot(Base.tail(i), ptr.strides))
 
 @inline offset(ptr::AbstractColumnMajorStridedPointer{T,0}, i::Tuple{I,Vararg}) where {T,I} = @inbounds i[1]
 @inline offset(ptr::AbstractColumnMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]

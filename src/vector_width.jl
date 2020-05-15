@@ -99,11 +99,26 @@ end
 end
 pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_vector_width_val(vargs...))
 
-@inline valmul(::Val{W}, i) where {W} = W*i
-@inline valadd(::Val{W}, i) where {W} = W + i
-@inline valsub(::Val{W}, i) where {W} = W - i
+@static if Int === Int64
+    @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+    @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+    @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+else
+    @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+    @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+    @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+end
+
+@inline vadd(::Static{i}, j) where {i} = vadd(i, j)
+@inline vadd(i, ::Static{j}) where {j} = vadd(i, j)
+@inline vsub(::Static{i}, j) where {i} = vsub(i, j)
+@inline vsub(i, ::Static{j}) where {j} = vsub(i, j)
+
+@inline valmul(::Val{W}, i) where {W} = vmul(W, i)
+@inline valadd(::Val{W}, i) where {W} = vadd(W, i)
+@inline valsub(::Val{W}, i) where {W} = vsub(W, i)
 @inline valrem(::Val{W}, i) where {W} = i & (W - 1)
-@inline valmuladd(::Val{W}, b, c) where {W} = W*b + c
+@inline valmuladd(::Val{W}, b, c) where {W} = vadd(vmul(W, b), c)
 @inline valmul(::Val{W}, i::T) where {W,T<:Integer} = (W % T)*i
 @inline valadd(::Val{W}, i::T) where {W,T<:Integer} = (W % T) + i
 @inline valsub(::Val{W}, i::T) where {W,T<:Integer} = (W % T) - i
@@ -122,14 +137,20 @@ end
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline _MM(::Val{W}, ::Static{I}) where {W,I} = _MM{W}(I)
 
-@inline Base.:(+)(i::_MM{W}, j::Integer) where {W} = _MM{W}(i.i + j)
-@inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(i + j.i)
-@inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i + j)
-@inline Base.:(+)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i + j.i)
+@inline vadd(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
+@inline vadd(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
+@inline vadd(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
+@inline vadd(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(vadd(i, j.i))
+@inline vsub(i::_MM{W}, j::Integer) where {W} = _MM{W}(vsub(i.i, j))
+@inline vsub(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vsub(i.i, j))
+@inline Base.:(+)(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
+@inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
+@inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
+@inline Base.:(+)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(vadd(i, j.i))
 # @inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
-@inline Base.:(-)(i::_MM{W}, j::Integer) where {W} = _MM{W}(i.i - j)
+@inline Base.:(-)(i::_MM{W}, j::Integer) where {W} = _MM{W}(vsub(i.i, j))
 # @inline Base.:(-)(i::Integer, j::_MM{W}) where {W} = _MM{W}(i - j.i)
-@inline Base.:(-)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i - j)
+@inline Base.:(-)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vsub(i.i, j))
 # @inline Base.:(-)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i - j.i)
 # @inline Base.:(-)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i - j.i)
 # @inline Base.:(*)(i::_MM{W}, j) where {W} = _MM{W}(i.i * j)
