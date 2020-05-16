@@ -304,6 +304,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 @inline gep(ptr::AbstractStridedPointer, i::Tuple{I}) where {I} = gep(ptr.ptr, first(offset(ptr, i)))
 @inline gesp(ptr::AbstractStridedPointer, i) = similar(ptr, gep(ptr, i))
 
+
 @inline Base.similar(p::PackedStridedPointer, ptr::Ptr) = PackedStridedPointer(ptr, p.strides)
 @inline Base.similar(p::PackedStridedBitPointer, ptr::Ptr) = PackedStridedBitPointer(ptr, p.strides)
 @inline Base.similar(p::RowMajorStridedPointer, ptr::Ptr) = RowMajorStridedPointer(ptr, p.strides)
@@ -554,6 +555,18 @@ end
 #     strides = tupletype_to_tuple(X)
 #     StaticStridedStruct{T,X,S}(pointer(ptr), ptr.offset + first(i) + tdot(strides, Base.tail(i)))
 # end
+
+
+struct RangeWrapper{R <: AbstractRange, I}
+    r::R
+    i::I
+end
+@inline gesp(r::AbstractRange, i::I) where {I} = RangeWrapper(r, i)
+@inline vload(rw::RangeWrapper, i, mask) = vload(rw, i)
+@inline vload(rw::RangeWrapper, i::Tuple{I}) where {I}  = vload(rw.r, @inbounds (vadd(rw.i[1], i[1]),))
+@inline vload(rw::RangeWrapper, i::Tuple{I1,I2}) where {I1,I2}  = vload(rw.r, @inbounds (vadd(rw.i[1], i[1]), vadd(rw.i[2], i[2])))
+@inline vload(rw::RangeWrapper, i::Tuple{I1,I2,I3}) where {I1,I2,I3}  = vload(rw.r, @inbounds (vadd(rw.i[1], i[1]), vadd(rw.i[2], i[2]), vadd(rw.i[3], i[3])))
+@inline vload(rw::RangeWrapper, i)  = vload(rw.r, vadd.(rw.i, i))
 
 @inline vload(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1]]
 @inline vload(r::LinearIndices, i::Tuple) = @inbounds r[i...]

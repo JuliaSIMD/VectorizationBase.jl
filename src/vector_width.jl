@@ -136,6 +136,7 @@ end
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline _MM(::Val{W}, ::Static{I}) where {W,I} = _MM{W}(I)
+@inline gep(ptr::Ptr, i::_MM) = gep(ptr, i.i)
 
 @inline vadd(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
 @inline vadd(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))

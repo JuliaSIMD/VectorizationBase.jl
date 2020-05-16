@@ -184,7 +184,6 @@ end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{64})
     Base.unsafe_convert(Ptr{UInt64}, ptr.ptr), i.i >> 6
 end
-
 @inline function bitload(ptr::AbstractBitPointer, i::_MM{W}) where {W}
     ptr, ind = ptr_index(ptr, i)
     Mask{W}(vload(ptr, ind))
@@ -290,6 +289,7 @@ end
     # @show ind, shift, u
     Mask{W}((u >>> shift) % U)
 end
+
 # @inline function vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, (i,j)::Tuple{_MM{W},<:Integer}) where {W}
 #     j -= 1
 #     s = bptr.strides[1]
@@ -319,6 +319,5 @@ end
 @inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)), tomask(u))
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)))
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)), tomask(u))
-
 
 
