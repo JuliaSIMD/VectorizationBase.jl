@@ -212,13 +212,13 @@ end
 # @inline vstore!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = vstore!(ptr, convert(T1, v), args...)
 
 @inline vload(v::Type{SVec{W,T}}, ptr::AbstractPointer) where {W,T} = vload(v, pointer(ptr))
-@inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, staticm1(i)))
+@inline vload(ptr::AbstractPointer, i::Tuple) = vload(ptr.ptr, offset(ptr, i))
 @inline vload(ptr::AbstractPointer, i::LazyP1) = vload(ptr.ptr, offset(ptr, i.data))
-@inline vload(ptr::AbstractPointer, i::Tuple, u::Union{AbstractMask,Unsigned}) = vload(ptr.ptr, offset(ptr, staticm1(i)), u)
-@inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
-@inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, staticm1(i)), u)
-@inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple) = vnoaliasstore!(ptr.ptr, v, offset(ptr, staticm1(i)))
-@inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vnoaliasstore!(ptr.ptr, v, offset(ptr, staticm1(i)), u)
+@inline vload(ptr::AbstractPointer, i::Tuple, u::Union{AbstractMask,Unsigned}) = vload(ptr.ptr, offset(ptr, i), u)
+@inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, i))
+@inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, i), u)
+@inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple) = vnoaliasstore!(ptr.ptr, v, offset(ptr, i))
+@inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vnoaliasstore!(ptr.ptr, v, offset(ptr, i), u)
 @inline vnoaliasstore!(args...) = vstore!(args...) # generic fallback
 
 @inline vstore!(ptr::Ptr{T}, v::Number, i::Integer) where {T <: Number} = vstore!(ptr, convert(T, v), i)
@@ -326,15 +326,15 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 
 @inline LinearAlgebra.transpose(ptr::RowMajorStridedPointer) = PackedStridedPointer(ptr.ptr, ptr.strides)
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds i[1]
-@inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds i[1]*ptr.strides[1] + i[2]
-@inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds i[1]*ptr.strides[2] + i[2]*ptr.strides[1] + i[3]
-@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T,N} = (ri = reverse(i); @inbounds ri[1] + tdot(ptr.strides, Base.tail(ri)))
+@inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds vadd(vmul(i[1],ptr.strides[1]), i[2])
+@inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds vadd(vmul(i[1],ptr.strides[2]), vadd(vmul(i[2],ptr.strides[1]), i[3]))
+@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T,N} = (ri = reverse(i); @inbounds vadd(ri[1], tdot(ptr.strides, Base.tail(ri))))
 # @inline function offset(ptr::AbstractRowMajorStridedPointer{Cvoid,0}, i::Tuple{Int})
     # ptr.ptr + first(i)
 # end
 # @inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T} = offset(PackedStridedPointer(ptr.ptr, reverse(ptr.strides)), i)
 
-@inline offset(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = @inbounds ptr.strides[1]*i
+@inline offset(ptr::AbstractSparseStridedPointer{T}, i::Integer) where {T} = @inbounds vmul(ptr.strides[1],i)
 @inline offset(ptr::AbstractSparseStridedPointer{T}, i::Tuple) where {T} = @inbounds tdot(i, ptr.strides)
 # struct ZeroInitializedStaticStridedPointer{T,X} <: AbstractStaticStridedPointer{T,X}
     # ptr::Ptr{T}
@@ -350,9 +350,9 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 end
 
 @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,Vararg}}, i::Integer) where {T} = i
-@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Integer) where {N,T} = i*N
+@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Integer) where {N,T} = vmul(i,N)
 @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,Vararg}}, i::Tuple{I}) where {T,I<:Integer} = first(i)
-@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Tuple{I}) where {N,T,I<:Integer} = first(i)*N
+@inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Tuple{I}) where {N,T,I<:Integer} = vmul(first(i), N)
 function indprod(X::Core.SimpleVector, i)
     Xᵢ = (X[i])::Int
     iᵢ = Expr(:ref, :i, i)
@@ -445,6 +445,12 @@ end
 @inline Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractPointer{T}) where {T} = pointer(ptr)
 
 @inline stridedpointer(x) = x#Pointer(x)
+
+"""
+    stridedpointer(x, i)
+
+Gets the stridedpointer pointing to i, using 1-based indexes.
+"""
 @inline function stridedpointer(x, i)
     ptr = stridedpointer(x)
     return ptr + offset(ptr, staticm1(i))
@@ -568,8 +574,8 @@ end
 @inline vload(rw::RangeWrapper, i::Tuple{I1,I2,I3}) where {I1,I2,I3}  = vload(rw.r, @inbounds (vadd(rw.i[1], i[1]), vadd(rw.i[2], i[2]), vadd(rw.i[3], i[3])))
 @inline vload(rw::RangeWrapper, i)  = vload(rw.r, vadd.(rw.i, i))
 
-@inline vload(r::AbstractRange, i::Tuple{<:Integer}) = @inbounds r[i[1]]
-@inline vload(r::LinearIndices, i::Tuple) = @inbounds r[i...]
+@inline vload(r::AbstractRange, i::Tuple{I}) where {I} = @inbounds r[vadd(i[1], one(I))]
+@inline vload(r::LinearIndices, i::Tuple) = @inbounds r[staticp1(i)...]
 
 
 @inline subsetview(ptr::PackedStridedPointer, ::Val{1}, i::Integer) = SparseStridedPointer(gep(ptr.ptr, i), ptr.strides)
