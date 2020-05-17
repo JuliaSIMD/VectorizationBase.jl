@@ -108,6 +108,24 @@ else
     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
 end
+# @static if Int === Int64
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+# else
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+# end
+# @static if Int === Int64
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+# else
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+# end
 
 @inline vadd(::Static{i}, j) where {i} = vadd(i, j)
 @inline vadd(i, ::Static{j}) where {j} = vadd(i, j)
@@ -119,11 +137,13 @@ end
 @inline valsub(::Val{W}, i) where {W} = vsub(W, i)
 @inline valrem(::Val{W}, i) where {W} = i & (W - 1)
 @inline valmuladd(::Val{W}, b, c) where {W} = vadd(vmul(W, b), c)
+@inline valmulsub(::Val{W}, b, c) where {W} = vsub(vmul(W, b), c)
 @inline valmul(::Val{W}, i::T) where {W,T<:Integer} = vmul((W % T), i)
 @inline valadd(::Val{W}, i::T) where {W,T<:Integer} = vadd((W % T), i)
 @inline valsub(::Val{W}, i::T) where {W,T<:Integer} = vsub((W % T), i)
 @inline valrem(::Val{W}, i::T) where {W,T<:Integer} = i & ((W % T) - one(T))
 @inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = vadd(vmul((W % T), b), c)
+@inline valmulsub(::Val{W}, b::T, c::T) where {W,T<:Integer} = vsub(vmul((W % T), b), c)
 
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
