@@ -356,7 +356,7 @@ end
 function indprod(X::Core.SimpleVector, i)
     Xᵢ = (X[i])::Int
     iᵢ = Expr(:ref, :i, i)
-    Xᵢ == 1 ? iᵢ : Expr(:call, :*, Xᵢ, iᵢ)
+    Xᵢ == 1 ? iᵢ : Expr(:call, :vmul, Xᵢ, iᵢ)
 end
 @generated function offset(ptr::AbstractStaticStridedPointer{T,X}, i::I) where {T,X,I<:Tuple}
     N = length(I.parameters)
@@ -365,7 +365,7 @@ end
     if M == 1
         ind = indprod(Xv, 1)
     else
-        ind = Expr(:call, :+)
+        ind = Expr(:call, :vadd)
         for m ∈ 1:M
             push!(ind.args, indprod(Xv, m))
         end
@@ -582,7 +582,7 @@ end
 @generated function subsetview(ptr::PackedStridedPointer{T, N}, ::Val{I}, i::Integer) where {I, T, N}
     I > N + 1 && return :ptr
     strides = Expr(:tuple, [Expr(:ref, :s, n) for n ∈ 1:N if n != I-1]...)
-    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, I - 1)))
+    offset = Expr(:call, :vmul, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, I - 1)))
     Expr(
         :block,
         Expr(:meta, :inline),
@@ -606,7 +606,7 @@ end
     end
     strideind = N + 1 - I
     strides = Expr(:tuple, [Expr(:ref, :s, n) for n ∈ 1:N if n != strideind]...)
-    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, strideind)))
+    offset = Expr(:call, :vmul, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, strideind)))
     Expr(
         :block,
         Expr(:meta, :inline),
@@ -621,7 +621,7 @@ end
 @generated function subsetview(ptr::SparseStridedPointer{T, N}, ::Val{I}, i::Integer) where {I, T, N}
     I > N && return :ptr
     strides = Expr(:tuple, [Expr(:ref, :s, n) for n ∈ 1:N if n != I]...)
-    offset = Expr(:call, :*, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, I)))
+    offset = Expr(:call, :vmul, :i, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :s, I)))
     Expr(
         :block,
         Expr(:meta, :inline),
@@ -641,7 +641,7 @@ end
         n == I && continue
         push!(Xa.args, Xparam[n])
     end
-    offset = Expr(:call, :*, :i, Xparam[I])
+    offset = Expr(:call, :vmul, :i, Xparam[I])
     Expr(
         :block,
         Expr(:meta, :inline),
@@ -659,12 +659,12 @@ end
         n == I && continue
         push!(Xa.args, Xparam[n])
     end
-    offset = Expr(:call, :*, :i, Xparam[I])
+    offset = Expr(:call, :vmul, :i, Xparam[I])
     Expr(
         :block,
         Expr(:meta, :inline),
         Expr(:(=), :p, Expr(:(.), :ptr, QuoteNode(:ptr))),
-        Expr(:(=), :offset, Expr(:call, :+, Expr(:(.), :ptr, QuoteNote(:offset)), offset)),
+        Expr(:(=), :offset, Expr(:call, :vadd, Expr(:(.), :ptr, QuoteNote(:offset)), offset)),
         Expr(:call, Expr(:curly, :StaticStridedStruct, T, Xa), :p, :offset)
     )
 end
