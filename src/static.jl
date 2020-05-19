@@ -168,6 +168,12 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 @inline staticm1(i::Tuple{I}) where {I} = @inbounds (staticm1(i[1]),)
 @inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticm1(i[1]), staticm1(i[2]))
 @inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticm1(i[1]), staticm1(Base.tail(i))...)
+@generated staticmul(::Type{T}, ::Static{N}) where {T,N} = Static{sizeof(T) * N}()
+@inline staticmul(::Type{T}, N) where {T} = vmul(N, sizeof(T))
+@inline staticmul(::Type{T}, i::Tuple{}) where {T} = tuple()
+@inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
+@inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
+@inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
 @inline Base.ntuple(f::F, ::Static{N}) where {F,N} = ntuple(f, Val{N}())
 
 struct LazyP1{T}
