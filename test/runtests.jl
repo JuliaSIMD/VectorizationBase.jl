@@ -4,11 +4,12 @@ using Test
 const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 
-
 A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
+@test isempty(detect_unbound_args(VectorizationBase))
+
 @test first(A) === A[1]
 @testset "Struct-Wrapped Vec" begin
 @test extract_data(zero(SVec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === extract_data(SVec{4,Float64}(0.0))
@@ -159,11 +160,11 @@ vA = VectorizationBase.stridedpointer(A)
 VectorizationBase.vstore!(vA, 99.9, (3,))
 @test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (3,))
 VectorizationBase.vstore!(ptr_A+8*4, 999.9)
-@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4) === VectorizationBase.vload(vA, (4,))
+@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4*sizeof(eltype(A))) === VectorizationBase.vload(vA, (4,))
 B = rand(5, 5)
 vB = VectorizationBase.stridedpointer(B)
-@test vB[2, 3] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
-@test vB[4] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
+@test vB[1, 2] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
+@test vB[3] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
 @test vload(SVec{4,Float64}, vB) == SVec{4,Float64}(ntuple(i->B[i], Val(4)))
 end
 

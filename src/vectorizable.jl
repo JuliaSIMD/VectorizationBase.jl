@@ -175,6 +175,7 @@ abstract type AbstractPointer{T} end
     push!(instrs, "%iptr = ptrtoint i8* %offsetptr to $ptyp")
     push!(instrs, "ret $ptyp %iptr")
     quote
+        $(Expr(:meta, :inline))
         Base.llvmcall(
             $(join(instrs, "\n")),
             Ptr{$T}, Tuple{Ptr{$T}, $I},
@@ -192,6 +193,7 @@ end
     push!(instrs, "%iptr = ptrtoint $typ* %offsetptr to $ptyp")
     push!(instrs, "ret $ptyp %iptr")
     quote
+        $(Expr(:meta, :inline))
         Base.llvmcall(
             $(join(instrs, "\n")),
             Ptr{$T}, Tuple{Ptr{$T}, $I},
@@ -199,7 +201,8 @@ end
         )
     end
 end
-@generated function gep(ptr::Ptr{T}, i::NTuple{W,Core.VecElement{I}}) where {W, T, I <: Integer}
+@generated function gep(ptr::Ptr{T}, i::_Vec{_W,I}) where {_W, T, I <: Integer}
+    W = _W + 1
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     ityp = llvmtype(I)
@@ -211,6 +214,7 @@ end
     push!(instrs, "%iptr = ptrtoint <$W x $typ*> %offsetptr to $vptyp")
     push!(instrs, "ret $vptyp %iptr")
     quote
+        $(Expr(:meta, :inline))
         Base.llvmcall(
             $(join(instrs, "\n")),
             NTuple{$W,Core.VecElement{Ptr{$T}}}, Tuple{Ptr{$T}, NTuple{W,Core.VecElement{$I}}},
@@ -218,8 +222,30 @@ end
         )
     end
 end
+@inline gep(ptr::Ptr{T}, i::I, ::Val{0}) where {T, I<:Integer} = ptr
+@generated function gep(ptr::Ptr{T}, i::I, ::Val{N}) where {T, I <: Integer, N}
+    N ∉ [1,2,4,8] && return :(Base.@_inline_meta; gep(ptr, i*N))
+    ptyp = "i$(8 * sizeof(Int))"
+    styp = "i$(8 * N)"
+    ityp = "i$(8 * sizeof(I))"
+    instrs = String[]
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $styp*")
+    push!(instrs, "%offsetptr = getelementptr inbounds $styp, $styp* %ptr, $ityp %1")
+    push!(instrs, "%iptr = ptrtoint $styp* %offsetptr to $ptyp")
+    push!(instrs, "ret $ptyp %iptr")
+    quote
+        Base.@_inline_meta
+        Base.llvmcall(
+            $(join(instrs, "\n")),
+            Ptr{$T}, Tuple{Ptr{$T}, $I},
+            ptr, i
+        )
+    end
+end
+@inline gepbyte(ptr::Ptr, ::Static{0}) = ptr
+@inline gepbyte(ptr::Ptr, ::Static{N}) where {N} = gepbyte(ptr, N)
 @inline gep(ptr::Ptr, v::SVec) = gep(ptr, extract_data(v))
-@inline gep(ptr::Ptr{Cvoid}, i::Integer) where {T} = gepbyte(ptr, i)
+@inline gep(ptr::Ptr{Cvoid}, i::Integer) = gepbyte(ptr, i)
 
 struct Reference{T} <: AbstractPointer{T}
     ptr::Ptr{T}
@@ -274,7 +300,7 @@ struct PermutedDimsStridedPointer{S1,S2,T,P<:AbstractStridedPointer{T}} <: Abstr
     ptr::P
 end
 @inline PermutedDimsStridedPointer{S1,S2}(ptr::P) where {S1,S2, T, P <: AbstractStridedPointer{T}} = PermutedDimsStridedPointer{S1,S2,T,P}(ptr)
-@inline function resort_tuple(i::Tuple{Vararg{<:Any,N}}, ::Val{S}) where {N,T,S}
+@inline function resort_tuple(i::Tuple{Vararg{<:Any,N}}, ::Val{S}) where {N,S}
     ntuple(Val{N}()) do n
         i[S[n]]
     end
@@ -348,7 +374,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds vmulnp(sizeof(T), i[1])
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds vmuladdnp(sizeof(T), i[2], vmul(i[1],ptr.strides[1]))
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds vmuladdnp(sizeof(T), i[3], vadd(vmul(i[1],ptr.strides[2]), vmul(i[2],ptr.strides[1])))
-@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T,N} = (ri = reverse(i); @inbounds vmuladdnp(sizeof(T), ri[1], tdot(ptr.strides, Base.tail(ri))))
+@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T} = (ri = reverse(i); @inbounds vmuladdnp(sizeof(T), ri[1], tdot(ptr.strides, Base.tail(ri))))
 # @inline function offset(ptr::AbstractRowMajorStridedPointer{Cvoid,0}, i::Tuple{Int})
     # ptr.ptr + first(i)
 # end
@@ -486,13 +512,10 @@ const AbstractInitializedPointer{T} = Union{
 Gets the stridedpointer pointing to i, using 1-based indexes.
 """
 @inline function stridedpointer(x, i)
-    ptr = stridedpointer(x)
-    return ptr + offset(ptr, staticm1(i))
+    gesp(stridedpointer(x), (staticm1(i),))
 end
 @inline function stridedpointer(x, i1, i2, I...)
-    ptr = stridedpointer(x)
-    idx = staticm1((i1, i2, I...))
-    return ptr + offset(ptr, idx)
+    gesp(stridedpointer(x), staticm1((i1, i2, I...)))
 end
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
 # @inline stridedpointer(x::Union{LowerTriangular,UpperTriangular}) = stridedpointer(parent(x))
@@ -527,7 +550,7 @@ end
     pB = parent(B)
     RowMajorStridedPointer(pointer(pB), staticmul(T, Base.tail(strides(pB))))
 end
-@inline function stridedpointer(B::Union{Adjoint{Bool,A},Transpose{Bool,A}}) where {T,N,A <: BitArray{N}}
+@inline function stridedpointer(B::Union{Adjoint{Bool,A},Transpose{Bool,A}}) where {N,A <: BitArray{N}}
     pB = parent(B)
     RowMajorStridedBitPointer(pointer(pB.chunks), tailstrides(pB))
 end

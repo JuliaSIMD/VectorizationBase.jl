@@ -76,6 +76,9 @@ end
 @generated function mask_type(::Type{T}) where {T}
     mask_type(pick_vector_width(T))
 end
+@generated function Base.zero(::Type{<:Mask{W}}) where {W}
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask), zero(mask_type(W))))
+end
 
 @generated function max_mask(::Type{T}) where {T}
     W = pick_vector_width(T)

@@ -149,10 +149,6 @@ end
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
 
-struct _MM{W,I<:Number}
-    i::I
-    @inline _MM{W}(i::T) where {W,T} = new{W,T}(i)
-end
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline _MM(::Val{W}, ::Static{I}) where {W,I} = _MM{W}(I)
@@ -171,7 +167,8 @@ end
 @inline vmuladdnp(a, b, c) = vadd(vmul(a,b), c)
 @inline vmuladdnp(a, b::_MM{W}, c) where {W} = vadd(_MM{W}(vmul(a,b.i)), c)
 @inline vmuladdnp(a, b::_MM{W}, c::_MM{W}) where {W} = vadd(vmul(a,b), c)
-@inline vmuladdnp(a, b::_MM{W}, c::AbstractSIMDVector) where {W} = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::_MM{W}, c::SVec) where {W} = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::_MM{W}, c::_Vec) where {W} = vadd(vmul(a,b), c)
 @inline Base.:(+)(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
 @inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
 @inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
