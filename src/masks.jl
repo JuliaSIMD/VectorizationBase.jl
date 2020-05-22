@@ -279,20 +279,26 @@ end
     end
 end
 
-@inline vload(ptr::AbstractBitPointer, i::Tuple) = bitload(ptr, offset(ptr, staticm1(i)))
+@inline vload(ptr::AbstractBitPointer, i::Tuple) = bitload(ptr, offset(ptr, vadd(i, ptr.offsets)))
 @inline vload(ptr::AbstractBitPointer, i::Tuple, ::Mask) = vload(ptr, i)
-@inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{_MM{W},<:Integer}) where {W}
-    j -= 1
+@inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{_MM{W},<:Any}) where {W}
+    j = vadd(j, bptr.offsets[2])
     s = bptr.strides[1]
-    shift = (s * j) & (W - 1)
+    shift = vmul(s, j) & (W - 1)
     U = mask_type(Val{W}())
     UW = widen(U)
-    ptr, ind = ptr_index(bptr, _MM{W}(i.i - 1 + j*s))
+    ptr, ind = ptr_index(bptr, _MM{W}(vadd(vadd(i.i, bptr.offsets[1]), vmul(j,s))))
     u = vload(Base.unsafe_convert(Ptr{UW}, gep(ptr, ind)))
     # @show ind, shift, u
     Mask{W}((u >>> shift) % U)
 end
-
+@inline getind(a::PackedStridedBitPointer{0}) = last(ptr_index(a, _MM{1}(a.offsets[1])))
+@inline getind(a::PackedStridedBitPointer{1}) = last(ptr_index(a, _MM{1}(vadd(a.offsets[1], vmul(a.offsets[2],a.strides[1])))))
+@inline Base.:(≥)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≥ getind(b)
+@inline Base.:(≤)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≤ getind(b)
+@inline Base.:(>)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) > getind(b)
+@inline Base.:(<)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) < getind(b)
+@inline Base.:(==)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) == getind(b)
 # @inline function vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, (i,j)::Tuple{_MM{W},<:Integer}) where {W}
 #     j -= 1
 #     s = bptr.strides[1]
@@ -314,13 +320,13 @@ end
 # @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{_MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
 # @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{_MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
 
-@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
-@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), tomask(u))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, staticm1(i)))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, staticm1(i)), tomask(u))
-@inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)))
-@inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)), tomask(u))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, staticm1(i)), tomask(u))
+@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
+@inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
+@inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
+@inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
 
 

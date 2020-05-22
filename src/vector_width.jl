@@ -135,6 +135,7 @@ end
 @inline valmul(::Val{W}, i) where {W} = vmul(W, i)
 @inline valadd(::Val{W}, i) where {W} = vadd(W, i)
 @inline valsub(::Val{W}, i) where {W} = vsub(W, i)
+@inline valsub(i, ::Val{W}) where {W} = vsub(i, W)
 @inline valrem(::Val{W}, i) where {W} = i & (W - 1)
 @inline valmuladd(::Val{W}, b, c) where {W} = vadd(vmul(W, b), c)
 @inline valmulsub(::Val{W}, b, c) where {W} = vsub(vmul(W, b), c)

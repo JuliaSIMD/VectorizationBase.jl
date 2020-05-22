@@ -133,13 +133,14 @@ end
 # @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1,T2} = vstore!(ptr, convert(T1, v))
 
 
+@inline tdot(::Tuple{}, ::Tuple{}) = Zero()
 @inline tdot(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = @inbounds vmul(a[1], b[1])
 @inline tdot(a::Tuple{I1,I3}, b::Tuple{I2,I4}) where {I1,I2,I3,I4} = @inbounds vadd(vmul(a[1],b[1]), vmul(a[2],b[2]))
 @inline tdot(a::Tuple{I1,I3,I5}, b::Tuple{I2,I4,I6}) where {I1,I2,I3,I4,I5,I6} = @inbounds vadd(vadd(vmul(a[1],b[1]), vmul(a[2],b[2])), vmul(a[3],b[3]))
 # @inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
 
-@inline tdot(a::Tuple{I}, b::Tuple{}) where {I} = @inbounds a[1]
-@inline tdot(a::Tuple{}, b::Tuple{I}) where {I} = @inbounds b[1]
+@inline tdot(a::Tuple{I}, ::Tuple{}) where {I} = @inbounds a[1]
+@inline tdot(::Tuple{}, b::Tuple{I}) where {I} = @inbounds b[1]
 @inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2}) where {I1,I2} = @inbounds vmul(a[1],b[1])
 @inline tdot(a::Tuple{I1}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds vmul(a[1],b[1])
 @inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds vadd(vmul(a[1],b[1]), tdot(Base.tail(a), Base.tail(b)))
@@ -281,9 +282,13 @@ struct PackedStridedPointer{T,N} <: AbstractColumnMajorStridedPointer{T,N}
     ptr::Ptr{T}
     strides::NTuple{N,Int}
 end
-struct PackedStridedBitPointer{N} <: AbstractColumnMajorStridedPointer{Bool,N}
+struct PackedStridedBitPointer{Nm1,N} <: AbstractColumnMajorStridedPointer{Bool,Nm1}
     ptr::Ptr{UInt64}
-    strides::NTuple{N,Int}
+    strides::NTuple{Nm1,Int}
+    offsets::NTuple{N,Int}
+end
+@inline function gesp(ptr::PackedStridedBitPointer, i::Tuple)
+    PackedStridedBitPointer(ptr.ptr, ptr.strides, vadd(i, ptr.offsets))
 end
 
 abstract type AbstractRowMajorStridedPointer{T,N} <: AbstractStridedPointer{T} end
@@ -310,6 +315,8 @@ end
 @inline function stridedpointer(A::PermutedDimsArray{T,N,S1,S2}) where {T,N,S1,S2}
     PermutedDimsStridedPointer{S1,S2}(stridedpointer(parent(A)))
 end
+@inline pointerforcomparison(ptr::AbstractStridedPointer, i::Tuple) = gep(ptr, i)
+@inline pointerforcomparison(ptr::AbstractStridedPointer) = pointer(ptr)
 # @inline function stridedpointer(A::PermutedDimsArray{T,2,(2,1),(2,1)}) where {T}
 #     RowMajorStridedPointer(stridedp
 # end
@@ -332,6 +339,8 @@ struct StaticStridedBitPointer{X} <: AbstractStaticStridedPointer{Bool,X}
     ptr::Ptr{UInt64}
 end
 const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPointer, StaticStridedBitPointer}#, SparseStridedBitPointer
+@inline pointerforcomparison(ptr::AbstractBitPointer, i::Tuple) = gesp(ptr, i)
+@inline pointerforcomparison(ptr::AbstractBitPointer) = ptr
 
 @inline offset(::AbstractColumnMajorStridedPointer, ::Tuple{}) = 0
 @inline offset(::AbstractColumnMajorStridedPointer{T}, i::Tuple{I}) where {I,T} = @inbounds vmulnp(sizeof(T), i[1])
@@ -352,7 +361,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 
 
 @inline Base.similar(p::PackedStridedPointer, ptr::Ptr) = PackedStridedPointer(ptr, p.strides)
-@inline Base.similar(p::PackedStridedBitPointer, ptr::Ptr) = PackedStridedBitPointer(ptr, p.strides)
+@inline Base.similar(p::PackedStridedBitPointer{Nm1,N}, ptr::Ptr) where {Nm1,N} = PackedStridedBitPointer(ptr, p.strides, ntuple(_ -> 0, Val{N}()))
 @inline Base.similar(p::RowMajorStridedPointer, ptr::Ptr) = RowMajorStridedPointer(ptr, p.strides)
 @inline Base.similar(p::RowMajorStridedBitPointer, ptr::Ptr) = RowMajorStridedBitPointer(ptr, p.strides)
 @inline Base.similar(p::SparseStridedPointer, ptr::Ptr) = SparseStridedPointer(ptr, p.strides)
@@ -374,7 +383,8 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,0}, i::Tuple{I}) where {T,I} = @inbounds vmulnp(sizeof(T), i[1])
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,1}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds vmuladdnp(sizeof(T), i[2], vmul(i[1],ptr.strides[1]))
 @inline offset(ptr::AbstractRowMajorStridedPointer{T,2}, i::Tuple{I1,I2,I3}) where {T,I1,I2,I3} = @inbounds vmuladdnp(sizeof(T), i[3], vadd(vmul(i[1],ptr.strides[2]), vmul(i[2],ptr.strides[1])))
-@inline offset(ptr::AbstractRowMajorStridedPointer{T}, i::Tuple) where {T} = (ri = reverse(i); @inbounds vmuladdnp(sizeof(T), ri[1], tdot(ptr.strides, Base.tail(ri))))
+@inline offset(ptr::AbstractRowMajorStridedPointer{T,N}, i::Tuple{I1,Vararg{<:Any,N}}) where {T,I1,N} = (ri = reverse(i); @inbounds vmuladdnp(sizeof(T), ri[1], tdot(ptr.strides, Base.tail(ri))))
+@inline offset(ptr::AbstractRowMajorStridedPointer, i::Tuple) = tdot(reverse(ptr.strides), i)
 # @inline function offset(ptr::AbstractRowMajorStridedPointer{Cvoid,0}, i::Tuple{Int})
     # ptr.ptr + first(i)
 # end
@@ -532,7 +542,7 @@ end
         (Base.Cartesian.@ntuple $(N-1) s)
     end
 end
-@inline stridedpointer(A::BitArray) = PackedStridedBitPointer(pointer(A.chunks), tailstrides(A))
+@inline stridedpointer(A::BitArray{N}) where {N} = PackedStridedBitPointer(pointer(A.chunks), tailstrides(A), ntuple(_ -> 0, Val{N}()))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
 @inline stridedpointer(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{<:StepRange,Vararg}} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
