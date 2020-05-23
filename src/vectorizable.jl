@@ -411,6 +411,22 @@ end
 @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,Vararg}}, i::Tuple{I}) where {N,T,I<:Integer} = vmul(N * sizeof(T), first(i))
 # @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{1,N,Vararg}}, i::Tuple{I,J}) where {T,I<:Integer} = vmulnp(sizeof(T), first(i))
 # @inline offset(ptr::AbstractStaticStridedPointer{T,<:Tuple{N,M,Vararg}}, i::Tuple{I,J}) where {N,M,T,I<:Integer} = vmul(N * sizeof(T), first(i))
+
+# struct LazyPromote{T,I<:Integer}
+#     i::I
+#     @inline LazyPromote{T}(i::I) where {I<:Integer} = LazyPromote{T,I}(i)
+# end
+# @inline lazypromotemul(::Type{T}, i::Integer) where {T} = LazyPromote{T}(vmul(sizeof(T), i))
+# @inline vadd(a::LazyPromote{T}, b::Integer) where {T} = LazyPromote{T}(vadd(a.i, b))
+# @inline vadd(b::Integer, a::LazyPromote{T}) where {T} = LazyPromote{T}(vadd(a.i, b))
+# @inline vadd(a::LazyPromote{T}, b::_MM{W}) where {W,T} = LazyPromote{T}(vadd(a.i, b))
+# @inline vadd(b::_MM{W}, a::LazyPromote{T}) where {T} = LazyPromote{T}(vadd(a.i, b))
+
+# @inline offset(ptr::AbstractStridedPointer{T,Tuple{1,1}}, i::Tuple{<:_MM,<:_MM}) = @inbounds vadd(vmulnp(sizeof(T), i[1]), vmulnp(sizeof(T), i[2]))
+@inline offset(ptr::AbstractStaticStridedPointer{T,Tuple{1,1}}, i::Tuple{<:_MM,<:Any}) where {T} = @inbounds vmuladdnp(sizeof(T), i[1], vmul(sizeof(T), i[2]))
+@inline offset(ptr::AbstractStaticStridedPointer{T,Tuple{1,1}}, i::Tuple{<:Any,<:_MM}) where {T} = @inbounds vmuladdnp(sizeof(T), i[2], vmul(sizeof(T), i[1]))
+@inline offset(ptr::AbstractStaticStridedPointer{T,Tuple{1,1}}, i::Tuple{<:Any,<:Any}) where {T} = @inbounds vadd(vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
+
 function indprod(X::Core.SimpleVector, i, st)
     Xᵢ = (X[i])::Int
     iᵢ = Expr(:ref, :i, i)
@@ -554,7 +570,15 @@ end
     ptr = similar(stridedpointer(parent(parent(A))), pointer(A))
     PermutedDimsStridedPointer{S1,S2}(ptr)
 end
-@inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer(parent(B))
+@inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T, A <: DenseVector{T}} = StaticStridedPointer{T,Tuple{1,1}}(pointer(parent(B)))
+@inline stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T, A <: StridedVector{T}} = adjoint_vector_strided_pointer(stridedpointer(parent(B)))
+@inline function adjoint_vector_strided_pointer(ptr::SparseStridedPointer)
+    x = ptr.strides[1]
+    SparseStridedPointer(pointer(ptr), (x,x))
+end
+@inline adjoint_vector_strided_pointer(ptr::PackedStridedPointer{T}) where {T} = StaticStridedPointer{T,Tuple{1,1}}(pointer(ptr))
+@inline adjoint_vector_strided_pointer(ptr::StaticStridedPointer{T,Tuple{X}}) where {T,X} = StaticStridedPointer{T,Tuple{X,X}}(pointer(ptr))
+
 
 @inline function stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
     pB = parent(B)
@@ -763,3 +787,65 @@ struct MappedStridedPointer{F, T, P <: AbstractPointer{T}}
     ptr::P
 end
 @inline vload(ptr::MappedStridedPointer) = ptr.f(vload(ptr.ptr))
+
+"""
+These use 0 based indexing for convenience with respect to the packed and row major strided pointers.
+Preserves the first index, dropping the second.
+"""
+@inline function double_index(ptr::PackedStridedPointer{T}, ::Val{0}, ::Val{M}) where {M,T}
+    x = ptr.strides
+    SparseStridedPointer(pointer(ptr), @inbounds Base.setindex(x, vadd(x[M], sizeof(T)), M))
+end
+@generated function double_index(ptr::PackedStridedPointer{T,K}, ::Val{N}, ::Val{M}) where {K,N,M,T}
+    tup = Expr(:tuple)
+    for k ∈ 1:K
+        k == N && continue
+        if k == M
+            push!(tup.args, Expr(:call, :vadd, Expr(:ref, :x, N), Expr(:ref, :x, M)))
+        else
+            push!(tup.args, Expr(:ref, :x, k))
+        end
+    end
+    quote
+        $(Expr(:meta,:inline))
+        x = ptr.strides
+        xabridged = @inbounds $tup
+        PackedStridedPointer(pointer(ptr), xabridged)
+    end
+end
+@inline function double_index(ptr::RowMajorStridedPointer{T,1}, ::Val{0}, ::Val{1}) where {T}
+    x = ptr.strides
+    @inbounds SparseStridedPointer(pointer(ptr), (vadd(x[1], sizeof(T)),))
+end
+@generated function double_index(ptr::SparseStridedPointer{T,K}, ::Val{N}, ::Val{M}) where {K,N,M, T}
+    tup = Expr(:tuple)
+    for k ∈ 1:K
+        k == N && continue
+        if k == M
+            push!(tup.args, Expr(:call, :vadd, Expr(:ref, :x, N), Expr(:ref, :x, M)))
+        else
+            push!(tup.args, Expr(:ref, :x, k))
+        end
+    end
+    quote
+        $(Expr(:meta,:inline))
+        x = ptr.strides
+        xabridged = @inbounds $tup
+        SparseStridedPointer(pointer(ptr), xabridged)
+    end
+end
+@generated function double_index(ptr::StaticStridedPointer{T,X}, ::Val{N}, ::Val{M}) where {X,N,M,T}
+    tup = Expr(:curly, :Tuple)
+    Xparam = X.parameters
+    for k ∈ eachindex(Xparam)
+        k == N + 1 && continue
+        if k == M
+            push!(tup.args, (Xparam[N])::Int + (Xparam[M])::Int)
+        else
+            push!(tup.args, (Xparam[k])::Int)
+        end
+    end
+    Expr(:block, Expr(:meta,:inline), :(StaticStridedPointer{$T,$tup}(pointer(ptr))))
+end
+
+

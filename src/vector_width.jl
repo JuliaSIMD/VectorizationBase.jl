@@ -81,7 +81,7 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
         if T === Bool
             #sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
             has_bool = true#; sT = min(sT, sTv)
-        elseif !AVX2 && T <: Integer
+        elseif !SIMD_NATIVE_INTEGERS && T <: Integer
             demote_to_1 = true
         else
             sT = min(sT, sizeof(T))
