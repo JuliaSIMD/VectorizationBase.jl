@@ -22,106 +22,101 @@ const LLVMTYPE = Dict{DataType,String}(
 llvmtype(x)::String = LLVMTYPE[x]
 const JuliaPointerType = LLVMTYPE[Int]
 
-const LLVMCompatible = Union{Bool,Int8,Int16,Int32,Int64,Int128,UInt8,UInt16,UInt32,UInt64,UInt128,Float16,Float32,Float64}
+const NativeTypes = Union{Bool, Base.HWReal}
+# The `@eval` loop is to avoid type ambiguities on Julia 1.0. Later versions did not have this problem
 
+# function vload_quote(::Type{T})
+# end
 
-@generated function vload(ptr::Ptr{T}) where {T <: LLVMCompatible}
+const SCOPE_METADATA = """
+    !1 = !{!\"noaliasdomain\"}
+    !2 = !{!\"noaliasscope\", !1}
+    !3 = !{!2}
+"""
+const LOAD_SCOPE_TBAA = SCOPE_METADATA * """
+    !4 = !{!"jtbaa"}
+    !5 = !{!6, !6, i64 0, i64 0}
+    !6 = !{!"jtbaa_arraybuf", !4, i64 0}
+"""
+const STORE_TBAA = """
+    !4 = !{!"jtbaa", !5, i64 0}
+    !5 = !{!"jtbaa"}
+    !6 = !{!"jtbaa_data", !4, i64 0}
+    !7 = !{!8, !8, i64 0}
+    !8 = !{!"jtbaa_arraybuf", !6, i64 0}
+"""
+
+function vload_quote(::Type{T}) where {T <: NativeTypes}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
-    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
+    decl = LOAD_SCOPE_TBAA
     alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3")
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3, !tbaa !5")
     push!(instrs, "ret $typ %res")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall(($decl,$(join(instrs, "\n"))), $T, Tuple{Ptr{$T}}, ptr)
-    end
+    :(Base.llvmcall(($decl,$(join(instrs, "\n"))), $T, Tuple{Ptr{$T}}, ptr))
 end
-@generated function vstore!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
+function vload_quote(::Type{T}, ::Type{I}) where {T <: NativeTypes, I}
+    ityp = 'i' * string(8sizeof(I))
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
-    alignment = Base.datatype_alignment(T)
-    # push!(flags, "!noalias !0")
-    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "store $typ %1, $typ* %ptr, align $alignment")
-    push!(instrs, "ret void")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall($(join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T}, ptr, v)
-    end
-end
-@generated function vload(ptr::Ptr{T}, i::I) where {T <: LLVMCompatible, I<:Integer}
-    ityp = llvmtype(I)
-    ptyp = JuliaPointerType
-    typ = llvmtype(T)
-    instrs = String[]
-    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
+    decl = LOAD_SCOPE_TBAA
     alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%typptr = inttoptr $ptyp %0 to i8*")
     push!(instrs, "%iptr = getelementptr inbounds i8, i8* %typptr, $ityp %1")
     push!(instrs, "%ptr = bitcast i8* %iptr to $typ*")
-    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3")
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3, !tbaa !5")
     push!(instrs, "ret $typ %res")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall($(decl, join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i)
-    end
+    :(Base.llvmcall($(decl, join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i))
 end
-@generated function vstore!(ptr::Ptr{T}, v::T, i::I) where {T <: LLVMCompatible, I<:Integer}
-    ityp = llvmtype(I)
+function vstore_quote(::Type{T}, alias) where {T <: NativeTypes}
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
     alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
-    push!(instrs, "%typptr = inttoptr $ptyp %0 to i8*")
-    push!(instrs, "%iptr = getelementptr inbounds i8, i8* %typptr, $ityp %2")
-    push!(instrs, "%ptr = bitcast i8* %iptr to $typ*")
-    push!(instrs, "store $typ %1, $typ* %ptr, align $alignment")
-    push!(instrs, "ret void")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall($(join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i)
-    end
-end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::T) where {T <: LLVMCompatible}
-    ptyp = JuliaPointerType
-    typ = llvmtype(T)
-    instrs = String[]
-    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
-    alignment = Base.datatype_alignment(T)
-    # push!(flags, "!noalias !0")
+    decl = alias ? STORE_TBAA : SCOPE_METADATA * STORE_TBAA
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "store $typ %1, $typ* %ptr, align $alignment, !noalias !3")
+    aliasstoreinstr = "store $typ %1, $typ* %ptr, align $alignment, !tbaa !7"
+    noaliasstoreinstr = "store $typ %1, $typ* %ptr, align $alignment, !noalias !3, !tbaa !7"
+    push!(instrs, alias ? aliasstoreinstr : noaliasstoreinstr)
     push!(instrs, "ret void")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall($((decl,join(instrs, "\n"))), Cvoid, Tuple{Ptr{$T}, $T}, ptr, v)
-    end
+    :(Base.llvmcall($((decl, join(instrs, "\n"))), Cvoid, Tuple{Ptr{$T}, $T}, ptr, v))
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::I) where {T <: LLVMCompatible, I<:Integer}
-    ityp = llvmtype(I)
+function vstore_quote(::Type{T}, ::Type{I}, alias) where {T <: NativeTypes, I}
+    ityp = 'i' * string(8sizeof(I))
     ptyp = JuliaPointerType
     typ = llvmtype(T)
     instrs = String[]
-    decl = "!1 = !{!\"noaliasdomain\"}\n!2 = !{!\"noaliasscope\", !1}\n!3 = !{!2}"
+    decl = alias ? STORE_TBAA : SCOPE_METADATA * STORE_TBAA
     alignment = Base.datatype_alignment(T)
     # push!(flags, "!noalias !0")
     push!(instrs, "%typptr = inttoptr $ptyp %0 to i8*")
     push!(instrs, "%iptr = getelementptr inbounds i8, i8* %typptr, $ityp %2")
     push!(instrs, "%ptr = bitcast i8* %iptr to $typ*")
-    push!(instrs, "store $typ %1, $typ* %ptr, align $alignment, !noalias !3")
+    aliasstoreinstr = "store $typ %1, $typ* %ptr, align $alignment, !tbaa !7"
+    noaliasstoreinstr = "store $typ %1, $typ* %ptr, align $alignment, !noalias !3, !tbaa !7"
+    push!(instrs, alias ? aliasstoreinstr : noaliasstoreinstr)
     push!(instrs, "ret void")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall($(decl,join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i)
-    end
+    :(Base.llvmcall($(decl,join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i))
 end
+
+
+for T ∈ [Bool,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64,Float32,Float64]
+    @eval @inline vload(ptr::Ptr{$T}) = $(vload_quote(T))
+    @eval @inline vstore!(ptr::Ptr{$T}, v::$T) = $(vstore_quote(T, true))
+    @eval @inline vnoaliasstore!(ptr::Ptr{$T}, v::$T) = $(vstore_quote(T, false))
+    for I ∈ [Int32,UInt32,Int64,UInt64]
+        @eval @inline vload(ptr::Ptr{$T}, i::$I) = $(vload_quote(T, I))
+        @eval @inline vstore!(ptr::Ptr{$T}, v::$T, i::$I) = $(vstore_quote(T, I, true))
+        @eval @inline vnoaliasstore!(ptr::Ptr{$T}, v::$T, i::$I) = $(vstore_quote(T, I, false))
+    end    
+end
+
 
 # Fall back definitions
 @inline vload(ptr::Ptr) = Base.unsafe_load(ptr)
