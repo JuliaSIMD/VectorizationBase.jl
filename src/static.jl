@@ -3,8 +3,9 @@
 
 
 
-struct Static{N} end
+struct Static{N} <: Number end
 Base.@pure Static(N) = Static{N}()
+
 
 Base.CartesianIndex(I::Tuple{<:Static,Vararg}) = CartesianVIndex(I)
 Base.CartesianIndex(I::Tuple{<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
@@ -37,7 +38,7 @@ end
 @inline Base.last(::StaticUnitRange{L,U}) where {L,U} = U
 @inline Base.last(r::StaticLowerUnitRange) = r.U
 @inline Base.last(::StaticUpperUnitRange{U}) where {U} = U
-@inline Base.last(r::StaticLengthUnitRange{N}) where {N} = r.L + N - 1
+@inline Base.last(r::StaticLengthUnitRange{N}) where {N} = vadd(r.L, N - 1)
 
 @inline Base.iterate(x::AbstractStaticUnitRange) = (i = unwrap(first(x)); (i,i))
 
@@ -103,15 +104,27 @@ end
 end
 @generated Base.divrem(::Static{N}, ::Static{D}) where {N,D} = divrem(N, D)
 
-@inline Base.:+(::Static{N}, i) where {N} = N + i
-@inline Base.:+(i, ::Static{N}) where {N} = N + i
-@inline Base.:+(::Static{M}, ::Static{N}) where {M,N} = M + N
-@inline Base.:*(::Static{N}, i) where {N} = N * i
-@inline Base.:*(i, ::Static{N}) where {N} = N * i
-@inline Base.:*(::Static{M}, ::Static{N}) where {M,N} = M * N
-@inline Base.:-(::Static{N}, i) where {N} = N - i
-@inline Base.:-(i, ::Static{N}) where {N} = i - N
-@inline Base.:-(::Static{M}, ::Static{N}) where {M,N} = M - N
+@inline vadd(::Static{N}, i::Number) where {N} = vadd(N, i)
+@inline vadd(i::Number, ::Static{N}) where {N} = vadd(i, N)
+@inline vsub(::Static{N}, i::Number) where {N} = vsub(N, i)
+@inline vsub(i::Number, ::Static{N}) where {N} = vsub(i, N)
+
+@inline vadd(::Static{M}, ::Static{N}) where {M,N} = vadd(M, N)
+@inline vmul(::Static{N}, i::Number) where {N} = vmul(N, i)
+@inline vmul(i::Number, ::Static{N}) where {N} = vmul(i, N)
+@inline vmul(::Static{N}, i) where {N} = vmul(N, i)
+@inline vmul(i, ::Static{N}) where {N} = vmul(i, N)
+@inline vmul(::Static{M}, ::Static{N}) where {M,N} = vmul(M, N)
+@inline vsub(::Static{M}, ::Static{N}) where {M,N} = vsub(M, N)
+@inline Base.:+(::Static{N}, i) where {N} = vadd(N, i)
+@inline Base.:+(i, ::Static{N}) where {N} = vadd(N, i)
+@inline Base.:+(::Static{M}, ::Static{N}) where {M,N} = vadd(M, N)
+@inline Base.:*(::Static{N}, i) where {N} = vmul(N, i)
+@inline Base.:*(i, ::Static{N}) where {N} = vmul(N, i)
+@inline Base.:*(::Static{M}, ::Static{N}) where {M,N} = vmul(M, N)
+@inline Base.:-(::Static{N}, i) where {N} = vsub(N, i)
+@inline Base.:-(i, ::Static{N}) where {N} = vsub(i, N)
+@inline Base.:-(::Static{M}, ::Static{N}) where {M,N} = vsub(M, N)
 @inline Base.checked_add(::Static{N}, i) where {N} = Base.checked_add(N, i)
 @inline Base.checked_add(i, ::Static{N}) where {N} = Base.checked_add(i, N)
 @generated Base.checked_add(::Static{M}, ::Static{N}) where {M,N} = Static{Base.checked_add(M, N)}()
@@ -141,6 +154,13 @@ end
 @inline Base.:(==)(::Static{M}, ::Static{N}) where {M,N} = false
 @inline Base.:(==)(::Static{M}, ::Static{M}) where {M} = true
 
+@inline vadd(::Tuple{}, ::Tuple{}) = tuple()
+@inline vadd(a::Tuple{I1,Vararg}, b::Tuple{}) where {I1} = a
+@inline vadd(a::Tuple{}, b::Tuple{I2,Vararg}) where {I2} = b
+@inline vadd(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = (vadd(a[1],b[1]),)
+@inline vadd(a::Tuple{I1,I3}, b::Tuple{I2,I4}) where {I1,I2,I3,I4} = (vadd(a[1],b[1]),vadd(a[2],b[2]),)
+@inline vadd(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}) where {I1,I2} = (vadd(a[1],b[1]),vadd(Base.tail(a),Base.tail(b))...)
+
 function static_promote(i, j)
     i == j || throw("$i ≠ $j")
     i
@@ -157,13 +177,24 @@ static_promote(::Static{M}, ::Static{N}) where {M, N} = throw("$M ≠ $N")
 static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 
 @generated staticp1(::Static{N}) where {N} = Static{N+1}()
-@inline staticp1(N::Integer) = vadd(N, 1)
+@inline staticp1(N) = vadd(N, one(N))
+@inline staticp1(i::Tuple{}) = tuple()
+@inline staticp1(i::Tuple{I}) where {I} = @inbounds (staticp1(i[1]),)
+@inline staticp1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticp1(i[1]), staticp1(i[2]))
+@inline staticp1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticp1(i[1]), staticp1(Base.tail(i))...)
 @generated staticm1(::Static{N}) where {N} = Static{N-1}()
-@inline staticm1(N::Integer) = vsub(N, 1)
+@inline staticm1(N) = vsub(N, one(N))
 @inline staticm1(i::Tuple{}) = tuple()
-@inline staticm1(i::Tuple{I}) where {I} = @inbounds (vsub(i[1], 1),)
-@inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (vsub(i[1], 1), vsub(i[2], 1))
-@inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (vsub(i[1], 1), staticm1(Base.tail(i))...)
+@inline staticm1(i::Tuple{I}) where {I} = @inbounds (staticm1(i[1]),)
+@inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticm1(i[1]), staticm1(i[2]))
+@inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticm1(i[1]), staticm1(Base.tail(i))...)
+@generated staticmul(::Type{T}, ::Static{N}) where {T,N} = Static{sizeof(T) * N}()
+@generated staticmul(::Type{T}, ::Val{N}) where {T,N} = Val{sizeof(T) * N}()
+@inline staticmul(::Type{T}, N) where {T} = vmul(N, sizeof(T))
+@inline staticmul(::Type{T}, i::Tuple{}) where {T} = tuple()
+@inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
+@inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
+@inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
 @inline Base.ntuple(f::F, ::Static{N}) where {F,N} = ntuple(f, Val{N}())
 
 struct LazyP1{T}
@@ -192,4 +223,83 @@ end
 @inline _maybestaticlast(A::Tuple{I1,I2}) where {I1,I2} = @inbounds (maybestaticlast(A[1]), maybestaticlast(A[2]))
 @inline _maybestaticlast(A::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = (maybestaticlast(@inbounds A[1]), _maybestaticlast(Base.tail(A))...)
 @inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))
+
+
+# Static 0
+const Zero = Static{0}
+@inline vsub(::Zero, i) = vsub(i)
+@inline vsub(i, ::Zero) = i
+@inline vsub(::Zero, ::Zero) = Zero()
+@inline vadd(::Zero, ::Zero) = Zero()
+@inline vadd(::Zero, a) = a
+@inline vadd(a, ::Zero) = a
+@inline vmul(::Zero, ::Any) = Zero()
+@inline vmul(::Any, ::Zero) = Zero()
+@inline vmul(::Zero, ::Number) = Zero()
+@inline vmul(::Number, ::Zero) = Zero()
+for T ∈ [:Int,:SVec]
+    @eval @inline vadd(::Zero, a::$T) = a
+    @eval @inline vadd(a::$T, ::Zero) = a
+    @eval @inline vsub(::Zero, a::$T) = vsub(a)
+    @eval @inline vsub(a::$T, ::Zero) = a
+    @eval @inline vmul(::Zero, ::$T) = Zero()
+    @eval @inline vmul(::$T, ::Zero) = Zero()
+end
+@inline vadd(::Zero, a::_MM) = a
+@inline vadd(a::_MM, ::Zero) = a
+@inline vload(ptr::Ptr, ::Zero) = vload(ptr)
+@inline vload(ptr::Ptr, ::_MM{W,Zero}) where {W} = vload(Val{W}(), ptr)
+@inline vload(ptr::Ptr, ::_MM{W,Zero}, m::Mask) where {W} = vload(Val{W}(), ptr, m.u)
+@inline vstore!(ptr::Ptr{T}, v::T, ::Zero) where {T} = vstore!(ptr, v)
+@inline vnoaliasstore!(ptr::Ptr{T}, v::T, ::Zero) where {T} = vnoaliasstore!(ptr, v)
+@inline vstore!(ptr::Ptr{T}, v, ::Zero) where {T} = vstore!(ptr, convert(T,v))
+@inline vnoaliasstore!(ptr::Ptr{T}, v, ::Zero) where {T} = vnoaliasstore!(ptr, convert(T,v))
+@inline vstore!(ptr::Ptr{T}, v::Integer, ::Zero) where {T <: Integer} = vstore!(ptr, v % T)
+@inline vnoaliasstore!(ptr::Ptr{T}, v::Integer, ::Zero) where {T <: Integer} = vnoaliasstore!(ptr, v % T)
+# @inline vstore!(ptr::Ptr{T}, v::T, ::Zero, m::Mask) where {T} = vstore!(ptr, v, m.u)
+# @inline vnoaliasstore!(ptr::Ptr{T}, v::T, ::Zero, m::Mask) where {T} = vnoaliasstore!(ptr, v, m.u)
+for V ∈ [:(NTuple{W,Core.VecElement{T}}), :(SVec{W,T})]
+    @eval @inline vstore!(ptr::Ptr{T}, v::$V, ::Zero) where {W,T} = vstore!(ptr, v)
+    @eval @inline vstore!(ptr::Ptr{T}, v::$V, ::_MM{W,Zero}) where {W,T} = vstore!(ptr, v)
+    @eval @inline vnoaliasstore!(ptr::Ptr{T}, v::$V, ::Zero) where {W,T} = vnoaliasstore!(ptr, v)
+    @eval @inline vnoaliasstore!(ptr::Ptr{T}, v::$V, ::_MM{W,Zero}) where {W,T} = vnoaliasstore!(ptr, v)
+    for M ∈ [:(Mask{W}), :Unsigned]
+        @eval @inline vstore!(ptr::Ptr{T}, v::$V, ::Zero, m::$M) where {W,T} = vstore!(ptr, v, m)
+        @eval @inline vstore!(ptr::Ptr{T}, v::$V, ::_MM{W,Zero}, m::$M) where {W,T} = vstore!(ptr, v, m)
+        @eval @inline vnoaliasstore!(ptr::Ptr{T}, v::$V, ::Zero, m::$M) where {W,T} = vnoaliasstore!(ptr, v, m)
+        @eval @inline vnoaliasstore!(ptr::Ptr{T}, v::$V, ::_MM{W,Zero}, m::$M) where {W,T} = vnoaliasstore!(ptr, v, m)
+    end
+end
+
+const One = Static{1}
+@inline vmul(::One, a) = a
+@inline vmul(a, ::One) = a
+@inline vmul(::One, a::Number) = a
+@inline vmul(a::Number, ::One) = a
+@inline vmul(::One, ::One) = One()
+@inline vmul(::One, ::Zero) = Zero()
+@inline vmul(::Zero, ::One) = Zero()
+
+for T ∈ [:Int,:SVec]
+    @eval @inline vmul(::One, a::$T) = a
+    @eval @inline vmul(a::$T, ::One) = a
+end
+
+struct LazyStaticMul{N,T}
+    data::T
+end
+@inline extract_data(a::LazyStaticMul{N}) where {N} = vmul(a.data, N)
+@inline vload(ptr, lsm::LazyStaticMul{N}) where {N} = vload(gep(ptr, lsm.data, Val{N}()))
+@inline vload(ptr, lsm::LazyStaticMul{N,_MM{W,I}}) where {N,W,I} = vload(Val{W}(), gep(ptr, lsm.data, Val{N}()))
+@inline vload(ptr, lsm::LazyStaticMul{N,SVec{W,I}}) where {N,W,I} = vload(Val{W}(), gep(ptr, lsm.data, Val{N}()))
+@inline vload(ptr::Ptr{T}, lsm::LazyStaticMul{N,_Vec{W,I}}) where {T,N,W,I} = vload(_Vec{W,T}, gep(ptr, lsm.data, Val{N}()))
+
+for N ∈ [1,2,4,8]
+    @eval begin
+        @inline vload(ptr, lsm::LazyStaticMul{$N}) = vload(gep(ptr, lsm))
+        @inline vload(ptr, lsm::LazyStaticMul{$N,<:_MM{W}}) where {W} = vload(Val{W}(), gep(ptr, lsm))
+        @inline vstore!(ptr, lsm::LazyStaticMul{$N}) = vload(gep(ptr, lsm))
+        @inline vstore!(ptr, lsm::LazyStaticMul{$N,<:_MM{W}}) where {W} = vload(Val{W}(), gep(ptr, lsm))
+    end
+end
 

@@ -8,7 +8,6 @@ export Vec, VE, SVec, Mask, _MM,
     pick_vector_width,
     pick_vector_width_shift,
     stridedpointer,
-    ZeroInitializedPointer,
     PackedStridedPointer, RowMajorStridedPointer,
     StaticStridedPointer, StaticStridedStruct,
     vload, vstore!, vbroadcast, Static, mask, masktable
@@ -31,6 +30,7 @@ const ScalarTypes = Union{IntegerTypes, FloatingTypes}
 
 const VE{T} = Core.VecElement{T}
 const Vec{W,T<:Number} = NTuple{W,VE{T}}
+const _Vec{W,T<:Number} = Tuple{VE{T},Vararg{VE{T},W}}
 
 abstract type AbstractStructVec{W,T<:Number} end
 struct SVec{W,T} <: AbstractStructVec{W,T}
@@ -63,7 +63,8 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
 @inline SVec{W}(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W}(v::Vec{W,T}) where {W,T} = SVec{W,T}(v)
-@generated function vbroadcast(::Type{Vec{W,Ptr{T}}}, s::Ptr{T}) where {W, T}
+@generated function vbroadcast(::Type{_Vec{_W,Ptr{T}}}, s::Ptr{T}) where {_W, T}
+    W = _W + 1
     typ = "i$(8sizeof(Int))"
     vtyp = "<$W x $typ>"
     instrs = String[]
@@ -75,7 +76,8 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
         Base.llvmcall( $(join(instrs,"\n")), Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s )
     end
 end
-@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Integer}
+@generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Integer}
+    W = _W + 1
     typ = "i$(8sizeof(T))"
     vtyp = "<$W x $typ>"
     instrs = String[]
@@ -87,7 +89,8 @@ end
         Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
     end
 end
-@generated function vbroadcast(::Type{Vec{W,T}}, s::T) where {W, T <: Union{Float16,Float32,Float64}}
+@generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Union{Float16,Float32,Float64}}
+    W = _W + 1
     typ = llvmtype(T)
     vtyp = "<$W x $typ>"
     instrs = String[]
@@ -99,7 +102,8 @@ end
         Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
     end
 end
-@generated function vbroadcast(::Type{Vec{W,T}}, ptr::Ptr{T}) where {W, T}
+@generated function vbroadcast(::Type{_Vec{_W,T}}, ptr::Ptr{T}) where {_W, T}
+    W = _W + 1
     typ = llvmtype(T)
     ptyp = JuliaPointerType
     vtyp = "<$W x $typ>"
@@ -115,7 +119,8 @@ end
         Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{Ptr{$T}}, ptr )
     end
 end
-@generated function vzero(::Type{Vec{W,T}}) where {W,T}
+@generated function vzero(::Type{_Vec{_W,T}}) where {_W,T}
+    W = _W + 1
     typ = llvmtype(T)
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
@@ -136,15 +141,15 @@ end
 # @inline vzero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline vbroadcast(::Val{W}, s::T) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
 @inline vbroadcast(::Val{W}, ptr::Ptr{T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, ptr))
-@inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1,T2} = vbroadcast(Vec{W,T1}, convert(T1,s))
-@inline vbroadcast(::Type{Vec{W,T1}}, s::T2) where {W,T1<:Integer,T2<:Integer} = vbroadcast(Vec{W,T1}, s % T1)
-@inline vbroadcast(::Type{Vec{W,T}}, ptr::Ptr) where {W,T} = vbroadcast(Vec{W,T}, Base.unsafe_convert(Ptr{T},ptr))
+@inline vbroadcast(::Type{_Vec{_W,T1}}, s) where {_W,T1} = vbroadcast(_Vec{_W,T1}, convert(T1,s))
+@inline vbroadcast(::Type{_Vec{_W,T1}}, s::T2) where {_W,T1<:Integer,T2<:Integer} = vbroadcast(_Vec{_W,T1}, s % T1)
+@inline vbroadcast(::Type{_Vec{_W,T}}, ptr::Ptr) where {_W,T} = vbroadcast(_Vec{_W,T}, Base.unsafe_convert(Ptr{T},ptr))
 @inline vbroadcast(::Type{SVec{W,T}}, s) where {W,T} = SVec(vbroadcast(Vec{W,T}, s))
-@inline vbroadcast(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
+@inline vbroadcast(::Type{_Vec{_W,T}}, v::_Vec{_W,T}) where {_W,T} = v
 @inline vbroadcast(::Type{SVec{W,T}}, v::SVec{W,T}) where {W,T} = v
 @inline vbroadcast(::Type{SVec{W,T}}, v::Vec{W,T}) where {W,T} = SVec(v)
 
-@inline vone(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, one(T))
+@inline vone(::Type{_Vec{_W,T}}) where {_W,T} = vbroadcast(_Vec{_W,T}, one(T))
 # @inline vzero(::Type{Vec{W,T}}) where {W,T} = vbroadcast(Vec{W,T}, zero(T))
 @inline vone(::Type{SVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, one(T)))
 @inline vzero(::Type{SVec{W,T}}) where {W,T} = SVec(vzero(Vec{W,T}))
@@ -183,14 +188,14 @@ end
 @inline Base.zero(::AbstractStructVec{W,T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
 
 
-
-const AbstractSIMDVector{N,T} = Union{Vec{N,T},AbstractStructVec{N,T}}
+# Use with care in function signatures; try to avoid the `T` to stay clean on Test.detect_unbound_args
+const AbstractSIMDVector{W,T} = Union{Vec{W,T},AbstractStructVec{W,T}}
 
 @inline extract_data(v) = v
 @inline extract_data(v::SVec) = v.data
 @inline extract_data(v::AbstractStructVec) = v.data
-@inline extract_value(v::Vec{W,T}, i) where {W,T} = v[i].value
-@inline extract_value(v::SVec{W,T}, i) where {W,T} = v.data[i].value
+@inline extract_value(v::Vec, i) = v[i].value
+@inline extract_value(v::SVec, i) = v.data[i].value
 
 @inline firstval(x::Vec) = first(x).value
 @inline firstval(x::SVec) = first(extract_data(x)).value
@@ -215,6 +220,12 @@ function Base.show(io::IO, m::Mask{W}) where {W}
     end
     print(io, ">")
 end
+
+struct _MM{W,I<:Number}
+    i::I
+    @inline _MM{W}(i::T) where {W,T} = new{W,T}(i)
+end
+
 
 include("cartesianvindex.jl")
 include("static.jl")

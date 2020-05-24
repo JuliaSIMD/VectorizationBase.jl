@@ -4,11 +4,12 @@ using Test
 const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 
-
 A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
+@test isempty(detect_unbound_args(VectorizationBase))
+
 @test first(A) === A[1]
 @testset "Struct-Wrapped Vec" begin
 @test extract_data(zero(SVec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === extract_data(SVec{4,Float64}(0.0))
@@ -149,21 +150,30 @@ end
 end
 
 @testset "StridedPointer" begin
-A = collect(Float64(0):Float64(15))
+A = reshape(collect(Float64(0):Float64(63)), (16, 4))
 ptr_A = pointer(A)
 vA = VectorizationBase.stridedpointer(A)
+Att = copy(A')'
+vAtt = VectorizationBase.stridedpointer(Att)
 @test eltype(vA) == Float64
 @test Base.unsafe_convert(Ptr{Float64}, vA) === ptr_A === pointer(vA)
 @test vA == VectorizationBase.stridedpointer(vA)
-@test all(i -> A[i+1] === VectorizationBase.vload(ptr_A + 8i) === VectorizationBase.vload(vA, (i+1,)) === Float64(i), 0:15)
-VectorizationBase.vstore!(vA, 99.9, (4,))
-@test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (4,))
-VectorizationBase.vstore!(ptr_A+8*4, 999.9)
-@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4) === VectorizationBase.vload(vA, (5,))
-B = rand(5, 5)
+@test all(i -> A[i+1] === VectorizationBase.vload(ptr_A + 8i) === VectorizationBase.vload(vA, (i,)) === Float64(i), 0:15)
+VectorizationBase.vstore!(vA, 99.9, (3,))
+@test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (3,)) === VectorizationBase.vload(vA, (3,0)) === A[4,1]
+VectorizationBase.vstore!(vAtt, 99.9, (3,1))
+@test 99.9 === VectorizationBase.vload(vAtt, (3,1)) === VectorizationBase.vload(vAtt, (3,1)) === Att[4,2]
+VectorizationBase.vnoaliasstore!(ptr_A+8*4, 999.9)
+@test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4*sizeof(eltype(A))) === VectorizationBase.vload(vA, (4,))
+@test vload(vA, (7,2)) == vload(vAtt, (7,2)) == A[8,3]
+@test vload(VectorizationBase.subsetview(vA, Val(1), 7), (2,)) == vload(VectorizationBase.subsetview(vAtt, Val(1), 7), (2,)) == A[8,3]
+@test vload(VectorizationBase.subsetview(vA, Val(2), 2), (7,)) == vload(VectorizationBase.subsetview(vAtt, Val(2), 2), (7,)) == A[8,3]
+    @test vload(VectorizationBase.double_index(vA, Val(0), Val(1)), (2,)) == A[3,3]
+    @test vload(VectorizationBase.double_index(vAtt, Val(0), Val(1)), (1,)) == A[2,2]
+    B = rand(5, 5)
 vB = VectorizationBase.stridedpointer(B)
-@test vB[2, 3] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
-@test vB[4] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
+@test vB[1, 2] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
+@test vB[3] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
 @test vload(SVec{4,Float64}, vB) == SVec{4,Float64}(ntuple(i->B[i], Val(4)))
 end
 

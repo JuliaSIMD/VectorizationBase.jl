@@ -81,7 +81,7 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
         if T === Bool
             #sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
             has_bool = true#; sT = min(sT, sTv)
-        elseif !AVX2 && T <: Integer
+        elseif !SIMD_NATIVE_INTEGERS && T <: Integer
             demote_to_1 = true
         else
             sT = min(sT, sizeof(T))
@@ -108,6 +108,24 @@ else
     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
 end
+# @static if Int === Int64
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+# else
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+# end
+# @static if Int === Int64
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+# else
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw nuw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+# end
 
 @inline vadd(::Static{i}, j) where {i} = vadd(i, j)
 @inline vadd(i, ::Static{j}) where {j} = vadd(i, j)
@@ -117,33 +135,41 @@ end
 @inline valmul(::Val{W}, i) where {W} = vmul(W, i)
 @inline valadd(::Val{W}, i) where {W} = vadd(W, i)
 @inline valsub(::Val{W}, i) where {W} = vsub(W, i)
+@inline valsub(i, ::Val{W}) where {W} = vsub(i, W)
 @inline valrem(::Val{W}, i) where {W} = i & (W - 1)
 @inline valmuladd(::Val{W}, b, c) where {W} = vadd(vmul(W, b), c)
-@inline valmul(::Val{W}, i::T) where {W,T<:Integer} = (W % T)*i
-@inline valadd(::Val{W}, i::T) where {W,T<:Integer} = (W % T) + i
-@inline valsub(::Val{W}, i::T) where {W,T<:Integer} = (W % T) - i
+@inline valmulsub(::Val{W}, b, c) where {W} = vsub(vmul(W, b), c)
+@inline valmul(::Val{W}, i::T) where {W,T<:Integer} = vmul((W % T), i)
+@inline valadd(::Val{W}, i::T) where {W,T<:Integer} = vadd((W % T), i)
+@inline valsub(::Val{W}, i::T) where {W,T<:Integer} = vsub((W % T), i)
 @inline valrem(::Val{W}, i::T) where {W,T<:Integer} = i & ((W % T) - one(T))
-@inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = (W % T)*b + c
+@inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = vadd(vmul((W % T), b), c)
+@inline valmulsub(::Val{W}, b::T, c::T) where {W,T<:Integer} = vsub(vmul((W % T), b), c)
 
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
 
-struct _MM{W,I<:Number}
-    i::I
-    @inline _MM{W}(i::T) where {W,T} = new{W,T}(i)
-end
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline _MM(::Val{W}, ::Static{I}) where {W,I} = _MM{W}(I)
 @inline gep(ptr::Ptr, i::_MM) = gep(ptr, i.i)
 
+@inline staticm1(i::_MM{W,I}) where {W,I} = _MM{W}(vsub(i.i, one(I)))
+@inline staticp1(i::_MM{W,I}) where {W,I} = _MM{W}(vadd(i.i, one(I)))
 @inline vadd(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
 @inline vadd(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
 @inline vadd(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
 @inline vadd(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(vadd(i, j.i))
 @inline vsub(i::_MM{W}, j::Integer) where {W} = _MM{W}(vsub(i.i, j))
 @inline vsub(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vsub(i.i, j))
+@inline vmulnp(i, j) = vmul(i,j)
+@inline vmulnp(i, j::_MM{W}) where {W} = _MM{W}(vmul(i, j.i))
+@inline vmuladdnp(a, b, c) = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::_MM{W}, c) where {W} = vadd(_MM{W}(vmul(a,b.i)), c)
+@inline vmuladdnp(a, b::_MM{W}, c::_MM{W}) where {W} = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::_MM{W}, c::SVec) where {W} = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::_MM{W}, c::_Vec) where {W} = vadd(vmul(a,b), c)
 @inline Base.:(+)(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
 @inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
 @inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
@@ -204,4 +230,11 @@ for T ∈ [Float32,Float64,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64]#, 
         @eval @inline vbroadcast(::Val{$W}, s::$T) = SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
     end
 end
+
+# @inline _vload(ptr::Ptr{T}, i::Integer) where {T} = vload(ptr + vmul(sizeof(T), i))
+# @inline _vload(ptr::Ptr, v::SVec{<:Any,<:Integer}) = vload(ptr, v.data)
+# @inline _vload(ptr::Ptr, v::Vec{<:Any,<:Integer}) = vload(ptr, v)
+# @inline _vload(ptr::Ptr{T}, i::_MM{W}) where {W,T} = vload(Val{W}(), ptr + vmul(sizeof(T), i.i))
+# @inline _vload(ptr::AbstractPointer, i) = _vload(ptr.ptr, offset(ptr, i))
+# @inline vload(ptr::AbstractPointer{T}, i::Tuple) where {T} = _vload(ptr.ptr, offset(ptr, i))
 
