@@ -166,7 +166,11 @@ VectorizationBase.vstore!(vAtt, 99.9, (3,1))
 VectorizationBase.vnoaliasstore!(ptr_A+8*4, 999.9)
 @test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4*sizeof(eltype(A))) === VectorizationBase.vload(vA, (4,))
 @test vload(vA, (7,2)) == vload(vAtt, (7,2)) == A[8,3]
-B = rand(5, 5)
+@test vload(VectorizationBase.subsetview(vA, Val(1), 7), (2,)) == vload(VectorizationBase.subsetview(vAtt, Val(1), 7), (2,)) == A[8,3]
+@test vload(VectorizationBase.subsetview(vA, Val(2), 2), (7,)) == vload(VectorizationBase.subsetview(vAtt, Val(2), 2), (7,)) == A[8,3]
+    @test vload(VectorizationBase.double_index(vA, Val(0), Val(1)), (2,)) == A[3,3]
+    @test vload(VectorizationBase.double_index(vAtt, Val(0), Val(1)), (1,)) == A[2,2]
+    B = rand(5, 5)
 vB = VectorizationBase.stridedpointer(B)
 @test vB[1, 2] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
 @test vB[3] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
