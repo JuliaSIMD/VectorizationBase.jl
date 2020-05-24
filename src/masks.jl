@@ -166,26 +166,26 @@ end
     @boundscheck i > W && throw(BoundsError(m, i))
     getindexzerobased(m, i - 1)
 end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{1})
-    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i
-end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{2})
-    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 1
-end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{4})
-    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 2
-end
+# @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{1})
+#     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
+# end
+# @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{2})
+#     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
+# end
+# @inline function bitload(ptr::AbstractBitPointer, i::_MM{4})
+#     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
+# end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{8})
-    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >> 3
+    Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
 end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{16})
-    Base.unsafe_convert(Ptr{UInt16}, ptr.ptr), i.i >> 4
+    Base.unsafe_convert(Ptr{UInt16}, ptr.ptr), i.i >>> 3
 end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{32})
-    Base.unsafe_convert(Ptr{UInt32}, ptr.ptr), i.i >> 5
+    Base.unsafe_convert(Ptr{UInt32}, ptr.ptr), i.i >>> 3
 end
 @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{64})
-    Base.unsafe_convert(Ptr{UInt64}, ptr.ptr), i.i >> 6
+    Base.unsafe_convert(Ptr{UInt64}, ptr.ptr), i.i >>> 3
 end
 @inline function bitload(ptr::AbstractBitPointer, i::_MM{W}) where {W}
     ptr, ind = ptr_index(ptr, i)
@@ -250,15 +250,13 @@ end
     decls = String[]
     instrs = String[]
     align = sizeof(U)
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to i8*")
+    push!(instrs, "%offsetptri8 = getelementptr inbounds i8, i8* %ptr, i$(8sizeof(I)) %2")
+    push!(instrs, "offsetptr = bitcast i* %offsetptri8 to <$W x i1>*")
     if mtyp_input == mtyp_trunc
-        push!(instrs, "%ptr = inttoptr $ptyp %0 to <$W x i1>*")
-        push!(instrs, "%offsetptr = getelementptr inbounds <$W x i1>, <$W x i1>* %ptr, i$(8sizeof(I)) %2")
         push!(instrs, "%v = bitcast $mtyp_input %1 to <$W x i1>")
         push!(instrs, "%mask = bitcast $mtyp_input %3 to <$W x i1>")
     else
-        push!(instrs, "%ptr = inttoptr $ptyp %0 to i$(8align)*")
-        push!(instrs, "%tempptr = getelementptr inbounds i$(8align),  i$(8align)* %ptr, i$(8sizeof(I)) %2")
-        push!(instrs, "%offsetptr = bitcast i$(8align) %tempptr to <$W x i1>*")
         push!(instrs, "%vtrunc = trunc $mtyp_input %1 to $mtyp_trunc")
         push!(instrs, "%masktrunc = trunc $mtyp_input %3 to $mtyp_trunc")
         push!(instrs, "%v = bitcast $mtyp_input %1 to <$W x i1>")
@@ -284,16 +282,18 @@ end
 @inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{_MM{W},<:Any}) where {W}
     j = vadd(j, bptr.offsets[2])
     s = bptr.strides[1]
-    shift = vmul(s, j) & (W - 1)
+    # shift = vmul(s, j) & (W - 1)
     U = mask_type(Val{W}())
     UW = widen(U)
-    ptr, ind = ptr_index(bptr, _MM{W}(vadd(vadd(i.i, bptr.offsets[1]), vmul(j,s))))
-    u = vload(Base.unsafe_convert(Ptr{UW}, gep(ptr, ind)))
+    indbits = vadd(vadd(i.i, bptr.offsets[1]), vmul(j,s))
+    ptr, ind = ptr_index(bptr, _MM{W}(indbits))
+    u = vload(Base.unsafe_convert(Ptr{UW}, gepbyte(ptr, ind)))
+    shift = indbits & 7
     # @show ind, shift, u
     Mask{W}((u >>> shift) % U)
 end
-@inline getind(a::PackedStridedBitPointer{0}) = last(ptr_index(a, _MM{1}(a.offsets[1])))
-@inline getind(a::PackedStridedBitPointer{1}) = last(ptr_index(a, _MM{1}(vadd(a.offsets[1], vmul(a.offsets[2],a.strides[1])))))
+@inline getind(a::PackedStridedBitPointer{0}) = a.offsets[1]
+@inline getind(a::PackedStridedBitPointer{1}) = vadd(a.offsets[1], vmul(a.offsets[2],a.strides[1]))
 @inline Base.:(≥)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≥ getind(b)
 @inline Base.:(≤)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≤ getind(b)
 @inline Base.:(>)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) > getind(b)
