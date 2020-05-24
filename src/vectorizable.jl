@@ -29,21 +29,21 @@ const NativeTypes = Union{Bool, Base.HWReal}
 # end
 
 const SCOPE_METADATA = """
-    !1 = !{!\"noaliasdomain\"}
-    !2 = !{!\"noaliasscope\", !1}
-    !3 = !{!2}
+!1 = !{!\"noaliasdomain\"}
+!2 = !{!\"noaliasscope\", !1}
+!3 = !{!2}
 """
 const LOAD_SCOPE_TBAA = SCOPE_METADATA * """
-    !4 = !{!"jtbaa"}
-    !5 = !{!6, !6, i64 0, i64 0}
-    !6 = !{!"jtbaa_arraybuf", !4, i64 0}
+!4 = !{!"jtbaa"}
+!5 = !{!6, !6, i64 0, i64 0}
+!6 = !{!"jtbaa_arraybuf", !4, i64 0}
 """
 const STORE_TBAA = """
-    !4 = !{!"jtbaa", !5, i64 0}
-    !5 = !{!"jtbaa"}
-    !6 = !{!"jtbaa_data", !4, i64 0}
-    !7 = !{!8, !8, i64 0}
-    !8 = !{!"jtbaa_arraybuf", !6, i64 0}
+!4 = !{!"jtbaa", !5, i64 0}
+!5 = !{!"jtbaa"}
+!6 = !{!"jtbaa_data", !4, i64 0}
+!7 = !{!8, !8, i64 0}
+!8 = !{!"jtbaa_arraybuf", !6, i64 0}
 """
 
 function vload_quote(::Type{T}) where {T <: NativeTypes}
