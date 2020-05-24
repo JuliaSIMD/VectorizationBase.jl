@@ -150,17 +150,22 @@ end
 end
 
 @testset "StridedPointer" begin
-A = collect(Float64(0):Float64(15))
+A = reshape(collect(Float64(0):Float64(63)), (16, 4))
 ptr_A = pointer(A)
 vA = VectorizationBase.stridedpointer(A)
+Att = copy(A')'
+vAtt = VectorizationBase.stridedpointer(Att)
 @test eltype(vA) == Float64
 @test Base.unsafe_convert(Ptr{Float64}, vA) === ptr_A === pointer(vA)
 @test vA == VectorizationBase.stridedpointer(vA)
 @test all(i -> A[i+1] === VectorizationBase.vload(ptr_A + 8i) === VectorizationBase.vload(vA, (i,)) === Float64(i), 0:15)
 VectorizationBase.vstore!(vA, 99.9, (3,))
-@test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (3,))
-VectorizationBase.vstore!(ptr_A+8*4, 999.9)
+@test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (3,)) === VectorizationBase.vload(vA, (3,0)) === A[4,1]
+VectorizationBase.vstore!(vAtt, 99.9, (3,1))
+@test 99.9 === VectorizationBase.vload(vAtt, (3,1)) === VectorizationBase.vload(vAtt, (3,1)) === Att[4,2]
+VectorizationBase.vnoaliasstore!(ptr_A+8*4, 999.9)
 @test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4*sizeof(eltype(A))) === VectorizationBase.vload(vA, (4,))
+@test vload(vA, (7,2)) == vload(vAtt, (7,2)) == A[8,3]
 B = rand(5, 5)
 vB = VectorizationBase.stridedpointer(B)
 @test vB[1, 2] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
