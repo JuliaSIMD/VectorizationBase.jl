@@ -100,14 +100,23 @@ end
 pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_vector_width_val(vargs...))
 
 @static if Int === Int64
-    @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
-    @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
-    @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+    @inline Base.@pure vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+    @inline Base.@pure vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+    @inline Base.@pure vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
 else
-    @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
-    @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
-    @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+    @inline Base.@pure vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+    @inline Base.@pure vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+    @inline Base.@pure vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
 end
+# @static if Int === Int64
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
+# else
+#     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+#     @inline vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
+# end
 # @static if Int === Int64
 #     @inline vadd(a::Int, b::Int) = Base.llvmcall("%res = add nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
 #     @inline vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nuw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)

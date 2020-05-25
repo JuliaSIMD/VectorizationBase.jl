@@ -105,6 +105,23 @@ function vstore_quote(::Type{T}, ::Type{I}, alias) where {T <: NativeTypes, I}
     :(Base.llvmcall($(decl,join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i))
 end
 
+function gepquote(::Type{T}, ::Type{I}, byte::Bool) where {T,I}
+    ptyp = JuliaPointerType
+    ityp = llvmtype(I)
+    typ = byte ? "i8" : llvmtype(T)
+    instrs = String[]
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
+    push!(instrs, "%offsetptr = getelementptr inbounds $typ, $typ* %ptr, $ityp %1")
+    push!(instrs, "%iptr = ptrtoint $typ* %offsetptr to $ptyp")
+    push!(instrs, "ret $ptyp %iptr")
+    quote
+        Base.llvmcall(
+            $(join(instrs, "\n")),
+            Ptr{$T}, Tuple{Ptr{$T}, $I},
+            ptr, i
+        )
+    end    
+end
 
 for T ∈ [Bool,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64,Float32,Float64]
     @eval @inline vload(ptr::Ptr{$T}) = $(vload_quote(T))
@@ -114,9 +131,12 @@ for T ∈ [Bool,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64,Float32,Float6
         @eval @inline vload(ptr::Ptr{$T}, i::$I) = $(vload_quote(T, I))
         @eval @inline vstore!(ptr::Ptr{$T}, v::$T, i::$I) = $(vstore_quote(T, I, true))
         @eval @inline vnoaliasstore!(ptr::Ptr{$T}, v::$T, i::$I) = $(vstore_quote(T, I, false))
+        @eval @inline Base.@pure gep(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, false))
+        @eval @inline Base.@pure gepbyte(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, true))
+        # @eval @inline gep(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, false))
+        # @eval @inline gepbyte(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, true))
     end    
 end
-
 
 # Fall back definitions
 @inline vload(ptr::Ptr) = Base.unsafe_load(ptr)
@@ -163,40 +183,16 @@ ptrx[2]
 abstract type AbstractPointer{T} end
 
 @generated function gepbyte(ptr::Ptr{T}, i::I) where {T, I <: Integer}
-    ptyp = JuliaPointerType
-    ityp = llvmtype(I)
-    instrs = String[]
-    push!(instrs, "%ptr = inttoptr $ptyp %0 to i8*")
-    push!(instrs, "%offsetptr = getelementptr inbounds i8, i8* %ptr, $ityp %1")
-    push!(instrs, "%iptr = ptrtoint i8* %offsetptr to $ptyp")
-    push!(instrs, "ret $ptyp %iptr")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall(
-            $(join(instrs, "\n")),
-            Ptr{$T}, Tuple{Ptr{$T}, $I},
-            ptr, i
-        )
-    end
+    q = gepquote(T, I, true)
+    pushfirst!(q.args, Expr(:meta, :inline))
+    q
 end
 @generated function gep(ptr::Ptr{T}, i::I) where {T, I <: Integer}
-    ptyp = JuliaPointerType
-    typ = llvmtype(T)
-    ityp = llvmtype(I)
-    instrs = String[]
-    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "%offsetptr = getelementptr inbounds $typ, $typ* %ptr, $ityp %1")
-    push!(instrs, "%iptr = ptrtoint $typ* %offsetptr to $ptyp")
-    push!(instrs, "ret $ptyp %iptr")
-    quote
-        $(Expr(:meta, :inline))
-        Base.llvmcall(
-            $(join(instrs, "\n")),
-            Ptr{$T}, Tuple{Ptr{$T}, $I},
-            ptr, i
-        )
-    end
+    q = gepquote(T, I, false)
+    pushfirst!(q.args, Expr(:meta, :inline))
+    q
 end
+
 @generated function gep(ptr::Ptr{T}, i::_Vec{_W,I}) where {_W, T, I <: Integer}
     W = _W + 1
     ptyp = JuliaPointerType
@@ -220,7 +216,7 @@ end
 end
 @inline gep(ptr::Ptr{T}, i::I, ::Val{0}) where {T, I<:Integer} = ptr
 @generated function gep(ptr::Ptr{T}, i::I, ::Val{N}) where {T, I <: Integer, N}
-    N ∉ [1,2,4,8] && return :(Base.@_inline_meta; gep(ptr, i*N))
+    N ∉ [1,2,4,8] && return :(Base.@_inline_meta; gepbyte(ptr, vmul(i,N)))
     ptyp = "i$(8 * sizeof(Int))"
     styp = "i$(8 * N)"
     ityp = "i$(8 * sizeof(I))"
@@ -238,15 +234,17 @@ end
         )
     end
 end
+
 @inline gepbyte(ptr::Ptr, ::Static{0}) = ptr
 @inline gepbyte(ptr::Ptr, ::Static{N}) where {N} = gepbyte(ptr, N)
+@inline gepbyte(ptr::Ptr, i::LazyStaticMul{N}) where {N} = gep(ptr, i.data, Val{N}())
 @inline gep(ptr::Ptr, v::SVec) = gep(ptr, extract_data(v))
 @inline gep(ptr::Ptr{Cvoid}, i::Integer) = gepbyte(ptr, i)
 
-struct Reference{T} <: AbstractPointer{T}
-    ptr::Ptr{T}
-    @inline Reference(ptr::Ptr{T}) where {T} = new{T}(ptr)
-end
+# struct Reference{T} <: AbstractPointer{T}
+    # ptr::Ptr{T}
+    # @inline Reference(ptr::Ptr{T}) where {T} = new{T}(ptr)
+# end
 @inline Base.eltype(::AbstractPointer{T}) where {T} = T
 # @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 # @inline vstore!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = vstore!(ptr, convert(T1, v), args...)
@@ -258,6 +256,7 @@ end
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple) = vstore!(ptr.ptr, v, offset(ptr, i))
 @inline vstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vstore!(ptr.ptr, v, offset(ptr, i), u)
 @inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple) = vnoaliasstore!(ptr.ptr, v, offset(ptr, i))
+# @inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vnoaliasstore!(ptr.ptr, @show(v), offset(ptr, i), u)
 @inline vnoaliasstore!(ptr::AbstractPointer, v, i::Tuple, u::Union{AbstractMask,Unsigned}) = vnoaliasstore!(ptr.ptr, v, offset(ptr, i), u)
 @inline vnoaliasstore!(args...) = vstore!(args...) # generic fallback
 
