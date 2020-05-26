@@ -162,6 +162,7 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
 @inline _MM(::Val{W}, ::Static{I}) where {W,I} = _MM{W}(I)
+@inline _MM(::Val{W}, ::Static{0}) where {W} = _MM{W}(Static{0}())
 @inline gep(ptr::Ptr, i::_MM) = gep(ptr, i.i)
 
 @inline staticm1(i::_MM{W,I}) where {W,I} = _MM{W}(vsub(i.i, one(I)))

@@ -216,7 +216,11 @@ end
 end
 @inline gep(ptr::Ptr{T}, i::I, ::Val{0}) where {T, I<:Integer} = ptr
 @generated function gep(ptr::Ptr{T}, i::I, ::Val{N}) where {T, I <: Integer, N}
-    N ∉ [1,2,4,8] && return :(Base.@_inline_meta; gepbyte(ptr, vmul(i,N)))
+    if N ∉ [1,2,4,8]
+        tz = trailing_zeros(N)
+        iszero(tz) && return :(Base.@_inline_meta; gepbyte(ptr, vmul(i,N)))
+        return :(Base.@_inline_meta; gep(ptr, vmul(i, $(N >> tz)), Val{$(1 << tz)}()))
+    end
     ptyp = "i$(8 * sizeof(Int))"
     styp = "i$(8 * N)"
     ityp = "i$(8 * sizeof(I))"

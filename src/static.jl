@@ -290,6 +290,8 @@ struct LazyStaticMul{N,T}
     data::T
 end
 
+# @inline vmul(::Static{N}, i::I) where {N,I<:Union{Integer,_MM}} = LazyStaticMul{N,I}(i)
+# @inline vmul(i::I, ::Static{N}) where {N,I<:Union{Integer,_MM}} = LazyStaticMul{N,I}(i)
 @inline vmul(::Static{N}, i::I) where {N,I<:Integer} = LazyStaticMul{N,I}(i)
 @inline vmul(i::I, ::Static{N}) where {N,I<:Integer} = LazyStaticMul{N,I}(i)
 @inline vadd(a::LazyStaticMul{N}, b) where {N} = vadd(vmul(N, a.data), b)
@@ -301,6 +303,9 @@ end
 @inline vadd(a::LazyStaticMul{N}, b::LazyStaticMul{M}) where {M,N} = vadd(vmul(N, a.data), vmul(M, b.data))
 @inline vadd(a::LazyStaticMul{N,T}, b::LazyStaticMul{N,T}) where {N,T} = LazyStaticMul{N,T}(vadd(a.data, b.data))
 
+@inline vadd(a::LazyStaticMul{N,I}, ::_MM{W,Static{0}}) where {W,N,I<:Integer} = LazyStaticMul{N,_MM{W,I}}(_MM{W}(a.data))
+@inline vadd(::_MM{W,Static{0}}, a::LazyStaticMul{N,I}) where {W,N,I<:Integer} = LazyStaticMul{N,_MM{W,I}}(_MM{W}(a.data))
+
 # @inline extract_data(a::LazyStaticMul{N}) where {N} = vmul(a.data, N)
 # @inline vload(ptr, lsm::LazyStaticMul{N}) where {N} = vload(gep(ptr, lsm.data, Val{N}()))
 # @inline vload(ptr, lsm::LazyStaticMul{N,_MM{W,I}}) where {N,W,I} = vload(Val{W}(), gep(ptr, lsm.data, Val{N}()))
@@ -311,12 +316,24 @@ end
 @inline vload(ptr, lsm::LazyStaticMul{N}, m) where {N} = vload(ptr, vmul(N, lsm.data), m)
 @inline vstore!(ptr, v, lsm::LazyStaticMul{N}   ) where {N} = vstore!(ptr, v, vmul(N, lsm.data)   )
 @inline vstore!(ptr, v, lsm::LazyStaticMul{N}, m) where {N} = vstore!(ptr, v, vmul(N, lsm.data), m)
-for N ∈ [1,2,4,8]
-    @eval begin
-        @inline vload(ptr, lsm::LazyStaticMul{$N}) = vload(gep(ptr, lsm.data, Val{$N}()))
-        @inline vstore!(ptr, v, lsm::LazyStaticMul{$N}) = vstore!(gep(ptr, lsm.data, Val{$N}()), v)
-        @inline vload(ptr, lsm::LazyStaticMul{$N}, m) = vload(gep(ptr, lsm.data, Val{$N}()), m)
-        @inline vstore!(ptr, v, lsm::LazyStaticMul{$N}, m) = vstore!(gep(ptr, lsm.data, Val{$N}()), v, m)
-    end
+@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N}   ) where {N} = vnoaliasstore!(ptr, v, vmul(N, lsm.data)   )
+@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N}, m) where {N} =! vnoaliasstore(ptr, v, vmul(N, lsm.data), m)
+
+@inline vload(ptr, lsm::LazyStaticMul{N,<:_MM{W}}   ) where {N,W} = vload(Val{W}(), ptr, vmul(N, lsm.data.i)   )
+@inline vload(ptr, lsm::LazyStaticMul{N,<:_MM{W}}, m) where {N,W} = vload(Val{W}(), ptr, vmul(N, lsm.data.i), m)
+@inline vstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}   ) where {N} = vstore!(ptr, v, vmul(N, lsm.data.i)   )
+@inline vstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}, m) where {N} = vstore!(ptr, v, vmul(N, lsm.data.i), m)
+@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}   ) where {N} = vnoaliasstore!(ptr, v, vmul(N, lsm.data.i)   )
+@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}, m) where {N} = vnoaliasstore!(ptr, v, vmul(N, lsm.data.i), m)
+for N ∈ [1,2,4,8,6,10]
+    @eval @inline vload(ptr, lsm::LazyStaticMul{$N}) = vload(gep(ptr, lsm.data, Val{$N}()))
+    @eval @inline vload(ptr, lsm::LazyStaticMul{$N}, m) = vload(gep(ptr, lsm.data, Val{$N}()), m)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N}) = vstore!(gep(ptr, lsm.data, Val{$N}()), v)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N}, m) = vstore!(gep(ptr, lsm.data, Val{$N}()), v, m)
+
+    @eval @inline vload(ptr, lsm::LazyStaticMul{$N,_MM{W,I}}) where {W,I}  = vload(Val{W}(), gep(ptr, lsm.data.i, Val{$N}()))
+    @eval @inline vload(ptr, lsm::LazyStaticMul{$N,_MM{W,I}}, m) where {W,I} = vload(Val{W}(), gep(ptr, lsm.data.i, Val{$N}()), m)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}) where {W,I} = vstore!(gep(ptr, lsm.data.i, Val{$N}()), v)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}, m) where {W,I} = vstore!(gep(ptr, lsm.data.i, Val{$N}()), v, m)
 end
 
