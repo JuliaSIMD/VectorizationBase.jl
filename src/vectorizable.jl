@@ -544,8 +544,9 @@ end
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
 # @inline stridedpointer(x::Union{LowerTriangular,UpperTriangular}) = stridedpointer(parent(x))
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
-@inline stridedpointer(A::AbstractArray{T}) where {T} = PackedStridedPointer(pointer(A), staticmul(T,Base.tail(strides(A))))
 @inline tailstrides(A::AbstractArray) = Base.tail(strides(A))
+@inline tailstrides(A::AbstractVector) = tuple()
+@inline tailstrides(A::AbstractMatrix) = (stride(A,2),)
 @inline tailstrides(A::BitArray{1}) = tuple()
 @inline tailstrides(A::BitArray{2}) = (size(A,1),)
 @inline tailstrides(A::BitArray{3}) = (size(A,1),size(A,1)*size(A,2))
@@ -556,12 +557,14 @@ end
         (Base.Cartesian.@ntuple $(N-1) s)
     end
 end
+@inline stridedpointer(A::AbstractArray{T}) where {T} = PackedStridedPointer(pointer(A), staticmul(T,tailstrides(A)))
 @inline stridedpointer(A::BitArray{N}) where {N} = PackedStridedBitPointer(pointer(A.chunks), tailstrides(A), ntuple(_ -> 0, Val{N}()))
 @inline stridedpointer(A::AbstractArray{T,0}) where {T} = pointer(A)
 @inline stridedpointer(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{<:StepRange,Vararg}} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
-@inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S} = PackedStridedPointer(pointer(A), staticmul(T, Base.tail(strides(A))))
+@inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S} = PackedStridedPointer(pointer(A), staticmul(T, tailstrides(A)))
+@inline stridedpointer(A::SubArray{T,1,P,S}) where {T,P,S <: Tuple{AbstractUnitRange}} = stridedpointer(parent(A))#PackedStridedPointer(pointer(A), staticmul(T, Base.tail(strides(A))))
 # Slow fallback
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P<:PermutedDimsArray,S} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
 @inline function stridedpointer(A::SubArray{T,N,P,S}) where {S1,S2,T,N,P<:PermutedDimsArray{<:StridedArray,N,S1,S2},S<:Tuple{Vararg{AbstractUnitRange}}}
@@ -580,7 +583,7 @@ end
 
 @inline function stridedpointer(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,N,A <: AbstractArray{T,N}}
     pB = parent(B)
-    RowMajorStridedPointer(pointer(pB), staticmul(T, Base.tail(strides(pB))))
+    RowMajorStridedPointer(pointer(pB), staticmul(T, tailstrides(pB)))
 end
 @inline function stridedpointer(B::Union{Adjoint{Bool,A},Transpose{Bool,A}}) where {N,A <: BitArray{N}}
     pB = parent(B)
@@ -768,7 +771,7 @@ end
 
 @inline stridedpointer_for_broadcast(A::AbstractRange) = A
 @inline function stridedpointer_for_broadcast(A::AbstractArray{T,N}) where {T,N}
-    PackedStridedPointer(pointer(A), staticmul(T, filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A)))))
+    PackedStridedPointer(pointer(A), staticmul(T, filter_strides_by_dimequal1(Base.tail(size(A)), tailstrides(A))))
 end
 @inline stridedpointer_for_broadcast(B::Union{Adjoint{T,A},Transpose{T,A}}) where {T,A <: AbstractVector{T}} = stridedpointer_for_broadcast(parent(B))
 @inline stridedpointer_for_broadcast(A::SubArray{T,0,P,S}) where {T,P,S <: Tuple{Int,Vararg}} = pointer(A)
@@ -776,7 +779,7 @@ end
     SparseStridedPointer(pointer(A), staticmul(T, filter_strides_by_dimequal1(size(A), strides(A))))
 end
 @inline function stridedpointer_for_broadcast(A::SubArray{T,N,P,S}) where {T,N,P,S}
-    PackedStridedPointer(pointer(A), staticmul(T, filter_strides_by_dimequal1(Base.tail(size(A)), Base.tail(strides(A)))))
+    PackedStridedPointer(pointer(A), staticmul(T, filter_strides_by_dimequal1(Base.tail(size(A)), tailstrides(A))))
 end
 @inline stridedpointer_for_broadcast(A::BitArray) = stridedpointer(A)
 
