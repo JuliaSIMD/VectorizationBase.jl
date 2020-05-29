@@ -564,7 +564,6 @@ end
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{<:StepRange,Vararg}} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S <: Tuple{Int,Vararg}} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P,S} = PackedStridedPointer(pointer(A), staticmul(T, tailstrides(A)))
-@inline stridedpointer(A::SubArray{T,1,P,S}) where {T,P,S <: Tuple{AbstractUnitRange}} = stridedpointer(parent(A))#PackedStridedPointer(pointer(A), staticmul(T, Base.tail(strides(A))))
 # Slow fallback
 @inline stridedpointer(A::SubArray{T,N,P,S}) where {T,N,P<:PermutedDimsArray,S} = SparseStridedPointer(pointer(A), staticmul(T, strides(A)))
 @inline function stridedpointer(A::SubArray{T,N,P,S}) where {S1,S2,T,N,P<:PermutedDimsArray{<:StridedArray,N,S1,S2},S<:Tuple{Vararg{AbstractUnitRange}}}
