@@ -1,5 +1,7 @@
 module VectorizationBase
 
+isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
+
 using LinearAlgebra
 
 export Vec, VE, SVec, Mask, _MM,
