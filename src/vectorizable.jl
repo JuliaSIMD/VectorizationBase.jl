@@ -659,6 +659,7 @@ struct RangeWrapper{R <: AbstractRange, I}
     i::I
 end
 @inline gesp(r::AbstractRange, i::I) where {I} = RangeWrapper(r, i)
+@inline gesp(r::RangeWrapper, i::I) where {I} = RangeWrapper(r.r, r.i .+ i)
 @inline vload(rw::RangeWrapper, i, mask) = vload(rw, i)
 @inline vload(rw::RangeWrapper, i::Tuple{I}) where {I}  = vload(rw.r, @inbounds (vadd(rw.i[1], i[1]),))
 @inline vload(rw::RangeWrapper, i::Tuple{I1,I2}) where {I1,I2}  = vload(rw.r, @inbounds (vadd(rw.i[1], i[1]), vadd(rw.i[2], i[2])))
