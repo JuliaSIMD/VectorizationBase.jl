@@ -230,10 +230,14 @@ end
 const Zero = Static{0}
 @inline vsub(::Zero, i) = vsub(i)
 @inline vsub(i, ::Zero) = i
+@inline vsub(::Zero, i::Number) = vsub(i)
+@inline vsub(i::Number, ::Zero) = i
 @inline vsub(::Zero, ::Zero) = Zero()
 @inline vadd(::Zero, ::Zero) = Zero()
 @inline vadd(::Zero, a) = a
 @inline vadd(a, ::Zero) = a
+@inline vadd(::Zero, a::Number) = a
+@inline vadd(a::Number, ::Zero) = a
 @inline vmul(::Zero, ::Any) = Zero()
 @inline vmul(::Any, ::Zero) = Zero()
 @inline vmul(::Zero, ::Number) = Zero()
