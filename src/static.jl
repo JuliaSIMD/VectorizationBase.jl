@@ -5,7 +5,7 @@
 
 struct Static{N} <: Number end
 Base.@pure Static(N) = Static{N}()
-
+@inline Static(::Val{N}) where {N} = Static{N}()
 
 Base.CartesianIndex(I::Tuple{<:Static,Vararg}) = CartesianVIndex(I)
 Base.CartesianIndex(I::Tuple{<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
