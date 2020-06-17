@@ -10,7 +10,7 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 CpuId = "0.2"
-LLVM = "1.5
+LLVM = "1.5"
 julia = "1"
 
 [extras]
