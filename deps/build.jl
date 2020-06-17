@@ -1,7 +1,11 @@
 
 
 @static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
-    include("build_x86.jl")
+    if Base.libllvm_version >= v"8"
+        include("build_x86.jl")
+    else
+        include("build_x86_cpuidonly.jl")
+    end
 else
     include("build_generic.jl")
 end
