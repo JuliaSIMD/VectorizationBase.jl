@@ -4,7 +4,6 @@
 cpu_info_string = """
 const REGISTER_SIZE = 16
 const REGISTER_COUNT = 16
-const REGISTER_CAPACITY = 256
 const FP256 = true
 const CACHELINE_SIZE = 64
 const CACHE_SIZE = $((1<<15,1<<20,0))

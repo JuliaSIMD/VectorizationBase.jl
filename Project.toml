@@ -5,6 +5,7 @@ version = "0.12.6"
 
 [deps]
 CpuId = "adafc99b-e345-5852-983c-f28acb93d879"
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
