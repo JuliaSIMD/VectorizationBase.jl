@@ -40,7 +40,7 @@ end
 @inline Base.last(::StaticUpperUnitRange{U}) where {U} = U
 @inline Base.last(r::StaticLengthUnitRange{N}) where {N} = vadd(r.L, N - 1)
 
-Base.show(io::IO, r::AbstractStaticUnitRange) = println(io, "$(first(r)):$(last(r))")
+Base.show(io::IO, r::AbstractStaticUnitRange) = print(io, "$(first(r)):$(last(r))")
 
 @inline Base.iterate(x::AbstractStaticUnitRange) = (i = unwrap(first(x)); (i,i))
 
