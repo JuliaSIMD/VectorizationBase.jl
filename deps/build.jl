@@ -1,6 +1,8 @@
 using Libdl
+
+check_llvm() = isone(length(filter(lib->occursin("LLVM", basename(lib)), Libdl.dllist())))
 @static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
-    if Base.libllvm_version >= v"8" && isone(length(filter(lib->occursin("LLVM", basename(lib)), Libdl.dllist())))
+    if Base.libllvm_version >= v"8" && check_llvm()
         include("build_x86.jl")
     else
         include("build_x86_cpuidonly.jl")
