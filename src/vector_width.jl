@@ -99,15 +99,12 @@ end
 end
 pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_vector_width_val(vargs...))
 
-@static if Int === Int64
-    @inline Base.@pure vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
-    @inline Base.@pure vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
-    @inline Base.@pure vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int, Tuple{Int,Int}, a, b)
-else
-    @inline Base.@pure vadd(a::Int, b::Int) = Base.llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
-    @inline Base.@pure vsub(a::Int, b::Int) = Base.llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
-    @inline Base.@pure vmul(a::Int, b::Int) = Base.llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int, Tuple{Int,Int}, a, b)
-end
+@inline Base.@pure vadd(a::Int64, b::Int64) = llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
+@inline Base.@pure vsub(a::Int64, b::Int64) = llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
+@inline Base.@pure vmul(a::Int64, b::Int64) = llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
+@inline Base.@pure vadd(a::Int32, b::Int32) = llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
+@inline Base.@pure vsub(a::Int32, b::Int32) = llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
+@inline Base.@pure vmul(a::Int32, b::Int32) = llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 
 @inline vadd(::Static{i}, j) where {i} = vadd(i, j)
 @inline vadd(i, ::Static{j}) where {j} = vadd(i, j)
@@ -203,14 +200,14 @@ for T ∈ [Float32,Float64,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64]#, 
     for log2W ∈ 0:intlog2(maxW)
         W = 1 << log2W
         instrs = "ret <$W x $typ> zeroinitializer"
-        @eval @inline vzero(::Val{$W}, ::Type{$T}) = SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
+        @eval @inline vzero(::Val{$W}, ::Type{$T}) = SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
         vtyp = "<$W x $typ>"
         instrs = """
         %ie = insertelement $vtyp undef, $typ %0, i32 0
         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
         ret $vtyp %v
         """
-        @eval @inline vbroadcast(::Val{$W}, s::$T) = SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
+        @eval @inline vbroadcast(::Val{$W}, s::$T) = SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
     end
 end
 

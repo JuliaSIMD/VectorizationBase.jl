@@ -3,6 +3,7 @@ module VectorizationBase
 isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
 using LinearAlgebra
+using Base: llvmcall
 
 export Vec, VE, SVec, Mask, _MM,
     firstval, gep, gesp,
@@ -75,7 +76,7 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s )
+        llvmcall( $(join(instrs,"\n")), Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s )
     end
 end
 @generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Integer}
@@ -88,7 +89,7 @@ end
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
+        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
     end
 end
 @generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Union{Float16,Float32,Float64}}
@@ -101,7 +102,7 @@ end
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
+        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
     end
 end
 @generated function vbroadcast(::Type{_Vec{_W,T}}, ptr::Ptr{T}) where {_W, T}
@@ -118,7 +119,7 @@ end
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Base.llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{Ptr{$T}}, ptr )
+        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{Ptr{$T}}, ptr )
     end
 end
 @generated function vzero(::Type{_Vec{_W,T}}) where {_W,T}
@@ -127,7 +128,7 @@ end
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
         $(Expr(:meta,:inline))
-        Base.llvmcall($instrs, Vec{$W,$T}, Tuple{}, )
+        llvmcall($instrs, Vec{$W,$T}, Tuple{}, )
     end
 end
 @generated function vzero(::Val{W}, ::Type{T}) where {W,T}
@@ -135,7 +136,7 @@ end
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
         $(Expr(:meta,:inline))
-        SVec(Base.llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
+        SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
     end
 end
 

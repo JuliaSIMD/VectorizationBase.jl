@@ -56,7 +56,7 @@ function vload_quote(::Type{T}) where {T <: NativeTypes}
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
     push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3, !tbaa !5")
     push!(instrs, "ret $typ %res")
-    :(Base.llvmcall(($decl,$(join(instrs, "\n"))), $T, Tuple{Ptr{$T}}, ptr))
+    :(llvmcall(($decl,$(join(instrs, "\n"))), $T, Tuple{Ptr{$T}}, ptr))
 end
 function vload_quote(::Type{T}, ::Type{I}) where {T <: NativeTypes, I}
     ityp = 'i' * string(8sizeof(I))
@@ -71,7 +71,7 @@ function vload_quote(::Type{T}, ::Type{I}) where {T <: NativeTypes, I}
     push!(instrs, "%ptr = bitcast i8* %iptr to $typ*")
     push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment, !alias.scope !3, !tbaa !5")
     push!(instrs, "ret $typ %res")
-    :(Base.llvmcall($(decl, join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i))
+    :(llvmcall($(decl, join(instrs, "\n")), $T, Tuple{Ptr{$T}, $I}, ptr, i))
 end
 function vstore_quote(::Type{T}, alias) where {T <: NativeTypes}
     ptyp = JuliaPointerType
@@ -85,7 +85,7 @@ function vstore_quote(::Type{T}, alias) where {T <: NativeTypes}
     noaliasstoreinstr = "store $typ %1, $typ* %ptr, align $alignment, !noalias !3, !tbaa !7"
     push!(instrs, alias ? aliasstoreinstr : noaliasstoreinstr)
     push!(instrs, "ret void")
-    :(Base.llvmcall($((decl, join(instrs, "\n"))), Cvoid, Tuple{Ptr{$T}, $T}, ptr, v))
+    :(llvmcall($((decl, join(instrs, "\n"))), Cvoid, Tuple{Ptr{$T}, $T}, ptr, v))
 end
 function vstore_quote(::Type{T}, ::Type{I}, alias) where {T <: NativeTypes, I}
     ityp = 'i' * string(8sizeof(I))
@@ -102,7 +102,7 @@ function vstore_quote(::Type{T}, ::Type{I}, alias) where {T <: NativeTypes, I}
     noaliasstoreinstr = "store $typ %1, $typ* %ptr, align $alignment, !noalias !3, !tbaa !7"
     push!(instrs, alias ? aliasstoreinstr : noaliasstoreinstr)
     push!(instrs, "ret void")
-    :(Base.llvmcall($(decl,join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i))
+    :(llvmcall($(decl,join(instrs, "\n")), Cvoid, Tuple{Ptr{$T}, $T, $I}, ptr, v, i))
 end
 
 function gepquote(::Type{T}, ::Type{I}, byte::Bool) where {T,I}
@@ -115,7 +115,7 @@ function gepquote(::Type{T}, ::Type{I}, byte::Bool) where {T,I}
     push!(instrs, "%iptr = ptrtoint $typ* %offsetptr to $ptyp")
     push!(instrs, "ret $ptyp %iptr")
     quote
-        Base.llvmcall(
+        llvmcall(
             $(join(instrs, "\n")),
             Ptr{$T}, Tuple{Ptr{$T}, $I},
             ptr, i
@@ -207,7 +207,7 @@ end
     push!(instrs, "ret $vptyp %iptr")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall(
+        llvmcall(
             $(join(instrs, "\n")),
             NTuple{$W,Core.VecElement{Ptr{$T}}}, Tuple{Ptr{$T}, NTuple{W,Core.VecElement{$I}}},
             ptr, i
@@ -231,7 +231,7 @@ end
     push!(instrs, "ret $ptyp %iptr")
     quote
         Base.@_inline_meta
-        Base.llvmcall(
+        llvmcall(
             $(join(instrs, "\n")),
             Ptr{$T}, Tuple{Ptr{$T}, $I},
             ptr, i
@@ -621,7 +621,7 @@ end
     end
     quote
         $(Expr(:meta,:inline))
-        Base.llvmcall(
+        llvmcall(
             $((decls, instrs)),
             Ptr{$T}, Tuple{Ptr{$T}}, ptr
         )

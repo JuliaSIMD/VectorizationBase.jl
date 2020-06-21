@@ -153,7 +153,7 @@ end
     push!(instrs, "ret i$(usize) %mask")
     quote
         $(Expr(:meta, :inline))
-        Mask{$W}(Base.llvmcall(
+        Mask{$W}(llvmcall(
             $(join(instrs, "\n")), $U, Tuple{Vec{$W,Bool}}, v
         ))
     end
@@ -235,7 +235,7 @@ end
     push!(instrs, "ret void")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($((join(decls, "\n"), join(instrs, "\n"))),
+        llvmcall($((join(decls, "\n"), join(instrs, "\n"))),
             Cvoid, Tuple{Ptr{$T}, $U, $U},
             ptr, v.u, mask.u)
     end
@@ -271,7 +271,7 @@ end
     push!(instrs, "ret void")
     quote
         $(Expr(:meta, :inline))
-        Base.llvmcall($((join(decls, "\n"), join(instrs, "\n"))),
+        llvmcall($((join(decls, "\n"), join(instrs, "\n"))),
             Cvoid, Tuple{Ptr{$T}, $U, $I, $U},
             ptr, v.u, ind, mask.u)
     end
