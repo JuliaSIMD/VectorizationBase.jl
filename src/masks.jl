@@ -32,7 +32,7 @@
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
 
-@inline Base.:(<<)(m::Mask{W}, i) where {W} = Mask{W}(m.u << i)
+@inline Base.:(<<)(m::Mask{W}, i) where {W} = Mask{W}(vleft_bitshift(m.u, i))
 @inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >> i)
 @inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >>> i)
 

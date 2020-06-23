@@ -12,8 +12,8 @@ function intlog2(N::I) where {I <: Integer}
 end
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
-nextpow2(W) = one(W) << (8sizeof(W) - leading_zeros(W-1))
-prevpow2(W) = one(W) << (8sizeof(W) - leading_zeros(W)-1)
+nextpow2(W) = vleft_bitshift(one(W), (8sizeof(W) - leading_zeros(W-1)))
+prevpow2(W) = vleft_bitshift(one(W), (8sizeof(W) - leading_zeros(W)-1))
     # W -= 1
     # W |= W >> 1
     # W |= W >> 2
@@ -105,6 +105,11 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 @inline Base.@pure vadd(a::Int32, b::Int32) = llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 @inline Base.@pure vsub(a::Int32, b::Int32) = llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 @inline Base.@pure vmul(a::Int32, b::Int32) = llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
+
+@inline Base.@pure vleft_bitshift(a::Int64, b::Int64) = llvmcall("%res = shl nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
+# @inline Base.@pure vright_bitshift(a::Int64, b::Int64) = llvmcall("%res = ashr nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
+@inline Base.@pure vleft_bitshift(a::Int32, b::Int32) = llvmcall("%res = shl nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
+# @inline Base.@pure vright_bitshift(a::Int32, b::Int32) = llvmcall("%res = ashr nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 
 @inline vadd(::Static{i}, j) where {i} = vadd(i, j)
 @inline vadd(i, ::Static{j}) where {j} = vadd(i, j)

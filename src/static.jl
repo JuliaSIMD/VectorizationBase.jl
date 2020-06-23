@@ -107,27 +107,27 @@ Base.show(io::IO, r::AbstractStaticUnitRange) = print(io, "$(first(r)):$(last(r)
 end
 @generated Base.divrem(::Static{N}, ::Static{D}) where {N,D} = divrem(N, D)
 
-@inline vadd(::Static{N}, i::Number) where {N} = vadd(N, i)
-@inline vadd(i::Number, ::Static{N}) where {N} = vadd(i, N)
-@inline vsub(::Static{N}, i::Number) where {N} = vsub(N, i)
-@inline vsub(i::Number, ::Static{N}) where {N} = vsub(i, N)
-
-
-@inline vadd(::Static{M}, ::Static{N}) where {M,N} = vadd(M, N)
-@inline vmul(::Static{N}, i::Number) where {N} = vmul(N, i)
-@inline vmul(i::Number, ::Static{N}) where {N} = vmul(i, N)
+for f ∈ [:(Base.:(>>)), :(Base.:(>>>)), :(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
+    @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
+    @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
+    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = $f(M, N)
+end
 @inline vmul(::Static{N}, i) where {N} = vmul(N, i)
 @inline vmul(i, ::Static{N}) where {N} = vmul(i, N)
-@inline vmul(::Static{M}, ::Static{N}) where {M,N} = vmul(M, N)
-@inline vsub(::Static{M}, ::Static{N}) where {M,N} = vsub(M, N)
 @inline Base.:+(::Static{N}, i) where {N} = vadd(N, i)
+@inline Base.:+(::Static{N}, i::Number) where {N} = vadd(N, i)
 @inline Base.:+(i, ::Static{N}) where {N} = vadd(N, i)
+@inline Base.:+(i::Number, ::Static{N}) where {N} = vadd(N, i)
 @inline Base.:+(::Static{M}, ::Static{N}) where {M,N} = vadd(M, N)
 @inline Base.:*(::Static{N}, i) where {N} = vmul(N, i)
+@inline Base.:*(::Static{N}, i::Number) where {N} = vmul(N, i)
 @inline Base.:*(i, ::Static{N}) where {N} = vmul(N, i)
+@inline Base.:*(i::Number, ::Static{N}) where {N} = vmul(N, i)
 @inline Base.:*(::Static{M}, ::Static{N}) where {M,N} = vmul(M, N)
 @inline Base.:-(::Static{N}, i) where {N} = vsub(N, i)
+@inline Base.:-(::Static{N}, i::Number) where {N} = vsub(N, i)
 @inline Base.:-(i, ::Static{N}) where {N} = vsub(i, N)
+@inline Base.:-(i::Number, ::Static{N}) where {N} = vsub(i, N)
 @inline Base.:-(::Static{M}, ::Static{N}) where {M,N} = vsub(M, N)
 @inline Base.checked_add(::Static{N}, i) where {N} = Base.checked_add(N, i)
 @inline Base.checked_add(i, ::Static{N}) where {N} = Base.checked_add(i, N)
@@ -135,24 +135,10 @@ end
 @inline Base.checked_sub(::Static{N}, i) where {N} = Base.checked_sub(N, i)
 @inline Base.checked_sub(i, ::Static{N}) where {N} = Base.checked_sub(i, N)
 @generated Base.checked_sub(::Static{M}, ::Static{N}) where {M,N} = Static{Base.checked_sub(M, N)}()
-@inline Base.:>>(::Static{N}, i) where {N} = N >> i
-@inline Base.:>>(i, ::Static{N}) where {N} = i >> N
-@inline Base.:>>(::Static{M}, ::Static{N}) where {M,N} = M >> N
-@inline Base.:<<(::Static{N}, i) where {N} = N << i
-@inline Base.:<<(i, ::Static{N}) where {N} = i << N
+@inline Base.:<<(::Static{N}, i) where {N} = vleft_bitshift(N, i)
+@inline Base.:<<(i, ::Static{N}) where {N} = vleft_bitshift(i, N)
 @inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = M << N
-@inline Base.:>>>(::Static{N}, i) where {N} = N >>> i
-@inline Base.:>>>(i, ::Static{N}) where {N} = i >>> N
-@inline Base.:>>>(::Static{M}, ::Static{N}) where {M,N} = M >>> N
-@inline Base.:&(::Static{N}, i) where {N} = N & i
-@inline Base.:&(i, ::Static{N}) where {N} = N & i
-@inline Base.:&(::Static{M}, ::Static{N}) where {M,N} = M & N
-@inline Base.:>(::Static{N}, i) where {N} = N > i
-@inline Base.:>(i, ::Static{N}) where {N} = i > N
-@inline Base.:>(::Static{M}, ::Static{N}) where {M,N} = M > N
-@inline Base.:<(::Static{N}, i) where {N} = N < i
-@inline Base.:<(i, ::Static{N}) where {N} = i < N
-@inline Base.:<(::Static{M}, ::Static{N}) where {M,N} = M < N
+
 @inline Base.:(==)(::Static{M}, i) where {M} = M == i
 @inline Base.:(==)(i, ::Static{M}) where {M} = M == i
 @inline Base.:(==)(::Static{M}, ::Static{N}) where {M,N} = false
@@ -343,4 +329,6 @@ for N ∈ [1,2,4,8,6,10]
     @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}) where {W,I} = vstore!(gep(ptr, lsm.data.i, Val{$N}()), v)
     @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}, m) where {W,I} = vstore!(gep(ptr, lsm.data.i, Val{$N}()), v, m)
 end
+
+
 
