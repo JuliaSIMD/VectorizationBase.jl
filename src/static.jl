@@ -3,7 +3,9 @@
 
 
 
-struct Static{N} <: Number end
+@eval struct Static{N} <: Number
+    (f::Type{<:Static})() = $(Expr(:new,:f))
+end
 Base.@pure Static(N) = Static{N}()
 @inline Static(::Val{N}) where {N} = Static{N}()
 @inline Base.Val(::Static{N}) where {N} = Val{N}()
