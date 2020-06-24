@@ -66,6 +66,7 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
 @inline SVec{W}(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W}(v::Vec{W,T}) where {W,T} = SVec{W,T}(v)
+@inline vbroadcast(::Val, b::Bool) = b
 @generated function vbroadcast(::Type{_Vec{_W,Ptr{T}}}, s::Ptr{T}) where {_W, T}
     W = _W + 1
     typ = "i$(8sizeof(Int))"
