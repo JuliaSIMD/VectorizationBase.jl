@@ -95,7 +95,7 @@ end
     instrs = String[]
     suffix = truncate_mask!(instrs, "%0", W, sizeof(U), 0)
     resv = "%resvec.$(suffix)"
-    push!(instrs, resv * " = xor <$W x i1> %mask.$(suffix), <$(join(("i1 true" for i in 1:4), ", "))>")
+    push!(instrs, resv * " = xor <$W x i1> %mask.$(suffix), <$(join(("i1 true" for i in 1:W), ", "))>")
     suffix = zext_mask!(instrs, resv, W, sizeof(U), suffix)
     push!(instrs, "ret $mtyp_input %res.$(suffix)")
     quote
