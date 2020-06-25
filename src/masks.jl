@@ -1,18 +1,71 @@
-
+function truncate_mask!(instrs, input, W, sizeU, suffix)
+    mtyp_input = "i$(8sizeU)"
+    mtyp_trunc = "i$(W)"
+    suffix += 1
+    if mtyp_input == mtyp_trunc
+        push!(instrs, "%mask.$(suffix) = bitcast $mtyp_input $input to <$W x i1>")
+    else
+        push!(instrs, "%masktrunc.$(suffix) = trunc $mtyp_input $input to $mtyp_trunc")
+        push!(instrs, "%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>")
+    end
+    suffix
+end
+function zext_mask!(instrs, input, W, sizeU, suffix)
+    mtyp_input = "i$(8sizeU)"
+    mtyp_trunc = "i$(W)"
+    suffix += 1
+    if mtyp_input == mtyp_trunc
+        push!(instrs, "%res.$(suffix) = bitcast <$W x i1> $input to $mtyp_input")
+    else
+        push!(instrs, "%restrunc.$(suffix) = bitcast <$W x i1> $input to $mtyp_trunc")
+        push!(instrs, "%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input")
+    end
+    suffix
+end
+function binary_mask_op(W, U, op)
+    mtyp_input = "i$(8sizeof(U))"
+    instrs = String[]
+    suffix1 = truncate_mask!(instrs, "%0", W, sizeof(U), 0)
+    suffix2 = truncate_mask!(instrs, "%1", W, sizeof(U), suffix1)
+    push!(instrs, "%combinedmask = $op <$W x i1> %mask.$(suffix1), %mask.$(suffix2)")
+    suffix = zext_mask!(instrs, "%combinedmask", W, sizeof(U), suffix2)
+    push!(instrs, "ret $mtyp_input %res.$(suffix)")
+    quote
+        $(Expr(:meta,:inline))
+        Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U, $U}, m1.u, m2.u))
+    end    
+end
 
 @inline Base.zero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
 
 @inline extract_data(m::Mask) = m.u
-@inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u & m2.u)
-@inline Base.:(&)(m::Mask{W}, u::UIntTypes) where {W} = Mask{W}(m.u & u)
-@inline Base.:(&)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u & m.u)
+@generated function andmask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+    binary_mask_op(W, U, "and")
+end
+@generated function ormask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+    binary_mask_op(W, U, "or")
+end
+@generated function xormask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+    binary_mask_op(W, U, "xor")
+end
+@generated function equalmask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+    binary_mask_op(W, U, "icmp eq")
+end
+@generated function notequalmask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+    binary_mask_op(W, U, "icmp ne")
+end
+
+
+@inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = andmask(m1, m2)
+@inline Base.:(&)(m::Mask{W}, u::UIntTypes) where {W} = andmask(m, Mask{W}(u))
+@inline Base.:(&)(u::UIntTypes, m::Mask{W}) where {W} = andmask(Mask{W}(u), m)
 
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
 
-@inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u | m2.u)
-@inline Base.:(|)(m::Mask{W}, u::UIntTypes) where {W} = Mask{W}(m.u | u)
-@inline Base.:(|)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u | m.u)
+@inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = ormask(m1, m2)
+@inline Base.:(|)(m::Mask{W}, u::UIntTypes) where {W} = ormask(m, Mask{W}(u))
+@inline Base.:(|)(u::UIntTypes, m::Mask{W}) where {W} = ormask(Mask{W}(u), m)
 
 @inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
 @inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
@@ -25,9 +78,9 @@
 @inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x03 : m.u)
 @inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) where {W} = Mask{W}(b ? 0x03 : m.u)
 
-@inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = Mask{W}(m1.u ⊻ m2.u)
-@inline Base.:(⊻)(m::Mask{W}, u::UIntTypes) where {W} = Mask{W}(m.u ⊻ u)
-@inline Base.:(⊻)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u ⊻ m.u)
+@inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = xormask(m1, m2)
+@inline Base.:(⊻)(m::Mask{W}, u::UIntTypes) where {W} = xormask(m, Mask{W}(u))
+@inline Base.:(⊻)(u::UIntTypes, m::Mask{W}) where {W} = xormask(Mask{W}(u), m)
 
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
@@ -36,8 +89,24 @@
 @inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >> i)
 @inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >>> i)
 
-@inline Base.:(~)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
-@inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
+@generated function Base.:(!)(m::Mask{W,U}) where {W,U}
+    mtyp_input = "i$(8sizeof(U))"
+    mtyp_trunc = "i$(W)"
+    instrs = String[]
+    suffix = truncate_mask!(instrs, "%0", W, sizeof(U), 0)
+    resv = "%resvec.$(suffix)"
+    push!(instrs, resv * " = xor <$W x i1> %mask.$(suffix), <$(join(("i1 true" for i in 1:4), ", "))>")
+    suffix = zext_mask!(instrs, resv, W, sizeof(U), suffix)
+    push!(instrs, "ret $mtyp_input %res.$(suffix)")
+    quote
+        $(Expr(:meta,:inline))
+        Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U}, m.u))
+    end
+end
+@inline Base.:(~)(m::Mask) = !m
+#@inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
+
+
 
 @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
 @inline Base.:(==)(m::Mask{W}, u::UIntTypes) where {W} = m.u == u
@@ -45,6 +114,12 @@
 @inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u != m2.u
 @inline Base.:(!=)(m::Mask{W}, u::UIntTypes) where {W} = m.u != u
 @inline Base.:(!=)(u::UIntTypes, m::Mask{W}) where {W} = u != m.u
+# @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = equalmask(m1, m2)
+# @inline Base.:(==)(m::Mask{W}, u::UIntTypes) where {W} = equalmask(m1, Mask{W}(m2))
+# @inline Base.:(==)(u::UIntTypes, m::Mask{W}) where {W} = equalmask(Mask{W}(m1), m2)
+# @inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = notequalmask(m1, m2)
+# @inline Base.:(!=)(m::Mask{W}, u::UIntTypes) where {W} = notequalmask(m1, Mask{W}(m2))
+# @inline Base.:(!=)(u::UIntTypes, m::Mask{W}) where {W} = notequalmask(Mask{W}(m1), m2)
 
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
 
