@@ -3,7 +3,7 @@ using CpuId, LLVM
 features = split(unsafe_string(LLVM.API.LLVMGetHostCPUFeatures()), ',')
 avx512f = any(isequal("+avx512f"), features)
 features2 = map(ext -> Base.Unicode.uppercase(ext[2:end]), features)
-present = map(ext -> , features)
+present = map(ext -> first(ext) == '+', features)
 
 setfeatures = join(map(ext -> "const " * Base.Unicode.uppercase(ext[2:end]) * '=' * string(first(ext) == '+'), features), "\n")
 
