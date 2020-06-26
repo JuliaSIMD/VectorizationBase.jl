@@ -9,6 +9,9 @@ end
 Base.@pure Static(N) = Static{N}()
 @inline Static(::Val{N}) where {N} = Static{N}()
 @inline Base.Val(::Static{N}) where {N} = Val{N}()
+@generated function static_sizeof(::Type{T}) where {T}
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Static, sizeof(T))))
+end
 
 Base.CartesianIndex(I::Tuple{<:Static,Vararg}) = CartesianVIndex(I)
 Base.CartesianIndex(I::Tuple{<:Integer,<:Static,Vararg}) = CartesianVIndex(I)
@@ -112,8 +115,14 @@ end
 for f ∈ [:(Base.:(>>)), :(Base.:(>>>)), :(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
     @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
     @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
-    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = $f(M, N)
+    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
 end
+@inline vadd(::Static{N}, ::Static{0}) where {N} = Static{N}()
+@inline vadd(::Static{0}, ::Static{N}) where {N} = Static{N}()
+@inline vmul(::Static{N}, ::Static{0}) where {N} = Static{0}()
+@inline vmul(::Static{0}, ::Static{N}) where {N} = Static{0}()
+@inline vmul(::Static{N}, ::Static{1}) where {N} = Static{N}()
+@inline vmul(::Static{1}, ::Static{N}) where {N} = Static{N}()
 @inline vmul(::Static{N}, i) where {N} = vmul(N, i)
 @inline vmul(i, ::Static{N}) where {N} = vmul(i, N)
 @inline Base.:+(::Static{N}, i) where {N} = vadd(N, i)
@@ -140,6 +149,7 @@ end
 @inline Base.:<<(::Static{N}, i) where {N} = vleft_bitshift(N, i)
 @inline Base.:<<(i, ::Static{N}) where {N} = vleft_bitshift(i, N)
 @inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = M << N
+@inline Base.:(%)(::Static{M}, ::Type{I}) where {M,I<:Integer} = M % I
 
 @inline Base.:(==)(::Static{M}, i) where {M} = M == i
 @inline Base.:(==)(i, ::Static{M}) where {M} = M == i
@@ -180,8 +190,8 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 @inline staticm1(i::Tuple{I}) where {I} = @inbounds (staticm1(i[1]),)
 @inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticm1(i[1]), staticm1(i[2]))
 @inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticm1(i[1]), staticm1(Base.tail(i))...)
-@generated staticmul(::Type{T}, ::Static{N}) where {T,N} = Static{sizeof(T) * N}()
-@generated staticmul(::Type{T}, ::Val{N}) where {T,N} = Val{sizeof(T) * N}()
+@generated staticmul(::Type{T}, ::Static{N}) where {T,N} = sizeof(T) * N
+@generated staticmul(::Type{T}, ::Val{N}) where {T,N} = sizeof(T) * N
 @inline staticmul(::Type{T}, N) where {T} = vmul(N, sizeof(T))
 @inline staticmul(::Type{T}, i::Tuple{}) where {T} = tuple()
 @inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
@@ -281,25 +291,48 @@ for T ∈ [:Int,:SVec]
     @eval @inline vmul(a::$T, ::One) = a
 end
 
-struct LazyStaticMul{N,T}
+abstract type AbstractLazyMul end
+struct LazyStaticMul{N,T} <: AbstractLazyMul
     data::T
 end
-
+struct LazyStaticMulAdd{N,M,T} <: AbstractLazyMul
+    data::T
+end
+@inline LazyStaticMul{N}(data::T) where {N,T} = LazyStaticMul{N,T}(data)
+@inline LazyStaticMulAdd{N,M}(data::T) where {N,M,T} = LazyStaticMulAdd{N,M,T}(data)
 # @inline vmul(::Static{N}, i::I) where {N,I<:Union{Integer,_MM}} = LazyStaticMul{N,I}(i)
 # @inline vmul(i::I, ::Static{N}) where {N,I<:Union{Integer,_MM}} = LazyStaticMul{N,I}(i)
 @inline vmul(::Static{N}, i::I) where {N,I<:Integer} = LazyStaticMul{N,I}(i)
 @inline vmul(i::I, ::Static{N}) where {N,I<:Integer} = LazyStaticMul{N,I}(i)
+@inline extract_data(a::LazyStaticMul{N,I}) where {N,I<:Integer} = vmul(N, a.data)
+@inline extract_data(a::LazyStaticMulAdd{N,M,I}) where {N,M,I<:Integer} = vadd(vmul(N, a.data), M)
+@inline extract_data(a::LazyStaticMul{N,I}) where {N,W,I<:_MM{W}} = _MM{W}(vmul(N, a.data.i))
+@inline extract_data(a::LazyStaticMulAdd{N,M,I}) where {N,M,W,I<:_MM{W}} = _MM{W}(vadd(vmul(N, a.data.i), M))
 @inline vadd(a::LazyStaticMul{N}, b) where {N} = vadd(vmul(N, a.data), b)
 @inline vadd(b, a::LazyStaticMul{N}) where {N} = vadd(b, vmul(N, a.data))
 @inline vadd(a::LazyStaticMul, ::Static{0}) = a
 @inline vadd(::Static{0}, a::LazyStaticMul) = a
-@inline vadd(a::LazyStaticMul{N}, ::Static{M}) where {M,N} = vadd(vmul(N, a.data), M)
-@inline vadd(::Static{M}, a::LazyStaticMul{N}) where {M,N} = vadd(vmul(N, a.data), M)
+@inline vadd(a::LazyStaticMul{N}, ::Static{M}) where {M,N} = LazyStaticMulAdd{N,M}(a.data)
+@inline vadd(::Static{M}, a::LazyStaticMul{N}) where {M,N} = LazyStaticMulAdd{N,M}(a.data)
 @inline vadd(a::LazyStaticMul{N}, b::LazyStaticMul{M}) where {M,N} = vadd(vmul(N, a.data), vmul(M, b.data))
-@inline vadd(a::LazyStaticMul{N,T}, b::LazyStaticMul{N,T}) where {N,T} = LazyStaticMul{N,T}(vadd(a.data, b.data))
+@inline vadd(a::LazyStaticMul{N,T}, b::LazyStaticMul{N,T}) where {N,T} = LazyStaticMul{N}(vadd(a.data, b.data))
+@inline vadd(a::LazyStaticMulAdd, ::Static{0}) = a
+@inline vadd(::Static{0}, a::LazyStaticMulAdd) = a
+@inline vadd(a::LazyStaticMulAdd, ::Static{M}) where {M} = vadd(extract_data(a),M)
+@inline vadd(::Static{M}, a::LazyStaticMulAdd) where {M} = vadd(M,extract_data(a))
+@inline vadd(a::LazyStaticMulAdd, b) = vadd(extract_data(a),b)
+@inline vadd(b, a::LazyStaticMulAdd) = vadd(b,extract_data(a))
 
 @inline vadd(a::LazyStaticMul{N,I}, ::_MM{W,Static{0}}) where {W,N,I<:Integer} = LazyStaticMul{N,_MM{W,I}}(_MM{W}(a.data))
 @inline vadd(::_MM{W,Static{0}}, a::LazyStaticMul{N,I}) where {W,N,I<:Integer} = LazyStaticMul{N,_MM{W,I}}(_MM{W}(a.data))
+
+@inline vadd(a::LazyStaticMul{N,I}, ::_MM{W,Static{M}}) where {W,M,N,I<:Integer} = LazyStaticMulAdd{N,M}(_MM{W}(a.data))
+@inline vadd(::_MM{W,Static{M}}, a::LazyStaticMul{N,I}) where {W,M,N,I<:Integer} = LazyStaticMulAdd{N,M}(_MM{W}(a.data))
+
+@inline vsub(a::Int, b::AbstractLazyMul) = vsub(a, extract_data(b))
+@inline vsub(b::AbstractLazyMul, a::Int) = vsub(extract_data(b), a)
+@inline vmul(a::Int, b::AbstractLazyMul) = vmul(a, extract_data(b))
+@inline vmul(b::AbstractLazyMul, a::Int) = vmul(extract_data(b), a)
 
 # @inline extract_data(a::LazyStaticMul{N}) where {N} = vmul(a.data, N)
 # @inline vload(ptr, lsm::LazyStaticMul{N}) where {N} = vload(gep(ptr, lsm.data, Val{N}()))
@@ -307,29 +340,41 @@ end
 # @inline vload(ptr, lsm::LazyStaticMul{N,SVec{W,I}}) where {N,W,I} = vload(Val{W}(), gep(ptr, lsm.data, Val{N}()))
 # @inline vload(ptr::Ptr{T}, lsm::LazyStaticMul{N,_Vec{W,I}}) where {T,N,W,I} = vload(_Vec{W,T}, gep(ptr, lsm.data, Val{N}()))
 
-@inline vload(ptr, lsm::LazyStaticMul{N}   ) where {N} = vload(ptr, vmul(N, lsm.data)   )
-@inline vload(ptr, lsm::LazyStaticMul{N}, m) where {N} = vload(ptr, vmul(N, lsm.data), m)
-@inline vstore!(ptr, v, lsm::LazyStaticMul{N}   ) where {N} = vstore!(ptr, v, vmul(N, lsm.data)   )
-@inline vstore!(ptr, v, lsm::LazyStaticMul{N}, m) where {N} = vstore!(ptr, v, vmul(N, lsm.data), m)
-@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N}   ) where {N} = vnoaliasstore!(ptr, v, vmul(N, lsm.data)   )
-@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N}, m) where {N} =! vnoaliasstore(ptr, v, vmul(N, lsm.data), m)
-
-@inline vload(ptr, lsm::LazyStaticMul{N,<:_MM{W}}   ) where {N,W} = vload(Val{W}(), ptr, vmul(N, lsm.data.i)   )
-@inline vload(ptr, lsm::LazyStaticMul{N,<:_MM{W}}, m) where {N,W} = vload(Val{W}(), ptr, vmul(N, lsm.data.i), m)
-@inline vstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}   ) where {N} = vstore!(ptr, v, vmul(N, lsm.data.i)   )
-@inline vstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}, m) where {N} = vstore!(ptr, v, vmul(N, lsm.data.i), m)
-@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}   ) where {N} = vnoaliasstore!(ptr, v, vmul(N, lsm.data.i)   )
-@inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{N,<:_MM}, m) where {N} = vnoaliasstore!(ptr, v, vmul(N, lsm.data.i), m)
+@inline vload(ptr, lsm::AbstractLazyMul   ) = vload(ptr, extract_data(lsm)   )
+@inline vload(ptr, lsm::AbstractLazyMul, m) = vload(ptr, extract_data(lsm), m)
+@inline vstore!(ptr, v, lsm::AbstractLazyMul   ) = vstore!(ptr, v, extract_data(lsm)   )
+@inline vstore!(ptr, v, lsm::AbstractLazyMul, m) = vstore!(ptr, v, extract_data(lsm), m)
+@inline vnoaliasstore!(ptr, v, lsm::AbstractLazyMul   ) = vnoaliasstore!(ptr, v, extract_data(lsm)   )
+@inline vnoaliasstore!(ptr, v, lsm::AbstractLazyMul, m) = vnoaliasstore!(ptr, v, extract_data(lsm), m)
 for N ∈ [1,2,4,8,6,10]
     @eval @inline vload(ptr, lsm::LazyStaticMul{$N}) = vload(gep(ptr, lsm.data, Val{$N}()))
     @eval @inline vload(ptr, lsm::LazyStaticMul{$N}, m) = vload(gep(ptr, lsm.data, Val{$N}()), m)
     @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N}) = vstore!(gep(ptr, lsm.data, Val{$N}()), v)
     @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N}, m) = vstore!(gep(ptr, lsm.data, Val{$N}()), v, m)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{$N}) = vnoaliasstore!(gep(ptr, lsm.data, Val{$N}()), v)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{$N}, m) = vnoaliasstore!(gep(ptr, lsm.data, Val{$N}()), v, m)
 
     @eval @inline vload(ptr, lsm::LazyStaticMul{$N,_MM{W,I}}) where {W,I}  = vload(Val{W}(), gep(ptr, lsm.data.i, Val{$N}()))
     @eval @inline vload(ptr, lsm::LazyStaticMul{$N,_MM{W,I}}, m) where {W,I} = vload(Val{W}(), gep(ptr, lsm.data.i, Val{$N}()), m)
     @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}) where {W,I} = vstore!(gep(ptr, lsm.data.i, Val{$N}()), v)
     @eval @inline vstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}, m) where {W,I} = vstore!(gep(ptr, lsm.data.i, Val{$N}()), v, m)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}) where {W,I} = vnoaliasstore!(gep(ptr, lsm.data.i, Val{$N}()), v)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMul{$N,_MM{W,I}}, m) where {W,I} = vnoaliasstore!(gep(ptr, lsm.data.i, Val{$N}()), v, m)
+
+
+    @eval @inline vload(ptr, lsm::LazyStaticMulAdd{$N,M}) where {M} = vload(gepbyte(gep(ptr, lsm.data, Val{$N}()),M))
+    @eval @inline vload(ptr, lsm::LazyStaticMulAdd{$N,M}, m) where {M} = vload(gepbyte(gep(ptr, lsm.data, Val{$N}()),M), m)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M}) where {M} = vstore!(gepbyte(gep(ptr, lsm.data, Val{$N}()),M), v)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M}, m) where {M} = vstore!(gepbyte(gep(ptr, lsm.data, Val{$N}()),M), v, m)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M}) where {M} = vnoaliasstore!(gepbyte(gep(ptr, lsm.data, Val{$N}()),M), v)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M}, m) where {M} = vnoaliasstore!(gepbyte(gep(ptr, lsm.data, Val{$N}()),M), v, m)
+
+    @eval @inline vload(ptr, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}) where {M,W,I}  = vload(Val{W}(), gepbyte(gep(ptr, lsm.data.i, Val{$N}()), M))
+    @eval @inline vload(ptr, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}, m) where {M,W,I} = vload(Val{W}(), gepbyte(gep(ptr, lsm.data.i, Val{$N}()), M), m)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}) where {M,W,I} = vstore!(gepbyte(gep(ptr, lsm.data.i, Val{$N}()),M), v)
+    @eval @inline vstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}, m) where {M,W,I} = vstore!(gepbyte(gep(ptr, lsm.data.i, Val{$N}()),M), v, m)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}) where {M,W,I} = vnoaliasstore!(gepbyte(gep(ptr, lsm.data.i, Val{$N}()),M), v)
+    @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}, m) where {M,W,I} = vnoaliasstore!(gepbyte(gep(ptr, lsm.data.i, Val{$N}()),M), v, m)
 end
 
 

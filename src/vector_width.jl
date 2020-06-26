@@ -116,6 +116,8 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 @inline vsub(::Static{i}, j) where {i} = vsub(i, j)
 @inline vsub(i, ::Static{j}) where {j} = vsub(i, j)
 
+@inline staticmul(::Val{W}, i) where {W} = vmul(Static(W), i)
+@inline staticmuladd(::Val{W}, b, c) where {W} = vadd(vmul(Static(W), b), c)
 @inline valmul(::Val{W}, i) where {W} = vmul(W, i)
 @inline valadd(::Val{W}, i) where {W} = vadd(W, i)
 @inline valsub(::Val{W}, i) where {W} = vsub(W, i)
@@ -127,8 +129,8 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 @inline valadd(::Val{W}, i::T) where {W,T<:Integer} = vadd((W % T), i)
 @inline valsub(::Val{W}, i::T) where {W,T<:Integer} = vsub((W % T), i)
 @inline valrem(::Val{W}, i::T) where {W,T<:Integer} = i & ((W % T) - one(T))
-@inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = vadd(vmul((W % T), b), c)
-@inline valmulsub(::Val{W}, b::T, c::T) where {W,T<:Integer} = vsub(vmul((W % T), b), c)
+@inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = vadd(vmul(W % T, b), c)
+@inline valmulsub(::Val{W}, b::T, c::T) where {W,T<:Integer} = vsub(vmul(W % T, b), c)
 
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
@@ -136,8 +138,7 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 
 @inline _MM(::Val{W}) where {W} = _MM{W}(0)
 @inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
-@inline _MM(::Val{W}, ::Static{I}) where {W,I} = _MM{W}(I)
-@inline _MM(::Val{W}, ::Static{0}) where {W} = _MM{W}(Static{0}())
+@inline _MM{W}(a::LazyStaticMul) where {W} = _MM{W}(extract_data(a))
 @inline gep(ptr::Ptr, i::_MM) = gep(ptr, i.i)
 
 @inline staticm1(i::_MM{W,I}) where {W,I} = _MM{W}(vsub(i.i, one(I)))
