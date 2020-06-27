@@ -234,6 +234,7 @@ end
 include("cartesianvindex.jl")
 include("static.jl")
 include("vectorizable.jl")
+include("strideprodcsestridedpointers.jl")
 include("cpu_info.jl")
 include("vector_width.jl")
 include("number_vectors.jl")

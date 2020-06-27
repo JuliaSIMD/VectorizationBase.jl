@@ -1,0 +1,113 @@
+"""
+
+Basically:
+
+if I ∈ [3,5,7,9]
+    c[(I - 1) >> 1
+else
+    b * I
+end
+
+because
+
+c = b .* [3, 5, 7, 9]
+
+
+"""
+@generated function vmulnoth(::Static{I}, b, c::NTuple{N,Int}) where {I,N}
+    default = Expr(:block, Expr(:meta,:inline), Expr(:call, :vmul, Expr(:call, Expr(:curly, :Static, I)), :b))
+    Is = (I - 1) >> 1
+    if isodd(I) && 1 ≤ Is ≤ N
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :getindex, :c, Is))
+    else
+        default
+    end
+end
+@inline vmulnoth(a, b, c) = vmul(a, b)
+@inline vmulnoth(a::Static, b, ::Nothing) where {I} = vmul(a, b)
+@inline tdot(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = vmulnoth(Static{I1}(),b[1],c[1])
+@inline tdot(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = vmul(Static{I1}(),b[1])
+@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = vmul(a[1],b[1])
+
+@inline tdot(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = vadd(vmulnoth(Static{I1}(),b[1],c[1]), tdot(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdot(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = vadd(vmul(Static{I1}(),b[1]), tdot(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdot(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = vadd(vmul(a[1],b[1]), tdot(Base.tail(a), Base.tail(b), Base.tail(c)))
+
+struct OffsetPrecalc{T,P<:AbstractStridedPointer{T},I} <: AbstractStridedPointer{T}
+    ptr::P
+    precalc::I
+end
+@inline Base.pointer(ptr::OffsetPrecalc) = pointer(ptr.ptr)
+@inline Base.similar(ptr::OffsetPrecalc, p::Ptr) = OffsetPrecalc(similar(ptr.ptr, p), ptr.precalc)
+@inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(p.ptr)
+@inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
+@inline offsetprecalc(x, ::Any) = x
+@inline offsetprecalc(x::PackedStridedBitPointer, ::Val{<:Any}) = x
+@inline offsetprecalc(x::RowMajorStridedBitPointer, ::Val{<:Any}) = x
+# descript is a tuple of (unrollfactor) for ech ind; if it shouldn't preallocate, unrollfactor may be set to 1
+function precalc_quote_from_descript(descript)
+    precalc = Expr(:tuple)
+    anyprecalcs = false
+    pstrides = Expr(:block, Expr(:(=), :pstride, Expr(:(.), :p, QuoteNode(:strides))))
+    for (i,uf) ∈ enumerate(descript)
+        t = Expr(:tuple)
+        if uf < 4
+            push!(precalc.args, nothing)
+        else
+            anyprecalcs = true
+            pstride_i = Symbol(:pstride_, i)
+            push!(pstrides.args, Expr(:(=), pstride_i, Expr(:ref, :pstride, i)))
+            for u ∈ 3:uf-1
+                if isodd(u)
+                    push!(t.args, Expr(:call, :vmul, u, pstride_i))
+                end
+            end
+            push!(precalc.args, t)
+        end        
+    end
+    if anyprecalcs
+        Expr(:block, Expr(:meta,:inline), pstrides, Expr(:call, :OffsetPrecalc, :p, precalc))
+    else
+        Expr(:block, Expr(:meta,:inline), :p)
+    end
+end
+@inline offsetprecalc(p::AbstractColumnMajorStridedPointer{T,0}, ::Val{<:Any}) where {T} = p
+@generated function offsetprecalc(p::AbstractColumnMajorStridedPointer, ::Val{descript}) where {descript}
+    precalc_quote_from_descript(Base.tail(descript))
+end
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer}, ::Tuple{}) where {T} = 0
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer{T}}, i::Tuple{I}) where {I,T} = @inbounds vmulnp(static_sizeof(T), i[1])
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer{T}}, i::Integer) where {T} = vmulnp(static_sizeof(T), i)
+@inline function offset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer{T}}, i::Tuple{I1,I2,Vararg}) where {I1,I2,T}
+    @inbounds vmuladdnp(static_sizeof(T), i[1], tdot(Base.tail(i), ptr.ptr.strides, ptr.precalc))
+end
+
+
+@inline offsetprecalc(p::AbstractRowMajorStridedPointer{T,0}, ::Val{<:Any}) where {T} = p
+@generated function offsetprecalc(p::AbstractRowMajorStridedPointer, ::Val{descript}) where {descript}
+    precalc_quote_from_descript(Base.tail(reverse(descript)))
+end
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractRowMajorStridedPointer}, ::Tuple{}) where {T} = 0
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractRowMajorStridedPointer{T}}, i::Tuple{I}) where {I,T} = @inbounds vmulnp(static_sizeof(T), i[1])
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractRowMajorStridedPointer{T}}, i::Integer) where {T} = vmulnp(static_sizeof(T), i)
+@inline function offset(ptr::OffsetPrecalc{T,<:AbstractRowMajorStridedPointer{T,1}}, i::Tuple{I1,I2}) where {I1,I2,T}
+    @inbounds vmuladdnp(static_sizeof(T), i[2], vmulnoth(i[1], ptr.ptr.strides[1], ptr.precalc[1]))
+end
+@inline function offset(ptr::OffsetPrecalc{T,<:AbstractRowMajorStridedPointer{T}}, i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3,T}
+    ri = reverse(i)
+    @inbounds vmuladdnp(static_sizeof(T), ri[1], tdot(Base.tail(ri), ptr.ptr.strides, ptr.precalc))
+end
+
+@generated function offsetprecalc(p::AbstractSparseStridedPointer, ::Val{descript}) where {descript}
+    precalc_quote_from_descript(descript)
+end
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer}, ::Tuple{}) where {T} = 0
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer{T}}, i::Tuple{I}) where {I,T} = @inbounds vmulnoth(i[1], ptr.ptr.strides[1], ptr.precalc[1])
+@inline offset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer{T}}, i::Integer) where {T} = @inbounds vmulnoth(i, ptr.ptr.strides[1], ptr.precalc[1])
+@inline function offset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer{T}}, i::Tuple{I1,I2,Vararg}) where {I1,I2,T}
+    @inbounds tdot(i, ptr.ptr.strides, ptr.precalc)
+end
+
+
+
+
