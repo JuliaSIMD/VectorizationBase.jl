@@ -24,7 +24,7 @@ c = b .* [3, 5, 7, 9]
     end
 end
 @inline vmulnoth(a, b, c) = vmul(a, b)
-@inline vmulnoth(a::Static, b, ::Nothing) where {I} = vmul(a, b)
+@inline vmulnoth(a::Static, b, ::Nothing) = vmul(a, b)
 @inline tdot(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = vmulnoth(Static{I1}(),b[1],c[1])
 @inline tdot(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = vmul(Static{I1}(),b[1])
 @inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = vmul(a[1],b[1])
