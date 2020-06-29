@@ -199,11 +199,6 @@ static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
 @inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
 @inline Base.ntuple(f::F, ::Static{N}) where {F,N} = ntuple(f, Val{N}())
 
-struct LazyP1{T}
-    data::T
-end
-@inline staticm1(d::LazyP1) = d.data
-
 
 @inline maybestaticfirst(A) = first(A)
 @inline maybestaticfirst(::StaticUnitRange{L}) where {L} = Static{L}()
@@ -376,6 +371,7 @@ for N ∈ [1,2,4,8,6,10]
     @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}) where {M,W,I} = vnoaliasstore!(gepbyte(gep(ptr, lsm.data.i, Val{$N}()),M), v)
     @eval @inline vnoaliasstore!(ptr, v, lsm::LazyStaticMulAdd{$N,M,_MM{W,I}}, m) where {M,W,I} = vnoaliasstore!(gepbyte(gep(ptr, lsm.data.i, Val{$N}()),M), v, m)
 end
+
 
 
 

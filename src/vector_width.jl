@@ -62,7 +62,6 @@ function pick_vector_width(N::Integer, size_T::Integer)
     first(downadjust_W_and_Wshift(N, W, 0))
 end
 
-
 pick_vector_width(::Symbol, T) = pick_vector_width(T)
 pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
 
