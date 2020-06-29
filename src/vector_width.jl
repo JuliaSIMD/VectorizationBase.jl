@@ -106,8 +106,9 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 @inline Base.@pure vmul(a::Int32, b::Int32) = llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 
 @inline Base.@pure vleft_bitshift(a::Int64, b::Int64) = llvmcall("%res = shl nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
-# @inline Base.@pure vright_bitshift(a::Int64, b::Int64) = llvmcall("%res = ashr nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
 @inline Base.@pure vleft_bitshift(a::Int32, b::Int32) = llvmcall("%res = shl nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
+
+# @inline Base.@pure vright_bitshift(a::Int64, b::Int64) = llvmcall("%res = ashr nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
 # @inline Base.@pure vright_bitshift(a::Int32, b::Int32) = llvmcall("%res = ashr nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 
 @inline vadd(::Static{i}, j) where {i} = vadd(i, j)

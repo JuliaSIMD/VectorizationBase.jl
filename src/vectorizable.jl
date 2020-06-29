@@ -131,8 +131,9 @@ for T ∈ [Bool,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64,Float32,Float6
         @eval @inline vload(ptr::Ptr{$T}, i::$I) = $(vload_quote(T, I))
         @eval @inline vstore!(ptr::Ptr{$T}, v::$T, i::$I) = $(vstore_quote(T, I, true))
         @eval @inline vnoaliasstore!(ptr::Ptr{$T}, v::$T, i::$I) = $(vstore_quote(T, I, false))
+        # @eval @inline gep(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, false))
         @eval @inline Base.@pure gep(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, false))
-        # @eval @inline Base.@pure gepbyte(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, true))
+        @eval @inline Base.@pure gepbyte(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, true))
         # @eval @inline gep(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, false))
         # @eval @inline gepbyte(ptr::Ptr{$T}, i::$I) = $(gepquote(T, I, true))
     end    
@@ -184,12 +185,11 @@ ptrx[2]
 """
 abstract type AbstractPointer{T} end
 
-# @generated function gepbyte(ptr::Ptr{T}, i::I) where {T, I <: Integer}
-#     q = gepquote(T, I, true)
-#     pushfirst!(q.args, Expr(:meta, :inline))
-#     q
-# end
-@inline gepbyte(ptr::Ptr, i::Integer) = ptr + i
+@generated function gepbyte(ptr::Ptr{T}, i::I) where {T, I <: Integer}
+    q = gepquote(T, I, true)
+    pushfirst!(q.args, Expr(:meta, :inline))
+    q
+end
 @generated function gep(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
     q = gepquote(T, I, false)
     pushfirst!(q.args, Expr(:meta, :inline))
