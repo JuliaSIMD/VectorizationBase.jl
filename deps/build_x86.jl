@@ -5,19 +5,18 @@ offsetnottwo(::Nothing) = true
 offsetnottwo(m::RegexMatch) = m.offset != 2
 features = filter(ext -> offsetnottwo(match(r"\d", ext)), features)
 avx512f = any(isequal("+avx512f"), features)
-
+avx2 = any(isequal("+avx2"), features)
+avx = any(isequal("+avx"), features)
 
 extension_name(ext) = replace(Base.Unicode.uppercase(ext[2:end]), r"\." => "_")
 present = map(ext -> first(ext) == '+', features)
 
 setfeatures = join(map(ext -> "const " * extension_name(ext) * '=' * string(first(ext) == '+'), features), "\n")
 
-register_size = avx512f ? 64 : 32
+register_size = avx512f ? 64 : (avx ? 32 : 16)
 register_count = avx512f ? 32 : 16
 cache_size = CpuId.cachesize()
 num_cores = CpuId.cpucores()
-
-avx2 = any(isequal("+avx2"), features)
 
 # Should I just add all the flags in features?
 cpu_info_string = setfeatures * """
