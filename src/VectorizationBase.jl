@@ -1,8 +1,10 @@
 module VectorizationBase
 
-isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
+using LinearAlgebra, Libdl
+const LLVM_SHOULD_WORK = isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
-using LinearAlgebra
+# isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
+
 # using Base: llvmcall
 # using Base: llvmcall
 @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
@@ -238,7 +240,16 @@ include("cartesianvindex.jl")
 include("static.jl")
 include("vectorizable.jl")
 include("strideprodcsestridedpointers.jl")
-include("cpu_info.jl")
+@static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
+    @static if Base.libllvm_version >= v"8" && LLVM_SHOULD_WORK
+        include("cpu_info_x86_llvm.jl")
+    else
+        include("cpu_info_x86_cpuid.jl")
+    end
+else
+    include("cpu_info_generic.jl")
+end
+
 include("vector_width.jl")
 include("number_vectors.jl")
 include("masks.jl")
