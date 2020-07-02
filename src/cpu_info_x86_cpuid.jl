@@ -7,7 +7,7 @@ const FP256 = (CpuId.cpufeature(CpuId.FP256)) # Is AVX2 fast?
 const CACHELINE_SIZE = (CpuId.cachelinesize())
 const CACHE_SIZE = CpuId.cachesize()
 const NUM_CORES = CpuId.cpucores()
-const FMA3 = (CpuId.cpufeature(CpuId.FMA3))
+const FMA = (CpuId.cpufeature(CpuId.FMA3))
 const AVX2 = (CpuId.cpufeature(CpuId.AVX2))
 const AVX512F = (CpuId.cpufeature(CpuId.AVX512F))
 const AVX512ER = (CpuId.cpufeature(CpuId.AVX512ER))
@@ -18,4 +18,5 @@ const AVX512DQ = (CpuId.cpufeature(CpuId.AVX512DQ))
 const AVX512CD = (CpuId.cpufeature(CpuId.AVX512CD))
 const SIMD_NATIVE_INTEGERS = (CpuId.cpufeature(CpuId.AVX2))
 
+const FMA3 = FMA
 
