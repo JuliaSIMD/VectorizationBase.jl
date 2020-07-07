@@ -404,4 +404,17 @@ end
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
 
+@generated function Base.isodd(i::_MM{W}) where {W}
+    U = mask_type(W)
+    oddfirst = 0x55555555555555555555555555555555 % U
+    evenfirst = oddfirst << 1
+    Expr(:block, Expr(:meta, :inline), :(isodd(i.i & (W - 1)) ? Mask{$W}($oddfirst) : Mask{$W}($evenfirst)))
+end
+@generated function Base.iseven(i::_MM{W}) where {W}
+    U = mask_type(W)
+    oddfirst = 0x55555555555555555555555555555555 % U
+    evenfirst = oddfirst << 1
+    Expr(:block, Expr(:meta, :inline), :(isodd(i.i & (W - 1)) ? Mask{$W}($evenfirst) : Mask{$W}($oddfirst)))
+end
+
 

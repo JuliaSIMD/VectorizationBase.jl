@@ -224,3 +224,4 @@ end
 # @inline _vload(ptr::AbstractPointer, i) = _vload(ptr.ptr, offset(ptr, i))
 # @inline vload(ptr::AbstractPointer{T}, i::Tuple) where {T} = _vload(ptr.ptr, offset(ptr, i))
 
+
