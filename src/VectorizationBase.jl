@@ -1,7 +1,7 @@
 module VectorizationBase
 
 using LinearAlgebra, Libdl
-const LLVM_SHOULD_WORK = isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
+const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
