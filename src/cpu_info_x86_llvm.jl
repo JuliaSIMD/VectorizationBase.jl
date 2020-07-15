@@ -1,7 +1,7 @@
 
-import CpuId, LLVM
+import CpuId
 
-let features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ) , split(unsafe_string(LLVM.API.LLVMGetHostCPUFeatures()), ','))
+let features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ) , split(unsafe_string(ccall(:LLVMGetHostCPUFeatures, Cstring, ())), ','))
     offsetnottwo(::Nothing) = true
     offsetnottwo(m::RegexMatch) = m.offset != 2
 
