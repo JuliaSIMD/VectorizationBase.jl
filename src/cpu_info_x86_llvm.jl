@@ -4,7 +4,8 @@ import CpuId, Libdl
 
 let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist()))),
     gethostcpufeatures = Libdl.dlsym(llvmlib, :LLVMGetHostCPUFeatures),
-    features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ), split(unsafe_string(ccall(gethostcpufeatures, Cstring, ())), ','))
+    features_cstring = ccall(gethostcpufeatures, Cstring, ()),
+    features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ), split(unsafe_string(features_cstring), ','))
 
     offsetnottwo(::Nothing) = true
     offsetnottwo(m::RegexMatch) = m.offset != 2
@@ -29,6 +30,7 @@ let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), 
     for ext ∈ features
         @eval const $(Symbol(replace(Base.Unicode.uppercase(ext[2:end]), r"\." => "_"))) = $(first(ext) == '+')
     end
+    Libc.free(features_cstring)
 end
 
 const FMA3 = FMA
