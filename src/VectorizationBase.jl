@@ -1,7 +1,7 @@
 module VectorizationBase
 
 using LinearAlgebra, Libdl
-# const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
+const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
@@ -241,7 +241,7 @@ include("static.jl")
 include("vectorizable.jl")
 include("strideprodcsestridedpointers.jl")
 @static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
-    @static if Base.libllvm_version >= v"8"
+    @static if Base.libllvm_version >= v"8" && LLVM_SHOULD_WORK
         include("cpu_info_x86_llvm.jl")
     else
         include("cpu_info_x86_cpuid.jl")
