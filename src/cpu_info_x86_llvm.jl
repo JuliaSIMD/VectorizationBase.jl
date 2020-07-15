@@ -1,7 +1,8 @@
 
 import CpuId, LLVM
 
-let features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ) , split(unsafe_string(LLVM.API.LLVMGetHostCPUFeatures()), ','))
+let features_cstring = LLVM.API.LLVMGetHostCPUFeatures()
+    features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ) , split(unsafe_string(features_cstring), ','))
     offsetnottwo(::Nothing) = true
     offsetnottwo(m::RegexMatch) = m.offset != 2
 
@@ -25,6 +26,7 @@ let features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.off
     for ext ∈ features
         @eval const $(Symbol(replace(Base.Unicode.uppercase(ext[2:end]), r"\." => "_"))) = $(first(ext) == '+')
     end
+    Libc.free(features_cstring)
 end
 
 const FMA3 = FMA
