@@ -6,9 +6,9 @@ using LinearAlgebra, Libdl
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
 # using Base: llvmcall
-# using Base: llvmcall
-@inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
-@inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
+using Base: llvmcall
+# @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
+# @inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
 
 export Vec, VE, SVec, Mask, _MM,
     firstval, gep, gesp,
