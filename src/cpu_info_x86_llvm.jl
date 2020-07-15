@@ -1,7 +1,11 @@
 
-import CpuId
+import CpuId, Libdl
 
-let features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ) , split(unsafe_string(ccall(:LLVMGetHostCPUFeatures, Cstring, ())), ','))
+
+let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist()))),
+    gethostcpufeatures = Libdl.dlsym(llvmlib, :LLVMGetHostCPUFeatures),
+    features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ), split(unsafe_string(ccall(gethostcpufeatures, Cstring, ())), ','))
+
     offsetnottwo(::Nothing) = true
     offsetnottwo(m::RegexMatch) = m.offset != 2
 
