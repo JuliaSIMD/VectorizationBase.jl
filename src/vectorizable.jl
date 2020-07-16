@@ -347,6 +347,32 @@ end
 end
 @inline pointerforcomparison(ptr::AbstractStridedPointer, i::Tuple) = gep(ptr, i)
 @inline pointerforcomparison(ptr::AbstractStridedPointer) = pointer(ptr)
+
+
+@generated function subsetview(ptr::PermutedDimsStridedPointer{S1,S2}, ::Val{I}, i) where {S1,S2,I}
+    s1new = Expr(:tuple)
+    s2new = Expr(:tuple)
+    resize!(s2new.args, length(S1)-1)
+    Iinner = S1[I]
+    i = 0
+    for s ∈ S1
+        if s < Iinner
+            i += 1
+            push!(s1new.args, s)
+            s2new.args[s] = i
+        elseif s > Iinner
+            i += 1
+            push!(s1new.args, s - 1)
+            s2new.args[s-1] = i
+        end
+    end
+    sv = :(subsetview(ptr.ptr, Val{$Iinner}(), i))
+    quote
+        $(Expr(:meta,:inline))
+        PermutedDimsStridedPointer{$s1new,$s2new}($sv)
+    end
+end
+
 # @inline function stridedpointer(A::PermutedDimsArray{T,2,(2,1),(2,1)}) where {T}
 #     RowMajorStridedPointer(stridedp
 # end
