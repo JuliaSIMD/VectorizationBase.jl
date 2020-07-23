@@ -93,8 +93,8 @@ for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline Base.any(m::Mask{$W,$U}) = m.u != $(zero(U))
     @eval @inline Base.all(m::Mask{$W,$U}) = m.u == $(typemax(U))
 end
-@inline Base.any(m::Mask{W,U}) where {W} = (m.u & max_mask(Val{W}()).u) != zero(m.u)
-@inline Base.all(m::Mask{W,U}) where {W} = (m.u & max_mask(Val{W}()).u) == (max_mask(Val{W}()).u)
+@inline Base.any(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) != zero(m.u)
+@inline Base.all(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) == (max_mask(Val{W}()).u)
 
 @generated function Base.:(!)(m::Mask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"
@@ -165,7 +165,7 @@ end
     U = mask_type(W)
     Mask{W,U}(one(U)<<W - one(U))
 end
-@inline max_mask(::Type{T}) = max_mask(pick_vector_width_val(T))
+@inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width_val(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
 @generated function mask(::Type{T}, l::Integer) where {T}
