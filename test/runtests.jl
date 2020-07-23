@@ -111,7 +111,9 @@ end
 
         @test !all(Mask{8}(0xfc))
         @test !all(Mask{4}(0xfc))
+        @test all(Mask{8}(0xff))
         @test all(Mask{4}(0xcf))
+        
         @test any(Mask{8}(0xfc))
         @test any(Mask{4}(0xfc))
         @test !any(Mask{8}(0x00))
