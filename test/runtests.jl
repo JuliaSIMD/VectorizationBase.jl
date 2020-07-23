@@ -108,6 +108,14 @@ end
         @test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(VectorizationBase.pick_vector_width_val(Float64), w), 1:W64)
 
         @test VectorizationBase.vbroadcast(Val(8), true) === true
+
+        @test !all(Mask{8}(0xfc))
+        @test !all(Mask{4}(0xfc))
+        @test all(Mask{4}(0xcf))
+        @test any(Mask{8}(0xfc))
+        @test any(Mask{4}(0xfc))
+        @test !any(Mask{8}(0x00))
+        @test !any(Mask{4}(0xf0))
 end
 
 @testset "number_vectors.jl" begin
