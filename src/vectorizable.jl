@@ -864,8 +864,9 @@ end
     x = ptr.strides
     @inbounds SparseStridedPointer(pointer(ptr), (vadd(x[1], sizeof(T)),))
 end
-@generated function double_index(ptr::SparseStridedPointer{T,K}, ::Val{N}, ::Val{M}) where {K,N,M, T}
+@generated function double_index(ptr::SparseStridedPointer{T,K}, ::Val{Nm1}, ::Val{Mm1}) where {K,Nm1,Mm1, T}
     tup = Expr(:tuple)
+    N = Nm1 + 1; M = Mm1 + 1
     for k ∈ 1:K
         k == N && continue
         if k == M
@@ -881,11 +882,12 @@ end
         SparseStridedPointer(pointer(ptr), xabridged)
     end
 end
-@generated function double_index(ptr::StaticStridedPointer{T,X}, ::Val{N}, ::Val{M}) where {X,N,M,T}
+@generated function double_index(ptr::StaticStridedPointer{T,X}, ::Val{Nm1}, ::Val{Mm1}) where {X,Nm1,Mm1,T}
     tup = Expr(:curly, :Tuple)
     Xparam = X.parameters
+    N = Nm1 + 1; M = Mm1 + 1
     for k ∈ eachindex(Xparam)
-        k == N + 1 && continue
+        k == N && continue
         if k == M
             push!(tup.args, (Xparam[N])::Int + (Xparam[M])::Int)
         else

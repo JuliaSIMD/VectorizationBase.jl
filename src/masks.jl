@@ -89,6 +89,13 @@ end
 @inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >> i)
 @inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >>> i)
 
+for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
+    @eval @inline Base.any(m::Mask{$W,$U}) = m.u != $(zero(U))
+    @eval @inline Base.all(m::Mask{$W,$U}) = m.u == $(typemax(U))
+end
+@inline Base.any(m::Mask{W,U}) where {W} = (m.u & max_mask(Val{W}()).u) != zero(m.u)
+@inline Base.all(m::Mask{W,U}) where {W} = (m.u & max_mask(Val{W}()).u) == (max_mask(Val{W}()).u)
+
 @generated function Base.:(!)(m::Mask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"
     mtyp_trunc = "i$(W)"
@@ -105,7 +112,6 @@ end
 end
 @inline Base.:(~)(m::Mask) = !m
 #@inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
-
 
 
 @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
@@ -155,11 +161,11 @@ end
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask), zero(mask_type(W))))
 end
 
-@generated function max_mask(::Type{T}) where {T}
-    W = pick_vector_width(T)
+@generated function max_mask(::Val{W}) where {W}
     U = mask_type(W)
     Mask{W,U}(one(U)<<W - one(U))
 end
+@inline max_mask(::Type{T}) = max_mask(pick_vector_width_val(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
 @generated function mask(::Type{T}, l::Integer) where {T}
