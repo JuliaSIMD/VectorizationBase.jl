@@ -3,9 +3,9 @@ function truncate_mask!(instrs, input, W, sizeU, suffix)
     mtyp_trunc = "i$(W)"
     suffix += 1
     if mtyp_input == mtyp_trunc
-        push!(instrs, "%mask.$(suffix) = bitcast $mtyp_input $input to <$W x i1>")
+        push!(instrs, "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>")
     else
-        push!(instrs, "%masktrunc.$(suffix) = trunc $mtyp_input $input to $mtyp_trunc")
+        push!(instrs, "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc")
         push!(instrs, "%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>")
     end
     suffix
@@ -15,9 +15,9 @@ function zext_mask!(instrs, input, W, sizeU, suffix)
     mtyp_trunc = "i$(W)"
     suffix += 1
     if mtyp_input == mtyp_trunc
-        push!(instrs, "%res.$(suffix) = bitcast <$W x i1> $input to $mtyp_input")
+        push!(instrs, "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input")
     else
-        push!(instrs, "%restrunc.$(suffix) = bitcast <$W x i1> $input to $mtyp_trunc")
+        push!(instrs, "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc")
         push!(instrs, "%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input")
     end
     suffix
@@ -25,10 +25,10 @@ end
 function binary_mask_op(W, U, op)
     mtyp_input = "i$(8sizeof(U))"
     instrs = String[]
-    suffix1 = truncate_mask!(instrs, "%0", W, sizeof(U), 0)
-    suffix2 = truncate_mask!(instrs, "%1", W, sizeof(U), suffix1)
+    suffix1 = truncate_mask!(instrs, '0', W, sizeof(U), 0)
+    suffix2 = truncate_mask!(instrs, '1', W, sizeof(U), suffix1)
     push!(instrs, "%combinedmask = $op <$W x i1> %mask.$(suffix1), %mask.$(suffix2)")
-    suffix = zext_mask!(instrs, "%combinedmask", W, sizeof(U), suffix2)
+    suffix = zext_mask!(instrs, "combinedmask", W, sizeof(U), suffix2)
     push!(instrs, "ret $mtyp_input %res.$(suffix)")
     quote
         $(Expr(:meta,:inline))
@@ -55,6 +55,20 @@ end
     binary_mask_op(W, U, "icmp ne")
 end
 
+@generated function vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W, U <: Unsigned}
+    instrs = String[]
+    suffix1 = truncate_mask!(instrs, '0', W, sizeof(U), 0)
+    suffix2 = truncate_mask!(instrs, '1', W, sizeof(U), suffix1)
+    push!(instrs, "%uv.1 = zext <$W x i1> %mask.1 to <$W x i8>")
+    push!(instrs, "%uv.2 = zext <$W x i1> %mask.2 to <$W x i8>")
+    push!(instrs, "%res = add <$W x i8> %uv.1, %uv.2")
+    push!(instrs, "ret <$W x i8> %res")
+    quote
+        $(Expr(:meta,:inline))
+        SVec(llvmcall($(join(instrs,"\n")), Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u))
+    end
+end
+@inline Base.:(+)(m1::Mask, m2::Mask) = vadd(m1,m2)
 
 @inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = andmask(m1, m2)
 @inline Base.:(&)(m::Mask{W}, u::UIntTypes) where {W} = andmask(m, Mask{W}(u))

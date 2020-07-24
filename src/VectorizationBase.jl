@@ -45,6 +45,7 @@ struct SVec{W,T} <: AbstractStructVec{W,T}
     data::Vec{W,T}
     # SVec{N,T}(v) where {N,T} = new(v)
 end
+SVec(x::Vararg{T,W}) where {W, T <: Union{Bool,Base.HWReal}} = SVec(ntuple(w -> Core.VecElement(x[w]), Val{W}()))
 struct Mask{W,U<:Unsigned} <: AbstractStructVec{W,Bool}
     u::U
 end

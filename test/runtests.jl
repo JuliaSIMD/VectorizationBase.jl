@@ -118,6 +118,8 @@ end
         @test any(Mask{4}(0xfc))
         @test !any(Mask{8}(0x00))
         @test !any(Mask{4}(0xf0))
+
+        @test all(Mask{8}(0xfc) + Mask{8}(0xcf) == SVec(0x01,0x01,0x02,0x02,0x01,0x01,0x02,0x02))
 end
 
 @testset "number_vectors.jl" begin
