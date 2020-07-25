@@ -74,23 +74,19 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
 @generated function pick_vector_width_val(vargs...)
     sT = 1
     has_bool = false
-    demote_to_1 = false
     for v ∈ vargs
         T = v.parameters[1]
         if T === Bool
-            #sTv = REGISTER_SIZE >> 3 # encourage W ≥ 8
             has_bool = true#; sT = min(sT, sTv)
         elseif !SIMD_NATIVE_INTEGERS && T <: Integer
-            demote_to_1 = true
+            sT = REGISTER_SIZE
         else
             # sT = min(sT, sizeof(T))
             sT = max(sT, sizeof(T))
         end
     end
-    W = demote_to_1 ? 1 : REGISTER_SIZE ÷ sT
-    if has_bool
-        W = max(8,W)
-    end
+    W = REGISTER_SIZE ÷ sT
+    W = max(ifelse(has_bool, 8, 1), W)
     Val{W}()
 end
 @generated function adjust_W(::Val{N}, ::Val{W}) where {N,W}
