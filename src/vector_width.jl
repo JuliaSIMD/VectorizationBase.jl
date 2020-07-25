@@ -72,7 +72,7 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
 @generated pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
 
 @generated function pick_vector_width_val(vargs...)
-    sT = 16
+    sT = 1
     has_bool = false
     demote_to_1 = false
     for v ∈ vargs
@@ -83,7 +83,8 @@ pick_vector_width_val(::Type{Bool}) = Val{16}()
         elseif !SIMD_NATIVE_INTEGERS && T <: Integer
             demote_to_1 = true
         else
-            sT = min(sT, sizeof(T))
+            # sT = min(sT, sizeof(T))
+            sT = max(sT, sizeof(T))
         end
     end
     W = demote_to_1 ? 1 : REGISTER_SIZE ÷ sT
