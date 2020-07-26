@@ -238,6 +238,8 @@ const Zero = Static{0}
 @inline vmul(::Any, ::Zero) = Zero()
 @inline vmul(::Zero, ::Number) = Zero()
 @inline vmul(::Number, ::Zero) = Zero()
+@inline vmul(::Zero, i::SVec{<:Any,<:Integer}) = Zero()
+@inline vmul(i::SVec{<:Any,<:Integer}, ::Zero) = Zero()
 for T ∈ [:Int,:SVec]
     @eval @inline vadd(::Zero, a::$T) = a
     @eval @inline vadd(a::$T, ::Zero) = a
@@ -280,6 +282,8 @@ const One = Static{1}
 @inline vmul(::One, ::One) = One()
 @inline vmul(::One, ::Zero) = Zero()
 @inline vmul(::Zero, ::One) = Zero()
+@inline vmul(::One, i::SVec{<:Any,<:Integer}) = i
+@inline vmul(i::SVec{<:Any,<:Integer}, ::One) = i
 
 for T ∈ [:Int,:SVec]
     @eval @inline vmul(::One, a::$T) = a
