@@ -217,7 +217,36 @@ end
         )
     end
 end
-@inline gep(ptr::Ptr{T}, i::I, ::Val{0}) where {T <: NativeTypes, I<:Integer} = ptr
+@inline gep(ptr::Ptr{T}, i::_Vec{_W,I}, ::Val{0}) where {T <: NativeTypes, _W, I <: Integer} = ptr
+@generated function gep(ptr::Ptr{T}, i::_Vec{_W,I}, ::Val{N}) where {T <: NativeTypes, _W, I <: Integer, N}
+    if N ∉ [1,2,4,8]
+        tz = trailing_zeros(N)
+        if iszero(tz) || isone(count_ones(N))
+            return :(Base.@_inline_meta; gepbyte(ptr, vmul(i,N)))
+        else
+            return :(Base.@_inline_meta; gep(ptr, vmul(i, $(N >> tz)), Val{$(1 << tz)}()))
+        end
+    end
+    W = _W + 1
+    ptyp = "i$(8 * sizeof(Int))"
+    # We can remove a bitcast from the optimized IR
+    styp = N == sizeof(T) ? llvmtype(T) : "i$(8 * N)"
+    ityp = "i$(8 * sizeof(I))"
+    instrs = String[]
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $styp*")
+    push!(instrs, "%offsetptr = getelementptr inbounds $styp, $styp* %ptr, <$W x $ityp> %1")
+    push!(instrs, "%iptr = ptrtoint <$W x $styp*> %offsetptr to <$W x $ptyp>")
+    push!(instrs, "ret <$W x $ptyp> %iptr")
+    quote
+        Base.@_inline_meta
+        llvmcall(
+            $(join(instrs, "\n")),
+            NTuple{$W,Core.VecElement{Ptr{$T}}}, Tuple{Ptr{$T}, NTuple{$W,Core.VecElement{$I}}},
+            ptr, i
+        )
+    end
+end
+@inline gep(ptr::Ptr{T}, i::I, ::Val{0}) where {T <: NativeTypes, I <:Integer} = ptr
 @generated function gep(ptr::Ptr{T}, i::I, ::Val{N}) where {T <: NativeTypes, I <: Integer, N}
     if N ∉ [1,2,4,8]
         tz = trailing_zeros(N)
@@ -228,7 +257,8 @@ end
         end
     end
     ptyp = "i$(8 * sizeof(Int))"
-    styp = "i$(8 * N)"
+    # We can remove a bitcast from the optimized IR
+    styp = N == sizeof(T) ? llvmtype(T) : "i$(8 * N)"
     ityp = "i$(8 * sizeof(I))"
     instrs = String[]
     push!(instrs, "%ptr = inttoptr $ptyp %0 to $styp*")
@@ -262,12 +292,19 @@ end
 # @inline gep(ptr::Pointer, i::Tuple{<:Integer}) = gep(ptr, first(i))
 # @inline vstore!(ptr::AbstractPointer{T1}, v::T2, args...) where {T1,T2} = vstore!(ptr, convert(T1, v), args...)
 
-@inline vload(v::Type{SVec{W,T}}, ptr::AbstractPointer) where {W,T} = vload(v, pointer(ptr))
+
+
+@inline vload(::Type{SVec{W,T}}, ptr::AbstractPointer) where {W,T} = vload(SVec{W,T}, pointer(ptr))
 @inline vloadstride(ptr::AbstractPointer{T}, str1, strd::Union{_MM,AbstractSIMDVector}) where {T} = vload(pointer(ptr), vadd(vmul(static_sizeof(T), str1), strd))
 @inline vloadstride(ptr::AbstractPointer{T}, str1, strd::Union{_MM,AbstractSIMDVector}, u::Union{AbstractMask,Unsigned}) where {T} = vload(pointer(ptr), vadd(vmul(static_sizeof(T), str1), strd), u)
 
 @inline vloadstride(ptr::AbstractPointer{T}, str1, strd) where {T} = vload(gepbyte(pointer(ptr), strd), vmulnp(static_sizeof(T), str1))
 @inline vloadstride(ptr::AbstractPointer{T}, str1, strd, u::Union{AbstractMask,Unsigned}) where {T} = vload(gepbyte(pointer(ptr), strd), vmulnp(static_sizeof(T), str1), u)
+
+# @inline vloadstride(ptr::AbstractPointer{T}, str1::Integer, strd) where {T} = vload(gep(gepbyte(pointer(ptr), strd), str1))
+# @inline vloadstride(ptr::AbstractPointer{T}, str1::Integer, strd, u::Union{AbstractMask,Unsigned}) where {T} = vload(gep(gepbyte(pointer(ptr), strd), str1), u)
+# @inline vloadstride(ptr::AbstractPointer{T}, str1::SVec{<:Any,<:Integer}, strd) where {T} = vload(gep(gepbyte(pointer(ptr), strd), str1))
+# @inline vloadstride(ptr::AbstractPointer{T}, str1::SVec{<:Any,<:Integer}, strd, u::Union{AbstractMask,Unsigned}) where {T} = vload(gep(gepbyte(pointer(ptr), strd), str1), u)
 
 @inline vload(ptr::AbstractPointer{T}, i::Tuple) where {T} = vloadstride(ptr, stride1offset(ptr, i), stridedoffset(ptr, i))
 @inline vload(ptr::AbstractPointer{T}, i::Tuple, u::Union{AbstractMask,Unsigned}) where {T} = vloadstride(ptr, stride1offset(ptr, i), stridedoffset(ptr, i), u)
