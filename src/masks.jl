@@ -55,7 +55,7 @@ end
     binary_mask_op(W, U, "icmp ne")
 end
 
-@generated function vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W, U <: Unsigned}
+function vadd_expr(W,U)
     instrs = String[]
     suffix1 = truncate_mask!(instrs, '0', W, sizeof(U), 0)
     suffix2 = truncate_mask!(instrs, '1', W, sizeof(U), suffix1)
@@ -63,10 +63,13 @@ end
     push!(instrs, "%uv.2 = zext <$W x i1> %mask.2 to <$W x i8>")
     push!(instrs, "%res = add <$W x i8> %uv.1, %uv.2")
     push!(instrs, "ret <$W x i8> %res")
-    quote
-        $(Expr(:meta,:inline))
-        SVec(llvmcall($(join(instrs,"\n")), Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u))
-    end
+    :(SVec(llvmcall($(join(instrs,"\n")), Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u)))
+end
+for (W,U) in [(4,UInt8),(8,UInt8),(16,UInt16),(32,UInt32),(64,UInt64)] # Julia 1.1 bug
+    @eval @inline vadd(m1::Mask{$W,$U}, m2::Mask{$W,$U}) = $(vadd_expr(W, U))
+end
+@generated function vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W, U <: Unsigned}
+    Expr(:block, Expr(:meta, :inline), vadd_expr(W,U))
 end
 @inline Base.:(+)(m1::Mask, m2::Mask) = vadd(m1,m2)
 
