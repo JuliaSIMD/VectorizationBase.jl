@@ -934,9 +934,48 @@ end
     Expr(:block, Expr(:meta,:inline), :(StaticStridedPointer{$T,$tup}(pointer(ptr))))
 end
 
-struct ZeroInitializedStridedPointer{T, P <: AbstractStridedPointer{T}}; ptr::P; end
+struct ZeroInitializedStridedPointer{T, P <: AbstractStridedPointer{T}} <: AbstractStridedPointer{T}; ptr::P; end
+@inline ZeroInitializedStridedPointer(A) = ZeroInitializedStridedPointer(stridedpointer(A))
+@inline vload(::ZeroInitializedStridedPointer{T}) where {T} = zero(T)
+
+@inline vec_length() = Val{1}()
+@inline vec_length(::Integer) = Val{1}()
+@inline vec_length(::Static) = Val{1}()
+@inline vec_length(::_MM{W}) where {W} = Val{W}()
+@inline vec_length(::Vec{W}) where {W} = Val{W}()
+@inline vec_length(::SVec{W}) where {W} = Val{W}()
+@inline promote_val_width(::Val{1}, ::Val{1}) = Val{1}()
+@inline promote_val_width(::Val{W}, ::Val{1}) where {W} = Val{W}()
+@inline promote_val_width(::Val{1}, ::Val{W}) where {W} = Val{W}()
+@inline promote_val_width(::Val{W}, ::Val{W}) where {W} = Val{W}()
+
+@inline vec_length(i::Tuple{}) = Val{1}()
+@inline vec_length(i::Tuple{I1}) where {I1} = vec_length(first(i))
+@inline vec_length(i::Tuple{I1,I2,Vararg}) where {I1,I2} = promote_val_width(vec_length(first(i)), vec_length(Base.tail(i)))
+
+@inline vload(::ZeroInitializedStridedPointer{T}, ::Val{1}) where {T} = zero(T)
+@inline vload(::ZeroInitializedStridedPointer{T}, ::Val{W}) where {T,W} = vzero(SVec{W,T})
+
 @inline vload(::Val{W}, ::ZeroInitializedStridedPointer{T}, ::Any) where {W, T} = vzero(SVec{W,T})
-@inline vload(::Val{W}, ::ZeroInitializedStridedPointer{T}, ::Any, ::Any) where {W, T} = vzero(SVec{W,T})
-@inline vstore!(ptr::ZeroInitializedStridedPointer, v, i) = vstore!(ptr.ptr, v, i)
-@inline vstore!(ptr::ZeroInitializedStridedPointer, v, i, m) = vstore!(ptr.ptr, v, i, m)
+@inline vload(::Val{W}, ::ZeroInitializedStridedPointer{T}, ::Any, ::Mask) where {W, T} = vzero(SVec{W,T})
+
+@inline vload(ptr::ZeroInitializedStridedPointer, i::Tuple) = vload(ptr, vec_length(i))
+@inline vload(ptr::ZeroInitializedStridedPointer, i::Tuple, ::Mask) = vload(ptr, vec_length(i))
+
+@inline vstore!(ptr::ZeroInitializedStridedPointer, v::Number, i::Tuple) = vstore!(ptr.ptr, v, i)
+@inline vstore!(ptr::ZeroInitializedStridedPointer, v::Number, i::Tuple, m::Mask) = vstore!(ptr.ptr, v, i, m)
+@inline vstore!(ptr::ZeroInitializedStridedPointer, v::AbstractStructVec, i::Tuple) = vstore!(ptr.ptr, v, i)
+@inline vstore!(ptr::ZeroInitializedStridedPointer, v::AbstractStructVec, i::Tuple, m::Mask) = vstore!(ptr.ptr, v, i, m)
+
+@inline vnoaliasstore!(ptr::ZeroInitializedStridedPointer, v::Number, i::Tuple) = vnoaliasstore!(ptr.ptr, v, i)
+@inline vnoaliasstore!(ptr::ZeroInitializedStridedPointer, v::Number, i::Tuple, m::Mask) = vnoaliasstore!(ptr.ptr, v, i, m)
+@inline vnoaliasstore!(ptr::ZeroInitializedStridedPointer, v::AbstractStructVec, i::Tuple) = vnoaliasstore!(ptr.ptr, v, i)
+@inline vnoaliasstore!(ptr::ZeroInitializedStridedPointer, v::AbstractStructVec, i::Tuple, m::Mask) = vnoaliasstore!(ptr.ptr, v, i, m)
+
+@inline stride1offset(ptr::ZeroInitializedStridedPointer, i) = stride1offset(ptr.ptr, i)
+@inline stridedoffset(ptr::ZeroInitializedStridedPointer, i) = stridedoffset(ptr.ptr, i)
+@inline gep(ptr::ZeroInitializedStridedPointer, i::Tuple) = gep(ptr.ptr, i)
+@inline gesp(ptr::ZeroInitializedStridedPointer, i::Tuple) = ZeroInitializedStridedPointer(gesp(ptr.ptr, i))
+
+@inline Base.pointer(ptr::ZeroInitializedStridedPointer) = pointer(ptr.ptr)
 
