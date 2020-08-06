@@ -36,16 +36,25 @@ const IntegerTypes = Union{IntTypes, UIntTypes, Ptr, Bool}
 const FloatingTypes = Union{Float16, Float32, Float64}
 const ScalarTypes = Union{IntegerTypes, FloatingTypes}
 
-const VE{T} = Core.VecElement{T}
-const Vec{W,T<:Number} = NTuple{W,VE{T}}
-const _Vec{W,T<:Number} = Tuple{VE{T},Vararg{VE{T},W}}
+const NativeTypes = Union{Bool,Base.HWReal}
 
-abstract type AbstractStructVec{W,T<:Number} end
+const Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
+const _Vec{W,T<:Number} = Tuple{VE{T},Vararg{VecElement{T},W}}
+
+abstract type AbstractStructVec{W,T <: NativeTypes} <: Real end
 struct SVec{W,T} <: AbstractStructVec{W,T}
-    data::Vec{W,T}
-    # SVec{N,T}(v) where {N,T} = new(v)
+    data::NTuple{W,Core.VecElement{T}}
 end
-SVec(x::Vararg{T,W}) where {W, T <: Union{Bool,Base.HWReal}} = SVec(ntuple(w -> Core.VecElement(x[w]), Val{W}()))
+@generated function SVec(x::Vararg{T,W}) where {W, T <: Union{Bool,Base.HWReal}}
+    Wpow2 = pick_vector_width(W, T)
+    if W == Wpow2
+        :(SVec(ntuple(w -> Core.VecElement(x[w]), Val{$W}())))
+    elseif W < Wpow2
+        :(SVec(ntuple(w -> w > $W ? zero($T) : Core.VecElement(x[w]), Val{$Wpow2}())))
+    else
+
+    end
+end
 struct Mask{W,U<:Unsigned} <: AbstractStructVec{W,Bool}
     u::U
 end
