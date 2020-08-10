@@ -150,6 +150,25 @@ end
 @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1<:Integer,T2<:Integer} = vstore!(ptr, v % T1)
 # @inline vstore!(ptr::Ptr{T1}, v::T2) where {T1,T2} = vstore!(ptr, convert(T1, v))
 
+@inline gep(ptr::Ptr{Mask{8,UInt8}}, i) = Base.unsafe_convert(Ptr{Mask{8,UInt8}}, gep(Base.unsafe_convert(Ptr{UInt8}, ptr), i >> 3))
+@inline gepbyte(ptr::Ptr{Mask{8,UInt8}}, i::Integer) = Base.unsafe_convert(Ptr{Mask{8,UInt8}}, gep(Base.unsafe_convert(Ptr{UInt8}, ptr), i))
+@inline vload(ptr::Ptr{Mask{8,UInt8}}, i) = (vload(Base.unsafe_convert(Ptr{UInt8}, ptr), i >> 3) >> (i & 7)) % Bool
+@inline vload(ptr::Ptr{Mask{8,UInt8}}, i::_MM{8}) = Mask{8}(vload(Base.unsafe_convert(Ptr{UInt8}, ptr), i.i >> 3))
+@inline vload(ptr::Ptr{Mask{8,UInt8}}, i::_MM{16}) = Mask{16}(vload(Base.unsafe_convert(Ptr{UInt16}, gep(ptr, i.i))))
+@inline vload(ptr::Ptr{Mask{8,UInt8}}, i::_MM{32}) = Mask{32}(vload(Base.unsafe_convert(Ptr{UInt32}, gep(ptr, i.i))))
+@inline vload(ptr::Ptr{Mask{8,UInt8}}, i::_MM{64}) = Mask{64}(vload(Base.unsafe_convert(Ptr{UInt64}, gep(ptr, i.i))))
+@inline function vstore!(ptr::Ptr{Mask{8,UInt8}}, v::Bool, i)
+    p = gep(Base.unsafe_convert(Ptr{UInt8}, ptr), i >> 3)
+    u = vload(p)
+    m = 0x01 << (i & 7)
+    u = ifelse(v, u | m, u ⊻ m)
+    vstore!(p, u); v
+end
+@inline vstore!(ptr::Ptr{Mask{8,UInt8}}, v::UInt8, i::_MM{8}) = Mask{8}(vstore!(Base.unsafe_convert(Ptr{UInt8}, ptr), i.i >> 3))
+@inline vstore!(ptr::Ptr{Mask{8,UInt8}}, v::UInt16, i::_MM{16}) = Mask{16}(vstore!(Base.unsafe_convert(Ptr{UInt16}, gep(ptr, i.i >> 3))))
+@inline vstore!(ptr::Ptr{Mask{8,UInt8}}, v::UInt32, i::_MM{32}) = Mask{32}(vstore!(Base.unsafe_convert(Ptr{UInt32}, gep(ptr, i.i >> 3))))
+@inline vstore!(ptr::Ptr{Mask{8,UInt8}}, v::UInt64, i::_MM{64}) = Mask{64}(vstore!(Base.unsafe_convert(Ptr{UInt64}, gep(ptr, i.i >> 3))))
+
 
 @inline tdot(::Tuple{}, ::Tuple{}) = Zero()
 @inline tdot(a::Tuple{I1}, b::Tuple{I2}) where {I1,I2} = @inbounds vmul(a[1], b[1])
@@ -157,8 +176,8 @@ end
 @inline tdot(a::Tuple{I1,I3,I5}, b::Tuple{I2,I4,I6}) where {I1,I2,I3,I4,I5,I6} = @inbounds vadd(vadd(vmul(a[1],b[1]), vmul(a[2],b[2])), vmul(a[3],b[3]))
 # @inline tdot(a::NTuple{N,Int}, b::NTuple{N,Int}) where {N} = @inbounds a[1]*b[1] + tdot(Base.tail(a), Base.tail(b))
 
-@inline tdot(a::Tuple{I}, ::Tuple{}) where {I} = @inbounds a[1]
-@inline tdot(::Tuple{}, b::Tuple{I}) where {I} = @inbounds b[1]
+@inline tdot(a::Tuple{I}, ::Tuple{}) where {I} = Zero() #@inbounds a[1]
+@inline tdot(::Tuple{}, b::Tuple{I}) where {I} = Zero() #@inbounds b[1]
 @inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2}) where {I1,I2} = @inbounds vmul(a[1],b[1])
 @inline tdot(a::Tuple{I1}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds vmul(a[1],b[1])
 @inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}) where {I1,I2} = @inbounds vadd(vmul(a[1],b[1]), tdot(Base.tail(a), Base.tail(b)))
@@ -358,6 +377,12 @@ end
 @inline function gesp(ptr::PackedStridedBitPointer, i::Tuple)
     PackedStridedBitPointer(ptr.ptr, ptr.strides, vadd(i, ptr.offsets))
 end
+struct PaddedStridedBitPointer{N} <: AbstractColumnMajorStridedPointer{Bool,N}
+    ptr::Ptr{Mask{8,UInt8}}#use Mask for dispatch
+    strides::NTuple{N,Int}
+end
+PaddedStridedBitPointer(p::Ptr{<:Unsigned}, s) = PaddedStridedBitPointer(Base.unsafe_convert(Ptr{Mask{8,UInt8}}, p), s)
+PaddedStridedBitPointer(A::StridedArray{T}) where {T <: Unsigned} = PaddedStridedBitPointer(pointer(A), staticmul(T,tailstrides(A)))
 
 abstract type AbstractRowMajorStridedPointer{T,N} <: AbstractStridedPointer{T} end
 struct RowMajorStridedPointer{T,N} <: AbstractRowMajorStridedPointer{T,N}
@@ -454,6 +479,7 @@ const AbstractBitPointer = Union{PackedStridedBitPointer, RowMajorStridedBitPoin
 
 
 @inline Base.similar(p::PackedStridedPointer, ptr::Ptr) = PackedStridedPointer(ptr, p.strides)
+@inline Base.similar(p::PaddedStridedBitPointer, ptr::Ptr) = PaddedStridedBitPointer(ptr, p.strides)
 @inline Base.similar(p::PackedStridedBitPointer{Nm1,N}, ptr::Ptr) where {Nm1,N} = PackedStridedBitPointer(ptr, p.strides, ntuple(_ -> 0, Val{N}()))
 @inline Base.similar(p::RowMajorStridedPointer, ptr::Ptr) = RowMajorStridedPointer(ptr, p.strides)
 @inline Base.similar(p::RowMajorStridedBitPointer, ptr::Ptr) = RowMajorStridedBitPointer(ptr, p.strides)
