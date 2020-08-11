@@ -390,6 +390,7 @@ end
     # @show ind, shift, u
     Mask{W}((u >>> shift) % U)
 end
+
 @inline getind(a::PackedStridedBitPointer{0}) = a.offsets[1]
 @inline getind(a::PackedStridedBitPointer{1}) = vadd(a.offsets[1], vmul(a.offsets[2],a.strides[1]))
 @inline Base.:(≥)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≥ getind(b)

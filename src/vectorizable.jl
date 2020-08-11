@@ -123,6 +123,7 @@ function gepquote(::Type{T}, ::Type{I}, byte::Bool) where {T <: NativeTypes, I <
     end    
 end
 
+@inline vload(x::Number, args...) = x
 for T ∈ [Bool,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64,Float32,Float64]
     @eval @inline vload(ptr::Ptr{$T}) = $(vload_quote(T))
     @eval @inline vstore!(ptr::Ptr{$T}, v::$T) = $(vstore_quote(T, true))
