@@ -68,6 +68,13 @@ Base.show(io::IO, r::AbstractStaticUnitRange) = print(io, "$(first(r)):$(last(r)
 @inline maybestaticsize(A::AbstractVector, ::Val{1:2}) = (length(A), 1)
 @inline maybestaticsize(A::AbstractMatrix, ::Val{1:2}) = size(A)
 @inline maybestaticsize(A::AbstractArray, ::Val{1:2}) = (size(A,1),size(A,2))
+# Former is not type stable
+# @inline maybestaticsize(A::AbstractArray{<:Any,N}) where {N} = ntuple(n -> maybestaticsize(A, Val{n}()), Val{N}())
+@generated function maybestaticsize(A::AbstractArray{<:Any,N}) where {N}
+    out = Expr(:tuple)
+    foreach(n -> push!(out.args, :(maybestaticsize(A, Val{$n}()))), 1:N)
+    out
+end
 @inline maybestaticlength(A) = length(A)
 
 @inline maybestaticfirstindex(A::AbstractArray, ::Val{I}) where {I} = firstindex(A, I)

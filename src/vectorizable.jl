@@ -651,6 +651,7 @@ end
 @inline function stridedpointer(x, i1, i2, I...)
     gesp(stridedpointer(x), staticm1((i1, i2, I...)))
 end
+@inline stridedpointer(x::Base.RefValue{T}) where {T} = stridedpointer(Base.unsafe_convert(Ptr{T}, x))
 @inline stridedpointer(x::Ptr) = PackedStridedPointer(x, tuple())
 # @inline stridedpointer(x::Union{LowerTriangular,UpperTriangular}) = stridedpointer(parent(x))
 # @inline stridedpointer(x::AbstractArray) = stridedpointer(parent(x))
