@@ -6,7 +6,7 @@ const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
 # using Base: llvmcall
-using Base: llvmcall
+using Base: llvmcall, VecElement
 # @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
 # @inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
 
@@ -38,23 +38,48 @@ const ScalarTypes = Union{IntegerTypes, FloatingTypes}
 
 const NativeTypes = Union{Bool,Base.HWReal}
 
-const Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
-const _Vec{W,T<:Number} = Tuple{VE{T},Vararg{VecElement{T},W}}
+# const Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
+const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
 
 abstract type AbstractStructVec{W,T <: NativeTypes} <: Real end
-struct SVec{W,T} <: AbstractStructVec{W,T}
+struct Vec{W,T} <: AbstractStructVec{W,T}
     data::NTuple{W,Core.VecElement{T}}
-end
-@generated function SVec(x::Vararg{T,W}) where {W, T <: Union{Bool,Base.HWReal}}
-    Wpow2 = pick_vector_width(W, T)
-    if W == Wpow2
-        :(SVec(ntuple(w -> Core.VecElement(x[w]), Val{$W}())))
-    elseif W < Wpow2
-        :(SVec(ntuple(w -> w > $W ? zero($T) : Core.VecElement(x[w]), Val{$Wpow2}())))
-    else
-
+    @generated function Vec(x::NTuple{W,Core.VecElement{T}}) where {W,T}
+        Wpow2 = pick_vector_width(W, T)
     end
 end
+struct VecUnroll{M,W,T} <: AbstractStructVec{W,T}
+    data::NTuple{M,Vec{W,T}}
+end
+struct VecTile{M,N,W,T} <: AbstractStructVec{W,T}
+    data::NTuple{N,VecUnroll{M,Vec{W,T}}}
+end
+
+@generated function Vec(x::NTuple{W,VecElement{T}}) where {W,T}
+    Wpow2 = pick_vector_width(W, T)
+    if W == Wpow2
+        :(Vec(x))
+    elseif W < Wpow2
+        :(Vec(ntuple(w -> w > $W ? zero($T) : VecElement(x[w]), Val{$Wpow2}())))
+    else
+        U = cld(W, Wpow2)
+        
+    end
+end
+
+@generated function Vec(x::Vararg{T,W}) where {W, T <: Union{Bool,Base.HWReal}}
+    Wpow2 = pick_vector_width(W, T)
+    if W == Wpow2
+        :(Vec(ntuple(w -> VecElement(x[w]), Val{$W}())))
+    elseif W < Wpow2
+        :(Vec(ntuple(w -> w > $W ? zero($T) : VecElement(x[w]), Val{$Wpow2}())))
+    else
+        U = cld(W, Wpow2)
+        
+    end
+end
+
+
 struct Mask{W,U<:Unsigned} <: AbstractStructVec{W,Bool}
     u::U
 end
