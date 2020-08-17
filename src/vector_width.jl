@@ -12,8 +12,9 @@ function intlog2(N::I) where {I <: Integer}
 end
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
-nextpow2(W) = vleft_bitshift(one(W), (8sizeof(W) - leading_zeros(W-1)))
-prevpow2(W) = vleft_bitshift(one(W), (8sizeof(W) - leading_zeros(W)-1))
+nextpow2(W) = shl(one(W), (8sizeof(W) - leading_zeros(W - one(W))))
+prevpow2(W) = shr(one(W) << (8sizeof(W)-1), leading_zeros(W))
+prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
     # W -= 1
     # W |= W >> 1
     # W |= W >> 2
@@ -102,17 +103,29 @@ pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_ve
 @inline Base.@pure vsub(a::Int32, b::Int32) = llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 @inline Base.@pure vmul(a::Int32, b::Int32) = llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 
-@inline Base.@pure vleft_bitshift(a::Int64, b::Int) = llvmcall("%res = shl nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
-@inline Base.@pure vleft_bitshift(a::Int32, b::Int) = llvmcall("%res = shl nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
+@inline Base.@pure shl(a::Int64, b) = llvmcall("%res = shl nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
+@inline Base.@pure shl(a::Int32, b) = llvmcall("%res = shl nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
 
-@inline Base.@pure vleft_bitshift(a::Int16, b::Int) = llvmcall("%res = shl nsw i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
-@inline Base.@pure vleft_bitshift(a::Int8, b::Int) = llvmcall("%res = shl nsw i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
+@inline Base.@pure shl(a::Int16, b) = llvmcall("%res = shl nsw i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
+@inline Base.@pure shl(a::Int8, b) = llvmcall("%res = shl nsw i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
 
-@inline Base.@pure vleft_bitshift(a::UInt64, b::Int) = llvmcall("%res = shl nuw i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
-@inline Base.@pure vleft_bitshift(a::UInt32, b::Int) = llvmcall("%res = shl nuw i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
+@inline Base.@pure shl(a::UInt64, b) = llvmcall("%res = shl nuw i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
+@inline Base.@pure shl(a::UInt32, b) = llvmcall("%res = shl nuw i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
 
-@inline Base.@pure vleft_bitshift(a::UInt16, b::Int) = llvmcall("%res = shl nuw i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
-@inline Base.@pure vleft_bitshift(a::UInt8, b::Int) = llvmcall("%res = shl nuw i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
+@inline Base.@pure shl(a::UInt16, b) = llvmcall("%res = shl nuw i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
+@inline Base.@pure shl(a::UInt8, b) = llvmcall("%res = shl nuw i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
+
+@inline Base.@pure shr(a::Int64, b) = llvmcall("%res = ashr i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
+@inline Base.@pure shr(a::Int32, b) = llvmcall("%res = ashr i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
+
+@inline Base.@pure shr(a::Int16, b) = llvmcall("%res = ashr i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
+@inline Base.@pure shr(a::Int8, b) = llvmcall("%res = ashr i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
+
+@inline Base.@pure shr(a::UInt64, b) = llvmcall("%res = lshr i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
+@inline Base.@pure shr(a::UInt32, b) = llvmcall("%res = lshr i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
+
+@inline Base.@pure shr(a::UInt16, b) = llvmcall("%res = lshr i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
+@inline Base.@pure shr(a::UInt8, b) = llvmcall("%res = lshr i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
 
 # @inline Base.@pure vright_bitshift(a::Int64, b::Int64) = llvmcall("%res = ashr nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
 # @inline Base.@pure vright_bitshift(a::Int32, b::Int32) = llvmcall("%res = ashr nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)

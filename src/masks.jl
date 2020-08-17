@@ -102,9 +102,9 @@ end
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
 
-@inline Base.:(<<)(m::Mask{W}, i) where {W} = Mask{W}(vleft_bitshift(m.u, i))
-@inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >> i)
-@inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(m.u >>> i)
+@inline Base.:(<<)(m::Mask{W}, i) where {W} = Mask{W}(shl(m.u, i))
+@inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(shr(m.u, i))
+@inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(shr(m.u, i))
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline Base.any(m::Mask{$W,$U}) = m.u != $(zero(U))

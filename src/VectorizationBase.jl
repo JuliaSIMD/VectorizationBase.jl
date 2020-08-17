@@ -3,6 +3,8 @@ module VectorizationBase
 using LinearAlgebra, Libdl
 const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
+## Until SIMDPirates stops importing it
+function vleft_bitshift end
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
 # using Base: llvmcall
