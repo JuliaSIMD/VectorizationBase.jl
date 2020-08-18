@@ -1,134 +1,42 @@
 
+register_size(::Type{T}) where {T} = REGISTER_SIZE
+register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = SIMD_NATIVE_INTEGERS ? REGISTER_SIZE : sizeof(T)
 
-function intlog2(N::I) where {I <: Integer}
-    # This version may be slightly faster when vectorized?
-    # u = 0x4330000000000000 + N
-    # d = reinterpret(Float64,u) - 4503599627370496.0
-    # u = (reinterpret(Int64, d) >> 52) - 1023
-    # This version is easier to read and understand how it works,
-    # and probably faster when evaluated serially
-    u = 8sizeof(I) - 1 - leading_zeros(N)
-    Base.unsafe_trunc(I, u)
-end
+intlog2(N::I) where {I <: Integer} = (8sizeof(I) - one(I) - leading_zeros(N)) % I
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
 nextpow2(W) = shl(one(W), (8sizeof(W) - leading_zeros(W - one(W))))
 prevpow2(W) = shr(one(W) << (8sizeof(W)-1), leading_zeros(W))
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
-    # W -= 1
-    # W |= W >> 1
-    # W |= W >> 2
-    # W |= W >> 4
-    # W |= W >> 8
-    # W |= W >> 16
-    # W + 1
 
-@generated function T_shift(::Type{T}) where {T}
-    intlog2(sizeof(T))
+function pick_vector_width(::Type{T} = Float64) where {T<:NativeTypes}
+    max(1, register_size(T) >>> intlog2(T))
 end
-@generated function pick_vector_width(::Type{T} = Float64) where {T}
-    shift = T_shift(T)
-    max(1, REGISTER_SIZE >>> shift)
-end
-@generated function pick_vector_width_shift(::Type{T} = Float64) where {T}
-    shift = T_shift(T)
-    W = max(1, REGISTER_SIZE >>> shift)
-    Wshift = intlog2(W)
-    W, Wshift
-end
-function downadjust_W_and_Wshift(N, W, Wshift)
-    N > W && return W, Wshift
-    TwoN = N << 1
-    while W >= TwoN
-        W >>>= 1
-        Wshift -= 1
-    end
-    W, Wshift
-end
-function pick_vector_width_shift(N::Integer, ::Type{T} = Float64) where {T}
-    W, Wshift = pick_vector_width_shift(T)
-    downadjust_W_and_Wshift(N, W, Wshift)
-end
-function pick_vector_width(N::Integer, ::Type{T} = Float64) where {T}
+function pick_vector_width_shift(::Type{T} = Float64) where {T<:NativeTypes}
     W = pick_vector_width(T)
-    first(downadjust_W_and_Wshift(N, W, 0))
-end
-function pick_vector_width_shift(N::Integer, size_T::Integer)
-    W = max(1, REGISTER_SIZE ÷ size_T)
-    Wshift = intlog2(W)
-    downadjust_W_and_Wshift(N, W, Wshift)
-end
-function pick_vector_width(N::Integer, size_T::Integer)
-    W = max(1, REGISTER_SIZE ÷ size_T)
-    first(downadjust_W_and_Wshift(N, W, 0))
+    Wshift = intlog2(register_size(T)) - intlog2(T)
+    W, Wshift
 end
 
-pick_vector_width(::Symbol, T) = pick_vector_width(T)
-pick_vector_width_shift(::Symbol, T) = pick_vector_width_shift(T)
+# For the sake of convenient mask support, we allow 8 so that the mask can be a full byte
+# max_vector_width(::Type{T}) where {T} = max(8, pick_vector_width(T))
 
-@generated pick_vector_width(::Val{N}, ::Type{T} = Float64) where {N,T} = pick_vector_width(N, T)
 
-@generated pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}()
-pick_vector_width_val(::Type{Bool}) = Val{16}()
-@generated pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
+pick_vector_width(::Type{T1}, ::Type{T2}) where {T1,T2} = min(pick_vector_width(T1), pick_vector_width(T2))
+@inline pick_vector_width(::Type{T1}, ::Type{T2}, ::Type{T3}, args::Vararg{Any,K}) where {T1,T2,T3,K} = min(pick_vector_width(T1), pick_vector_width(T2, T3, args...))
 
-@generated function pick_vector_width_val(vargs...)
-    sT = 1
-    has_bool = false
-    for v ∈ vargs
-        T = v.parameters[1]
-        if T === Bool
-            has_bool = true#; sT = min(sT, sTv)
-        elseif !SIMD_NATIVE_INTEGERS && T <: Integer
-            sT = REGISTER_SIZE
-        else
-            # sT = min(sT, sizeof(T))
-            sT = max(sT, sizeof(T))
-        end
-    end
-    W = REGISTER_SIZE ÷ sT
-    W = max(ifelse(has_bool, 8, 1), W)
-    Val{W}()
+@inline function pick_vector_width(N::Integer, args::Vararg{Any,K}) where {K}
+    min(nextpow2(N), pick_vector_width(args...))
 end
-@generated function adjust_W(::Val{N}, ::Val{W}) where {N,W}
-    W1 = first(downadjust_W_and_Wshift(N, W, 0))
-    Val{W1}()
+@inline function pick_vector_width_shift(N::Integer, args::Vararg{Any,K}) where {K}
+    W = pick_vector_width(N, args...)
+    W, intlog2(W)
 end
-pick_vector_width_val(::Val{N}, vargs...) where {N} = adjust_W(Val{N}(), pick_vector_width_val(vargs...))
 
-@inline Base.@pure vadd(a::Int64, b::Int64) = llvmcall("%res = add nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
-@inline Base.@pure vsub(a::Int64, b::Int64) = llvmcall("%res = sub nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
-@inline Base.@pure vmul(a::Int64, b::Int64) = llvmcall("%res = mul nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
-@inline Base.@pure vadd(a::Int32, b::Int32) = llvmcall("%res = add nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
-@inline Base.@pure vsub(a::Int32, b::Int32) = llvmcall("%res = sub nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
-@inline Base.@pure vmul(a::Int32, b::Int32) = llvmcall("%res = mul nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
+pick_vector_width(::Val{N}, ::Type{T} = Float64) where {N,T} = pick_vector_width(N, T)
+pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}()
+pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
 
-@inline Base.@pure shl(a::Int64, b) = llvmcall("%res = shl nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
-@inline Base.@pure shl(a::Int32, b) = llvmcall("%res = shl nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
-
-@inline Base.@pure shl(a::Int16, b) = llvmcall("%res = shl nsw i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
-@inline Base.@pure shl(a::Int8, b) = llvmcall("%res = shl nsw i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
-
-@inline Base.@pure shl(a::UInt64, b) = llvmcall("%res = shl nuw i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
-@inline Base.@pure shl(a::UInt32, b) = llvmcall("%res = shl nuw i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
-
-@inline Base.@pure shl(a::UInt16, b) = llvmcall("%res = shl nuw i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
-@inline Base.@pure shl(a::UInt8, b) = llvmcall("%res = shl nuw i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
-
-@inline Base.@pure shr(a::Int64, b) = llvmcall("%res = ashr i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
-@inline Base.@pure shr(a::Int32, b) = llvmcall("%res = ashr i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
-
-@inline Base.@pure shr(a::Int16, b) = llvmcall("%res = ashr i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
-@inline Base.@pure shr(a::Int8, b) = llvmcall("%res = ashr i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
-
-@inline Base.@pure shr(a::UInt64, b) = llvmcall("%res = lshr i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
-@inline Base.@pure shr(a::UInt32, b) = llvmcall("%res = lshr i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
-
-@inline Base.@pure shr(a::UInt16, b) = llvmcall("%res = lshr i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
-@inline Base.@pure shr(a::UInt8, b) = llvmcall("%res = lshr i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
-
-# @inline Base.@pure vright_bitshift(a::Int64, b::Int64) = llvmcall("%res = ashr nsw i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b)
-# @inline Base.@pure vright_bitshift(a::Int32, b::Int32) = llvmcall("%res = ashr nsw i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b)
 
 @inline vadd(::Static{i}, j) where {i} = vadd(i, j)
 @inline vadd(i, ::Static{j}) where {j} = vadd(i, j)
