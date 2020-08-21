@@ -68,6 +68,13 @@ Base.show(io::IO, r::AbstractStaticUnitRange) = print(io, "$(first(r)):$(last(r)
 @inline maybestaticsize(A::AbstractVector, ::Val{1:2}) = (length(A), 1)
 @inline maybestaticsize(A::AbstractMatrix, ::Val{1:2}) = size(A)
 @inline maybestaticsize(A::AbstractArray, ::Val{1:2}) = (size(A,1),size(A,2))
+# Former is not type stable
+# @inline maybestaticsize(A::AbstractArray{<:Any,N}) where {N} = ntuple(n -> maybestaticsize(A, Val{n}()), Val{N}())
+@generated function maybestaticsize(A::AbstractArray{<:Any,N}) where {N}
+    out = Expr(:tuple)
+    foreach(n -> push!(out.args, :(maybestaticsize(A, Val{$n}()))), 1:N)
+    out
+end
 @inline maybestaticlength(A) = length(A)
 
 @inline maybestaticfirstindex(A::AbstractArray, ::Val{I}) where {I} = firstindex(A, I)
@@ -112,11 +119,17 @@ Base.show(io::IO, r::AbstractStaticUnitRange) = print(io, "$(first(r)):$(last(r)
 end
 @generated Base.divrem(::Static{N}, ::Static{D}) where {N,D} = divrem(N, D)
 
-for f ∈ [:(Base.:(>>)), :(Base.:(>>>)), :(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
+for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
     @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
     @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
     @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
 end
+for f ∈ [:(Base.:(>>)), :(Base.:(>>>))]
+    @eval @inline $f(::Static{M}, n::Number) where {M} = shr(M, n)
+    @eval @inline $f(m::Number, ::Static{N}) where {N} = shr(m, N)
+    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+end
+
 @inline vadd(::Static{N}, ::Static{0}) where {N} = Static{N}()
 @inline vadd(::Static{0}, ::Static{N}) where {N} = Static{N}()
 @inline vmul(::Static{N}, ::Static{0}) where {N} = Static{0}()
@@ -146,9 +159,9 @@ end
 @inline Base.checked_sub(::Static{N}, i) where {N} = Base.checked_sub(N, i)
 @inline Base.checked_sub(i, ::Static{N}) where {N} = Base.checked_sub(i, N)
 @generated Base.checked_sub(::Static{M}, ::Static{N}) where {M,N} = Static{Base.checked_sub(M, N)}()
-@inline Base.:<<(::Static{N}, i) where {N} = vleft_bitshift(N, i)
-@inline Base.:<<(i, ::Static{N}) where {N} = vleft_bitshift(i, N)
-@inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = M << N
+@inline Base.:<<(::Static{N}, i) where {N} = shl(N, i)
+@inline Base.:<<(i, ::Static{N}) where {N} = shl(i, N)
+@inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = shl(M, N)
 @inline Base.:(%)(::Static{M}, ::Type{I}) where {M,I<:Integer} = M % I
 
 @inline Base.:(==)(::Static{M}, i) where {M} = M == i
