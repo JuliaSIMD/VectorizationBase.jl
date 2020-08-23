@@ -3,7 +3,7 @@
 Basically:
 
 if I ∈ [3,5,7,9]
-    c[(I - 1) >> 1
+    c[(I - 1) >> 1]
 else
     b * I
 end

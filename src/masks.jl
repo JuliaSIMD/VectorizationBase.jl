@@ -1,35 +1,29 @@
 function truncate_mask!(instrs, input, W, sizeU, suffix)
     mtyp_input = "i$(8sizeU)"
     mtyp_trunc = "i$(W)"
-    suffix += 1
     if mtyp_input == mtyp_trunc
-        push!(instrs, "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>")
+        "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>"
     else
-        push!(instrs, "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc")
-        push!(instrs, "%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>")
+        "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc\n%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>"
     end
-    suffix
 end
 function zext_mask!(instrs, input, W, sizeU, suffix)
     mtyp_input = "i$(8sizeU)"
     mtyp_trunc = "i$(W)"
-    suffix += 1
     if mtyp_input == mtyp_trunc
-        push!(instrs, "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input")
+        "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input"
     else
-        push!(instrs, "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc")
-        push!(instrs, "%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input")
+        "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc\n%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input"
     end
-    suffix
 end
 function binary_mask_op(W, U, op)
     mtyp_input = "i$(8sizeof(U))"
     instrs = String[]
-    suffix1 = truncate_mask!(instrs, '0', W, sizeof(U), 0)
-    suffix2 = truncate_mask!(instrs, '1', W, sizeof(U), suffix1)
-    push!(instrs, "%combinedmask = $op <$W x i1> %mask.$(suffix1), %mask.$(suffix2)")
-    suffix = zext_mask!(instrs, "combinedmask", W, sizeof(U), suffix2)
-    push!(instrs, "ret $mtyp_input %res.$(suffix)")
+    truncate_mask!(instrs, '0', W, sizeof(U), 0)
+    truncate_mask!(instrs, '1', W, sizeof(U), 1)
+    push!(instrs, "%combinedmask = $op <$W x i1> %mask.0, %mask.1")
+    zext_mask!(instrs, "combinedmask", W, sizeof(U), 1)
+    push!(instrs, "ret $mtyp_input %res.1")
     quote
         $(Expr(:meta,:inline))
         Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U, $U}, m1.u, m2.u))
@@ -39,43 +33,43 @@ end
 @inline Base.zero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
 
 @inline extract_data(m::Mask) = m.u
-@generated function andmask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+@generated function Base.:(&)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
     binary_mask_op(W, U, "and")
 end
-@generated function ormask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+@generated function Base.:(|)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
     binary_mask_op(W, U, "or")
 end
-@generated function xormask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+@generated function Base.:(⊻)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
     binary_mask_op(W, U, "xor")
 end
-@generated function equalmask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+@generated function Base.:(==)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
     binary_mask_op(W, U, "icmp eq")
 end
-@generated function notequalmask(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+@generated function Base.:(!=)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
     binary_mask_op(W, U, "icmp ne")
 end
 
 function vadd_expr(W,U)
     instrs = String[]
-    suffix1 = truncate_mask!(instrs, '0', W, sizeof(U), 0)
-    suffix2 = truncate_mask!(instrs, '1', W, sizeof(U), suffix1)
-    push!(instrs, "%uv.1 = zext <$W x i1> %mask.1 to <$W x i8>")
-    push!(instrs, "%uv.2 = zext <$W x i1> %mask.2 to <$W x i8>")
-    push!(instrs, "%res = add <$W x i8> %uv.1, %uv.2")
-    push!(instrs, "ret <$W x i8> %res")
-    :(SVec(llvmcall($(join(instrs,"\n")), Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u)))
+    truncate_mask!(instrs, truncate_mask('0', W, sizeof(U), 0))
+    truncate_mask!(instrs, truncate_mask('1', W, sizeof(U), 1))
+    push!(instrs, """%uv.0 = zext <$W x i1> %mask.0 to <$W x i8>
+    %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
+    %res = add <$W x i8> %uv.0, %uv.1
+    ret <$W x i8> %res""")
+    :(Vec(llvmcall($(join(instrs, "\n")), Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u)))
 end
-for (W,U) in [(4,UInt8),(8,UInt8),(16,UInt16),(32,UInt32),(64,UInt64)] # Julia 1.1 bug
-    @eval @inline vadd(m1::Mask{$W,$U}, m2::Mask{$W,$U}) = $(vadd_expr(W, U))
+for (W,U) in [(2,UInt8),(4,UInt8),(8,UInt8),(16,UInt16),(32,UInt32),(64,UInt64)] # Julia 1.1 bug
+    @eval @inline Base.:(+)(m1::Mask{$W,$U}, m2::Mask{$W,$U}) = $(vadd_expr(W, U))
 end
-@generated function vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W, U <: Unsigned}
-    Expr(:block, Expr(:meta, :inline), vadd_expr(W,U))
-end
+# @generated function vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W, U <: Unsigned}
+#     Expr(:block, Expr(:meta, :inline), vadd_expr(W,U))
+# end
 @inline Base.:(+)(m1::Mask, m2::Mask) = vadd(m1,m2)
 
-@inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = andmask(m1, m2)
-@inline Base.:(&)(m::Mask{W}, u::UIntTypes) where {W} = andmask(m, Mask{W}(u))
-@inline Base.:(&)(u::UIntTypes, m::Mask{W}) where {W} = andmask(Mask{W}(u), m)
+# @inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = andmask(m1, m2)
+@inline Base.:(&)(m::Mask{W}, u::UIntTypes) where {W} = m & Mask{W}(u)
+@inline Base.:(&)(u::UIntTypes, m::Mask{W}) where {W} = Mask{W}(u) & m
 
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
@@ -264,42 +258,42 @@ end
     @boundscheck i > W && throw(BoundsError(m, i))
     getindexzerobased(m, i - 1)
 end
-# @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{1})
+# @inline function ptr_index(ptr::AbstractBitPointer, i::MM{1})
 #     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
 # end
-# @inline function ptr_index(ptr::AbstractBitPointer, i::_MM{2})
+# @inline function ptr_index(ptr::AbstractBitPointer, i::MM{2})
 #     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
 # end
-# @inline function bitload(ptr::AbstractBitPointer, i::_MM{4})
+# @inline function bitload(ptr::AbstractBitPointer, i::MM{4})
 #     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
 # end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{8})
+@inline function ptr_index(ptr::AbstractBitPointer, i::MM{8})
     Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), i.i >>> 3
 end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{16})
+@inline function ptr_index(ptr::AbstractBitPointer, i::MM{16})
     Base.unsafe_convert(Ptr{UInt16}, ptr.ptr), i.i >>> 3
 end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{32})
+@inline function ptr_index(ptr::AbstractBitPointer, i::MM{32})
     Base.unsafe_convert(Ptr{UInt32}, ptr.ptr), i.i >>> 3
 end
-@inline function ptr_index(ptr::AbstractBitPointer, i::_MM{64})
+@inline function ptr_index(ptr::AbstractBitPointer, i::MM{64})
     Base.unsafe_convert(Ptr{UInt64}, ptr.ptr), i.i >>> 3
 end
-@inline function bitload(ptr::AbstractBitPointer, i::_MM{W}) where {W}
+@inline function bitload(ptr::AbstractBitPointer, i::MM{W}) where {W}
     ptr, ind = ptr_index(ptr, i)
     Mask{W}(vload(ptr, ind))
 end
 @inline bitload(ptr::AbstractBitPointer, i, ::Union{UIntTypes,Mask}) = bitload(ptr, i)
-@inline bitload(ptr::AbstractBitPointer, i::Integer) = getindexzerobased(bitload(ptr, _MM{8}(i)), i & 7)
+@inline bitload(ptr::AbstractBitPointer, i::Integer) = getindexzerobased(bitload(ptr, MM{8}(i)), i & 7)
 
 # @inline function vstore!(ptr::AbstractBitPointer, m::Mask{8}, i::Integer)
     # vstore!(Base.unsafe_convert(Ptr{UInt8}, ptr.ptr), (m.u % Bool), i)
 # end
-@inline function bitstore!(ptr::AbstractBitPointer, m::Mask{W}, i::_MM{W}) where {W}
+@inline function bitstore!(ptr::AbstractBitPointer, m::Mask{W}, i::MM{W}) where {W}
     ptr, ind = ptr_index(ptr, i)
     vstore!(ptr, m.u, ind)
 end
-@inline function bitstore!(ptr::AbstractBitPointer, m::Mask{W}, i::_MM{W}, mask::Mask{W}) where {W}
+@inline function bitstore!(ptr::AbstractBitPointer, m::Mask{W}, i::MM{W}, mask::Mask{W}) where {W}
     ptr, ind = ptr_index(ptr, i)
     vstore!(ptr, m.u, ind)
 end
@@ -377,14 +371,14 @@ end
 
 @inline vload(ptr::AbstractBitPointer, i::Tuple) = bitload(ptr, offset(ptr, vadd(i, ptr.offsets)))
 @inline vload(ptr::AbstractBitPointer, i::Tuple, ::Mask) = vload(ptr, i)
-@inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{_MM{W},<:Any}) where {W}
+@inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{MM{W},<:Any}) where {W}
     j = vadd(j, bptr.offsets[2])
     s = bptr.strides[1]
     # shift = vmul(s, j) & (W - 1)
     U = mask_type(Val{W}())
     UW = widen(U)
     indbits = vadd(vadd(i.i, bptr.offsets[1]), vmul(j,s))
-    ptr, ind = ptr_index(bptr, _MM{W}(indbits))
+    ptr, ind = ptr_index(bptr, MM{W}(indbits))
     u = vload(Base.unsafe_convert(Ptr{UW}, gepbyte(ptr, ind)))
     shift = indbits & 7
     # @show ind, shift, u
@@ -398,26 +392,26 @@ end
 @inline Base.:(>)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) > getind(b)
 @inline Base.:(<)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) < getind(b)
 @inline Base.:(==)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) == getind(b)
-# @inline function vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, (i,j)::Tuple{_MM{W},<:Integer}) where {W}
+# @inline function vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, (i,j)::Tuple{MM{W},<:Integer}) where {W}
 #     j -= 1
 #     s = bptr.strides[1]
 #     shift = (s * j) & (W - 1)
 #     U = mask_type(Val{W}())
 #     UW = widen(U)
-#     ptr, ind = ptr_index(bptr, _MM{W}(i.i - 1 + j*s))
+#     ptr, ind = ptr_index(bptr, MM{W}(i.i - 1 + j*s))
 #     um = ((vload(Base.unsafe_convert(Ptr{UW}, gep(ptr, ind))) )
 #     u = (v.u % UW) << shift
 #     # @show ind, shift, u
 #     vstore!(Base.unsafe_convert(Ptr{UW}, gep(ptr, ind)), u | um)
 
 # end
-# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{_MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
-# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{_MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, v, i)
-# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{_MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
-# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{_MM{W},<:Integer}) where {W} = vstore!(bptr, v, i)
-# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{_MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, v, i)
-# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{_MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
-# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{_MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, v, i)
+# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, v, i)
+# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, v, i)
+# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
 
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
@@ -428,13 +422,13 @@ end
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
 
-@generated function Base.isodd(i::_MM{W}) where {W}
+@generated function Base.isodd(i::MM{W}) where {W}
     U = mask_type(W)
     evenfirst = 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % U
     # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($oddfirst) : Mask{$W}($evenfirst)))
     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($evenfirst >> (i.i & 0x03))))
 end
-@generated function Base.iseven(i::_MM{W}) where {W}
+@generated function Base.iseven(i::MM{W}) where {W}
     U = mask_type(W)
     oddfirst = 0x55555555555555555555555555555555 % U
     evenfirst = oddfirst << 1

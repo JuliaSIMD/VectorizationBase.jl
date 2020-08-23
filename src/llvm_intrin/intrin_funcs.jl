@@ -1,58 +1,61 @@
-# Dense fmap
-@inline fmapt(f::F, x::Tuple{X}, y::Tuple{Y}, z::Tuple{Z}) where {F,X,Y} = (f(first(x), first(y), first(z)),)
-@inline fmapt(f::F, x::NTuple, y::NTuple, z::NTuple) where {F} = (f(first(x), first(y), first(z)), fmap(f, Base.tail(x), Base.tail(y), Base.tail(z))...)
-
-@inline fmap(f::F, x::VecUnroll, y::VecUnroll, z::VecUnroll) where {F} = VecUnroll(fmapt(f, x.data, y.data, z.data))
-@inline fmap(f::F, x::VecTile, y::VecTile, z::VecTile) where {F} = VecTile(fmapt(f, x.data, y.data, z.data))
-
-# Broadcast fmap
-@inline fmapt(f::F, x::Tuple{X}, y, z) where {F,X} = (f(first(x), y, z),)
-@inline fmapt(f::F, x, y::Tuple{Y}, z) where {F,Y} = (f(x, first(y), z),)
-@inline fmapt(f::F, x, y, z::Tuple{Z}) where {F,Z} = (f(x, y, first(z)),)
-
-@inline fmapt(f::F, x::Tuple{X}, y::Tuple{Y}, z) where {F,X,Y} = (f(first(x), first(y), z),)
-@inline fmapt(f::F, x::Tuple{X}, y, z::Tuple{Z}) where {F,X,Z} = (f(first(x), y, first(z)),)
-@inline fmapt(f::F, x, y::Tuple{Y}, z::Tuple{Z}) where {F,Y,Z} = (f(x, first(y), first(z)),)
-
-@inline fmapt(f::F, x::NTuple, y, z) where {F} = (f(first(x), y, z), fmap(f, Base.tail(x), y, z)...)
-@inline fmapt(f::F, x, y::NTuple, z) where {F} = (f(x, first(y), z), fmap(f, x, Base.tail(y), z)...)
-@inline fmapt(f::F, x, y, z::NTuple) where {F} = (f(x, y, first(z)), fmap(f, x, y, Base.tail(z))...)
-
-@inline fmapt(f::F, x::NTuple, y::NTuple, z) where {F} = (f(first(x), first(y), z), fmap(f, Base.tail(x), Base.tail(y), z)...)
-@inline fmapt(f::F, x::NTuple, y, z::NTuple) where {F} = (f(first(x), y, first(z)), fmap(f, Base.tail(x), y, Base.tail(z))...)
-@inline fmapt(f::F, x, y::NTuple, z::NTuple) where {F} = (f(x, first(y), first(z)), fmap(f, x, Base.tail(y), Base.tail(z))...)
-
-@inline fmap(f::F, x::VecUnroll, y, z) where {F} = VecUnroll(fmapt(f, x.data, y, z))
-@inline fmap(f::F, x, y::VecUnroll, z) where {F} = VecUnroll(fmapt(f, x, y.data, z))
-@inline fmap(f::F, x, y, z::VecUnroll) where {F} = VecUnroll(fmapt(f, x, y, z.data))
-
-@inline fmap(f::F, x::VecUnroll, y::VecUnroll, z) where {F} = VecUnroll(fmapt(f, x.data, y.data, z))
-@inline fmap(f::F, x::VecUnroll, y, z::VecUnroll) where {F} = VecUnroll(fmapt(f, x.data, y, z.data))
-@inline fmap(f::F, x, y::VecUnroll, z::VecUnroll) where {F} = VecUnroll(fmapt(f, x, y.data, z.data))
-
-@inline fmap(f::F, x::VecTile, y, z) where {F} = VecTile(fmapt(f, x.data, y, z))
-@inline fmap(f::F, x::VecTile, y::VecUnroll, z) where {F} = VecTile(fmapt(f, x.data, y, z))
-@inline fmap(f::F, x::VecTile, y, z::VecUnroll) where {F} = VecTile(fmapt(f, x.data, y, z))
-@inline fmap(f::F, x::VecTile, y::VecUnroll, z::VecUnroll) where {F} = VecTile(fmapt(f, x.data, y, z))
 
 
-@inline fmap(f::F, x, y::VecTile, z) where {F} = VecTile(fmapt(f, x, y.data, z))
-@inline fmap(f::F, x::VecUnroll, y::VecTile, z) where {F} = VecTile(fmapt(f, x, y.data, z))
-@inline fmap(f::F, x, y::VecTile, z::VecUnroll) where {F} = VecTile(fmapt(f, x, y.data, z))
-@inline fmap(f::F, x::VecUnroll, y::VecTile, z::VecUnroll) where {F} = VecTile(fmapt(f, x, y.data, z))
 
-@inline fmap(f::F, x, y, z::VecTile) where {F} = VecTile(fmapt(f, x, y, z.data))
-@inline fmap(f::F, x::VecUnroll, y, z::VecTile) where {F} = VecTile(fmapt(f, x, y, z.data))
-@inline fmap(f::F, x, y::VecUnroll, z::VecTile) where {F} = VecTile(fmapt(f, x, y, z.data))
-@inline fmap(f::F, x::VecUnroll, y::VecUnroll, z::VecTile) where {F} = VecTile(fmapt(f, x, y, z.data))
-
-@inline fmap(f::F, x::VecTile, y::VecTile, z) where {F} = VecTile(fmapt(f, x.data, y.data, z))
-@inline fmap(f::F, x::VecTile, y, z::VecTile) where {F} = VecTile(fmapt(f, x.data, y, z.data))
-@inline fmap(f::F, x, y::VecTile, z::VecTile) where {F} = VecTile(fmapt(f, x, y.data, z.data))
-
-@inline fmap(f::F, x::VecTile, y::VecTile, z::VecUnroll) where {F} = VecTile(fmapt(f, x.data, y.data, z))
-@inline fmap(f::F, x::VecTile, y::VecUnroll, z::VecTile) where {F} = VecTile(fmapt(f, x.data, y, z.data))
-@inline fmap(f::F, x::VecUnroll, y::VecTile, z::VecTile) where {F} = VecTile(fmapt(f, x, y.data, z.data))
-
-
+if VectorizationBase.FMA3
+    for T ∈ [Float32,Float64]
+        W = 16 ÷ sizeof(T)
+        local suffix = T == Float32 ? "ps" : "pd"
+        typ = llvmtype(T)
+        while W <= VectorizationBase.REGISTER_SIZE ÷ sizeof(T)
+            vfmadd_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+                ret <$W x $(typ)> %res"""
+            vfnmadd_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+                ret <$W x $(typ)> %res"""
+            vfmsub_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+                ret <$W x $(typ)> %res"""
+            vfnmsub_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+                ret <$W x $(typ)> %res"""
+            @eval begin
+                @inline function vfmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+                    llvmcall($vfmadd_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T}}, a, b, c)
+                end
+                @inline function vfnmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+                    llvmcall($vfnmadd_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T}}, a, b, c)
+                end
+                @inline function vfmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+                    llvmcall($vfmsub_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T}}, a, b, c)
+                end
+                @inline function vfnmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+                    llvmcall($vfnmsub_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T}}, a, b, c)
+                end
+            end
+            if VectorizationBase.AVX512BW && W ≥ 8
+                vfmaddmask_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                    ret <$W x $(typ)> %res"""
+                vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                    ret <$W x $(typ)> %res"""
+                vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                    ret <$W x $(typ)> %res"""
+                vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                    ret <$W x $(typ)> %res"""
+                U = VectorizationBase.mask_type(W)
+                @eval begin
+                    @inline function vifelse(::typeof(vfmadd231), m::Mask{$W,$U}, a::SVec{$W,$T}, b::SVec{$W,$T}, c::SVec{$W,$T})
+                        SVec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T},$U}, extract_data(a), extract_data(b), extract_data(c), extract_data(m)))
+                    end
+                    @inline function vifelse(::typeof(vfnmadd231), m::Mask{$W,$U}, a::SVec{$W,$T}, b::SVec{$W,$T}, c::SVec{$W,$T})
+                        SVec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T},$U}, extract_data(a), extract_data(b), extract_data(c), extract_data(m)))
+                    end
+                    @inline function vifelse(::typeof(vfmsub231), m::Mask{$W,$U}, a::SVec{$W,$T}, b::SVec{$W,$T}, c::SVec{$W,$T})
+                        SVec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T},$U}, extract_data(a), extract_data(b), extract_data(c), extract_data(m)))
+                    end
+                    @inline function vifelse(::typeof(vfnmsub231), m::Mask{$W,$U}, a::SVec{$W,$T}, b::SVec{$W,$T}, c::SVec{$W,$T})
+                        SVec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{Vec{$W,$T},Vec{$W,$T},Vec{$W,$T},$U}, extract_data(a), extract_data(b), extract_data(c), extract_data(m)))
+                    end
+                end
+            end
+            W += W
+        end
+    end
+end
 

@@ -1,10 +1,4 @@
 
-@inline fmapt(f::F, x::Tuple{X}) where {F,X} = (f(first(x)),)
-@inline fmapt(f::F, x::NTuple) where {F} = (f(first(x)), fmap(f, Base.tail(x))...)
-
-@inline fmap(f::F, x::VecUnroll) where {F} = VecUnroll(fmapt(f, x.data))
-@inline fmap(f::F, x::VecTile) where {F} = VecTile(fmapt(f, x.data))
-
 for T ∈ [Float32,Float64]
     W = 2
     typ = LLVM_TYPES[T]
@@ -16,9 +10,10 @@ for T ∈ [Float32,Float64]
     end
 end
 
-@inline vsub(v::Vec{<:Any,<:FloatingTypes}) = -v
-@inline vsub(v::Vec{1,<:FloatingTypes}) = -first(v)
-@inline vsub(v::NativeTypes) = -v
-@inline vsub(v::Vec{<:Any,<:NativeTypes}) = zero(v) - v
+@inline Base.:(-)(v::VecUnroll) = fmap(-, v)
+# @inline Base.:(-)(v::VecTile) = fmap(-, v)
+@inline Base.:(-)(v::Vec{<:Any,<:FloatingTypes}) = -v
+@inline Base.:(-)(v::Vec{1,<:FloatingTypes}) = -first(v)
+@inline Base.:(-)(v::Vec{<:Any,<:NativeTypes}) = zero(v) - v
 
 

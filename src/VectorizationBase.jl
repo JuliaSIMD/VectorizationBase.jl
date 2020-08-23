@@ -1,7 +1,11 @@
 module VectorizationBase
 
-using LinearAlgebra, Libdl
-const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
+using LinearAlgebra, Libdl, ArrayInterface, Hwloc
+using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Contiguous
+
+const TOPOLOGY = Hwloc.topology_load()
+
+# const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
 ## Until SIMDPirates stops importing it
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
@@ -11,15 +15,15 @@ using Base: llvmcall, VecElement
 # @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
 # @inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
 
-export Vec, VE, SVec, Mask, _MM,
-    gep, gesp,
-    data,
-    pick_vector_width,
-    pick_vector_width_shift,
-    stridedpointer,
-    PackedStridedPointer, RowMajorStridedPointer,
-    StaticStridedPointer, StaticStridedStruct,
-    vload, vstore!, vbroadcast, Static, mask, masktable
+# export Vec, VE, SVec, Mask, MM,
+#     gep, gesp,
+#     data,
+#     pick_vector_width,
+#     pick_vector_width_shift,
+#     stridedpointer,
+#     PackedStridedPointer, RowMajorStridedPointer,
+#     StaticStridedPointer, StaticStridedStruct,
+#     vload, vstore!, vbroadcast, Static, mask, masktable
 
 # @static if VERSION < v"1.4"
 #     # I think this is worth using, and simple enough that I may as well.
@@ -50,17 +54,20 @@ abstract type AbstractSIMDVector{W,T <: NativeTypes} <: Real end
 struct Vec{W,T} <: AbstractStructVec{W,T}
     data::NTuple{W,Core.VecElement{T}}
     @inline function Vec(x::NTuple{W,Core.VecElement{T}}) where {W,T}
-        @assert W === pick_vector_width(W, T) || W === 8
+        @assert W === pick_vector_width(W, T)# || W === 8
         # @assert ispow2(W) && (W ≤ max(pick_vector_width(W, T), 8))
         new{W,T}(x)
     end
 end
-struct VecUnroll{M,W,T} <: AbstractStructVec{W,T}
-    data::NTuple{M,Vec{W,T}}
+struct VecUnroll{M,W,T,V<:AbstractStructVec{W,T}} <: AbstractStructVec{W,T}
+    data::NTuple{M,V}
 end
-struct VecTile{M,N,W,T} <: AbstractStructVec{W,T}
-    data::NTuple{N,VecUnroll{M,Vec{W,T}}}
-end
+
+@inline unrolleddata(x) = x
+@inline unrolleddata(x::VecUnroll) = x.data
+# struct VecTile{M,N,W,T} <: AbstractStructVec{W,T}
+    # data::NTuple{N,VecUnroll{M,Vec{W,T}}}
+# end
 # description(::Type{T}) where {T <: NativeTypes} = (-1,-1,-1,T)
 # description(::Type{Vec{W,T}}) where {W, T <: NativeTypes} = (-1,-1,W,T)
 # description(::Type{VecUnroll{M,W,T}}) where {M, W, T <: NativeTypes} = (M,-1,W,T)
@@ -120,9 +127,9 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
 # @inline vbroadcast(::Val, b::Bool) = b
 
 
-@inline Base.length(::AbstractStructVec{N}) where N = N
-@inline Base.size(::AbstractStructVec{N}) where N = (N,)
-@inline Base.eltype(::AbstractStructVec{N,T}) where {N,T} = T
+@inline Base.length(::AbstractStructVec{W}) where W = W
+@inline Base.size(::AbstractStructVec{W}) where W = (W,)
+@inline Base.eltype(::AbstractStructVec{W,T}) where {W,T} = T
 @inline Base.conj(v::AbstractStructVec) = v # so that things like dot products work.
 @inline Base.adjoint(v::AbstractStructVec) = v # so that things like dot products work.
 @inline Base.transpose(v::AbstractStructVec) = v # so that things like dot products work.
@@ -142,7 +149,6 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
 
 @inline data(v) = v
 @inline data(v::Vec) = v.data
-@inline data(v::Vec{1}) = v.data[1].value
 #@inline data(v::AbstractStructVec) = v.data
 # @inline extract_value(v::Vec, i) = v[i].value
 # @inline extract_value(v::SVec, i) = v.data[i].value
@@ -168,9 +174,15 @@ function Base.show(io::IO, m::Mask{W}) where {W}
     print(io, ">")
 end
 
-struct _MM{W,I<:Number}
+"""
+The name `MM` type refers to _MM registers such as `XMM`, `YMM`, and `ZMM`.
+`MMX` from the original MMX SIMD instruction set is a [meaningless initialism](https://en.wikipedia.org/wiki/MMX_(instruction_set)#Naming).
+
+The `MM` type is used to represent SIMD indexes. 
+"""
+struct MM{W,I<:Number}
     i::I
-    @inline _MM{W}(i::T) where {W,T} = new{W,T}(i)
+    @inline MM{W}(i::T) where {W,T} = new{W,T}(i)
 end
 
 

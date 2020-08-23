@@ -63,91 +63,92 @@ pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vect
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
 
-@inline _MM(::Val{W}) where {W} = _MM{W}(0)
-@inline _MM(::Val{W}, i) where {W} = _MM{W}(i)
-@inline _MM{W}(a::LazyStaticMul) where {W} = _MM{W}(extract_data(a))
-@inline gep(ptr::Ptr, i::_MM) = gep(ptr, i.i)
+@inline MM(::Val{W}) where {W} = MM{W}(0)
+@inline MM(::Val{W}, i) where {W} = MM{W}(i)
+@inline MM{W}(a::LazyStaticMul) where {W} = MM{W}(extract_data(a))
+@inline gep(ptr::Ptr, i::MM) = gep(ptr, i.i)
 
-@inline staticm1(i::_MM{W,I}) where {W,I} = _MM{W}(vsub(i.i, one(I)))
-@inline staticp1(i::_MM{W,I}) where {W,I} = _MM{W}(vadd(i.i, one(I)))
-@inline vadd(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
-@inline vadd(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
-@inline vadd(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
-@inline vadd(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(vadd(i, j.i))
-@inline vsub(i::_MM{W}, j::Integer) where {W} = _MM{W}(vsub(i.i, j))
-@inline vsub(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vsub(i.i, j))
+@inline staticm1(i::MM{W,I}) where {W,I} = MM{W}(vsub(i.i, one(I)))
+@inline staticp1(i::MM{W,I}) where {W,I} = MM{W}(vadd(i.i, one(I)))
+@inline vadd(i::MM{W}, j::Integer) where {W} = MM{W}(vadd(i.i, j))
+@inline vadd(i::Integer, j::MM{W}) where {W} = MM{W}(vadd(i, j.i))
+@inline vadd(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vadd(i.i, j))
+@inline vadd(::Static{i}, j::MM{W}) where {W,i} = MM{W}(vadd(i, j.i))
+@inline vsub(i::MM{W}, j::Integer) where {W} = MM{W}(vsub(i.i, j))
+@inline vsub(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vsub(i.i, j))
 @inline vmulnp(i, j) = vmul(i,j)
-@inline vmulnp(i, j::_MM{W}) where {W} = _MM{W}(vmul(i, j.i))
+@inline vmulnp(i, j::MM{W}) where {W} = MM{W}(vmul(i, j.i))
 @inline vmuladdnp(a, b, c) = vadd(vmul(a,b), c)
-@inline vmuladdnp(a, b::_MM{W}, c) where {W} = vadd(_MM{W}(vmul(a,b.i)), c)
-@inline vmuladdnp(a, b::_MM{W}, c::_MM{W}) where {W} = vadd(vmul(a,b), c)
-@inline vmuladdnp(a, b::_MM{W}, c::SVec) where {W} = vadd(vmul(a,b), c)
-@inline vmuladdnp(a, b::_MM{W}, c::_Vec) where {W} = vadd(vmul(a,b), c)
-@inline Base.:(+)(i::_MM{W}, j::Integer) where {W} = _MM{W}(vadd(i.i, j))
-@inline Base.:(+)(i::Integer, j::_MM{W}) where {W} = _MM{W}(vadd(i, j.i))
-@inline Base.:(+)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vadd(i.i, j))
-@inline Base.:(+)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(vadd(i, j.i))
-# @inline Base.:(+)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i + j.i)
-@inline Base.:(-)(i::_MM{W}, j::Integer) where {W} = _MM{W}(vsub(i.i, j))
-# @inline Base.:(-)(i::Integer, j::_MM{W}) where {W} = _MM{W}(i - j.i)
-@inline Base.:(-)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(vsub(i.i, j))
-# @inline Base.:(-)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i - j.i)
-# @inline Base.:(-)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i - j.i)
-# @inline Base.:(*)(i::_MM{W}, j) where {W} = _MM{W}(i.i * j)
-# @inline Base.:(*)(i, j::_MM{W}) where {W} = _MM{W}(i * j.i)
-# @inline Base.:(*)(i::_MM{W}, ::Static{j}) where {W,j} = _MM{W}(i.i * j)
-# @inline Base.:(*)(::Static{i}, j::_MM{W}) where {W,i} = _MM{W}(i * j.i)
-# @inline Base.:(*)(i::_MM{W}, j::_MM{W}) where {W} = _MM{W}(i.i * j.i)
+@inline vmuladdnp(a, b::MM{W}, c) where {W} = vadd(MM{W}(vmul(a,b.i)), c)
+@inline vmuladdnp(a, b::MM{W}, c::MM{W}) where {W} = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::MM{W}, c::SVec) where {W} = vadd(vmul(a,b), c)
+@inline vmuladdnp(a, b::MM{W}, c::_Vec) where {W} = vadd(vmul(a,b), c)
+@inline Base.:(+)(i::MM{W}, j::Integer) where {W} = MM{W}(vadd(i.i, j))
+@inline Base.:(+)(i::Integer, j::MM{W}) where {W} = MM{W}(vadd(i, j.i))
+@inline Base.:(+)(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vadd(i.i, j))
+@inline Base.:(+)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(vadd(i, j.i))
+# @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i + j.i)
+@inline Base.:(-)(i::MM{W}, j::Integer) where {W} = MM{W}(vsub(i.i, j))
+# @inline Base.:(-)(i::Integer, j::MM{W}) where {W} = MM{W}(i - j.i)
+@inline Base.:(-)(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vsub(i.i, j))
+# @inline Base.:(-)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(i - j.i)
+# @inline Base.:(-)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i - j.i)
+# @inline Base.:(*)(i::MM{W}, j) where {W} = MM{W}(i.i * j)
+# @inline Base.:(*)(i, j::MM{W}) where {W} = MM{W}(i * j.i)
+# @inline Base.:(*)(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(i.i * j)
+# @inline Base.:(*)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(i * j.i)
+# @inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i * j.i)
 @inline scalar_less(i, j) = i < j
-@inline scalar_less(i::_MM, j::Integer) = i.i < j
-@inline scalar_less(i::Integer, j::_MM) = i < j.i
-@inline scalar_less(i::_MM, ::Static{j}) where {j} = i.i < j
-@inline scalar_less(::Static{i}, j::_MM) where {i} = i < j.i
-@inline scalar_less(i::_MM, j::_MM) = i.i < j.i
+@inline scalar_less(i::MM, j::Integer) = i.i < j
+@inline scalar_less(i::Integer, j::MM) = i < j.i
+@inline scalar_less(i::MM, ::Static{j}) where {j} = i.i < j
+@inline scalar_less(::Static{i}, j::MM) where {i} = i < j.i
+@inline scalar_less(i::MM, j::MM) = i.i < j.i
 @inline scalar_greater(i, j) = i > j
-@inline scalar_greater(i::_MM, j::Integer) = i.i > j
-@inline scalar_greater(i::Integer, j::_MM) = i > j.i
-@inline scalar_greater(i::_MM, ::Static{j}) where {j} = i.i > j
-@inline scalar_greater(::Static{i}, j::_MM) where {i} = i > j.i
-@inline scalar_greater(i::_MM, j::_MM) = i.i > j.i
+@inline scalar_greater(i::MM, j::Integer) = i.i > j
+@inline scalar_greater(i::Integer, j::MM) = i > j.i
+@inline scalar_greater(i::MM, ::Static{j}) where {j} = i.i > j
+@inline scalar_greater(::Static{i}, j::MM) where {i} = i > j.i
+@inline scalar_greater(i::MM, j::MM) = i.i > j.i
 @inline scalar_equal(i, j) = i == j
-@inline scalar_equal(i::_MM, j::Integer) = i.i == j
-@inline scalar_equal(i::Integer, j::_MM) = i == j.i
-@inline scalar_equal(i::_MM, ::Static{j}) where {j} = i.i == j
-@inline scalar_equal(::Static{i}, j::_MM) where {i} = i == j.i
-@inline scalar_equal(i::_MM, j::_MM) = i.i == j.i
+@inline scalar_equal(i::MM, j::Integer) = i.i == j
+@inline scalar_equal(i::Integer, j::MM) = i == j.i
+@inline scalar_equal(i::MM, ::Static{j}) where {j} = i.i == j
+@inline scalar_equal(::Static{i}, j::MM) where {i} = i == j.i
+@inline scalar_equal(i::MM, j::MM) = i.i == j.i
 @inline scalar_notequal(i, j) = i != j
-@inline scalar_notequal(i::_MM, j::Integer) = i.i != j
-@inline scalar_notequal(i::Integer, j::_MM) = i != j.i
-@inline scalar_notequal(i::_MM, ::Static{j}) where {j} = i.i != j
-@inline scalar_notequal(::Static{i}, j::_MM) where {i} = i != j.i
-@inline scalar_notequal(i::_MM, j::_MM) = i.i != j.i
+@inline scalar_notequal(i::MM, j::Integer) = i.i != j
+@inline scalar_notequal(i::Integer, j::MM) = i != j.i
+@inline scalar_notequal(i::MM, ::Static{j}) where {j} = i.i != j
+@inline scalar_notequal(::Static{i}, j::MM) where {i} = i != j.i
+@inline scalar_notequal(i::MM, j::MM) = i.i != j.i
 
-@inline extract_data(i::_MM) = i.i
+@inline extract_data(i::MM) = i.i
 
 
 
 for T ∈ [Float32,Float64,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64]#, Float16]
     maxW = pick_vector_width(T)
     typ = llvmtype(T)
-    for log2W ∈ 0:intlog2(maxW)
-        W = 1 << log2W
+    W = 2
+    while W ≤ maxW
         instrs = "ret <$W x $typ> zeroinitializer"
-        @eval @inline vzero(::Val{$W}, ::Type{$T}) = SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
+        @eval @inline vzero(::Val{$W}, ::Type{$T}) = Vec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
         vtyp = "<$W x $typ>"
         instrs = """
         %ie = insertelement $vtyp undef, $typ %0, i32 0
         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
         ret $vtyp %v
         """
-        @eval @inline vbroadcast(::Val{$W}, s::$T) = SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
+        @eval @inline vbroadcast(::Val{$W}, s::$T) = Vec(llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
+        W += W
     end
 end
 
 # @inline _vload(ptr::Ptr{T}, i::Integer) where {T} = vload(ptr + vmul(sizeof(T), i))
 # @inline _vload(ptr::Ptr, v::SVec{<:Any,<:Integer}) = vload(ptr, v.data)
 # @inline _vload(ptr::Ptr, v::Vec{<:Any,<:Integer}) = vload(ptr, v)
-# @inline _vload(ptr::Ptr{T}, i::_MM{W}) where {W,T} = vload(Val{W}(), ptr + vmul(sizeof(T), i.i))
+# @inline _vload(ptr::Ptr{T}, i::MM{W}) where {W,T} = vload(Val{W}(), ptr + vmul(sizeof(T), i.i))
 # @inline _vload(ptr::AbstractPointer, i) = _vload(ptr.ptr, offset(ptr, i))
 # @inline vload(ptr::AbstractPointer{T}, i::Tuple) where {T} = _vload(ptr.ptr, offset(ptr, i))
 
