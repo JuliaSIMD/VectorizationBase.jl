@@ -1,15 +1,14 @@
 
-
 @inline tuplefirst(x) = x
 @inline tuplefirst(x::Tuple) = first(x)
 @inline tupletail(x) = x
 @inline tupletail(x::Tuple) = Base.tail(x)
 
+struct TupleLength{N} end
 @inline tuple_len(::Any) = nothing
-@inline tuple_len(::Tuple{Vararg{Any,N}}) where {N} = N
-@inline tuple_len(a, b) = (la = tuple_len(a); isnothing(la) ? tuple_len(b) : la)
-@inline tuple_len(a, b, c) = (la = tuple_len(a, b); isnothing(la) ? tuple_len(c) : la)
-@inline tuple_len(a, b, c, d) = (la = tuple_len(a, b, c); isnothing(la) ? tuple_len(d) : la)
+@inline tuple_len(::Tuple{Vararg{Any,N}}) where {N} = TupleLength{N}()
+@inline tuple_len(::TupleLength{N}, args...) where {N} = TupleLength{N}()
+@inline tuple_len(::Nothing, a, args...) = tuple_len(tuple_len(a), args...)
 
 # unary # 2^2 - 2 = 2 definitions
 @inline fmap(f::F, x::Tuple{X}) where {F,X} = (f(first(x)),)
@@ -23,23 +22,15 @@
 @inline fmap(f::F, x::NTuple, y) where {F} = (f(first(x), y), fmap(f, Base.tail(x), y)...)
 @inline fmap(f::F, x, y::NTuple) where {F} = (f(x, first(y)), fmap(f, x, Base.tail(y))...)
 
-# ternary # 2^4 - 2 = 14 definitions, or 1
-@inline function fmap(f::F, x, y, z) where {F}
-    if isone(tuple_len(x, y, z))
-        (f(tuplefirst(x), tuplefirst(y), tuplefirst(z)),)
-    else
-        (f(tuplefirst(x), tuplefirst(y), tuplefirst(z)), fmap(f, tupletail(x), tupletail(y), tupletail(z))...)
-    end
-end
+# ternary # 2^4 - 2 = 14 definitions, or 3
+@inline fmap(f::F, x, y, z) where {F} = fmap(f, tuple_len(x, y, z), x, y, z)
+@inline fmap(f::F, ::TupleLength{1}, x, y, z) where {F} = (f(tuplefirst(x), tuplefirst(y), tuplefirst(z)),)
+@inline fmap(f::F, ::TupleLength, x, y, z) where {F} = (f(tuplefirst(x), tuplefirst(y), tuplefirst(z)), fmap(f, tupletail(x), tupletail(y), tupletail(z))...)
 
-# quaternary # 2^5 - 2 = 30 definitions, or 1
-@inline function fmap(f::F, w, x, y, z) where {F}
-    if isone(tuple_len(x, y, z))
-        (f(tuplefirst(w), tuplefirst(x), tuplefirst(y), tuplefirst(z)),)
-    else
-        (f(tuplefirst(w), tuplefirst(x), tuplefirst(y), tuplefirst(z)), fmap(f, tupletail(w), tupletail(x), tupletail(y), tupletail(z))...)
-    end
-end
+# quaternary # 2^5 - 2 = 30 definitions, or 3
+@inline fmap(f::F, w, x, y, z) where {F} = fmap(f, tuple_len(w, x, y, z), w, x, y, z)
+@inline fmap(f::F, ::TupleLength{1}, w, x, y, z) where {F} = (f(tuplefirst(w), tuplefirst(x), tuplefirst(y), tuplefirst(z)),)
+@inline fmap(f::F, ::TupleLength, w, x, y, z) where {F} = (f(tuplefirst(w), tuplefirst(x), tuplefirst(y), tuplefirst(z)), fmap(f, tupletail(w), tupletail(x), tupletail(y), tupletail(z))...)
 
 # @inline fmap(f::F, w) where {F} = VecUnroll(fmapt(f, unrolleddata(w)))
 # @inline fmap(f::F, w, x) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x)))
