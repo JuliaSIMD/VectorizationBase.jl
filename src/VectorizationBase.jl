@@ -1,9 +1,8 @@
 module VectorizationBase
 
-using LinearAlgebra, Libdl, ArrayInterface, Hwloc
+import ArrayInterface, LinearAlgebra, Libdl, Hwloc
 using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Contiguous
-
-const TOPOLOGY = Hwloc.topology_load()
+using LinearAlgebra: Adjoint, 
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
@@ -15,7 +14,7 @@ using Base: llvmcall, VecElement
 # @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
 # @inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
 
-# export Vec, VE, SVec, Mask, MM,
+# export Vec, VE, Vec, Mask, MM,
 #     gep, gesp,
 #     data,
 #     pick_vector_width,
@@ -51,7 +50,7 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
 
 abstract type AbstractSIMDVector{W,T <: NativeTypes} <: Real end
-struct Vec{W,T} <: AbstractStructVec{W,T}
+struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
     @inline function Vec(x::NTuple{W,Core.VecElement{T}}) where {W,T}
         @assert W === pick_vector_width(W, T)# || W === 8
@@ -59,13 +58,13 @@ struct Vec{W,T} <: AbstractStructVec{W,T}
         new{W,T}(x)
     end
 end
-struct VecUnroll{M,W,T,V<:AbstractStructVec{W,T}} <: AbstractStructVec{W,T}
+struct VecUnroll{M,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMDVector{W,T}
     data::NTuple{M,V}
 end
 
 @inline unrolleddata(x) = x
 @inline unrolleddata(x::VecUnroll) = x.data
-# struct VecTile{M,N,W,T} <: AbstractStructVec{W,T}
+# struct VecTile{M,N,W,T} <: AbstractSIMDVector{W,T}
     # data::NTuple{N,VecUnroll{M,Vec{W,T}}}
 # end
 # description(::Type{T}) where {T <: NativeTypes} = (-1,-1,-1,T)
@@ -98,60 +97,60 @@ end
 end
 
 
-struct Mask{W,U<:Unsigned} <: AbstractStructVec{W,Bool}
+struct Mask{W,U<:Unsigned} <: AbstractSIMDVector{W,Bool}
     u::U
 end
-const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
+const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 # Const prop is good enough; added an @inferred test to make sure.
 @inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
 
-@inline Base.broadcastable(v::AbstractStructVec) = Ref(v)
+@inline Base.broadcastable(v::AbstractSIMDVector) = Ref(v)
 
-# SVec{N,T}(x) where {N,T} = SVec(ntuple(i -> VE(T(x)), Val(N)))
-# @inline function SVec{N,T}(x::Number) where {N,T}
-    # SVec(ntuple(i -> VE(T(x)), Val(N)))
+# Vec{N,T}(x) where {N,T} = Vec(ntuple(i -> VE(T(x)), Val(N)))
+# @inline function Vec{N,T}(x::Number) where {N,T}
+    # Vec(ntuple(i -> VE(T(x)), Val(N)))
 # end
-# @inline function SVec{N,T}(x::Vararg{<:Number,N}) where {N,T}
-    # SVec(ntuple(i -> VE(T(x[i])), Val(N)))
+# @inline function Vec{N,T}(x::Vararg{<:Number,N}) where {N,T}
+    # Vec(ntuple(i -> VE(T(x[i])), Val(N)))
 # end
-# @inline function SVec(v::Vec{N,T}) where {N,T}
-    # SVec{N,T}(v)
+# @inline function Vec(v::Vec{N,T}) where {N,T}
+    # Vec{N,T}(v)
 # end
 # @inline Vec(u::Unsigned) = u # Unsigned integers are treated as vectors of bools
 # @inline Vec{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u) # Unsigned integers are treated as vectors of bools
-# @inline SVec(v::SVec{W,T}) where {W,T} = v
-# @inline SVec{W}(v::SVec{W,T}) where {W,T} = v
-# @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
-# @inline SVec{W}(v::Vec{W,T}) where {W,T} = SVec{W,T}(v)
+# @inline Vec(v::Vec{W,T}) where {W,T} = v
+# @inline Vec{W}(v::Vec{W,T}) where {W,T} = v
+# @inline Vec{W,T}(v::Vec{W,T}) where {W,T} = v
+# @inline Vec{W}(v::Vec{W,T}) where {W,T} = Vec{W,T}(v)
 # @inline vbroadcast(::Val, b::Bool) = b
 
 
-@inline Base.length(::AbstractStructVec{W}) where W = W
-@inline Base.size(::AbstractStructVec{W}) where W = (W,)
-@inline Base.eltype(::AbstractStructVec{W,T}) where {W,T} = T
-@inline Base.conj(v::AbstractStructVec) = v # so that things like dot products work.
-@inline Base.adjoint(v::AbstractStructVec) = v # so that things like dot products work.
-@inline Base.transpose(v::AbstractStructVec) = v # so that things like dot products work.
-@inline Base.getindex(v::SVec, i::Integer) = v.data[i].value
+@inline Base.length(::AbstractSIMDVector{W}) where W = W
+@inline Base.size(::AbstractSIMDVector{W}) where W = (W,)
+@inline Base.eltype(::AbstractSIMDVector{W,T}) where {W,T} = T
+@inline Base.conj(v::AbstractSIMDVector) = v # so that things like dot products work.
+@inline Base.adjoint(v::AbstractSIMDVector) = v # so that things like dot products work.
+@inline Base.transpose(v::AbstractSIMDVector) = v # so that things like dot products work.
+@inline Base.getindex(v::Vec, i::Integer) = v.data[i].value
 
-# @inline function SVec{N,T}(v::SVec{N,T2}) where {N,T,T2}
-    # @inbounds SVec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
+# @inline function Vec{N,T}(v::Vec{N,T2}) where {N,T,T2}
+    # @inbounds Vec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
 # end
 
-# @inline Base.one(::Type{<:AbstractStructVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, one(T)))
-# @inline Base.one(::AbstractStructVec{W,T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, one(T)))
-# @inline Base.zero(::Type{<:AbstractStructVec{W,T}}) where {W,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
-# @inline Base.zero(::AbstractStructVec{W,T}) where {W,T} = SVec(vbroadcast(Vec{W,T}, zero(T)))
+# @inline Base.one(::Type{<:AbstractSIMDVector{W,T}}) where {W,T} = Vec(vbroadcast(Vec{W,T}, one(T)))
+# @inline Base.one(::AbstractSIMDVector{W,T}) where {W,T} = Vec(vbroadcast(Vec{W,T}, one(T)))
+# @inline Base.zero(::Type{<:AbstractSIMDVector{W,T}}) where {W,T} = Vec(vbroadcast(Vec{W,T}, zero(T)))
+# @inline Base.zero(::AbstractSIMDVector{W,T}) where {W,T} = Vec(vbroadcast(Vec{W,T}, zero(T)))
 
 
 # Use with care in function signatures; try to avoid the `T` to stay clean on Test.detect_unbound_args
 
 @inline data(v) = v
 @inline data(v::Vec) = v.data
-#@inline data(v::AbstractStructVec) = v.data
+#@inline data(v::AbstractSIMDVector) = v.data
 # @inline extract_value(v::Vec, i) = v[i].value
-# @inline extract_value(v::SVec, i) = v.data[i].value
+# @inline extract_value(v::Vec, i) = v.data[i].value
 
 
 function Base.show(io::IO, v::Vec{W,T}) where {W,T}
@@ -188,14 +187,24 @@ end
 
 include("cartesianvindex.jl")
 include("static.jl")
-include("vectorizable.jl")
+# include("vectorizable.jl")
 include("strideprodcsestridedpointers.jl")
+include("topology.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/binary_ops.jl")
+include("strided_pointers/stridedpointers.jl")
+include("strided_pointers/cartesian_indexing.jl")
 @static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
-    @static if Base.libllvm_version >= v"8" && VERSION >= v"1.4" && LLVM_SHOULD_WORK
+    # @static if Base.libllvm_version >= v"8" && VERSION >= v"1.4" && LLVM_SHOULD_WORK
         include("cpu_info_x86_llvm.jl")
-    else
-        include("cpu_info_x86_cpuid.jl")
-    end
+    # else
+        # include("cpu_info_x86_cpuid.jl")
+    # end
 else
     include("cpu_info_generic.jl")
 end
@@ -203,6 +212,7 @@ end
 include("vector_width.jl")
 include("number_vectors.jl")
 include("masks.jl")
+include("rankges.jl")
 include("alignment.jl")
 include("precompile.jl")
 _precompile_()

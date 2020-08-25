@@ -1,14 +1,9 @@
 
-import CpuId, Libdl
-
 
 let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist()))),
     gethostcpufeatures = Libdl.dlsym(llvmlib, :LLVMGetHostCPUFeatures),
     features_cstring = ccall(gethostcpufeatures, Cstring, ()),
     features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ), split(unsafe_string(features_cstring), ','))
-
-    offsetnottwo(::Nothing) = true
-    offsetnottwo(m::RegexMatch) = m.offset != 2
 
     avx512f = any(isequal("+avx512f"), features)
     avx2 = any(isequal("+avx2"), features)
@@ -16,15 +11,10 @@ let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), 
 
     register_size = avx512f ? 64 : (avx ? 32 : 16)
     register_count = avx512f ? 32 : 16
-    cache_size = CpuId.cachesize()
-    num_cores = CpuId.cpucores()
 
     @eval const REGISTER_SIZE = $register_size
     @eval const REGISTER_COUNT = $register_count
-    @eval const FP256 = $(CpuId.cpufeature(CpuId.FP256)) # Is AVX2 fast?
-    @eval const CACHELINE_SIZE = $(CpuId.cachelinesize())
     @eval const CACHE_SIZE = $cache_size
-    @eval const NUM_CORES = $num_cores
     @eval const SIMD_NATIVE_INTEGERS = $(avx2)
 
     for ext ∈ features
@@ -33,5 +23,5 @@ let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), 
     Libc.free(features_cstring)
 end
 
-const FMA3 = FMA
+const FMA_FAST = FMA | FMA4
 

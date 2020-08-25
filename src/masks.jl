@@ -250,7 +250,7 @@ end
         ))
     end
 end
-@inline tomask(v::AbstractStructVec{<:Any,Bool}) = tomask(extract_data(v))
+@inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(extract_data(v))
 
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
@@ -405,22 +405,22 @@ end
 #     vstore!(Base.unsafe_convert(Ptr{UW}, gep(ptr, ind)), u | um)
 
 # end
-# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::Vec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
 # @inline vstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, v, i)
-# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vstore!(bptr::PackedStridedBitPointer{1}, v::Vec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
 # @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, v, i)
 # @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Mask{W}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, v, i)
-# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
-# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::SVec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Vec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
+# @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Vec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
 
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
 @inline vstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
 @inline vnoaliasstore!(ptr::AbstractBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
-@inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
-@inline vstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
-@inline vnoaliasstore!(ptr::AbstractBitPointer, v::SVec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
+@inline vstore!(ptr::AbstractBitPointer, v::Vec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
+@inline vstore!(ptr::AbstractBitPointer, v::Vec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Vec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
+@inline vnoaliasstore!(ptr::AbstractBitPointer, v::Vec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
 
 @generated function Base.isodd(i::MM{W}) where {W}
     U = mask_type(W)

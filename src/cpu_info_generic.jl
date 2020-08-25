@@ -1,11 +1,9 @@
+
 const REGISTER_SIZE = 16
 const REGISTER_COUNT = 16
-const FP256 = true
-const CACHELINE_SIZE = 64
-const CACHE_SIZE = ((1<<15,1<<20,1<<22))
-const NUM_CORES = (Sys.CPU_THREADS)
+
+const FMA_FAST = false
 const FMA = false
-const FMA3 = false
 const AVX2 = false 
 const AVX512F = false
 const AVX512ER = false
