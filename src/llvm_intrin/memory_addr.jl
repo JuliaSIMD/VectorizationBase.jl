@@ -35,19 +35,47 @@ const STORE_TBAA = """
 !8 = !{!"jtbaa_arraybuf", !6, i64 0}
 """
 
-function offset_ptr(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1, argind = '1', forgep::Bool = false) where {T <: NativeTypes, I <: Integer}
+function constantoffset!(instrs, argind, offset)
+
+end
+function constantmul!(instrs, argind, offset)
+
+end
+
+function offset_ptr(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1, constoffset::Int = 0, argind = '1', forgep::Bool = false) where {T <: NativeTypes, I <: Integer}
+    sizeof_T = sizeof(T)
     ityp = vtype(ivec ? W : 1, 'i' * string(8sizeof(I)))
     typ = LLVM_TYPE[T]
     vtyp = vtype(W, typ)
     instrs = String[]
-    if iszero(constmul)
+    # nptrs = 1 + (constmul != 0) + (constoffset != 0)
+    # ptrs = Vector{String}(undef, nptrs);
+    # for i ∈ 1:nptrs - 1
+    #     ptrs[i] = "ptr.$i"
+    # end
+    # ptrs[end] = "ptr"
+    # i = 0
+    if iszero(constmul) && iszero(constoffset)
         push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $vtyp*")
+    elseif iszero(constmul)
+        # if iszero(constoffset % (W*sizeof_T))
+        #     offset = constoffset ÷ (W*sizeof_T)
+        #     push!(instrs, "%typptr = inttoptr $JULIAPOINTERTYPE %0 to $vtyp*")
+        #     push!(instrs, "%ptr = getelementptr inbounds $vtyp, $vtyp* %typptr, i32 $offset")
+        # else
+        push!(instrs, "%typptr = inttoptr $JULIAPOINTERTYPE %0 to i8*")
+        if vtyp === "i8"
+            push!(instrs, "%ptr = getelementptr inbounds i8, i8* %typptr, i32 $constoffset")
+        else
+            push!(instrs, "%iptr = getelementptr inbounds i8, i8* %typptr, i32 $constoffset")
+            push!(instrs, "%ptr = bitcast i8* %iptr to $vtyp*")
+        end
     else
         tz = min(trailing_zeros(constmul), 3)
         bits = 8 << tz
-        ptyp = bits == 8sizeof(T) ? typ : 'i' * string(bits)
+        ptyp = bits == 8sizeof_T ? typ : 'i' * string(bits)
         desttyp = ivec ? typ : vtyp
-        iptr = desttyp === ptyp ? "ptr" : "iptr"
+        iptr = (desttyp === ptyp && iszero(constoffset)) ? "ptr" : "iptr"
         constmul >>= tz
         push!(instrs, "%typptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*")
         if isone(constmul)
@@ -56,6 +84,20 @@ function offset_ptr(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constm
             cm = llvmconst(W, I, constmul)
             push!(instrs, """%ioff = mul nsw $ityp %$(argind), $cm
             %$(iptr) = getelementptr inbounds $ptyp, $ptyp* %typptr, $ityp %ioff""")
+        end
+        if constoffset
+            if iszero((8constoffset) % bits) # current type is fine
+                offset = constoffset >> tz
+                argname = desttyp === ptyp ? "ptr" : "optr"
+                push!(instrs, "%$(argname) = getelementptr inbounds $ptyp, $ptyp* %$(iptr), i32 $offset")
+            else
+                argname = desttyp === "i8" ? "ptr" : "bioptr"
+                push!(insrts, """%biptr = bitcast $ptyp* %$(argname) to i8*
+                %$(argname) = getelementptr inbounds i8, i8* %biptr, i32 $constoffset""")
+                ptyp = "i8"; 
+            end
+        else
+            argname = "iptr"
         end
         if ivec
             if ptyp !== typ
@@ -67,9 +109,9 @@ function offset_ptr(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constm
             end
         elseif ptyp !== vtyp
             if forgep
-                push!(instrs, "%ptr = ptrtoint $ptyp* %iptr to $JULIAPOINTERTYPE")
+                push!(instrs, "%ptr = ptrtoint $ptyp* %$(argname) to $JULIAPOINTERTYPE")
             else
-                push!(instrs, "%ptr = bitcast $ptyp* %iptr to $vtyp*")
+                push!(instrs, "%ptr = bitcast $ptyp* %$(argname) to $vtyp*")
             end
         end
     end
@@ -100,6 +142,9 @@ end
 @generated function gep(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
     gep_quote(T, I, 1, false, 1)
 end
+@generated function gep(ptr::Ptr{T}, ::Static{N}) where {T <: NativeTypes, N}
+    gep_quote(T, I, 1, false, 1, N)
+end
 @generated function gep(ptr::Ptr{T}, i::LazyMul{N,I}) where {T <: NativeTypes, I <: Integer, N}
     gep_quote(T, I, 1, false, N)
 end
@@ -107,13 +152,13 @@ end
 #     gep_quote(T, I, W, true, 1)
 # end
 
-function vload_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
+function vload_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, constoffset::Int = 0) where {T <: NativeTypes, I <: Integer}
     ityp = vtype(ivec ? W : 1, 'i' * string(8sizeof(I)))
     typ = LLVM_TYPE[T]
     lret = vtyp = vtype(W, typ)
     decl = LOAD_SCOPE_TBAA
     alignment = Base.datatype_alignment(T)
-    instrs = offset_ptr(T, I, W, ivec, constmul, '1')
+    instrs = offset_ptr(T, I, W, ivec, constmul, constoffset, '1')
     mask && truncate_mask!(instrs, ivec ? '2' : '1', W, min(8, W), 0)
     if ivec
         loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T) * '.' * suffix(W, Ptr{T})
@@ -164,17 +209,26 @@ end
 @generated function vload(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
     vload_quote(T, I, 1, false, false, 1)
 end
+@generated function vload(ptr::Ptr{T}, ::Static{N}) where {T <: NativeTypes, N}
+    vload_quote(T, I, 1, false, false, 0, N)
+end
 @generated function vload(ptr::Ptr{T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, W, true, false, 1)
 end
 @generated function vload(ptr::Ptr{T}, i::MM{W,I}) where {W, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, W, false, false, 1)
 end
+@generated function vload(ptr::Ptr{T}, ::MM{W,Static{N}}) where {W, T <: NativeTypes, N}
+    vload_quote(T, I, W, false, false, 0, N)
+end
 @generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, W, true, true, 1)
 end
 @generated function vload(ptr::Ptr{T}, i::MM{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, W, false, true, 1)
+end
+@generated function vload(ptr::Ptr{T}, ::MM{W,Static{N}}, m::Mask{W}) where {W, T <: NativeTypes, N}
+    vload_quote(T, I, W, false, true, 0, N)
 end
 @generated function vload(ptr::Ptr{T}, i::LazyMul{N,I}) where {N, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, 1, false, false, N)
@@ -192,13 +246,26 @@ end
     vload_quote(T, I, W, false, true, N)
 end
 
-function vstore_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, noalias::Bool = false) where {T <: NativeTypes, I <: Integer}
+# @generated function vload(ptr_base::Ptr{T}, i::Unroll{W,U}) where {W,U,T}
+#     t = Expr(:tuple)
+#     for u ∈ 0:U-1
+#         push!(t.args, :(vload(ptr, MM{$W}(lazymul(Static{$u}(), x)))))
+#     end
+#     quote
+#         $(Expr(:meta,:inline))
+#         x = stride(i)
+#         ptr = gep(ptr_base, base(i))
+#         VecUnroll($t)
+#     end
+# end
+
+function vstore_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, constoffset::Int = 0, noalias::Bool = false) where {T <: NativeTypes, I <: Integer}
     ityp = vtype(ivec ? W : 1, 'i' * string(8sizeof(I)))
     typ = LLVM_TYPE[T]
     vtyp = vtype(W, typ)
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
     alignment = Base.datatype_alignment(T)
-    instrs = offset_ptr(T, I, W, ivec, constmul, '2')
+    instrs = offset_ptr(T, I, W, ivec, constmul, constoffset, '2')
     mask && truncate_mask!(instrs, ivec ? '3' : '2', W, min(8, W), 0)
     if ivec
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
@@ -249,17 +316,26 @@ end
 @generated function vstore!(ptr::Ptr{T}, v::T, i::I) where {T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, 1, false, false, 1)
 end
+@generated function vstore!(ptr::Ptr{T}, v::T, ::Static{N}) where {T <: NativeTypes, N}
+    vstore_quote(T, I, 1, false, false, 0, N)
+end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, true, false, 1)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Union{I,MM{W,I}}) where {W, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, false, 1)
 end
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Union{Static{N},MM{W,Static{N}}}) where {W, T <: NativeTypes, N}
+    vstore_quote(T, I, W, false, false, 0, N)
+end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, true, true, 1)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Union{I,MM{W,I}}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, true, 1)
+end
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Union{Static{N},MM{W,Static{N}}}, m::Mask{W}) where {W, T <: NativeTypes, N}
+    vstore_quote(T, I, W, false, true, 0, N)
 end
 @generated function vstore!(ptr::Ptr{T}, v::T, i::LazyMul{N,I}) where {N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, 1, false, false, N)
@@ -285,43 +361,52 @@ end
 
 
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::T) where {T <: NativeTypes}
-    vstore_quote(T, Int, 1, false, false, 0, true)
+    vstore_quote(T, Int, 1, false, false, 0, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::I) where {T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, 1, false, false, 1, true)
+    vstore_quote(T, I, 1, false, false, 1, 0, true)
+end
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::T, ::Static{N}) where {T <: NativeTypes, N}
+    vstore_quote(T, I, 1, false, false, 0, N, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, true, false, 1, true)
+    vstore_quote(T, I, W, true, false, 1, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Union{I,MM{W,I}}) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, false, false, 1, true)
+    vstore_quote(T, I, W, false, false, 1, 0, true)
+end
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Union{Static{N},MM{W,Static{N}}}) where {W, T <: NativeTypes, N}
+    vstore_quote(T, I, W, false, false, 0, N, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, true, true, 1, true)
+    vstore_quote(T, I, W, true, true, 1, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Union{I,MM{W,I}}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, false, true, 1, true)
+    vstore_quote(T, I, W, false, true, 1, 0, true)
+end
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Union{Static{N},MM{W,Static{N}}}, m::Mask{W}) where {W, T <: NativeTypes, N}
+    vstore_quote(T, I, W, false, true, 0, N, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::LazyMul{N,I}) where {N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, 1, false, false, N, true)
+    vstore_quote(T, I, 1, false, false, N, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,Vec{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, true, false, N, true)
+    vstore_quote(T, I, W, true, false, N, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,I}) where {W, N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, false, false, N, true)
+    vstore_quote(T, I, W, false, false, N, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,MM{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, false, false, N, true)
+    vstore_quote(T, I, W, false, false, N, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,Vec{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, true, true, N, true)
+    vstore_quote(T, I, W, true, true, N, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,I}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, false, true, N, true)
+    vstore_quote(T, I, W, false, true, N, 0, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,MM{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, W, false, true, N, true)
+    vstore_quote(T, I, W, false, true, N, 0, true)
 end
 
 

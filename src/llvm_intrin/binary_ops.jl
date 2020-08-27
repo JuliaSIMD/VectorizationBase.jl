@@ -1,28 +1,16 @@
 # Scalar operations
-for op ∈ ["add", "sub", "mul", "shl"]
-    f = Symbol('v', op)
-    for T ∈ [Int8,Int16,Int32,Int64]
-        bits = 8sizeof(T)
-        for flag ∈ ["nuw", "nsw"]
-            Ti = flag == "nuw" ? unsigned(T) : T
-            instr = "%res = $op $flag i$bits %0, %1\nret i$bits %res"
-            @eval @inline Base.@pure $f(a::$Ti, b) = llvmcall($instr, $Ti, Tuple{$Ti,$Ti}, a, b % $Ti)
-        end
-    end
-end
 
-@inline Base.@pure vshr(a::Int64, b) = llvmcall("", Int64, Tuple{Int64,Int64}, a, b % Int64)
-@inline Base.@pure vshr(a::Int64, b) = llvmcall("%res = ashr i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
-@inline Base.@pure vshr(a::Int32, b) = llvmcall("%res = ashr i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
+# @inline Base.@pure vshr(a::Int64, b) = llvmcall("%res = ashr i64 %0, %1\nret i64 %res", Int64, Tuple{Int64,Int64}, a, b % Int64)
+# @inline Base.@pure vshr(a::Int32, b) = llvmcall("%res = ashr i32 %0, %1\nret i32 %res", Int32, Tuple{Int32,Int32}, a, b % Int32)
 
-@inline Base.@pure vshr(a::Int16, b) = llvmcall("%res = ashr i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
-@inline Base.@pure vshr(a::Int8, b) = llvmcall("%res = ashr i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
+# @inline Base.@pure vshr(a::Int16, b) = llvmcall("%res = ashr i16 %0, %1\nret i16 %res", Int16, Tuple{Int16,Int16}, a, b % Int16)
+# @inline Base.@pure vshr(a::Int8, b) = llvmcall("%res = ashr i8 %0, %1\nret i8 %res", Int8, Tuple{Int8,Int8}, a, b % Int8)
 
-@inline Base.@pure vshr(a::UInt64, b) = llvmcall("%res = lshr i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
-@inline Base.@pure vshr(a::UInt32, b) = llvmcall("%res = lshr i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
+# @inline Base.@pure vshr(a::UInt64, b) = llvmcall("%res = lshr i64 %0, %1\nret i64 %res", UInt64, Tuple{UInt64,UInt64}, a, b % UInt64)
+# @inline Base.@pure vshr(a::UInt32, b) = llvmcall("%res = lshr i32 %0, %1\nret i32 %res", UInt32, Tuple{UInt32,UInt32}, a, b % UInt32)
 
-@inline Base.@pure vshr(a::UInt16, b) = llvmcall("%res = lshr i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
-@inline Base.@pure vshr(a::UInt8, b) = llvmcall("%res = lshr i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
+# @inline Base.@pure vshr(a::UInt16, b) = llvmcall("%res = lshr i16 %0, %1\nret i16 %res", UInt16, Tuple{UInt16,UInt16}, a, b % UInt16)
+# @inline Base.@pure vshr(a::UInt8, b) = llvmcall("%res = lshr i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
 
 
 
@@ -34,10 +22,7 @@ function binary_op(op, W, @nospecialize(_::Type{T})) where {T}
         ty = "<$W x $ty>"
         V = NTuple{W,VecElement{T}}
     end
-    instrs = """
-        %res = $op $ty %0, %1
-        ret $ty %res
-    """
+    instrs = "%res = $op $ty %0, %1\nret $ty %res"
     quote
         $(Expr(:meta, :inline))
         llvmcall($instrs, $V, Tuple{$V,$V}, data(v1), data(v2))
@@ -63,6 +48,8 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
     for Ts ∈ [Int8,Int16,Int32,Int64]
         Tu = unsigned(Ts)
         st = sizeof(Ts)
+        Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(nswop, 1, Ts))
+        Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(nuwop, 1, Tu))
         W = 2
         while W ≤ pick_vector_width(Ts)
             @eval begin
@@ -82,6 +69,8 @@ for (op,f) ∈ [("div",:÷),("rem",:%)]
     for Ts ∈ [Int8,Int16,Int32,Int64]
         Tu = unsigned(Ts)
         st = sizeof(Ts)
+        Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(sop, 1, Ts))
+        Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(uop, 1, Tu))
         W = 2
         while W ≤ pick_vector_width(Ts)
             @eval begin
@@ -92,6 +81,13 @@ for (op,f) ∈ [("div",:÷),("rem",:%)]
         end
     end
     @eval @inline $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = $f(v1, v2)
+    # @eval const $ff = $f
+end
+@inline vcld(x, y) = vadd(vdiv(vsub(x,one(x)), y), one(x))
+@inline function vdivrem(x, y)
+    d = vdiv(x, y)
+    r = vsub(x, vmul(d, y))
+    d, r
 end
 for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
     ff = Symbol('v', op)
@@ -102,22 +98,28 @@ for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",
             if !iszero(s & 0x01) # signed def
                 @eval begin
                     Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
-                    @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $f(v1, v2)
+                    # @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $f(v1, v2)
                 end
             end
             if !iszero(s & 0x02) # unsigend def
                 @eval begin
                     Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
-                    @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $f(v1, v2)
+                    # @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $f(v1, v2)
                 end
             end
             W += W
         end
         if !iszero(s & 0x01) # signed def
-            @eval @inline $ff(v1::Vec{W,$Ts}, v2::Vec{W,$Ts}) where {W} = $f(v1, v2)
+            @eval begin
+                Base.@pure @inline Base.$f(v1::$Ts, v2::$Ts) = $(binary_op(op, 1, Ts))
+                @inline $ff(v1::Vec{W,$Ts}, v2::Vec{W,$Ts}) where {W} = $f(v1, v2)
+            end
         end
-        if !iszero(s & 0x02) # unsigend def
-            @eval @inline $ff(v1::Vec{W,$Tu}, v2::Vec{W,$Tu}) where {W} = $f(v1, v2)
+        if !iszero(s & 0x02) && !((s === 0x03) && (op === "ashr")) # unsigend def
+            @eval begin
+                Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(op, 1, Tu))
+                @inline $ff(v1::Vec{W,$Tu}, v2::Vec{W,$Tu}) where {W} = $f(v1, v2)
+            end
         end
     end
 end
