@@ -58,9 +58,12 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
         new{W,T}(x)
     end
 end
-struct VecUnroll{M,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMDVector{W,T}
-    data::NTuple{M,V}
+struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMDVector{W,T}
+    data::NTuple{N,V}
 end
+# struct VecUnroll{N,W,T} <: AbstractSIMDVector{W,T}
+#     data::NTuple{N,Vec{W,T}}
+# end
 
 @inline unrolleddata(x) = x
 @inline unrolleddata(x::VecUnroll) = x.data
@@ -179,7 +182,7 @@ The name `MM` type refers to _MM registers such as `XMM`, `YMM`, and `ZMM`.
 
 The `MM` type is used to represent SIMD indexes. 
 """
-struct MM{W,I<:Number}
+struct MM{W,I<:Number} <: AbstractSIMDVector
     i::I
     @inline MM{W}(i::T) where {W,T} = new{W,T}(i)
 end

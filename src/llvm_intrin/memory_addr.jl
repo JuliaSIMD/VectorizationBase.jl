@@ -1,21 +1,3 @@
-"""
-A - Unrolled axis
-F - Factor, step size per unroll
-N - How many times is it unrolled
-M - bitmask indicating whether each factor is masked
-i::I - index
-"""
-struct Unroll{A,F,N,I,M}
-    i::I
-end
-
-"""
-O - An `NTuple{M,NTuple{N,Int}}` tuple of tuples, specifies offsets of `N`-dim array for each of `M` loads.
-u::U - the base unrolled description.
-"""
-struct MultiLoad{O,A,U,M,I}
-    u::Unroll{U,V,F,W,M}
-end
 
 const SCOPE_METADATA = """
 !1 = !{!\"noaliasdomain\"}
@@ -409,6 +391,116 @@ end
     vstore_quote(T, I, W, false, true, N, 0, true)
 end
 
+"""
+AU - Unrolled axis
+F - Factor, step size per unroll
+N - How many times is it unrolled
+AV - Vectorized axis
+W - vector width
+M - bitmask indicating whether each factor is masked
+i::I - index
+"""
+struct Unroll{AU,F,N,AV,W,M,I}
+    i::I
+end
+
+function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
+    baseind = Expr(:tuple)
+    for d in 1:D
+        i = Expr(:call, :Zero)
+        if d == AV && W > 1
+            i = Expr(:call, Expr(:curly, :MM, W), i)
+        end
+        push!(baseind.args, i)
+    end
+    inds = Vector{Expr}(undef, N)
+    for n in 0:N-1
+        ind = copy(baseind)
+        if n != 0
+            i = Expr(:curly, :Static, n*F)
+            if AU == AV && W > 1
+                i = Expr(:call, Expr(:curly, :MM, W), i)
+            end
+            ind.args[AU] = Expr(:call, i)
+        end
+        inds[n+1] = ind
+    end
+    inds
+end
+
+function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool)
+    baseind = Expr(:tuple)
+    for d in 1:D
+        push!(baseind.args, Expr(:call, :Zero))
+    end
+    t = Expr(:tuple)
+    inds = unrolled_indicies(D, AU, F, N, AV, W)
+    for n in 0:N-1
+        if iszero(n)
+            ind = baseind
+        else
+            ind = copy(baseind)
+            ind.args[A] = Expr(:call, Expr(:curly, :Static, n*F))
+        end
+        l = Expr(:call, :vload, :gptr, ind)
+        (mask && (M % Bool)) && push!(l.args, :m)
+        M >>= 1
+        push!(t.args, l)
+    end
+    quote
+        $(Expr(:meta, :inline))
+        gptr = gesp(ptr, u.i)
+        VecUnroll($t)
+    end
+end
+
+@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}) where {AU,F,N,AV,W,M,I,T,D}
+    vload_unroll_quote(D, AU, F, N, AV, W, M, false)
+end
+@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}) where {AU,F,N,AV,W,M,I,T,D}
+    vload_unroll_quote(D, AU, F, N, AV, W, M, true)
+end
+
+function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool)
+    baseind = Expr(:tuple)
+    for d in 1:D
+        push!(baseind.args, Expr(:call, :Zero))
+    end
+    t = Expr(:tuple)
+    inds = unrolled_indicies(D, AU, F, N, AV, W)
+    q = quote
+        $(Expr(:meta, :inline))
+        gptr = gesp(ptr, u.i)
+        t = data(v)
+    end
+    for n in 0:N-1
+        if iszero(n)
+            ind = baseind
+        else
+            ind = copy(baseind)
+            ind.args[A] = Expr(:call, Expr(:curly, :Static, n*F))
+        end
+        l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n+1), ind)
+        (mask && (M % Bool)) && push!(l.args, :m)
+        M >>= 1
+        push!(q.args, l)
+    end
+    q
+end
+@generated function vstore!(ptr::AbstractStridedPointer{T,D}, v::VecUnroll{N,W}, u::Unroll{AU,F,N,AV,W,M,I}) where {AU,F,N,AV,W,M,I,T,D}
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, false)
+end
+@generated function vstore!(ptr::AbstractStridedPointer{T,D}, v::VecUnroll{N,W}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}) where {AU,F,N,AV,W,M,I,T,D}
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, true)
+end
+
+"""
+O - An `NTuple{M,NTuple{N,Int}}` tuple of tuples, specifies offsets of `N`-dim array for each of `M` loads.
+u::U - the base unrolled description.
+"""
+struct MultiLoad{O,A,U,M,I}
+    u::Unroll{U,V,F,W,M}
+end
 
 
 for locality ∈ 0:3, readorwrite ∈ 0:1

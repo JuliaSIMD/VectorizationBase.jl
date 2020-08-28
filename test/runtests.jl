@@ -8,8 +8,12 @@ A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
-@test isempty(detect_unbound_args(VectorizationBase))
+    @test isempty(detect_unbound_args(VectorizationBase))
 
+    W = VectorizationBase.pick_vector_width(Float64)
+    @test @inferred(pick_integer(Val(W))) == (VectorizationBase.AVX512DQ ? Int64 : Int32)
+
+    
 @test first(A) === A[1]
 @testset "Struct-Wrapped Vec" begin
 @test extract_data(zero(SVec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === extract_data(SVec{4,Float64}(0.0))
