@@ -46,32 +46,42 @@ end
 @inline offsetprecalc(x::PackedStridedBitPointer, ::Val{<:Any}) = x
 @inline offsetprecalc(x::RowMajorStridedBitPointer, ::Val{<:Any}) = x
 # descript is a tuple of (unrollfactor) for ech ind; if it shouldn't preallocate, unrollfactor may be set to 1
-function precalc_quote_from_descript(descript)
+function precalc_quote_from_descript(descript, contig, X)
     precalc = Expr(:tuple)
-    anyprecalcs = false
-    pstrides = Expr(:block, Expr(:(=), :pstride, Expr(:(.), :p, QuoteNode(:strides))))
+    anyprecalcs = anydynamicprecals = false
+    pstrideextracts = Expr(:block)
     for (i,uf) ∈ enumerate(descript)
+        i == contig && continue
         if uf < 3
             push!(precalc.args, nothing)
         else
             t = Expr(:tuple)
+            Xᵢ = X[i]
             anyprecalcs = true
-            pstride_i = Symbol(:pstride_, i)
-            push!(pstrides.args, Expr(:(=), pstride_i, Expr(:ref, :pstride, i)))
-            for u ∈ 3:uf
-                if isodd(u)
-                    push!(t.args, Expr(:call, :vmul, u, pstride_i))
-                end
+            if Xᵢ == -1
+                anydynamicprecals = true
+                pstride_i = Symbol(:pstride_, i)
+                push!(pstrideextracts.args, Expr(:(=), pstride_i, Expr(:ref, :pstride, i)))
+                foreach(u -> push!(t.args, Expr(:call, :vmul, u, pstride_i)), 3:2:uf)
+            else
+                foreach(u -> push!(t.args, u * Xᵢ), 3:2:uf)
             end
             push!(precalc.args, t)
         end        
     end
-    if anyprecalcs
-        Expr(:block, Expr(:meta,:inline), pstrides, Expr(:call, :OffsetPrecalc, :p, precalc))
-    else
-        Expr(:block, Expr(:meta,:inline), :p)
+    q = Expr(:block, Expr(:meta,:inline))
+    if anydynamicprecals
+        push!(q.args, :(pstride = strides(p)))
+        push!(q.args, pstrideextracts)
     end
+    if anyprecalcs
+        push!(q.args, Expr(:call, :OffsetPrecalc, :p, precalc))
+    else
+        push!(q.args, :p)
+    end
+    q
 end
+
 @inline offsetprecalc(p::AbstractColumnMajorStridedPointer{T,0}, ::Val{<:Any}) where {T} = p
 @generated function offsetprecalc(p::AbstractColumnMajorStridedPointer, ::Val{descript}) where {descript}
     precalc_quote_from_descript(Base.tail(descript))

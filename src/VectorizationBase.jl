@@ -61,6 +61,9 @@ end
 struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMDVector{W,T}
     data::NTuple{N,V}
 end
+
+@inline Base.copy(v::AbstractSIMDVector) = v
+
 # struct VecUnroll{N,W,T} <: AbstractSIMDVector{W,T}
 #     data::NTuple{N,Vec{W,T}}
 # end

@@ -17,16 +17,17 @@ const STORE_TBAA = """
 !8 = !{!"jtbaa_arraybuf", !6, i64 0}
 """
 
-function constantoffset!(instrs, argind, offset)
+# function constantoffset!(instrs, argind, offset)
 
-end
-function constantmul!(instrs, argind, offset)
+# end
+# function constantmul!(instrs, argind, offset)
 
-end
+# end
 
 function offset_ptr(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1, constoffset::Int = 0, argind = '1', forgep::Bool = false) where {T <: NativeTypes, I <: Integer}
     sizeof_T = sizeof(T)
-    ityp = vtype(ivec ? W : 1, 'i' * string(8sizeof(I)))
+    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
+    ityp = vtype(ivec ? W : 1, 'i' * string(8ibytes))
     typ = LLVM_TYPE[T]
     vtyp = vtype(W, typ)
     instrs = String[]
@@ -107,7 +108,13 @@ function gep_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmu
     lret = JULIAPOINTERTYPE
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T))
     largs = String[JULIAPOINTERTYPE]
-    arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :i)]
+    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
+    if sizeof(I) == ibytes
+        iexpr = Expr(:call, :data, :i)
+    else
+        iexpr = Expr(:call, :data, Expr(:call, :%, iexpr, integer_of_bytes(ibytes)))
+    end
+    arg_syms = Union{Symbol,Expr}[:ptr, iexpr]
     if ivec && W > 1
         ret = Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, ret))
         lret = "<$W x $lret>"
@@ -135,7 +142,8 @@ end
 # end
 
 function vload_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, constoffset::Int = 0) where {T <: NativeTypes, I <: Integer}
-    ityp = vtype(ivec ? W : 1, 'i' * string(8sizeof(I)))
+    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
+    ityp = vtype(ivec ? W : 1, 'i' * string(8ibytes))
     typ = LLVM_TYPE[T]
     lret = vtyp = vtype(W, typ)
     decl = LOAD_SCOPE_TBAA
@@ -164,7 +172,12 @@ function vload_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask:
     largs = String[JULIAPOINTERTYPE]
     arg_syms = Union{Symbol,Expr}[:ptr]
     if !iszero(constmul)
-        push!(arg_syms, Expr(:call, :data, :i))
+        if sizeof(I) == ibytes
+            iexpr = Expr(:call, :data, :i)
+        else
+            iexpr = Expr(:call, :data, Expr(:call, :%, iexpr, integer_of_bytes(ibytes)))
+        end
+        push!(arg_syms, iexpr)
         push!(largs, ityp)
         if ivec & (W > 1)
             push!(args.args, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, I)))
@@ -242,7 +255,8 @@ end
 # end
 
 function vstore_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, constoffset::Int = 0, noalias::Bool = false) where {T <: NativeTypes, I <: Integer}
-    ityp = vtype(ivec ? W : 1, 'i' * string(8sizeof(I)))
+                     ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
+    ityp = vtype(ivec ? W : 1, 'i' * string(8ibytes))
     typ = LLVM_TYPE[T]
     vtyp = vtype(W, typ)
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
@@ -271,7 +285,12 @@ function vstore_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask
     largs = String[JULIAPOINTERTYPE, vtyp]
     arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
     if !iszero(constmul)
-        push!(arg_syms, Expr(:call, :data, :i))
+        if sizeof(I) == ibytes
+            iexpr = Expr(:call, :data, :i)
+        else
+            iexpr = Expr(:call, :data, Expr(:call, :%, iexpr, integer_of_bytes(ibytes)))
+        end
+        push!(arg_syms, iexpr)
         push!(largs, ityp)
         if ivec & (W > 1)
             push!(args.args, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, I)))

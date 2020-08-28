@@ -27,13 +27,13 @@ for bytes1 in (1,2,4,8)
     juint = Symbol(:UInt, 8bytes1)
     for (jfloat,llvmfloat) ∈ ((:Float32,"float"),(:Float64,"double"))
         expr = :(convert_func("sitofp", W, $llvmfloat, $jfloat, $llvmint, $jint))
-        @eval @generated Base.convert(::Type{Vec{W,$jfloat}}, v::Vec{W,$jint}) where {W} = $expr
+        @eval @generated Vec{W,$jfloat}(v::Vec{W,$jint}) where {W} = $expr
         expr = :(convert_func("uitofp", W, $llvmfloat, $jfloat, $llvmint, $juint))
-        @eval @generated Base.convert(::Type{Vec{W,$jfloat}}, v::Vec{W,$juint}) where {W} = $expr
+        @eval @generated Vec{W,$jfloat}(v::Vec{W,$juint}) where {W} = $expr
         expr = :(convert_func("fptosi", W, $llvmint, $jint, $llvmfloat, $jfloat))
-        @eval @generated Base.convert(::Type{Vec{W,$jint}}, v::Vec{W,$jfloat}) where {W} = $expr
+        @eval @generated Vec{W,$jint}(v::Vec{W,$jfloat}) where {W} = $expr
         expr = :(convert_func("fptoui", W, $llvmint, $juint, $llvmfloat, $jfloat))
-        @eval @generated Base.convert(::Type{Vec{W,$juint}}, v::Vec{W,$jfloat}) where {W} = $expr
+        @eval @generated Vec{W,$juint}(v::Vec{W,$jfloat}) where {W} = $expr
     end
     for bytes2 in (1,2,4)
         bytes2 == bytes1 && break
@@ -41,27 +41,27 @@ for bytes1 in (1,2,4,8)
         jint2 = Symbol(:Int, 8bytes2)
         juint2 = Symbol(:UInt, 8bytes2)
         expr = :(convert_func("trunc", W, $llvmint2, $jint2, $llvmint, $jint))
-        @eval @generated Base.convert(::Type{Vec{W,$jint2}}, v::Vec{W,$jint}) where {W} = $expr
+        @eval @generated Vec{W,$jint2}(v::Vec{W,$jint}) where {W} = $expr
         expr = :(convert_func("trunc", W, $llvmint2, $juint2, $llvmint, $jint))
-        @eval @generated Base.convert(::Type{Vec{W,$juint2}}, v::Vec{W,$jint}) where {W} = $expr
+        @eval @generated Vec{W,$juint2}(v::Vec{W,$jint}) where {W} = $expr
         expr = :(convert_func("trunc", W, $llvmint2, $jint2, $llvmint, $juint))
-        @eval @generated Base.convert(::Type{Vec{W,$jint2}}, v::Vec{W,$juint}) where {W} = $expr
+        @eval @generated Vec{W,$jint2}(v::Vec{W,$juint}) where {W} = $expr
         expr = :(convert_func("trunc", W, $llvmint2, $juint2, $llvmint, $juint))
-        @eval @generated Base.convert(::Type{Vec{W,$juint2}}, v::Vec{W,$juint}) where {W} = $expr
+        @eval @generated Vec{W,$juint2}(v::Vec{W,$juint}) where {W} = $expr
 
         expr = :(convert_func("sext", W, $llvmint, $jint, $llvmint2, $jint2))
-        @eval @generated Base.convert(::Type{Vec{W,$jint}}, v::Vec{W,$jint2}) where {W} = $expr
+        @eval @generated Vec{W,$jint}(v::Vec{W,$jint2}) where {W} = $expr
         expr = :(convert_func("zext", W, $llvmint, $juint, $llvmint2, $jint2))
-        @eval @generated Base.convert(::Type{Vec{W,$juint}}, v::Vec{W,$jint2}) where {W} = $expr
+        @eval @generated Vec{W,$juint}(v::Vec{W,$jint2}) where {W} = $expr
         expr = :(convert_func("zext", W, $llvmint, $jint, $llvmint2, $juint2))
-        @eval @generated Base.convert(::Type{Vec{W,$jint}}, v::Vec{W,$juint2}) where {W} = $expr
+        @eval @generated Vec{W,$jint}(v::Vec{W,$juint2}) where {W} = $expr
         expr = :(convert_func("zext", W, $llvmint, $juint, $llvmint2, $juint2))
-        @eval @generated Base.convert(::Type{Vec{W,$juint}}, v::Vec{W,$juint2}) where {W} = $expr
+        @eval @generated Vec{W,$juint}(v::Vec{W,$juint2}) where {W} = $expr
     end
     expr = :(identity_func(W, $llvmint, $juint, $jint))
-    @eval @generated Base.convert(::Type{Vec{W,$juint}}, v::Vec{W,$jint}) where {W} = $expr
+    @eval @generated Vec{W,$juint}(v::Vec{W,$jint}) where {W} = $expr
     expr = :(identity_func(W, $llvmint, $jint, $juint))
-    @eval @generated Base.convert(::Type{Vec{W,$jint}}, v::Vec{W,$juint}) where {W} = $expr
+    @eval @generated Vec{W,$jint}(v::Vec{W,$juint}) where {W} = $expr
 end
 
 for (jfloat,llvmfloat) ∈ ((:Float32,"float"),(:Float64,"double"))
@@ -71,8 +71,8 @@ end
 let
     W = 1
     while W ≤ pick_vector_width(Float64)
-        @eval Base.convert(::Type{Vec{$W,Float32}}, v::Vec{$W,Float64}) = $(convert_func("fptrunc", W, "float", :Float32, "double", :Float64))
-        @eval Base.convert(::Type{Vec{$W,Float64}}, v::Vec{$W,Float32}) = $(convert_func("fpext", W, "double", :Float64, "float", :Float32))
+        @eval Vec{$W,Float32}(v::Vec{$W,Float64}) = $(convert_func("fptrunc", W, "float", :Float32, "double", :Float64))
+        @eval Vec{$W,Float64}(v::Vec{$W,Float32}) = $(convert_func("fpext", W, "double", :Float64, "float", :Float32))
         W += W
     end
 end

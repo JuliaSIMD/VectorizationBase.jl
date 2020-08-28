@@ -7,8 +7,7 @@ function pick_integer_bytes(W, preferred)
     end
     min(preferred, prevpow2(REGISTER_SIZE ÷ W))
 end
-function pick_integer(W, pref)
-    bytes = pick_integer_bytes(W, pref)
+function integer_of_bytes(bytes)
     if bytes == 8
         Int64
     elseif bytes == 4
@@ -20,6 +19,9 @@ function pick_integer(W, pref)
     else
         throw("$bytes is an invalid number of bytes for integers.")
     end
+end    
+function pick_integer(W, pref)
+    integer_of_bytes(pick_integer_bytes(W, pref))
 end
 pick_integer(::Val{W}) where {W} = pick_integer(W, sizeof(Int))
 
