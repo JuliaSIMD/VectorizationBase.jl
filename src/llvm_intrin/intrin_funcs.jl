@@ -136,6 +136,15 @@ end
 #     end
 # end
 
+@inline vfmadd(a, b, c) = muladd(a, b, c)
+@inline vfnmadd(a, b, c) = muladd(-a, b, c)
+@inline vfmsub(a, b, c) = muladd(a, b, -c)
+@inline vfnmsub(a, b, c) = -muladd(a, b, c)
+
+@inline vfmadd231(a, b, c) = vfmadd(a, b, c)
+@inline vfnmadd231(a, b, c) = vfnmadd(a, b, c)
+@inline vfmsub231(a, b, c) = vfmsub(a, b, c)
+@inline vfnmsub231(a, b, c) = vfnmsub(a, b, c)
 
 if FMA
     @eval begin
