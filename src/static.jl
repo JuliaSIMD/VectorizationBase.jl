@@ -3,10 +3,6 @@
 
 
 
-@eval struct Static{N} <: Number
-    (f::Type{<:Static})() = $(Expr(:new,:f))
-end
-Base.@pure Static(N) = Static{N}()
 const Zero = Static{0}
 const One = Static{1}
 @inline Static(::Val{N}) where {N} = Static{N}()
@@ -15,8 +11,6 @@ const One = Static{1}
 @generated function static_sizeof(::Type{T}) where {T}
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Static, sizeof(T))))
 end
-
-@inline Base.CartesianIndex(I::Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,Static}}}) = CartesianVIndex(I)
 
 Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
 Base.convert(::Type{T}, ::Static{N}) where {T <: Number, N} = convert(T, N)
@@ -36,17 +30,19 @@ Base.convert(::Type{T}, ::Static{N}) where {T <: Number, N} = convert(T, N)
 @inline static_length(::Type{T}) where {T} = Static(known_length(T))
 
 @inline _maybestaticfirst(a, ::Nothing) = first(a)
-@inline _maybestaticfirst(::Any, ::Static{L}) where {L} = Static{L}()
+@inline _maybestaticfirst(::Any, L) = Static{L}()
 @inline maybestaticfirst(a::T) where {T} = _maybestaticfirst(a, known_first(T))
 
 @inline _maybestaticlast(a, ::Nothing) = last(a)
-@inline _maybestaticlast(::Any, ::Static{L}) where {L} = Static{L}()
+@inline _maybestaticlast(::Any, L) = Static{L}()
 @inline maybestaticlast(a::T) where {T} = _maybestaticlast(a, known_last(T))
 
-@inline _maybestaticsize(a, ::Nothing) = length(a)
-@inline _maybestaticsize(::Any, ::Static{L}) where {L} = Static{L}()
-@inline maybestaticlength(a::T) where {T} = _maybestaticsize(a, known_length(T))
-@inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
+@inline _maybestaticlength(a, L::Int, U::Int) = Static{U-L}()
+@inline _maybestaticlength(a, ::Any, ::Any) = length(a)
+@inline _maybestaticlength(a, ::Nothing) = _maybestaticlength(a, known_first(a), known_last(a))
+@inline _maybestaticlength(::Any, L::Int) = Static{L}()
+@inline maybestaticlength(a::T) where {T} = _maybestaticlength(a, known_length(T))
+# @inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
 @inline maybestaticsize(A, ::Val{I}) where {I} = maybestaticlength(axes(A, I))
 # @inline maybestaticsize(A::AbstractArray{<:Any,0}, ::Val{1:2}) = (1, 1)
 # @inline maybestaticsize(A::AbstractVector, ::Val{1:2}) = (length(A), 1)
@@ -59,7 +55,7 @@ Base.convert(::Type{T}, ::Static{N}) where {T <: Number, N} = convert(T, N)
     foreach(n -> push!(out.args, :(maybestaticsize(A, Val{$n}()))), 1:N)
     out
 end
-@inline maybestaticlength(A) = length(A)
+# @inline maybestaticlength(A) = length(A)
 
 # @inline maybestaticfirstindex(A::AbstractArray, ::Val{I}) where {I} = firstindex(A, I)
 # @inline maybestaticfirstindex(A::Array, ::Val{I}) where {I} = One()
@@ -69,20 +65,20 @@ end
 
 @inline maybestaticrange(r::Base.OneTo{T}) where {T} = ArrayInterface.OptionallyStaticUnitRange{T}(Val{1}(), last(r))
 @inline maybestaticrange(r::UnitRange) = r
-@inline maybestaticrange(r::AbstractStaticUnitRange) = r
+# @inline maybestaticrange(r::AbstractStaticUnitRange) = r
 @inline maybestaticrange(r) = maybestaticfirst(r):maybestaticlast(r)
 # @inline maybestaticaxis(A::AbstractArray, ::Val{I}) where {I} = maybestaticfirstindex(A, Val{I}()):maybestaticsize(A, Val{I}())
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = Static{N}() # should we assert that i == 1?
 @inline maybestaticlength(::NTuple{N}) where {N} = Static{N}()
-@inline maybestaticsize(::Adjoint{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
-@inline maybestaticsize(::Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
-@inline maybestaticlength(B::Adjoint) = maybestaticlength(parent(B))
-@inline maybestaticlength(B::Transpose) = maybestaticlength(parent(B))
-@inline maybestaticsize(B::Adjoint{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
-@inline maybestaticsize(B::Adjoint{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
-@inline maybestaticsize(B::Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
-@inline maybestaticsize(B::Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
+@inline maybestaticsize(::LinearAlgebra.Adjoint{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
+@inline maybestaticsize(::LinearAlgebra.Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
+@inline maybestaticlength(B::LinearAlgebra.Adjoint) = maybestaticlength(parent(B))
+@inline maybestaticlength(B::LinearAlgebra.Transpose) = maybestaticlength(parent(B))
+@inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
+@inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
+@inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
+@inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
 
 @inline Base.iszero(::Zero) = true
 @inline Base.iszero(::Static) = false
@@ -106,31 +102,32 @@ end
 @generated Base.divrem(::Static{N}, ::Static{D}) where {N,D} = divrem(N, D)
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `Static` argument.
-for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(Base.:<<)), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)]
+for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(Base.:<<),:vshl), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)]
     @eval begin
         @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
     # If `M` and `N` are known at compile time, there's no need to add nsw/nuw flags.
         @inline $ff(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
-        @inline $f(::Static{M}, x) = $ff(M, x)
-        @inline $ff(::Static{M}, x) = $ff(M, x)
-        @inline $f(x, ::Static{M}) = $ff(x, M)
-        @inline $ff(x, ::Static{M}) = $ff(x, M)
+        @inline $f(::Static{M}, x) where {M} = $ff(M, x)
+        @inline $ff(::Static{M}, x) where {M} = $ff(M, x)
+        @inline $f(x, ::Static{M}) where {M} = $ff(x, M)
+        @inline $ff(x, ::Static{M}) where {M} = $ff(x, M)
     end
 end
-for (f,ff) [(:(Base.:&),:vand), (:(Base.:|),:vor), (:(Base.:⊻),:vxor)]
-    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
-    @eval @inline $ff(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
-end
+# for (f,ff) ∈ [(:(Base.:&),:vand), (:(Base.:|),:vor), (:(Base.:⊻),:vxor)]
+#     @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+#     @eval @inline $ff(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+# end
 
+for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.cld), :(Base.:(>>))]
+    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+end
 for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
     @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
     @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
-    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
 end
 for f ∈ [:(Base.:(>>)), :(Base.:(>>>))]
     @eval @inline $f(::Static{M}, n::Number) where {M} = shr(M, n)
     @eval @inline $f(m::Number, ::Static{N}) where {N} = shr(m, N)
-    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
 end
 
 @inline vsub(::Static{N}, ::Zero) where {N} = Static{N}()
@@ -172,9 +169,9 @@ end
 @inline vmul(::One, ::Zero) = Zero()
 @inline Base.:(*)(::One, ::Zero) = Zero()
 
-@inline Base.:<<(::Static{N}, i) where {N} = shl(N, i)
-@inline Base.:<<(i, ::Static{N}) where {N} = shl(i, N)
-@inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = Static{M << N}()
+# @inline Base.:<<(::Static{N}, i) where {N} = shl(N, i)
+# @inline Base.:<<(i, ::Static{N}) where {N} = shl(i, N)
+# @inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = Static{M << N}()
 @inline Base.:(%)(::Static{M}, ::Type{I}) where {M,I<:Integer} = M % I
 
 @inline Base.:(==)(::Static{M}, i) where {M} = M == i
@@ -234,13 +231,11 @@ end
 @inline _maybestaticfirst(A::Tuple{I}) where {I} = (maybestaticfirst(@inbounds(A[1])),)
 @inline _maybestaticfirst(A::Tuple{I1,I2}) where {I1,I2} = @inbounds (maybestaticfirst(A[1]), maybestaticfirst(A[2]))
 @inline _maybestaticfirst(A::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = (maybestaticfirst(@inbounds A[1]), _maybestaticfirst(Base.tail(A))...)
-@inline maybestaticfirst(A::CartesianIndices) = CartesianVIndex(_maybestaticfirst(A.indices))
 
 @inline _maybestaticlast(A::Tuple{}) = tuple()
 @inline _maybestaticlast(A::Tuple{I}) where {I} = (maybestaticlast(@inbounds(A[1])),)
 @inline _maybestaticlast(A::Tuple{I1,I2}) where {I1,I2} = @inbounds (maybestaticlast(A[1]), maybestaticlast(A[2]))
 @inline _maybestaticlast(A::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = (maybestaticlast(@inbounds A[1]), _maybestaticlast(Base.tail(A))...)
-@inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))
 
 
 # # Static 0
@@ -308,41 +303,6 @@ end
 #     @eval @inline vmul(::One, a::$T) = a
 #     @eval @inline vmul(a::$T, ::One) = a
 # end
-
-# abstract type AbstractLazyMul end
-struct LazyMul{N,T} <: Number
-    data::T
-end
-@inline LazyMul{N}(data::T) where {N,T} = LazyMul{N,T}(data)
-@inline data(lm::LazyMul) = lm.data
-
-# struct LazyMulAdd{N,M,T} <: AbstractLazyMul
-    # data::T
-# end
-# @inline LazyMulAdd{N,M}(data::T) where {N,M,T} = LazyMulAdd{N,M,T}(data)
-
-
-@inline lazymul(a, b) = vmul(a, b)
-@inline lazymul(::Static{N}, b) where {N} = LazyMul{N}(b)
-@inline lazymul(a, ::Static{N}) where {N} = LazyMul{N}(a)
-@inline lazymul(::Static{N}, b::MM) where {N} = LazyMul{N}(Vec(b))
-@inline lazymul(a::MM, ::Static{N}) where {N} = LazyMul{N}(Vec(a))
-@inline lazymul(::Static{M}, ::Static{N}) where {M, N} = Static{M*N}()
-
-@inline lazymul(a::LazyMul{M}, ::Static{N}) where {M,N} = LazyMul{M*N}(data(a))
-@inline lazymul(::Static{M}, b::LazyMul{N}) where {M,N} = LazyMul{M*N}(data(b))
-@inline lazymul(a::LazyMul{M,<:MM}, ::Static{N}) where {M,N} = LazyMul{M*N}(Vec(data(a)))
-@inline lazymul(::Static{M}, b::LazyMul{N,<:MM}) where {M,N} = LazyMul{M*N}(Vec(data(b)))
-@inline lazymul(a::LazyMul{M}, b::LazyMul{N}) where {M,N} = LazyMul{M*N}(vmul(data(a), data(b)))
-
-@inline lazymul_no_prmote(a, b) = vmul_no_promote(a, b)
-@inline lazymul_no_prmote(::Static{N}, b) where {N} = LazyMul{N}(b)
-@inline lazymul_no_prmote(a, ::Static{N}) where {N} = LazyMul{N}(a)
-@inline lazymul_no_prmote(::Static{M}, ::Static{N}) where {M, N} = Static{M*N}()
-
-@inline lazymul_no_prmote(a::LazyMul{M}, ::Static{N}) where {M,N} = LazyMul{M*N}(data(a))
-@inline lazymul_no_prmote(::Static{M}, b::LazyMul{N}) where {M,N} = LazyMul{M*N}(data(b))
-@inline lazymul_no_prmote(a::LazyMul{M}, b::LazyMul{N}) where {M,N} = LazyMul{M*N}(vmul(data(a), data(b)))
 
 
 

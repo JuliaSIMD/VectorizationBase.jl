@@ -11,7 +11,7 @@ function Base.:(:)(I::CartesianVIndex{N}, J::CartesianVIndex{N}) where {N}
 end
 ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
 ndim(::Type{<:AbstractArray{N}}) where {N} = N
-@generated function CartesianVIndex(I::T) where {N, T <: Tuple{Vararg{Integer,Static,CartesianIndex,CartesianVIndex}}}
+@generated function CartesianVIndex(I::T) where {N, T <: Tuple{Vararg{<:Union{Integer,Static,CartesianIndex,CartesianVIndex}}}}
     iexp = Expr(:tuple)
     Tp = T.paramters
     q = Expr(:block)
@@ -30,4 +30,8 @@ ndim(::Type{<:AbstractArray{N}}) where {N} = N
     Expr(:block, Expr(:meta, :inline), Expr(:macrocall, Symobl("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), q), Expr(:call, :CartesianVIndex, iexpr))
 end
 
+@inline Base.CartesianIndex(I::Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,Static}}}) = CartesianVIndex(I)
+
+@inline maybestaticfirst(A::CartesianIndices) = CartesianVIndex(_maybestaticfirst(A.indices))
+@inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))
 

@@ -158,7 +158,7 @@ floatvec(i::MM{W}) where {W} = Vec(MM{W}(floattype(Val{W}())(i.i)))
 @inline Base.:(/)(i::MM, j::T) where {T<:Number} = floatvec(i) / j
 @inline Base.:(/)(j::T, i::MM) where {T<:Number} = j / floatvec(i)
 @inline Base.:(/)(i::MM, j::MM) = floatvec(i) / floatvec(j)
-@inline Base.inv(i::MM{W}) = inv(floatvec(i))
+@inline Base.inv(i::MM) = inv(floatvec(i))
 
 @inline Base.:(<<)(i::MM, j::Number) = Vec(i) << j
 @inline Base.:(>>)(i::MM, j::Number) = Vec(i) >> j

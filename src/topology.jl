@@ -2,7 +2,7 @@
 
 const TOPOLOGY = Hwloc.topology_load();
 const CACHE = TOPOLOGY.children[1].children[1];
-const COUNTS = Hwloc.histmap(topology);
+const COUNTS = Hwloc.histmap(TOPOLOGY);
 # TODO: Makes topological assumptions that aren't right for
 # multiple nodes or with >3 or <3 levels of Cache.
 const L₁CACHE = (
@@ -31,7 +31,7 @@ L₁, L₂, L₃ cache size
 """
 const CACHE_SIZE = (
     L₁CACHE.size,
-    L₂CACHE.size.
+    L₂CACHE.size,
     L₃CACHE.size
 )
 # const CACHE_NEST_COUNT = (

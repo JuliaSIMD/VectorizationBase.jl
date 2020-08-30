@@ -23,57 +23,58 @@ end
 # for [("smax",:max),("smin",:min)]
     
 # end
-for T ∈ [Float32, Float64]
-    W = 2
-    while W * sizeof(T) ≤ REGISTER_SIZE
-        # floating point
-        for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("trunc",:trunc),("round",:round)
-                      ]
-            @eval @inline Base.$f(v1::Vec{$W,$T}) = $(llvmcall_expr(op, W, T, (W,), (T,), "fast"))
-        end
-        if W * sizeof(Int64) ≤ REGISTER_SIZE
-            @eval @inline Base.round(::Type{Int64}, v1::Vec{$W,$T}) = $(llvmcall_expr("lrint", W, Int64, (W,), (T,), "fast"))
-        end
-        @eval @inline Base.round(::Type{Int32}, v1::Vec{$W,$T}) = $(llvmcall_expr("lrint", W, Int32, (W,), (T,), "fast"))
+# for T ∈ [Float32, Float64]
+#     W = 2
+#     while W * sizeof(T) ≤ REGISTER_SIZE
+# floating point
+for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("trunc",:trunc),("round",:round)
+              ]
+    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "fast")
+end
 
-        for (op,f) ∈ [("minnum",:min),("maxnum",:max),("copysign",:copysign),
-                  ]
-            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
-                $(llvmcall_expr(op, W, T, (W for _ in 1:2), (T for _ in 1:2), "fast"))
-            end
-        end
-        # ternary
-        for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
-            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
-                $(llvmcall_expr(op, W, T, (W for _ in 1:3), (T for _ in 1:3), f === :fma ? nothing : "fast"))
-            end
-        end
-        # floating vector, integer scalar
-        let op = "powi", f = :(^)
-            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Int32)
-                $(llvmcall_expr(op, W, T, (W, 1), (T, Int32), "fast"))
-            end
-        end
-        for (op,f) ∈ [
-            ("experimental.vector.reduce.v2.fadd",:sum),
-            ("experimental.vector.reduce.v2.fmul",:prod)
-        ]
-            @eval @inline function Base.$f(v1::$T, v1::Vec{$W,$T})
-                $(llvmcall_expr(op, 1, T, (1, W), (T, T), "fast"))
-            end
-        end
-        for (op,f) ∈ [
-            ("experimental.vector.reduce.v2.fmax",:maximum),
-            ("experimental.vector.reduce.v2.fmin",:minimum)
-        ]
-            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Int32)
-                $(llvmcall_expr(op, 1, T, (W,), (T,), "fast"))
-            end
-        end
-        
-        W += W
+@generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+    llvmcall_expr("lrint", W, Int64, (W,), (T,), "fast")
+end
+@generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+    llvmcall_expr("lrint", W, Int32, (W,), (T,), "fast")
+end
+
+for (op,f) ∈ [("minnum",:min),("maxnum",:max),("copysign",:copysign),
+              ]
+    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T}
+        llvmcall_expr($op, W, T, (W for _ in 1:2), (T for _ in 1:2), "fast")
     end
 end
+# ternary
+for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
+    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+        llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3), $(f === :fma ? nothing : "fast"))
+    end
+end
+# floating vector, integer scalar
+@generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
+    llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "fast")
+end
+for (op,f) ∈ [
+    ("experimental.vector.reduce.v2.fadd",:sum),
+    ("experimental.vector.reduce.v2.fmul",:prod)
+]
+    @eval @generated function Base.$f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+        llvmcall_expr($op, 1, T, (1, W), (T, T), "fast")
+    end
+end
+for (op,f) ∈ [
+    ("experimental.vector.reduce.v2.fmax",:maximum),
+    ("experimental.vector.reduce.v2.fmin",:minimum)
+]
+    @eval @generated function Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+        llvmcall_expr($op, 1, T, (W,), (T,), "fast")
+    end
+end
+        
+#         W += W
+#     end
+# end
 
 @inline sum(v::Vec{W,T}) where {W,T} = sum(-zero(T), v)
 @inline prod(v::Vec{W,T}) where {W,T} = sum(one(T), v)
@@ -103,82 +104,204 @@ end
 @generated vtrailing_zeros(v::_Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "cttz")
 
 
-for T ∈ [UInt8,UInt16,UInt32,UInt64]
-    bytes = sizeof(T)
-    W = 2
-    while W * bytes ≤ REGISTER_SIZE
 
-        for (op,f) ∈ [("ctpop", :count_ones)]
-            @eval @inline Base.$f(v1::Vec{$W,$T}) = $(llvmcall_expr(op, W, T, (W,), (T,)))
-        end
-        
-        for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
-                      ]
-            @eval @inline function $f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
-                $(llvmcall_expr(op, W, T, (W for _ in 1:3), (T for _ in 1:3)))
-            end
-        end
+for (op,f) ∈ [("ctpop", :count_ones)]
+    @eval @generated Base.$f(v1::Vec{W,T}) where {W,T} = llvmcall_expr($op, W, T, (W,), (T,))
+end
 
-        W += W
+for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
+              ]
+    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
+        llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3))
     end
 end
+
+# for T ∈ [UInt8,UInt16,UInt32,UInt64]
+#     bytes = sizeof(T)
+#     W = 2
+#     while W * bytes ≤ REGISTER_SIZE
+
+#         for (op,f) ∈ [("ctpop", :count_ones)]
+#             @eval @inline Base.$f(v1::Vec{$W,$T}) = $(llvmcall_expr(op, W, T, (W,), (T,)))
+#         end
+        
+#         for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
+#                       ]
+#             @eval @inline function $f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
+#                 $(llvmcall_expr(op, W, T, (W for _ in 1:3), (T for _ in 1:3)))
+#             end
+#         end
+
+#         W += W
+#     end
+# end
 
 
 if FMA
-    for T ∈ [Float32,Float64]
-        W = 16 ÷ sizeof(T)
-        local suffix = T == Float32 ? "ps" : "pd"
-        typ = llvmtype(T)
-        while W <= VectorizationBase.REGISTER_SIZE ÷ sizeof(T)
+    @eval begin
+        @generated function vfmadd231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+            if !(ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE) && (W ≥ (T === Float32 ? 4 : 2)))
+                return Expr(:block, Expr(:meta, :inline), :(vfmadd(a, b, c)))
+            end
+            typ = LLVM_TYPES[T]
+            suffix = T == Float32 ? "ps" : "pd"
             vfmadd_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
                 ret <$W x $(typ)> %res"""
+            quote
+                $(Expr(:meta, :inline))
+                Vec(llvmcall($vfmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+            end
+        end
+        @generated function vfnmadd231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+            if !(ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE) && (W ≥ (T === Float32 ? 4 : 2)))
+                return Expr(:block, Expr(:meta, :inline), :(vfnmadd(a, b, c)))
+            end
+            typ = LLVM_TYPES[T]
+            suffix = T == Float32 ? "ps" : "pd"
             vfnmadd_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
                 ret <$W x $(typ)> %res"""
+            quote
+                $(Expr(:meta, :inline))
+                Vec(llvmcall($vfnmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+            end
+        end
+        @generated function vfmsub231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+            if !(ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE) && (W ≥ (T === Float32 ? 4 : 2)))
+                return Expr(:block, Expr(:meta, :inline), :(vfmsub(a, b, c)))
+            end
+            typ = LLVM_TYPES[T]
+            suffix = T == Float32 ? "ps" : "pd"
             vfmsub_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
                 ret <$W x $(typ)> %res"""
+            quote
+                $(Expr(:meta, :inline))
+                Vec(llvmcall($vfmsub_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+            end
+        end
+        @generated function vfnmsub231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+            if !(ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE) && (W ≥ (T === Float32 ? 4 : 2)))
+                return Expr(:block, Expr(:meta, :inline), :(vfnmsub(a, b, c)))
+            end
+            typ = LLVM_TYPES[T]
+            suffix = T == Float32 ? "ps" : "pd"
             vfnmsub_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
                 ret <$W x $(typ)> %res"""
-            @eval begin
-                @inline function vfmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                    Vec(llvmcall($vfmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-                end
-                @inline function vfnmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                    Vec(llvmcall($vfnmadd_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-                end
-                @inline function vfmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                    Vec(llvmcall($vfmsub_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-                end
-                @inline function vfnmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                    Vec(llvmcall($vfnmsub_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-                end
+            quote
+                $(Expr(:meta, :inline))
+                Vec(llvmcall($vfnmsub_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
             end
-            if VectorizationBase.AVX512BW && W ≥ 8
+        end
+    end
+    if AVX512BW
+        @eval begin
+            @generated function vifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+                if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
+                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmadd, m, a, b, c)))
+                end
+                typ = LLVM_TYPES[T]
+                suffix = T == Float32 ? "ps" : "pd"                    
                 vfmaddmask_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-                    ret <$W x $(typ)> %res"""
-                vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-                    ret <$W x $(typ)> %res"""
-                vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-                    ret <$W x $(typ)> %res"""
-                vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-                    ret <$W x $(typ)> %res"""
-                U = VectorizationBase.mask_type(W)
-                @eval begin
-                    @inline function vifelse(::typeof(vfmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                        Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-                    end
-                    @inline function vifelse(::typeof(vfnmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                        Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-                    end
-                    @inline function vifelse(::typeof(vfmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                        Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-                    end
-                    @inline function vifelse(::typeof(vfnmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-                        Vec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-                    end
+                                ret <$W x $(typ)> %res"""
+                quote
+                    $(Expr(:meta,:inline))
+                    Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            W += W
+            @generated function vifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+                if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
+                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmmadd, m, a, b, c)))
+                end
+                typ = LLVM_TYPES[T]
+                suffix = T == Float32 ? "ps" : "pd"                    
+                vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                            ret <$W x $(typ)> %res"""
+                quote
+                    $(Expr(:meta,:inline))
+                    Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                end
+            end
+            @generated function vifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+                if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
+                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmsub, m, a, b, c)))
+                end
+                typ = LLVM_TYPES[T]
+                suffix = T == Float32 ? "ps" : "pd"                    
+                vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                            ret <$W x $(typ)> %res"""
+                quote
+                    $(Expr(:meta,:inline))
+                    Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                end
+            end
+            @generated function vifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+                if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
+                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfnmsub, m, a, b, c)))
+                end
+                typ = LLVM_TYPES[T]
+                suffix = T == Float32 ? "ps" : "pd"                    
+                vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+                            ret <$W x $(typ)> %res"""
+                quote
+                    $(Expr(:meta,:inline))
+                    Vec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                end
+            end
         end
     end
 end
+    # for T ∈ [Float32,Float64]
+    #     W = 16 ÷ sizeof(T)
+    #     local suffix = T == Float32 ? "ps" : "pd"
+    #     typ = LLVM_TYPES[T]
+    #     while W <= VectorizationBase.REGISTER_SIZE ÷ sizeof(T)
+    #         vfmadd_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+    #             ret <$W x $(typ)> %res"""
+    #         vfnmadd_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+    #             ret <$W x $(typ)> %res"""
+    #         vfmsub_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+    #             ret <$W x $(typ)> %res"""
+    #         vfnmsub_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
+    #             ret <$W x $(typ)> %res"""
+    #         @eval begin
+    #             @inline function vfmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 Vec(llvmcall($vfmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+    #             end
+    #             @inline function vfnmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 Vec(llvmcall($vfnmadd_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+    #             end
+    #             @inline function vfmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 Vec(llvmcall($vfmsub_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+    #             end
+    #             @inline function vfnmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 Vec(llvmcall($vfnmsub_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+    #             end
+    #         end
+    #         if VectorizationBase.AVX512BW && W ≥ 8
+    #             vfmaddmask_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+    #                 ret <$W x $(typ)> %res"""
+    #             vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+    #                 ret <$W x $(typ)> %res"""
+    #             vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+    #                 ret <$W x $(typ)> %res"""
+    #             vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
+    #                 ret <$W x $(typ)> %res"""
+    #             U = VectorizationBase.mask_type(W)
+    #             @eval begin
+    #                 @inline function vifelse(::typeof(vfmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                     Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+    #                 end
+    #                 @inline function vifelse(::typeof(vfnmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                     Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+    #                 end
+    #                 @inline function vifelse(::typeof(vfmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                     Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+    #                 end
+    #                 @inline function vifelse(::typeof(vfnmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                     Vec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+    #                 end
+    #             end
+    #         end
+    #         W += W
+    #     end
+    # end
 @inline vifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = vifelse(m, f(a...), a[K])

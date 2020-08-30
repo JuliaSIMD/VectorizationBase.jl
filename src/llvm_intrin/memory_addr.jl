@@ -517,7 +517,7 @@ end
 O - An `NTuple{M,NTuple{N,Int}}` tuple of tuples, specifies offsets of `N`-dim array for each of `M` loads.
 u::U - the base unrolled description.
 """
-struct MultiLoad{O,A,U,M,I}
+struct MultiLoad{O,U,V,F,W,M}
     u::Unroll{U,V,F,W,M}
 end
 
@@ -532,7 +532,7 @@ for locality ∈ 0:3, readorwrite ∈ 0:1
         llvmcall(("declare void @llvm.prefetch(i8*, i32, i32, i32)",$instrs), Cvoid, Tuple{Ptr{Cvoid}}, ptr)
     end
 end
-@inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) = where {T,L,R} = prefetch(Base.unsafe_convert(Ptr{Cvoid}, ptr), Val{L}(), Val{R}())
+@inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) where {T,L,R} = prefetch(Base.unsafe_convert(Ptr{Cvoid}, ptr), Val{L}(), Val{R}())
 
 @inline function prefetch(ptr::Union{AbstractStridedPointer,Ptr}, i, ::Val{Locality}, ::Val{ReadOrWrite}) where {Locality, ReadOrWrite}
     prefetch(gep(ptr, i), Val{Locality}(), Val{ReadOrWrite}())
@@ -565,8 +565,8 @@ end
     llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
 
-@inline lifetime_start!(ptr::Ptr{T}) = lifetime_start!(ptr, Val{-1}())
-@inline lifetime_end!(ptr::Ptr{T}) = lifetime_end!(ptr, Val{-1}())
+@inline lifetime_start!(ptr::Ptr) = lifetime_start!(ptr, Val{-1}())
+@inline lifetime_end!(ptr::Ptr) = lifetime_end!(ptr, Val{-1}())
 # Fallback is to do nothing. Intention is (e.g.) for PaddedMatrices/StackPointers.
 @inline lifetime_start!(::Any) = nothing
 @inline lifetime_end!(::Any) = nothing
@@ -575,7 +575,7 @@ end
     @assert 8sizeof(U) >= W
     typ = LLVM_TYPE[T]
     vtyp = "<$W x $typ>"
-    mtyp_input = llvmtype(U)
+    mtyp_input = LLVM_TYPES[U]
     mtyp_trunc = "i$W"
     instrs = String["%ptr = inttoptr $JULIAPOINTERTYPE %1 to $typ*"]
     truncate_mask!(instrs, '2', W, 0)
@@ -589,7 +589,7 @@ end
     typ = LLVM_TYPE[T]
     vtyp = "<$W x $typ>"
     vptrtyp = "<$W x $typ*>"
-    mtyp_input = llvmtype(U)
+    mtyp_input = LLVM_TYPES[U]
     mtyp_trunc = "i$W"
     instrs = String[]
     push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $typ*")

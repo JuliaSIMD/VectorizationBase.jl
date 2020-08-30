@@ -1,8 +1,8 @@
 module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
-using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Contiguous
-using LinearAlgebra: Adjoint, 
+using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Contiguous, SDTuple, CPUPointer, ContiguousBatch, StrideRank, known_length, known_first, known_last
+# using LinearAlgebra: Adjoint, 
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
@@ -48,8 +48,12 @@ const NativeTypes = Union{Bool,Base.HWReal}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
+@eval struct Static{N} <: Number
+    (f::Type{<:Static})() = $(Expr(:new,:f))
+end
+Base.@pure Static(N) = Static{N}()
 
-abstract type AbstractSIMDVector{W,T <: NativeTypes} <: Real end
+abstract type AbstractSIMDVector{W,T <: Union{Static,NativeTypes}} <: Real end
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
     @inline function Vec(x::NTuple{W,Core.VecElement{T}}) where {W,T}
@@ -185,40 +189,41 @@ The name `MM` type refers to _MM registers such as `XMM`, `YMM`, and `ZMM`.
 
 The `MM` type is used to represent SIMD indexes. 
 """
-struct MM{W,I<:Number} <: AbstractSIMDVector
+struct MM{W,I<:Number} <: AbstractSIMDVector{W,I}
     i::I
     @inline MM{W}(i::T) where {W,T} = new{W,T}(i)
 end
 
 
-include("cartesianvindex.jl")
 include("static.jl")
+include("cartesianvindex.jl")
 # include("vectorizable.jl")
-include("strideprodcsestridedpointers.jl")
+# include("strideprodcsestridedpointers.jl")
 include("topology.jl")
-include("llvm_intrin/binary_ops.jl")
-include("llvm_intrin/binary_ops.jl")
-include("llvm_intrin/binary_ops.jl")
-include("llvm_intrin/binary_ops.jl")
-include("llvm_intrin/binary_ops.jl")
-include("llvm_intrin/binary_ops.jl")
-include("llvm_intrin/binary_ops.jl")
-include("strided_pointers/stridedpointers.jl")
-include("strided_pointers/cartesian_indexing.jl")
 @static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
-    # @static if Base.libllvm_version >= v"8" && VERSION >= v"1.4" && LLVM_SHOULD_WORK
-        include("cpu_info_x86_llvm.jl")
-    # else
-        # include("cpu_info_x86_cpuid.jl")
-    # end
+    include("cpu_info_x86_llvm.jl")
 else
     include("cpu_info_generic.jl")
 end
-
 include("vector_width.jl")
+include("fmap.jl")
+include("llvm_types.jl")
+include("lazymul.jl")
+include("strided_pointers/stridedpointers.jl")
+include("strided_pointers/bitpointers.jl")
+include("strided_pointers/cartesian_indexing.jl")
+include("strided_pointers/cse_stridemultiples.jl")
+include("llvm_intrin/binary_ops.jl")
+include("llvm_intrin/conversion.jl")
+include("llvm_intrin/masks.jl")
+include("llvm_intrin/intrin_funcs.jl")
+include("llvm_intrin/memory_addr.jl")
+include("llvm_intrin/unary_ops.jl")
+include("llvm_intrin/vbroadcast.jl")
+include("llvm_intrin/vector_ops.jl")
+include("promotion.jl")
 include("number_vectors.jl")
-include("masks.jl")
-include("rankges.jl")
+include("ranges.jl")
 include("alignment.jl")
 include("precompile.jl")
 _precompile_()

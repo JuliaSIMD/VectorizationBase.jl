@@ -45,42 +45,53 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
     nswop = op * " nsw"
     nuwop = op * " nuw"
     ff = Symbol('v', op)
+
+    @eval @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
+    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op, W, T)
+    
     for Ts ∈ [Int8,Int16,Int32,Int64]
         Tu = unsigned(Ts)
         st = sizeof(Ts)
-        Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(nswop, 1, Ts))
-        Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(nuwop, 1, Tu))
-        W = 2
-        while W ≤ pick_vector_width(Ts)
-            @eval begin
-                Base.@pure @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(nswop, W, Ts))
-                Base.@pure @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(nuwop, W, Tu))
-                Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
-                Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
-            end
-            W += W
+        @eval begin
+            Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(nswop, 1, Ts))
+            Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(nuwop, 1, Tu))
         end
+        # W = 2
+        # while W ≤ pick_vector_width(Ts)
+        #     @eval begin
+        #         Base.@pure @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(nswop, W, Ts))
+        #         Base.@pure @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(nuwop, W, Tu))
+        #         Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
+        #         Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
+        #     end
+        #     W += W
+        # end
     end
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]
     uop = 'u' * op
     sop = 's' * op
     ff = Symbol('v', op)
+
+    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, Ts)
+    
     for Ts ∈ [Int8,Int16,Int32,Int64]
         Tu = unsigned(Ts)
         st = sizeof(Ts)
-        Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(sop, 1, Ts))
-        Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(uop, 1, Tu))
-        W = 2
-        while W ≤ pick_vector_width(Ts)
-            @eval begin
-                Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(sop, W, Ts))
-                Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(uop, W, Tu))
-            end
-            W += W
+        @eval begin
+            Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(sop, 1, Ts))
+            Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(uop, 1, Tu))
         end
+        # W = 2
+        # while W ≤ pick_vector_width(Ts)
+        #     @eval begin
+        #         Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(sop, W, Ts))
+        #         Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(uop, W, Tu))
+        #     end
+        #     W += W
+        # end
     end
-    @eval @inline $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = $f(v1, v2)
+    # @eval @inline $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = $f(v1, v2)
     # @eval const $ff = $f
 end
 @inline vcld(x, y) = vadd(vdiv(vsub(x,one(x)), y), one(x))
@@ -91,37 +102,56 @@ end
 end
 for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
     ff = Symbol('v', op)
-    for Ts ∈ [Int8,Int16,Int32,Int64]
-        Tu = unsigned(Ts)
-        W = 2
-        while W ≤ pick_vector_width(Ts)
-            if !iszero(s & 0x01) # signed def
-                @eval begin
-                    Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
-                    # @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $f(v1, v2)
-                end
-            end
-            if !iszero(s & 0x02) # unsigend def
-                @eval begin
-                    Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
-                    # @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $f(v1, v2)
-                end
-            end
-            W += W
-        end
-        if !iszero(s & 0x01) # signed def
-            @eval begin
-                Base.@pure @inline Base.$f(v1::$Ts, v2::$Ts) = $(binary_op(op, 1, Ts))
-                @inline $ff(v1::Vec{W,$Ts}, v2::Vec{W,$Ts}) where {W} = $f(v1, v2)
-            end
-        end
-        if !iszero(s & 0x02) && !((s === 0x03) && (op === "ashr")) # unsigend def
-            @eval begin
-                Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(op, 1, Tu))
-                @inline $ff(v1::Vec{W,$Tu}, v2::Vec{W,$Tu}) where {W} = $f(v1, v2)
-            end
-        end
+    fdef = Expr(:where, :(Base.$f(v1::Vec{W,T}, v2::Vec{W,T})), :W)
+    if iszero(s & 0x01)
+        push!(fdef.args, :(T <: Unsigned))
+    elseif iszero(s & 0x02)
+        push!(fdef.args, :(T <: Signed))
+    else
+        push!(fdef.args, :T)
     end
+    @eval @generated $fdef = binary_op($op, W, T)
+    # if !iszero(s & 0x01)
+    #     @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Signed}
+    #         binary_op($op, W, T)
+    #     end
+    # end
+    # if !iszero(s & 0x02)
+    #     @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Unsigned}
+    #         binary_op($op, W, T)
+    #     end
+    # end
+    # for Ts ∈ [Int8,Int16,Int32,Int64]
+    #     Tu = unsigned(Ts)
+    #     W = 2
+    #     while W ≤ pick_vector_width(Ts)
+    #         if !iszero(s & 0x01) # signed def
+    #             @eval begin
+    #                 Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
+    #                 # @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $f(v1, v2)
+    #             end
+    #         end
+    #         if !iszero(s & 0x02) # unsigend def
+    #             @eval begin
+    #                 Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
+    #                 # @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $f(v1, v2)
+    #             end
+    #         end
+    #         W += W
+    #     end
+    #     if !iszero(s & 0x01) # signed def
+    #         @eval begin
+    #             Base.@pure @inline Base.$f(v1::$Ts, v2::$Ts) = $(binary_op(op, 1, Ts))
+    #             @inline $ff(v1::Vec{W,$Ts}, v2::Vec{W,$Ts}) where {W} = $f(v1, v2)
+    #         end
+    #     end
+    #     if !iszero(s & 0x02) && !((s === 0x03) && (op === "ashr")) # unsigend def
+    #         @eval begin
+    #             Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(op, 1, Tu))
+    #             @inline $ff(v1::Vec{W,$Tu}, v2::Vec{W,$Tu}) where {W} = $f(v1, v2)
+    #         end
+    #     end
+    # end
 end
 # Bitwise
 # for Ts ∈ [Int8, Int16, Int32, Int64]
@@ -134,25 +164,28 @@ end
 # end
 
 for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vfdiv),("frem",:%,:vrem)]
-    for T ∈ [Float32, Float64]
-        W = 2
-        while W ≤ pick_vector_width(T)
-            @eval begin
-                Base.@pure @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(binary_op(op * " fast", W, T))
-                Base.@pure @inline $ff(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(binary_op(op, W, T))
-            end
-            W += W
-        end
-    end
+    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = binary_op($(op * " fast"), W, T)
+    # for T ∈ [Float32, Float64]
+    #     W = 2
+    #     while W ≤ pick_vector_width(T)
+    #         @eval begin
+    #             Base.@pure @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(binary_op(op * " fast", W, T))
+    #             Base.@pure @inline $ff(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(binary_op(op, W, T))
+    #         end
+    #         W += W
+    #     end
+    # end
 end
 @inline Base.inv(v::Vec) = vdiv(one(v), v)
 
-@inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) = float(a) / float(b)
+@inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
 
     # for op ∈ [:+,:vadd,:-,:vsub,:*,:vmul,:/,:vfdiv,:%,:vrem,:<<,:vshl,:>>,:vlshr,:>>>,:vashr,:&,:vand,:|,:vor,:⊻,:vxor,:÷,:vdiv]
 for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷]
-    @inline Base.$op(v1::VecUnroll, v2) = fmap($op, v1.data, v2)
-    @inline Base.$op(v1, v2::VecUnroll) = fmap($op, v1, v2.data)
-    @inline Base.$op(v1::VecUnroll, v2::VecUnroll) = fmap($op, v1.data, v2.data)
+    @eval begin
+        @inline Base.$op(v1::VecUnroll, v2) = fmap($op, v1.data, v2)
+        @inline Base.$op(v1, v2::VecUnroll) = fmap($op, v1, v2.data)
+        @inline Base.$op(v1::VecUnroll, v2::VecUnroll) = fmap($op, v1.data, v2.data)
+    end
 end
 

@@ -31,10 +31,8 @@ const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
 vtype(W, typ) = isone(W) ? typ : "<$W x $typ>"
 
-function suffix(W::Int, ::Type{T}) where {T <: NativeTypes}
-    s = suffix(T)
-    W == -1 ? s : 'v' * string(W) * s
-end
+suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
+suffix(W::Int, T) = suffix(W, suffix(T))
 suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
 function suffix(@nospecialize(T))
     if T === Float32 || T === Float64
@@ -75,7 +73,7 @@ end
 #     Bool(val) ? "i1 1" : "i1 zeroinitializer"
 # end
 
-llvm_type(W, T) = vtyp(x, LLVM_TYPES[T])
+llvm_type(W, T) = vtype(W, LLVM_TYPES[T])
 julia_type(W, T) = isone(W) ? T : _Vec{W,T}
 
 function llvmname(op, WR, WA, T, TA)
@@ -89,14 +87,14 @@ function llvmcall_expr(op, WR, R, WA, TA, ::Nothing = nothing)
     argt = Expr(:tuple)
     foreach(WT -> push!(argt.args, julia_type(WT[1],WT[2])), zip(WA,TA))
     call = Expr(:call, :ccall, ff, :llvmcall, R, argt)
-    foreach(n -> push!(call.args, Symbol(:v, n)), 1:length(TA))
-    call
+    foreach(n -> push!(call.args, Expr(:call, :data, Symbol(:v, n))), 1:length(TA))
+    Expr(:block, Expr(:meta, :inline), Expr(:call, :Vec, call))
 end
 function llvmcall_expr(op, WR, R, WA, TA, flags::String)
     lret = LLVM_TYPES[R]
-    lvret = vtyp(WR, lret)
+    lvret = vtype(WR, lret)
     lop = llvmname(op, WR, WA, R, TA)
-    instr = (isnothing(flags) ? lvret : lvret * " " flags) * '@' * lop
+    instr = "$lvret $flags @$lop"
     larg_types = llvm_type.(WA, TA)
     decl = "declare $lvret @$(lop)(" * join(larg_types, ", ") * ')'
     args_for_call = ("$T (n-1)%" for (n,T) ∈ enumerate(larg_types))
@@ -108,7 +106,7 @@ function llvmcall_expr(op, WR, R, WA, TA, flags::String)
 end
 
 @static if VERSION ≥ v"1.6.0-DEV.674"
-    function llvmcall_expr(decl::String, instr::String, @nospecialize(ret), @nosepcialize(args), lret::String, largs, arg_syms)
+    function llvmcall_expr(decl::String, instr::String, @nospecialize(ret), @nospecialize(args), lret::String, largs, arg_syms)
         mod = """
             $decl
 

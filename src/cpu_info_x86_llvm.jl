@@ -10,11 +10,10 @@ let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), 
     avx = any(isequal("+avx"), features)
 
     register_size = avx512f ? 64 : (avx ? 32 : 16)
-    register_count = avx512f ? 32 : 16
+    register_count = Sys.ARCH === :i686 ? 8 : (avx512f ? 32 : 16)
 
     @eval const REGISTER_SIZE = $register_size
     @eval const REGISTER_COUNT = $register_count
-    @eval const CACHE_SIZE = $cache_size
     @eval const SIMD_NATIVE_INTEGERS = $(avx2)
 
     for ext ∈ features

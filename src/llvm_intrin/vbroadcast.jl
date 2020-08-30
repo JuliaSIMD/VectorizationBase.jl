@@ -11,36 +11,73 @@
 #         end
 #     end
 # end
-function broadcast_str(W::Int, typ::String)
-    vtyp = "<$W x $typ>"
+# function broadcast_str(W::Int, typ::String)
+#     vtyp = "<$W x $typ>"
+#     """
+#         %ie = insertelement $vtyp undef, $typ %0, i32 0
+#         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+#         ret $vtyp %v
+#     """
+# end
+@generated function vzero(::Val{W}, ::Type{T}) where {W,T<:NativeTypes}
+    instrs = "ret <$W x $typ> zeroinitializer"
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
+    end
+end
+@generated function vbroadcast(::Val{W}, s::T) where {W,T<:NativeTypes}
+    vtyp = vtype(W, T)
     """
         %ie = insertelement $vtyp undef, $typ %0, i32 0
         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
         ret $vtyp %v
     """
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, s))
+    end
 end
 
-@generated function vbroadcast(::Val{W}, s::Ptr{T}) where {W, T}
-    typ = JULIAPOINTERTYPE
-    instrs = broadcast_str(W, typ)
-    quote
-        $(Expr(:meta,:inline))
-        Vec(llvmcall( $instrs, _Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s ))
-    end
-end
-@generated function vbroadcast(::Val{W}, s::T) where {W, T <: NativeTypes}
-    typ = LLVM_TYPES[T]
-    instrs = broadcast_str(W, typ)
-    quote
-        $(Expr(:meta,:inline))
-        Vec(llvmcall( $instrs, _Vec{$W,$T}, Tuple{$T}, s))
-    end
-end
+# for T ∈ [Float32,Float64,Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64]#, Float16]
+#     maxW = pick_vector_width(T)
+#     typ = LLVM_TYPES[T]
+#     W = 2
+#     while W ≤ maxW
+#         instrs = "ret <$W x $typ> zeroinitializer"
+#         @eval @inline vzero(::Val{$W}, ::Type{$T}) = Vec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
+#         instrs = broadcast_str(W, typ)
+#         # vtyp = "<$W x $typ>"
+#         # instrs = """
+#         # %ie = insertelement $vtyp undef, $typ %0, i32 0
+#         # %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+#         # ret $vtyp %v
+#         # """
+#         @eval Base.@pure @inline vbroadcast(::Val{$W}, s::$T) = Vec(llvmcall($instrs, Vec{$W,$T}, Tuple{$T}, s))
+#         W += W
+#     end
+# end
+
+# @generated function vbroadcast(::Val{W}, s::Ptr{T}) where {W, T}
+#     typ = JULIAPOINTERTYPE
+#     instrs = broadcast_str(W, typ)
+#     quote
+#         $(Expr(:meta,:inline))
+#         Vec(llvmcall( $instrs, _Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s ))
+#     end
+# end
+# @generated function vbroadcast(::Val{W}, s::T) where {W, T <: NativeTypes}
+#     typ = LLVM_TYPES[T]
+#     instrs = broadcast_str(W, typ)
+#     quote
+#         $(Expr(:meta,:inline))
+#         Vec(llvmcall( $instrs, _Vec{$W,$T}, Tuple{$T}, s))
+#     end
+# end
 @generated function vbroadcast(::Val{W}, ptr::Ptr{T}) where {W, T}
     typ = LLVM_TYPES[T]
     ptyp = JuliaPointerType
     vtyp = "<$W x $typ>"
-    instrs = String[]
     alignment = Base.datatype_alignment(T)
     instrs = """
         %ptr = inttoptr $ptyp %0 to $typ*
@@ -54,14 +91,14 @@ end
         Vec(llvmcall( $instrs, _Vec{$W,$T}, Tuple{Ptr{$T}}, ptr ))
     end
 end
-@generated function Base.zero(::Type{Vec{W,T}}) where {W,T}
-    typ = LLVM_TYPES[T]
-    instrs = "ret <$W x $typ> zeroinitializer"
-    quote
-        $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}, ))
-    end
-end
+# @generated function Base.zero(::Type{Vec{W,T}}) where {W,T}
+#     typ = LLVM_TYPES[T]
+#     instrs = "ret <$W x $typ> zeroinitializer"
+#     quote
+#         $(Expr(:meta,:inline))
+#         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}, ))
+#     end
+# end
 # @inline vbroadcast(::Val{1}, s::T) where {T <: NativeTypes} = s
 # @inline vbroadcast(::Val{1}, s::Ptr{T}) where {T <: NativeTypes} = s
 @inline vzero(::Val{W}, ::Type{T}) where {W,T} = zero(Vec{W,T})
