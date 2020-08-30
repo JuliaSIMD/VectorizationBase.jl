@@ -1,5 +1,9 @@
-function truncate_mask!(instrs, input, W, sizeU, suffix)
-    mtyp_input = "i$(8sizeU)"
+
+#
+# We use these definitions because when we have other SIMD operations with masks
+# LLVM optimizes the masks better.
+function truncate_mask!(instrs, input, W, suffix)
+    mtyp_input = "i$(max(8,W))"
     mtyp_trunc = "i$(W)"
     if mtyp_input == mtyp_trunc
         "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>"
@@ -7,8 +11,8 @@ function truncate_mask!(instrs, input, W, sizeU, suffix)
         "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc\n%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>"
     end
 end
-function zext_mask!(instrs, input, W, sizeU, suffix)
-    mtyp_input = "i$(8sizeU)"
+function zext_mask!(instrs, input, W, suffix)
+    mtyp_input = "i$(max(8,W))"
     mtyp_trunc = "i$(W)"
     if mtyp_input == mtyp_trunc
         "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input"
@@ -16,23 +20,27 @@ function zext_mask!(instrs, input, W, sizeU, suffix)
         "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc\n%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input"
     end
 end
-function binary_mask_op(W, U, op)
-    mtyp_input = "i$(8sizeof(U))"
+function binary_mask_op_instrs(W, op)
+    mtyp_input = "i$(max(8,W))"
     instrs = String[]
-    truncate_mask!(instrs, '0', W, sizeof(U), 0)
-    truncate_mask!(instrs, '1', W, sizeof(U), 1)
+    truncate_mask!(instrs, '0', W, 0)
+    truncate_mask!(instrs, '1', W, 1)
     push!(instrs, "%combinedmask = $op <$W x i1> %mask.0, %mask.1")
-    zext_mask!(instrs, "combinedmask", W, sizeof(U), 1)
+    zext_mask!(instrs, "combinedmask", W, 1)
     push!(instrs, "ret $mtyp_input %res.1")
+    join(instrs, "\n")
+end
+function binary_mask_op(W, U, op)
+    instrs = binary_mask_op_instrs(W, op)
     quote
         $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U, $U}, m1.u, m2.u))
+        Mask{$W}(llvmcall($instrs, $U, Tuple{$U, $U}, m1.u, m2.u))
     end    
 end
 
 @inline Base.zero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
 
-@inline extract_data(m::Mask) = m.u
+@inline data(m::Mask) = m.u
 @generated function Base.:(&)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
     binary_mask_op(W, U, "and")
 end
@@ -51,8 +59,8 @@ end
 
 function vadd_expr(W,U)
     instrs = String[]
-    truncate_mask!(instrs, truncate_mask('0', W, sizeof(U), 0))
-    truncate_mask!(instrs, truncate_mask('1', W, sizeof(U), 1))
+    truncate_mask!(instrs, truncate_mask('0', W, 0))
+    truncate_mask!(instrs, truncate_mask('1', W, 1))
     push!(instrs, """%uv.0 = zext <$W x i1> %mask.0 to <$W x i8>
     %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
     %res = add <$W x i8> %uv.0, %uv.1
@@ -111,10 +119,10 @@ end
     mtyp_input = "i$(8sizeof(U))"
     mtyp_trunc = "i$(W)"
     instrs = String[]
-    suffix = truncate_mask!(instrs, '0', W, sizeof(U), 0)
+    suffix = truncate_mask!(instrs, '0', W, 0)
     resv = "resvec.$(suffix)"
     push!(instrs, '%' * resv * " = xor <$W x i1> %mask.$(suffix), <$(join(("i1 true" for i in 1:W), ", "))>")
-    suffix = zext_mask!(instrs, resv, W, sizeof(U), suffix)
+    suffix = zext_mask!(instrs, resv, W, suffix)
     push!(instrs, "ret $mtyp_input %res.$(suffix)")
     quote
         $(Expr(:meta,:inline))
@@ -139,9 +147,8 @@ end
 # @inline Base.:(!=)(u::UIntTypes, m::Mask{W}) where {W} = notequalmask(Mask{W}(m1), m2)
 
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
-
-@inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m.u)
-@inline Base.:(+)(i::Integer, m::Mask) = i + count_ones(m.u)
+@inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m)
+@inline Base.:(+)(i::Integer, m::Mask) = i + count_ones(m)
 
 function mask_type(W)
     if W <= 8
@@ -179,54 +186,31 @@ end
 @inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width_val(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
-@generated function mask(::Type{T}, l::Integer) where {T}
-    M = mask_type(T)
-    W = pick_vector_width(T)
-    # tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
-    quote
-        $(Expr(:meta,:inline))
-        # @inbounds $tup[rem+1]
-        # rem = valrem(Val{$W}(), l - 1) + 1
-        # Mask{$W,$M}(one($M) << (rem & $(typemax(M))) - $(one(M)))
-        rem = valrem(Val{$W}(), (l % $M) - one($M)) + one($M)
-        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))) - rem))
-    end
-end
-
 @generated function mask(::Val{W}, l::Integer) where {W}
     M = mask_type(W)
-#    W = pick_vector_width(T)
-    # tup = Expr(:tuple, [Base.unsafe_trunc(M, 1 << w - 1) for w in 0:W]...) 
     quote
         $(Expr(:meta,:inline))
-        # @inbounds $tup[rem+1]
-        # rem = valrem(Val{$W}(), l % $M)
-        # Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))) - rem))
-        # rem = valrem(Val{$W}(), l - 1) + 1
-        rem = valrem(Val{$W}(), (l % $M) - one($M)) + one($M)
-        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))) - rem))
-        # Mask{$W,$M}(one($M) << rem)
-        # Mask{$W,$M}(one($M) << (rem) - $(one(M)))
+        rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
+        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
     end
 end
 @generated mask(::Val{W}, ::Static{L}) where {W, L} = mask(Val(W), L)
+@inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)
 
-unstable_mask(W, rem) = mask(Val(W), rem)
-
-@generated function masktable(::Val{W}, rem::Integer) where {W}
-    masks = Expr(:tuple)
-    for w ∈ 0:W-1
-        push!(masks.args, extract_data(unstable_mask(W, w == 0 ? W : w)))
-    end
-    Expr(
-        :block,
-        Expr(:meta,:inline),
-        Expr(:call, Expr(:curly, :Mask, W), Expr(
-            :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)),
-            Expr(:call, :getindex, masks, Expr(:call, :+, 1, Expr(:call, :valrem, Expr(:call, Expr(:curly, W)), :rem)))
-        ))
-    )
-end
+# @generated function masktable(::Val{W}, rem::Integer) where {W}
+#     masks = Expr(:tuple)
+#     for w ∈ 0:W-1
+#         push!(masks.args, data(mask(Val(W), w == 0 ? W : w)))
+#     end
+#     Expr(
+#         :block,
+#         Expr(:meta,:inline),
+#         Expr(:call, Expr(:curly, :Mask, W), Expr(
+#             :macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)),
+#             Expr(:call, :getindex, masks, Expr(:call, :+, 1, Expr(:call, :valrem, Expr(:call, Expr(:curly, W)), :rem)))
+#         ))
+#     )
+# end
 
 @inline tomask(m::Unsigned) = m
 @inline tomask(m::Mask) = m
@@ -250,7 +234,7 @@ end
         ))
     end
 end
-@inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(extract_data(v))
+@inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(data(v))
 
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
@@ -436,4 +420,72 @@ end
     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (i.i & 0x03))))
 end
 
+function cmp_quote(W, cond, vtyp, T)
+    intrs = String["%m = $cond $vtyp %0, %1"]
+    zext_mask!(instrs, 'm', W, '0')
+    push!(insrts, "ret i$(max(8,W)) res.0")
+    U = mask_type(W); 
+    :(Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,$T},_Vec{$W,$T}}, data(v1), data(v2))))
+end
+function icmp_quote(W, cond, bytes, T)
+    vtyp = vtype(W, "i$(8bytes)");
+    cmp_quote(W, "icmp " * cond, vtyp, T)
+end
+function fcmp_quote(W, cond, T)
+    vtyp = vtype(W, T === :Float32 ? "float" : "double");
+    cmp_quote(W, "fcmp nsz arcp contract reassoc " * cond, vtyp, T)
+end
+# @generated function compare(::Val{cond}, v1::Vec{W,I}, v2::Vec{W,I}) where {cond, W, I}
+    # cmp_quote(W, cond, sizeof(I), I)
+# end
+# for (f,cond) ∈ [(:(==), :eq), (:(!=), :ne), (:(>), :ugt), (:(≥), :uge), (:(<), :ult), (:(≤), :ule)]
+for (f,cond) ∈ [(:(==), "eq"), (:(!=), "ne"), (:(>), "ugt"), (:(≥), "uge"), (:(<), "ult"), (:(≤), "ule")]
+    bytes = 1
+    while bytes ≤ 8
+        T = Symbol(:UInt, 8bytes)
+        W = 2
+        while W * bytes ≤ REGISTER_SIZE
+            @eval @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(icmp_quote(W, cond, bytes, T))
+            W += W
+        end
+        bytes += bytes
+    end
+    # @eval @inline Base.$f(v1::Vec{W,I}, v2::Vec{W,I}) where {W, I <: Signed} = compare(Val{$(QuoteNode(cond))}(), v1, v2)
+end
+for (f,cond) ∈ [(:(==), "eq"), (:(≠), "ne"), (:(>), "sgt"), (:(≥), "sge"), (:(<), "slt"), (:(≤), "sle")]
+    bytes = 1
+    while bytes ≤ 8
+        T = Symbol(:Int, 8bytes)
+        W = 2
+        while W * bytes ≤ REGISTER_SIZE
+            @eval @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(cmp_quote(W, cond, bytes, T))
+            W += W
+        end
+        bytes += bytes
+    end
+end
 
+for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"), (:(≤), "ole"), (:(≠), "one")]
+    for (T,bytes) ∈ [(:Float32,4), (:Float64,8)]
+        W = 2
+        while W * bytes ≤ REGISTER_SIZE
+            @eval @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(fcmp_quote(W, cond, T))
+            W += W
+        end
+    end
+end
+
+@generated function vifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
+    typ = LLVM_TYPES[T]
+    vtyp = vtype(W, typ)
+    selty = vtype(W, "i1")
+    f = "select"
+    if Base.libllvm_version ≥ v"9" && ((T === Float32) || (T === Float64))
+        f *= " nsz arcp contract reassoc"
+    end
+    instrs = "%res = select $f $selty %0, $vtyp %1, $vtyp %2\nret $vtyp %res"
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
+    end
+end

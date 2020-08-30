@@ -18,6 +18,111 @@ end
     ret $ityp %actual""", I, :(Tuple{$I}), ityp, [ityp], [:i])
 end
 
+# for [("abs",:abs)]
+# end
+# for [("smax",:max),("smin",:min)]
+    
+# end
+for T ∈ [Float32, Float64]
+    W = 2
+    while W * sizeof(T) ≤ REGISTER_SIZE
+        # floating point
+        for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("trunc",:trunc),("round",:round)
+                      ]
+            @eval @inline Base.$f(v1::Vec{$W,$T}) = $(llvmcall_expr(op, W, T, (W,), (T,), "fast"))
+        end
+        if W * sizeof(Int64) ≤ REGISTER_SIZE
+            @eval @inline Base.round(::Type{Int64}, v1::Vec{$W,$T}) = $(llvmcall_expr("lrint", W, Int64, (W,), (T,), "fast"))
+        end
+        @eval @inline Base.round(::Type{Int32}, v1::Vec{$W,$T}) = $(llvmcall_expr("lrint", W, Int32, (W,), (T,), "fast"))
+
+        for (op,f) ∈ [("minnum",:min),("maxnum",:max),("copysign",:copysign),
+                  ]
+            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
+                $(llvmcall_expr(op, W, T, (W for _ in 1:2), (T for _ in 1:2), "fast"))
+            end
+        end
+        # ternary
+        for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
+            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
+                $(llvmcall_expr(op, W, T, (W for _ in 1:3), (T for _ in 1:3), f === :fma ? nothing : "fast"))
+            end
+        end
+        # floating vector, integer scalar
+        let op = "powi", f = :(^)
+            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Int32)
+                $(llvmcall_expr(op, W, T, (W, 1), (T, Int32), "fast"))
+            end
+        end
+        for (op,f) ∈ [
+            ("experimental.vector.reduce.v2.fadd",:sum),
+            ("experimental.vector.reduce.v2.fmul",:prod)
+        ]
+            @eval @inline function Base.$f(v1::$T, v1::Vec{$W,$T})
+                $(llvmcall_expr(op, 1, T, (1, W), (T, T), "fast"))
+            end
+        end
+        for (op,f) ∈ [
+            ("experimental.vector.reduce.v2.fmax",:maximum),
+            ("experimental.vector.reduce.v2.fmin",:minimum)
+        ]
+            @eval @inline function Base.$f(v1::Vec{$W,$T}, v2::Int32)
+                $(llvmcall_expr(op, 1, T, (W,), (T,), "fast"))
+            end
+        end
+        
+        W += W
+    end
+end
+
+@inline sum(v::Vec{W,T}) where {W,T} = sum(-zero(T), v)
+@inline prod(v::Vec{W,T}) where {W,T} = sum(one(T), v)
+
+@inline roundint(x::Float32) = round(Int32, x)
+if AVX512DQ
+    @inline roundint(x::Float64) = round(Int, x)
+    @inline roundint(v::Vec{W,Float32}) where {W} = round(Int32, v)
+    @inline roundint(v::Vec{W,Float64}) where {W} = round(Int64, v)
+else
+    @inline roundint(x::Float64) = round(Int32, x)
+    @inline roundint(v::Vec{W}) where {W} = round(Int32, v)
+end
+# binary
+
+
+
+function count_zeros_func(W, I, op)
+    typ = "i$(8sizeof(I))"
+    vtyp = "<$W x $typ>"
+    instr = "@llvm.$op.v$(W)$(typ)"
+    decl = "declare $vtyp $instr($vtyp, i1)"
+    instrs = "%res = call $vtyp $instr($vtyp %0, i1 1)\nret $vtyp %res"
+    llvmcall_expr(decl, instrs, _Vec{W,I}, Tuple{_Vec{W,I}}, vtyp, (vtyp,), (:(data(v)),))    
+end
+@generated vleading_zeros(v::_Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "ctlz")
+@generated vtrailing_zeros(v::_Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "cttz")
+
+
+for T ∈ [UInt8,UInt16,UInt32,UInt64]
+    bytes = sizeof(T)
+    W = 2
+    while W * bytes ≤ REGISTER_SIZE
+
+        for (op,f) ∈ [("ctpop", :count_ones)]
+            @eval @inline Base.$f(v1::Vec{$W,$T}) = $(llvmcall_expr(op, W, T, (W,), (T,)))
+        end
+        
+        for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
+                      ]
+            @eval @inline function $f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
+                $(llvmcall_expr(op, W, T, (W for _ in 1:3), (T for _ in 1:3)))
+            end
+        end
+
+        W += W
+    end
+end
+
 
 if FMA
     for T ∈ [Float32,Float64]
@@ -76,4 +181,4 @@ if FMA
         end
     end
 end
-
+@inline vifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = vifelse(m, f(a...), a[K])

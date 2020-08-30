@@ -149,7 +149,7 @@ function vload_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask:
     decl = LOAD_SCOPE_TBAA
     alignment = Base.datatype_alignment(T)
     instrs = offset_ptr(T, I, W, ivec, constmul, constoffset, '1')
-    mask && truncate_mask!(instrs, ivec ? '2' : '1', W, min(8, W), 0)
+    mask && truncate_mask!(instrs, ivec ? '2' : '1', W, 0)
     if ivec
         loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
@@ -262,7 +262,7 @@ function vstore_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
     alignment = Base.datatype_alignment(T)
     instrs = offset_ptr(T, I, W, ivec, constmul, constoffset, '2')
-    mask && truncate_mask!(instrs, ivec ? '3' : '2', W, min(8, W), 0)
+    mask && truncate_mask!(instrs, ivec ? '3' : '2', W, 0)
     if ivec
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
@@ -578,7 +578,7 @@ end
     mtyp_input = llvmtype(U)
     mtyp_trunc = "i$W"
     instrs = String["%ptr = inttoptr $JULIAPOINTERTYPE %1 to $typ*"]
-    truncate_mask!(instrs, '2', W, sizeof(U), 0)
+    truncate_mask!(instrs, '2', W, 0)
     decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, $typ*, <$W x i1>)"
     push!(instrs, "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, $typ* %ptr, <$W x i1> %mask.0)\nret void")
     llvmcall_expr(decl, join(instrs,"\n"), :Cvoid, :(Tuple{NTuple{$W,VecElement{$T}}, Ptr{$T}, $U}), "void", [vtyp, JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:(data(v)), :ptr, :(data(mask))])
