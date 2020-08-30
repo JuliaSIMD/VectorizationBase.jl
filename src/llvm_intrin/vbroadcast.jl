@@ -27,8 +27,9 @@
     end
 end
 @generated function vbroadcast(::Val{W}, s::T) where {W,T<:NativeTypes}
-    vtyp = vtype(W, T)
-    """
+    typ = LLVM_TYPES[T]
+    vtyp = vtype(W, typ)
+    instrs = """
         %ie = insertelement $vtyp undef, $typ %0, i32 0
         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
         ret $vtyp %v

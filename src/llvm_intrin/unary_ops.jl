@@ -1,6 +1,7 @@
 
 @generated function Base.:(-)(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
     vtyp = vtype(W, T)
+    instrs = "%res = fneg fast $vtyp %0\nret $vtyp %res"
     quote
         $(Expr(:meta, :inline))
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T}}, data(v)))

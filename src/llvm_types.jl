@@ -30,6 +30,8 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
 const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
 vtype(W, typ) = isone(W) ? typ : "<$W x $typ>"
+vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])
+julia_type(W, T) = isone(W) ? T : _Vec{W,T}
 
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
 suffix(W::Int, T) = suffix(W, suffix(T))
@@ -73,9 +75,6 @@ end
 #     Bool(val) ? "i1 1" : "i1 zeroinitializer"
 # end
 
-llvm_type(W, T) = vtype(W, LLVM_TYPES[T])
-julia_type(W, T) = isone(W) ? T : _Vec{W,T}
-
 function llvmname(op, WR, WA, T, TA)
     lret = LLVM_TYPES[T]
     ln = "llvm.$op.$(suffix(WR,lret))"
@@ -88,21 +87,22 @@ function llvmcall_expr(op, WR, R, WA, TA, ::Nothing = nothing)
     foreach(WT -> push!(argt.args, julia_type(WT[1],WT[2])), zip(WA,TA))
     call = Expr(:call, :ccall, ff, :llvmcall, R, argt)
     foreach(n -> push!(call.args, Expr(:call, :data, Symbol(:v, n))), 1:length(TA))
-    Expr(:block, Expr(:meta, :inline), Expr(:call, :Vec, call))
+    Expr(:block, Expr(:meta, :inline), Expr(:call, :asvec, call))
 end
 function llvmcall_expr(op, WR, R, WA, TA, flags::String)
     lret = LLVM_TYPES[R]
     lvret = vtype(WR, lret)
     lop = llvmname(op, WR, WA, R, TA)
     instr = "$lvret $flags @$lop"
-    larg_types = llvm_type.(WA, TA)
+    larg_types = vtype.(WA, TA)
     decl = "declare $lvret @$(lop)(" * join(larg_types, ", ") * ')'
-    args_for_call = ("$T (n-1)%" for (n,T) ∈ enumerate(larg_types))
+    args_for_call = ("$T %$(n-1)" for (n,T) ∈ enumerate(larg_types))
     instrs = """%res = call $flags $lvret @$(lop)($(join(args_for_call, ", ")))
         ret $lvret %res"""
     args = Expr(:curly, :Tuple); foreach(WT -> push!(args.args, julia_type(WT[1], WT[2])), zip(WA,TA))
     arg_syms = [Expr(:call, :data, Symbol(:v,n)) for n ∈ 1:length(TA)]
-    llvmcall_expr(decl, instr, julia_type(WR, R), args, lvret, larg_types, arg_syms)
+    # println(instrs)
+    llvmcall_expr(decl, instrs, julia_type(WR, R), args, lvret, larg_types, arg_syms)
 end
 
 @static if VERSION ≥ v"1.6.0-DEV.674"

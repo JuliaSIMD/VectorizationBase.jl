@@ -23,10 +23,9 @@ function binary_op(op, W, @nospecialize(_::Type{T})) where {T}
         V = NTuple{W,VecElement{T}}
     end
     instrs = "%res = $op $ty %0, %1\nret $ty %res"
-    quote
-        $(Expr(:meta, :inline))
-        llvmcall($instrs, $V, Tuple{$V,$V}, data(v1), data(v2))
-    end
+    call = :(llvmcall($instrs, $V, Tuple{$V,$V}, data(v1), data(v2)))
+    W > 1 && (call = Expr(:call, :Vec, call))
+    Expr(:block, Expr(:meta, :inline), call)
 end
 # @generated function binary_operation(::Val{op}, v1::V1, v2::V2) where {op, V1, V2}
 #     M1, N1, W1, T1 = description(V1)
@@ -111,47 +110,38 @@ for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",
         push!(fdef.args, :T)
     end
     @eval @generated $fdef = binary_op($op, W, T)
-    # if !iszero(s & 0x01)
-    #     @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Signed}
-    #         binary_op($op, W, T)
-    #     end
-    # end
-    # if !iszero(s & 0x02)
-    #     @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Unsigned}
-    #         binary_op($op, W, T)
-    #     end
-    # end
-    # for Ts ∈ [Int8,Int16,Int32,Int64]
-    #     Tu = unsigned(Ts)
-    #     W = 2
-    #     while W ≤ pick_vector_width(Ts)
-    #         if !iszero(s & 0x01) # signed def
-    #             @eval begin
-    #                 Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
-    #                 # @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $f(v1, v2)
-    #             end
-    #         end
-    #         if !iszero(s & 0x02) # unsigend def
-    #             @eval begin
-    #                 Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
-    #                 # @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $f(v1, v2)
-    #             end
-    #         end
-    #         W += W
-    #     end
-    #     if !iszero(s & 0x01) # signed def
-    #         @eval begin
-    #             Base.@pure @inline Base.$f(v1::$Ts, v2::$Ts) = $(binary_op(op, 1, Ts))
-    #             @inline $ff(v1::Vec{W,$Ts}, v2::Vec{W,$Ts}) where {W} = $f(v1, v2)
-    #         end
-    #     end
-    #     if !iszero(s & 0x02) && !((s === 0x03) && (op === "ashr")) # unsigend def
-    #         @eval begin
-    #             Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(op, 1, Tu))
-    #             @inline $ff(v1::Vec{W,$Tu}, v2::Vec{W,$Tu}) where {W} = $f(v1, v2)
-    #         end
-    #     end
-    # end
+    (op === "lshr" || op === "ashr") || continue
+    for Ts ∈ [Int8,Int16,Int32,Int64]
+        Tu = unsigned(Ts)
+        # W = 2
+        # while W ≤ pick_vector_width(Ts)
+        #     if !iszero(s & 0x01) # signed def
+        #         @eval begin
+        #             Base.@pure @inline Base.$f(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $(binary_op(op, W, Ts))
+        #             # @inline $ff(v1::Vec{$W,$Ts}, v2::Vec{$W,$Ts}) = $f(v1, v2)
+        #         end
+        #     end
+        #     if !iszero(s & 0x02) # unsigend def
+        #         @eval begin
+        #             Base.@pure @inline Base.$f(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $(binary_op(op, W, Tu))
+        #             # @inline $ff(v1::Vec{$W,$Tu}, v2::Vec{$W,$Tu}) = $f(v1, v2)
+        #         end
+        #     end
+        #     W += W
+        # end
+        if !iszero(s & 0x01) # signed def
+            @eval begin
+                Base.@pure @inline $ff(v1::$Ts, v2::$Ts) = $(binary_op(op, 1, Ts))
+                # Base.@pure $ff(v1::Vec{W,$Ts}, v2::Vec{W,$Ts}) where {W} = $f(v1, v2)
+            end
+        end
+        if !iszero(s & 0x02) && !((s === 0x03) && (op === "ashr")) # unsigend def
+            @eval begin
+                Base.@pure @inline $ff(v1::$Tu, v2::$Tu) = $(binary_op(op, 1, Tu))
+                # Base.@pure $ff(v1::Vec{W,$Tu}, v2::Vec{W,$Tu}) where {W} = $f(v1, v2)
+            end
+        end
+    end
 end
 # Bitwise
 # for Ts ∈ [Int8, Int16, Int32, Int64]

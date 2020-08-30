@@ -5,8 +5,8 @@ register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = SIMD_NATIVE_INTEGER
 intlog2(N::I) where {I <: Integer} = (8sizeof(I) - one(I) - leading_zeros(N)) % I
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
-nextpow2(W) = shl(one(W), (8sizeof(W) - leading_zeros(W - one(W))))
-prevpow2(W) = shr(one(W) << (8sizeof(W)-1), leading_zeros(W))
+nextpow2(W) = vshl(one(W), vsub(8sizeof(W), leading_zeros(vsub(W, one(W)))))
+prevpow2(W) = vshl(one(W), vsub(vsub((8sizeof(W)) % UInt, one(UInt)), leading_zeros(W) % UInt))
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
 
 function pick_vector_width(::Type{T} = Float64) where {T<:NativeTypes}

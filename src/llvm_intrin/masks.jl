@@ -65,7 +65,7 @@ function vadd_expr(W,U)
     %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
     %res = add <$W x i8> %uv.0, %uv.1
     ret <$W x i8> %res""")
-    :(Vec(llvmcall($(join(instrs, "\n")), Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u)))
+    :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u)))
 end
 for (W,U) in [(2,UInt8),(4,UInt8),(8,UInt8),(16,UInt16),(32,UInt32),(64,UInt64)] # Julia 1.1 bug
     @eval @inline Base.:(+)(m1::Mask{$W,$U}, m2::Mask{$W,$U}) = $(vadd_expr(W, U))

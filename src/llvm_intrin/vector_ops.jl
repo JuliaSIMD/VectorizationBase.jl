@@ -16,14 +16,14 @@ end
     M, instrs = shufflevector_instrs(W, T, I, true)
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, Vec{$M,$T}, Tuple{Vec{$W,$T}, Vec{$W,$T}}, data(v1), data(v2)))
+        Vec(llvmcall($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}, _Vec{$W,$T}}, data(v1), data(v2)))
     end
 end
 @generated function shufflevector(v1::Vec{W,T}, ::Val{I}) where {W,T,I}
     M, instrs = shufflevector_instrs(W, T, I, false)
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, Vec{$M,$T}, Tuple{Vec{$W,$T}}, data(v1)))
+        Vec(llvmcall($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}}, data(v1)))
     end
 end
 

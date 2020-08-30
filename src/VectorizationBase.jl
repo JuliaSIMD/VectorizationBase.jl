@@ -9,6 +9,8 @@ using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Contiguous, SD
 ## Until SIMDPirates stops importing it
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
+export Vec
+
 # using Base: llvmcall
 using Base: llvmcall, VecElement
 # @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
@@ -67,6 +69,8 @@ struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMDVector{W,T}
 end
 
 @inline Base.copy(v::AbstractSIMDVector) = v
+@inline asvec(x::_Vec) = Vec(x)
+@inline asvec(x) = x
 
 # struct VecUnroll{N,W,T} <: AbstractSIMDVector{W,T}
 #     data::NTuple{N,Vec{W,T}}
