@@ -1,4 +1,4 @@
-function convert_func(op, T1, W1, T2, W2 = W)
+function convert_func(op, T1, W1, T2, W2 = W1)
     typ1 = LLVM_TYPES[T1]
     typ2 = LLVM_TYPES[T2]
     vtyp1 = vtype(W1, typ1)
@@ -24,26 +24,32 @@ function identity_func(W, T1, T2)
 end
 
 @generated function Vec{W,F}(v::Vec{W,T}) where {W,F<:Union{Float32,Float64},T<:Integer}
-    convert_func(T <: Signed ? "sitofp" : "uitofp", W, F, T, (W * sizeof(F)) ÷ sizeof(T))
+    convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
 end
 
 @generated function Vec{W,T}(v::Vec{W,F}) where {W,F<:Union{Float32,Float64},T<:Integer}
-    convert_func(T <: Signed ? "fptosi" : "fptoui", T, (W * sizeof(F)) ÷ sizeof(T), F, W)
+    convert_func(T <: Signed ? "fptosi" : "fptoui", T, W, F)
 end
 @generated function Vec{W,T1}(v::Vec{W,T2}) where {W,T1<:Integer,T2<:Integer}
-    quote
-        sz1 = sizeof(T1)::Int; sz2 = sizeof(T2)::Int
-        if sz1 < sz2
-            convert_func("trunc", W, T1, T2)
-        elseif sz1 == 2
-            identity_func(W, T1, T2)
-        else
-            convert_func(((T1 <: Signed) && (T2 <: Signed)) ? "sext" : "zext", W, T1, T2)
-        end
+    sz1 = sizeof(T1)::Int; sz2 = sizeof(T2)::Int
+    if sz1 < sz2
+        convert_func("trunc", T1, W, T2)
+    elseif sz1 == 2
+        identity_func(W, T1, T2)
+    else
+        convert_func(((T1 <: Signed) && (T2 <: Signed)) ? "sext" : "zext", T1, W, T2)
     end
 end
 
-    
+@inline Base.float(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
+@generated function Base.float(v::Vec{W,I}) where {W, I}
+    ex = if 8W ≤ REGISTER_SIZE
+        :(Vec{$W,Float64}(v))
+    else
+        :(Vec{$W,Float32}(v))
+    end
+    Expr(:block, Expr(:meta, :inline), ex)
+end
 
     # for bytes2 in (1,2,4)
     #     bytes2 == bytes1 && break
@@ -76,11 +82,11 @@ end
 
 @generated function Vec{W2,Float32}(v::Vec{W,Float64}) where {W,W2}
     @assert W2 == 2W
-    convert_func("fptrunc", 2W, :Float32, :Float64, W)
+    convert_func("fptrunc", :Float32, 2W, :Float64, W)
 end
 @generated function Vec{W,Float64}(v::Vec{W2,Float32}) where {W,W2}
     @assert W2 == 2W
-    convert_func("fpext", W, :Float64, :Float32, 2W)
+    convert_func("fpext", :Float64, W, :Float32, 2W)
 end
 
 Base.convert(::Vec{W,T}, s::T) where {W, T <: NativeTypes} = vbroadcast(Val{W}(), s)
@@ -95,6 +101,6 @@ Base.convert(::Vec{W,T1}, s::T2) where {W, T1 <: Integer, T2 <: Integer} = vbroa
 end
 @generated function Base.reinterpret(::Type{Vec{W1,T1}}, v::Vec{W2,T2}) where {W1, W2, T1, T2}
     @assert sizeof(T1) * W1 == W2 * sizeof(T2)
-    convert_func("bitcast", W1, LLVM_TYPES[T1], T1, LLVM_TYPES[T2], T2, W2)
+    convert_func("bitcast", T1, W1, T2, W2)
 end
 

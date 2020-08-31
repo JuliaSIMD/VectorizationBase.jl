@@ -84,10 +84,10 @@ end
 function llvmcall_expr(op, WR, R, WA, TA, ::Nothing = nothing)
     ff = llvmname(op, WR, WA, R, TA)
     argt = Expr(:tuple)
-    foreach(WT -> push!(argt.args, julia_type(WT[1],WT[2])), zip(WA,TA))
-    call = Expr(:call, :ccall, ff, :llvmcall, R, argt)
+    foreach(WT -> push!(argt.args, julia_type(WT[1], WT[2])), zip(WA,TA))
+    call = Expr(:call, :ccall, ff, :llvmcall, julia_type(WR, R), argt)
     foreach(n -> push!(call.args, Expr(:call, :data, Symbol(:v, n))), 1:length(TA))
-    Expr(:block, Expr(:meta, :inline), Expr(:call, :asvec, call))
+    Expr(:block, Expr(:meta, :inline), isone(WR) ? call : Expr(:call, :Vec, call))
 end
 function llvmcall_expr(op, WR, R, WA, TA, flags::String)
     lret = LLVM_TYPES[R]

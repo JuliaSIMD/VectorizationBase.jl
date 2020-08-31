@@ -18,11 +18,11 @@ end
     ret $ityp %actual""", I, :(Tuple{$I}), ityp, [ityp], [:i])
 end
 
-# for [("abs",:abs)]
+# for (op,f) ∈ [("abs",:abs)]
 # end
-# for [("smax",:max),("smin",:min)]
-    
-# end
+for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed)]
+    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: $S} = llvmcall_expr($op, W, T, (W,), (T,))
+end
 # for T ∈ [Float32, Float64]
 #     W = 2
 #     while W * sizeof(T) ≤ REGISTER_SIZE
@@ -56,19 +56,34 @@ end
     llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "fast")
 end
 for (op,f) ∈ [
-    ("experimental.vector.reduce.v2.fadd",:sum),
-    ("experimental.vector.reduce.v2.fmul",:prod)
+    ("experimental.vector.reduce.v2.fadd",:vsum),
+    ("experimental.vector.reduce.v2.fmul",:vprod)
 ]
-    @eval @generated function Base.$f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+    @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         llvmcall_expr($op, 1, T, (1, W), (T, T), "fast")
     end
 end
 for (op,f) ∈ [
-    ("experimental.vector.reduce.v2.fmax",:maximum),
-    ("experimental.vector.reduce.v2.fmin",:minimum)
+    ("experimental.vector.reduce.v2.fmax",:vmaximum),
+    ("experimental.vector.reduce.v2.fmin",:vminimum)
 ]
-    @eval @generated function Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+    @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         llvmcall_expr($op, 1, T, (W,), (T,), "fast")
+    end
+end
+for (op,f,S) ∈ [
+    ("experimental.vector.reduce.add",:vsum,:Integer),
+    ("experimental.vector.reduce.mul",:vprod,:Integer),
+    ("experimental.vector.reduce.and",:vall,:Integer),
+    ("experimental.vector.reduce.or",:vany,:Integer),
+    ("experimental.vector.reduce.xor",:vxorreduce,:Integer),
+    ("experimental.vector.reduce.smax",:vmaximum,:Signed),
+    ("experimental.vector.reduce.smin",:vminimum,:Signed),
+    ("experimental.vector.reduce.umax",:vmaximum,:Unsigned),
+    ("experimental.vector.reduce.umin",:vminimum,:Unsigned)
+]
+    @eval @generated function $f(v1::Vec{W,T}) where {W, T <: $S}
+        llvmcall_expr($op, 1, T, (W,), (T,))
     end
 end
         
@@ -76,8 +91,8 @@ end
 #     end
 # end
 
-@inline sum(v::Vec{W,T}) where {W,T} = sum(-zero(T), v)
-@inline prod(v::Vec{W,T}) where {W,T} = sum(one(T), v)
+@inline vsum(v::Vec{W,T}) where {W,T} = vsum(-zero(T), v)
+@inline vprod(v::Vec{W,T}) where {W,T} = vprod(one(T), v)
 
 @inline roundint(x::Float32) = round(Int32, x)
 if AVX512DQ
@@ -92,16 +107,17 @@ end
 
 
 
-function count_zeros_func(W, I, op)
+function count_zeros_func(W, I, op, tf = 1)
     typ = "i$(8sizeof(I))"
     vtyp = "<$W x $typ>"
     instr = "@llvm.$op.v$(W)$(typ)"
     decl = "declare $vtyp $instr($vtyp, i1)"
-    instrs = "%res = call $vtyp $instr($vtyp %0, i1 1)\nret $vtyp %res"
-    llvmcall_expr(decl, instrs, _Vec{W,I}, Tuple{_Vec{W,I}}, vtyp, (vtyp,), (:(data(v)),))    
+    instrs = "%res = call $vtyp $instr($vtyp %0, i1 $tf)\nret $vtyp %res"
+    llvmcall_expr(decl, instrs, _Vec{W,I}, Tuple{_Vec{W,I}}, vtyp, (vtyp,), (:(data(v)),))
 end
-@generated vleading_zeros(v::_Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "ctlz")
-@generated vtrailing_zeros(v::_Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "cttz")
+# @generated Base.abs(v::Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "abs", 0)
+@generated vleading_zeros(v::Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "ctlz")
+@generated vtrailing_zeros(v::Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "cttz")
 
 
 

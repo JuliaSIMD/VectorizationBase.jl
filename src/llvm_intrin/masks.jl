@@ -5,20 +5,22 @@
 function truncate_mask!(instrs, input, W, suffix)
     mtyp_input = "i$(max(8,W))"
     mtyp_trunc = "i$(W)"
-    if mtyp_input == mtyp_trunc
+    str = if mtyp_input == mtyp_trunc
         "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>"
     else
         "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc\n%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>"
     end
+    push!(instrs, str)
 end
 function zext_mask!(instrs, input, W, suffix)
     mtyp_input = "i$(max(8,W))"
     mtyp_trunc = "i$(W)"
-    if mtyp_input == mtyp_trunc
+    str = if mtyp_input == mtyp_trunc
         "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input"
     else
         "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc\n%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input"
     end
+    push!(instrs, str)
 end
 function binary_mask_op_instrs(W, op)
     mtyp_input = "i$(max(8,W))"
@@ -220,22 +222,24 @@ end
     U = mask_type(W)
     instrs = String[]
     push!(instrs, "%bitvec = trunc <$W x i8> %0 to <$W x i1>")
-    if usize == W
-        push!(instrs, "%mask = bitcast <$W x i1> %bitvec to i$(W)")
-    else
-        push!(instrs, "%maskshort = bitcast <$W x i1> %bitvec to i$(W)")
-        push!(instrs, "%mask = zext i$(W) %maskshort to i$(usize)")
-    end
-    push!(instrs, "ret i$(usize) %mask")
+    zext_mask!(instrs, "bitvec", W, 0)
+    push!(instrs, "ret i$(usize) %res.0")
     quote
         $(Expr(:meta, :inline))
-        Mask{$W}(llvmcall(
-            $(join(instrs, "\n")), $U, Tuple{Vec{$W,Bool}}, v
-        ))
+        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
     end
 end
 @inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(data(v))
 
+@generated function toboolvec(m::Mask{W,U}) where {W,U}
+    instrs = String[]
+    truncate_mask!(instrs, '0', W, 0)
+    push!(instrs, "%res = zext <$W x i1> %mask.0 to <$W x i8>\nret <$W x i8> %res")
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,Bool}, Tuple{$U}, data(m)))
+    end
+end
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
 @inline function Base.getindex(m::Mask{W}, i::Integer) where {W}
@@ -260,7 +264,7 @@ end
 function cmp_quote(W, cond, vtyp, T1, T2 = T1)
     instrs = String["%m = $cond $vtyp %0, %1"]
     zext_mask!(instrs, 'm', W, '0')
-    push!(instrs, "ret i$(max(8,W)) res.0")
+    push!(instrs, "ret i$(max(8,W)) %res.0")
     U = mask_type(W);
     quote
         $(Expr(:meta,:inline))

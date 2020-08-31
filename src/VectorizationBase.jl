@@ -64,7 +64,7 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
         new{W,T}(x)
     end
 end
-struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMDVector{W,T}
+struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}}# <: AbstractSIMDVector{W,T}
     data::NTuple{N,V}
 end
 
@@ -117,7 +117,8 @@ end
 const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 # Const prop is good enough; added an @inferred test to make sure.
-@inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
+# Removed because confusion can cause more harm than good.
+# @inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
 
 @inline Base.broadcastable(v::AbstractSIMDVector) = Ref(v)
 
@@ -177,14 +178,21 @@ function Base.show(io::IO, v::Vec{W,T}) where {W,T}
 end
 Base.bitstring(m::Mask{W}) where {W} = bitstring(data(m))[end-W+1:end]
 function Base.show(io::IO, m::Mask{W}) where {W}
-    bits = bitstring(m)
-    bitv = split(bits, "")
+    bits = m.u
     print(io, "Mask{$W,Bool}<")
     for w ∈ 0:W-1
-        print(io, bitv[W-w])
+        print(io, bits & 1)
+        bits >>= 1
         w < W-1 && print(io, ", ")
     end
     print(io, ">")
+end
+function Base.show(io::IO, vu::VecUnroll{N,W,T}) where {N,W,T}
+    println(io, "$N x Vec{$W, $T}")
+    for n in 1:N
+        show(io, vu.data[n]);
+        n == N || println(io)
+    end
 end
 
 """
