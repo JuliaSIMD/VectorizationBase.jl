@@ -333,7 +333,7 @@ for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"),
     # end
 end
 
-@generated function vifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
+@generated function IfElse.ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     selty = vtype(W, "i1")

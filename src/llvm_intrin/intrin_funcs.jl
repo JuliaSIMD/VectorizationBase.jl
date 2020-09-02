@@ -32,6 +32,7 @@ for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("t
     @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "fast")
 end
 
+
 @generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
     llvmcall_expr("lrint", W, Int64, (W,), (T,), "fast")
 end
@@ -219,9 +220,9 @@ if FMA
     end
     if AVX512BW
         @eval begin
-            @generated function vifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function IfElse.ifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
-                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmadd, m, a, b, c)))
+                    return Expr(:block, Expr(:meta, :inline), :(IfElse.ifelse(vfmadd, m, a, b, c)))
                 end
                 typ = LLVM_TYPES[T]
                 suffix = T == Float32 ? "ps" : "pd"                    
@@ -232,9 +233,9 @@ if FMA
                     Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            @generated function vifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function IfElse.ifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
-                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmmadd, m, a, b, c)))
+                    return Expr(:block, Expr(:meta, :inline), :(IfElse.ifelse(vfmmadd, m, a, b, c)))
                 end
                 typ = LLVM_TYPES[T]
                 suffix = T == Float32 ? "ps" : "pd"                    
@@ -245,9 +246,9 @@ if FMA
                     Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            @generated function vifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function IfElse.ifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
-                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmsub, m, a, b, c)))
+                    return Expr(:block, Expr(:meta, :inline), :(IfElse.ifelse(vfmsub, m, a, b, c)))
                 end
                 typ = LLVM_TYPES[T]
                 suffix = T == Float32 ? "ps" : "pd"                    
@@ -258,9 +259,9 @@ if FMA
                     Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            @generated function vifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function IfElse.ifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
-                    return Expr(:block, Expr(:meta, :inline), :(vifelse(vfnmsub, m, a, b, c)))
+                    return Expr(:block, Expr(:meta, :inline), :(IfElse.ifelse(vfnmsub, m, a, b, c)))
                 end
                 typ = LLVM_TYPES[T]
                 suffix = T == Float32 ? "ps" : "pd"                    
@@ -312,16 +313,16 @@ end
     #                 ret <$W x $(typ)> %res"""
     #             U = VectorizationBase.mask_type(W)
     #             @eval begin
-    #                 @inline function vifelse(::typeof(vfmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 @inline function IfElse.ifelse(::typeof(vfmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
     #                     Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     #                 end
-    #                 @inline function vifelse(::typeof(vfnmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 @inline function IfElse.ifelse(::typeof(vfnmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
     #                     Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     #                 end
-    #                 @inline function vifelse(::typeof(vfmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 @inline function IfElse.ifelse(::typeof(vfmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
     #                     Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     #                 end
-    #                 @inline function vifelse(::typeof(vfnmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
+    #                 @inline function IfElse.ifelse(::typeof(vfnmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
     #                     Vec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     #                 end
     #             end
@@ -329,4 +330,4 @@ end
     #         W += W
     #     end
     # end
-@inline vifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = vifelse(m, f(a...), a[K])
+@inline IfElse.ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = IfElse.ifelse(m, f(a...), a[K])

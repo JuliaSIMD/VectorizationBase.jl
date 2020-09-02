@@ -2,6 +2,7 @@ module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
 using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Static, Contiguous, CPUPointer, ContiguousBatch, StrideRank, known_length, known_first, known_last
+using IfElse
 # using LinearAlgebra: Adjoint, 
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
