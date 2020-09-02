@@ -74,6 +74,7 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline vadd(i::Integer, j::MM{W}) where {W} = MM{W}(vadd(i, j.i))
 @inline vadd(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vadd(i.i, j))
 @inline vadd(::Static{i}, j::MM{W}) where {W,i} = MM{W}(vadd(i, j.i))
+@inline vadd(i::MM{W,X}, j::MM{W,S}) where {W,X,S} = MM{W}(vadd(i.i, j.i), Static{X}() + Static{S}())
 @inline vsub(i::MM{W}, j::Integer) where {W} = MM{W}(vsub(i.i, j))
 @inline vsub(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vsub(i.i, j))
 # @inline vmul_no_promote(i, j) = vmul(i,j)

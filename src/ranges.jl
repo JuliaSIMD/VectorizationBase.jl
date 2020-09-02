@@ -115,24 +115,27 @@ end
 end
 
 
-@inline Vec(i::MM{W}) where {W} = vrangeincr(Val{W}(), data(i), Val{0}(), Val{1}())
-@inline Vec(i::MM{W,Static{N}}) where {W,N} = vrange(Val{W}(), Val{N}(), Val{1}())
+@inline Vec(i::MM{W,X}) where {W,X} = vrangeincr(Val{W}(), data(i), Val{0}(), Val{X}())
+@inline Vec(i::MM{W,X,Static{N}}) where {W,X,N} = vrange(Val{W}(), Val{N}(), Val{X}())
 @inline Vec(i::MM{1}) = data(i)
-@inline Vec(i::MM{1,Static{N}}) where {N} = N
-@inline Base.convert(::Type{Vec{W,T}}, i::MM{W}) where {W,T} = vrange(Val{W}(), T, Val{0}(), Val{1}())
+@inline Vec(i::MM{1,<:Any,Static{N}}) where {N} = N
+@inline Base.convert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrange(Val{W}(), T, Val{0}(), Val{X}())
 
 # Addition
-@inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
+# @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
+# @inline Base.:(+)(i::MM{W,X}, j::MM{W,Y}) where {W} = vrange(vrangeincr(Val{W}(), data(i) + data(j), Val{0}(), Static{X}() + Static{Y}()))
+@inline Base.:(+)(i::MM{W,X}, j::MM{X,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
 @inline Base.:(+)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline Base.:(+)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
-@inline vadd(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
+
+@inline vadd(i::MM{W,X}, j::MM{X,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
 @inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
 # Subtraction
-@inline Base.:(-)(i::MM{W}, j::MM{W}) where {W} = vsub(vrange(i), vrange(j))
+@inline Base.:(-)(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), Static{X}() + Static{Y}())
 @inline Base.:(-)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(Vec(i), j)
 @inline Base.:(-)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, Vec(j))
-@inline vsub(i::MM{W}, j::MM{W}) where {W} = vsub(vrange(i), vrange(j))
+@inline vsub(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), Static{X}() + Static{Y}())
 @inline vsub(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(Vec(i), j)
 @inline vsub(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, Vec(j))
 # Multiplication
@@ -164,7 +167,14 @@ floatvec(i::MM{W}) where {W} = Vec(MM{W}(floattype(Val{W}())(i.i)))
 @inline Base.:(>>)(i::MM, j::Number) = Vec(i) >> j
 @inline Base.:(>>>)(i::MM, j::Number) = Vec(i) >>> j
 
-for op ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=), :(&), :(|), :(⊻), :(%)]
+for op ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=)]
+    @eval @inline Base.$op(i::MM, j::Number) = $op(data(i), j)
+    @eval @inline Base.$op(i::Number, j::MM) = $op(i, data(j))
+    @eval @inline Base.$op(i::MM, ::Static{j}) where {j} = $op(data(i), j)
+    @eval @inline Base.$op(::Static{i}, j::MM) where {i} = $op(i, data(j))
+    @eval @inline Base.$op(i::MM, j::MM) = $op(data(i), data(j))
+end
+for op ∈ [:(&), :(|), :(⊻), :(%)]
     @eval @inline Base.$op(i::MM, j::Number) = $op(Vec(i), j)
     @eval @inline Base.$op(i::Number, j::MM) = $op(i, Vec(j))
     @eval @inline Base.$op(i::MM, ::Static{j}) where {j} = $op(Vec(i), j)
@@ -182,6 +192,4 @@ end
 # # @inline vmul(::MM{W,Zero}, i) where {W} = svrangemul(Val{W}(), i, Val{0}())
 # @inline vmul(i, ::MM{W,Zero}) where {W} = svrangemul(Val{W}(), i, Val{0}())
 
-@inline vmul(::MM{W,Static{N}}, i) where {W,N} = svrangemul(Val{W}(), i, Val{N}())
-@inline vmul(i, ::MM{W,Static{N}}) where {W,N} = svrangemul(Val{W}(), i, Val{N}())
 

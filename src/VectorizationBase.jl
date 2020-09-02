@@ -1,7 +1,7 @@
 module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
-using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Contiguous, SDTuple, CPUPointer, ContiguousBatch, StrideRank, known_length, known_first, known_last
+using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Static, Contiguous, CPUPointer, ContiguousBatch, StrideRank, known_length, known_first, known_last
 # using LinearAlgebra: Adjoint, 
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
@@ -64,7 +64,7 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
         new{W,T}(x)
     end
 end
-struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}}# <: AbstractSIMDVector{W,T}
+struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Number#AbstractSIMDVector{W,T}
     data::NTuple{N,V}
 end
 
@@ -199,12 +199,14 @@ end
 The name `MM` type refers to _MM registers such as `XMM`, `YMM`, and `ZMM`.
 `MMX` from the original MMX SIMD instruction set is a [meaningless initialism](https://en.wikipedia.org/wiki/MMX_(instruction_set)#Naming).
 
-The `MM` type is used to represent SIMD indexes. 
+The `MM{W,X}` type is used to represent SIMD indexes of width `W` with stride `X`.
 """
-struct MM{W,I<:Number} <: AbstractSIMDVector{W,I}
+struct MM{W,X,I<:Number} <: AbstractSIMDVector{W,X,I}
     i::I
-    @inline MM{W}(i::T) where {W,T} = new{W,T}(i)
+    @inline MM{W,X}(i::T) where {W,X,T} = new{W,X::Int,T}(i)
 end
+@inline MM{W}(i) where {W} = MM{W,1}(i)
+@inline MM{W}(i, ::Static{X}) where {W,X} = MM{W,X}(i)
 
 
 include("static.jl")

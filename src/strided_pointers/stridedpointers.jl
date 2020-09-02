@@ -1,5 +1,16 @@
 
-
+@generated function static_tuple(t::SDTuple{N,X,P}) where {N,X,P}
+    i = 0
+    sdt = Expr(:tuple)
+    Xv = tuple_type_to_value_tuple(X)
+    for n ∈ 1:N
+        push!(sdt.args, Xv[n] == -1 ? Expr(:ref, :x, (i += 1)) : Expr(:call, Expr(:curly, :Static, Xv[n])))
+    end
+    q = Expr(:block, Expr(:meta, :inline))
+    i > 0 && push!(q.args, :(x = t.x))
+    push!(q.args, sdt)
+    q
+end
 
 @inline mulsizeof(::Type{T}, ::Tuple{}) where {T,X} = ()
 @inline mulsizeof(::Type{T}, x::Tuple{X}) where {T,X} = (mulsizeof(T, first(x)), )
@@ -30,7 +41,7 @@ end
 @inline function stridedpointer(ptr::Ptr{T}, ::Contiguous{C}, ::ContiguousBatch{B}, ::StrideRank{R}, st::SDTuple{N,X,P}) where {T,C,B,R,X,N,P}
     StridedPointer{T,N,C,B,R,X,P}(ptr, st)
 end
-@inline strides(ptr::StridedPointer) = Tuple(ptr.st)
+@inline strides(ptr::StridedPointer) = static_tuple(ptr.st)
 @inline ArrayInterface.contiguous_axis_indicator(ptr::StridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(Contiguous{C}(), Val{N}())
 
 # Shouldn't need to special case Array

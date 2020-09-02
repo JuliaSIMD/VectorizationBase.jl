@@ -24,222 +24,243 @@ const STORE_TBAA = """
 
 # end
 
-function offset_ptr(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1, constoffset::Int = 0, argind = '1', forgep::Bool = false) where {T <: NativeTypes, I <: Integer}
+function offset_ptr(
+    ::Type{T}, ind_type::Symbol, indargname = '1', ibits::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
+)
+    i = 0
     sizeof_T = sizeof(T)
-    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
-    ityp = vtype(ivec ? W : 1, 'i' * string(8ibytes))
-    typ = LLVM_TYPE[T]
-    vtyp = vtype(W, typ)
+    typ = LLVM_TYPES[T]
+    vtyp = vtype(W, typ) # vtyp is dest type
     instrs = String[]
-    # nptrs = 1 + (constmul != 0) + (constoffset != 0)
-    # ptrs = Vector{String}(undef, nptrs);
-    # for i ∈ 1:nptrs - 1
-    #     ptrs[i] = "ptr.$i"
-    # end
-    # ptrs[end] = "ptr"
-    # i = 0
-    if iszero(constmul) && iszero(constoffset)
-        push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $vtyp*")
-    elseif iszero(constmul)
-        # if iszero(constoffset % (W*sizeof_T))
-        #     offset = constoffset ÷ (W*sizeof_T)
-        #     push!(instrs, "%typptr = inttoptr $JULIAPOINTERTYPE %0 to $vtyp*")
-        #     push!(instrs, "%ptr = getelementptr inbounds $vtyp, $vtyp* %typptr, i32 $offset")
-        # else
-        push!(instrs, "%typptr = inttoptr $JULIAPOINTERTYPE %0 to i8*")
-        if vtyp === "i8"
-            push!(instrs, "%ptr = getelementptr inbounds i8, i8* %typptr, i32 $constoffset")
-        else
-            push!(instrs, "%iptr = getelementptr inbounds i8, i8* %typptr, i32 $constoffset")
-            push!(instrs, "%ptr = bitcast i8* %iptr to $vtyp*")
+
+    if M = 0
+        ind_type = :Static
+    elseif ind_type === :Static
+        M = 0
+    end
+    if isone(W)
+        X = 1
+    end
+    
+    tz = min(trailing_zeros(M), 3)
+    tzf = 1 << tz
+    index_gep_typ = (tzf == sizeof_T | iszero(M)) ? vtyp : "i$(tzf)"
+    M >>= tz
+    # after this block, we will have a index_gep_typ pointer
+    if iszero(O)
+        push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(index_gep_typ)*"); i += 1
+    else # !iszero(O)
+        if iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
+            offset_gep_typ = "i8"
+            offset = O
+        else # then we need another intermediary
+            offset_gep_typ = index_gep_typ
+            offset = O >>> tz
         end
-    else
-        tz = min(trailing_zeros(constmul), 3)
-        bits = 8 << tz
-        ptyp = bits == 8sizeof_T ? typ : 'i' * string(bits)
-        desttyp = ivec ? typ : vtyp
-        iptr = (desttyp === ptyp && iszero(constoffset)) ? "ptr" : "iptr"
-        constmul >>= tz
-        push!(instrs, "%typptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*")
-        if isone(constmul)
-            push!(instrs, "%$(iptr) = getelementptr inbounds $ptyp, $ptyp* %typptr, $ityp %$(argind)")
-        else
-            cm = llvmconst(W, I, constmul)
-            push!(instrs, """%ioff = mul nsw $ityp %$(argind), $cm
-            %$(iptr) = getelementptr inbounds $ptyp, $ptyp* %typptr, $ityp %ioff""")
-        end
-        if constoffset
-            if iszero((8constoffset) % bits) # current type is fine
-                offset = constoffset >> tz
-                argname = desttyp === ptyp ? "ptr" : "optr"
-                push!(instrs, "%$(argname) = getelementptr inbounds $ptyp, $ptyp* %$(iptr), i32 $offset")
-            else
-                argname = desttyp === "i8" ? "ptr" : "bioptr"
-                push!(insrts, """%biptr = bitcast $ptyp* %$(argname) to i8*
-                %$(argname) = getelementptr inbounds i8, i8* %biptr, i32 $constoffset""")
-                ptyp = "i8"; 
-            end
-        else
-            argname = "iptr"
-        end
-        if ivec
-            if ptyp !== typ
-                if forgep
-                    push!(instrs, "%ptr = ptrtoint <$W x $ptyp*> %iptr to <$W x $JULIAPOINTERTYPE>")
-                else
-                    push!(instrs, "%ptr = bitcast <$W x $ptyp*> %iptr to <$W x $typ*>")
-                end
-            end
-        elseif ptyp !== vtyp
-            if forgep
-                push!(instrs, "%ptr = ptrtoint $ptyp* %$(argname) to $JULIAPOINTERTYPE")
-            else
-                push!(instrs, "%ptr = bitcast $ptyp* %$(argname) to $vtyp*")
-            end
+        push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"); i += 1
+        push!(insrts, "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"); i += 1
+        if forgep && iszero(M) && (iszero(X) || isone(X))
+            push!(instrs, "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"); i += 1
+            return instrs, i
+        elseif offset_gep_typ != index_gep_typ
+            push!(instrs, "%ptr.$(i) = bitcast $(offset_gep_typ)* %ptr.$(i-1) to $(index_gep_typ)*"); i += 1
         end
     end
-    instrs
+    # will do final type conversion
+    if ind_type === :Vec
+        if isone(M)
+            indname = indargname
+        else
+            indname = "indname"
+            constmul = llvmconst(W, "i$(ibits) $M")
+            push!(instrs, "%$(indname) = mul nsw <$W x i$(ibits)> %$(indargname), <i$(ibits) $(constmul)>")
+        end
+        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), <$W x i$(ibits)> %$(indname)"); i += 1
+        if forgep
+            push!(instrs, "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+        elseif index_gep_typ != vtyp
+            push!(instrs, "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $vtyp*>"); i += 1
+        end
+        return instrs, i
+    end
+    if ind_type === :Integer
+        if isone(M)
+            indname = indargname
+        else
+            indname = "indname"
+            push!(instrs, "%$(indname) = mul nsw i$(ibits) %$(indargname), $M")
+        end
+        # TODO: if X != 1 and X != 0, check if it is better to gep -> gep, or broadcast -> add -> gep
+        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), i$(ibits) %$(indname)"); i += 1
+    end
+    # ind_type === :Integer || ind_type === :Static
+    if forgep && (isone(X) | izero(X)) # if forgep, just return now
+        push!(instrs, "$ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"); i += 1
+    elseif index_gep_typ != vtyp
+        push!(instrs, "$ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $vtyp*"); i += 1
+    end
+    if !(isone(X) | izero(X)) # vec
+        vibytes = min(4, REGISTER_SIZE ÷ W)
+        vityp = "i$(8vibytes)"
+        vi = join((X*w for w ∈ 0:W-1), ", $vityp")
+        push!(insrts, "%ptr.$(i) = getelementptr inbounds $(vtyp), $(vtyp)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"); i += 1
+        if forgep
+            push!(instrs, "$ptr.$(i) = ptrtoint <$W x $vtyp*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+        end
+    end
+    instrs, i
 end
-
-function gep_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
-    iszero(constmul) && return Expr(:block, Expr(:meta, :inline), :ptr)
-    instrs = offset_ptr(T, I, W, ivec, constmul, '1', true)
+gep_returns_vector(W::Int, X::Int, M::Int, ind_type::Symbol) = (!isone(W) && ((ind_type === :Vec) || !(isone(X) | iszero(X))))
+#::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
+function gep_quote(
+    ::Type{T}, ind_type::Symbol, ::Type{I}, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
+) where {T, I}
+    if iszero(O) && (iszero(X) | isone(X)) && (iszero(M) || ind_type === :Static)
+        return Expr(:block, Expr(:meta, :inline), :ptr)
+    end
+    ibits = 8sizeof(I)
+    # ::Type{T}, ind_type::Symbol, indargname = '1', ibytes::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
+    instrs, i = offset_ptr(T, ind_type, '1', ibits, W, X, M, O, true)
     ret = Expr(:curly, :Ptr, T)
     lret = JULIAPOINTERTYPE
+    if gep_returns_vector(W, X, M, ind_type)
+        ret = Expr(:curly, :_Vec, W, ret)
+        lret = "<$W x $lret>"
+    end
+
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T))
     largs = String[JULIAPOINTERTYPE]
-    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
-    if sizeof(I) == ibytes
-        iexpr = Expr(:call, :data, :i)
-    else
-        iexpr = Expr(:call, :data, Expr(:call, :%, iexpr, integer_of_bytes(ibytes)))
+    arg_syms = Union{Symbol,Expr}[:ptr]
+    
+    if !(iszero(M) || ind_type === :Static)
+        push!(arg_syms, Expr(:call, :data, :i))
+        if ind_type === :Integer
+            push!(args, I)
+            push!(largs, "i$(ibits)")
+        else
+            push!(args, Expr(:curly, :_Vec, W, I))
+            push!(largs, "<$W x i$(ibits)>")
+        end
     end
-    arg_syms = Union{Symbol,Expr}[:ptr, iexpr]
-    if ivec && W > 1
-        ret = Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, ret))
-        lret = "<$W x $lret>"
-        push!(args.args, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, I)))
-        push!(largs, "<$W x i$(8sizeof(I))>")
-    else
-        push!(args.args, I)
-        push!(largs, "i$(8sizeof(I))")
-    end
-    push!(instrs, "ret $lret %ptr")
+    push!(instrs, "ret $lret %ptr.$(i-1)")
     llvmcall_expr("", join(instrs, "\n"), ret, args, lret, largs, arg_syms)
 end
 
 @generated function gep(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
-    gep_quote(T, I, 1, false, 1)
+    gep_quote(T, :Integer, I, 1, 1, 1, 0, true)
 end
 @generated function gep(ptr::Ptr{T}, ::Static{N}) where {T <: NativeTypes, N}
-    gep_quote(T, I, 1, false, 1, N)
+    gep_quote(T, :Static, Int, 1, 1, 0, N, true)
 end
-@generated function gep(ptr::Ptr{T}, i::LazyMul{N,I}) where {T <: NativeTypes, I <: Integer, N}
-    gep_quote(T, I, 1, false, N)
+@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,I}) where {T <: NativeTypes, I <: Integer, M}
+    gep_quote(T, :Integer, I, 1, 1, M, 0, true)
 end
-# @generated function gep(ptr::Ptr{T}, i::Vec{I,W}) where {W, T <: NativeTypes, I <: Integer}
-#     gep_quote(T, I, W, true, 1)
-# end
+@generated function gep(ptr::Ptr{T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
+    gep_quote(T, :Vec, I, W, 1, 1, 0, true)
+end
+@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,Vec{W,I}}) where {W, T <: NativeTypes, I <: Integer, M}
+    gep_quote(T, :Vec, I, W, 1, M, 0, true)
+end
 
-function vload_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, constoffset::Int = 0) where {T <: NativeTypes, I <: Integer}
-    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
-    ityp = vtype(ivec ? W : 1, 'i' * string(8ibytes))
-    typ = LLVM_TYPE[T]
-    lret = vtyp = vtype(W, typ)
+function vload_quote(
+    ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool = false
+) where {T <: NativeTypes, I <: Integer}
+    ibits = 8sizeof(I)
+    instrs, i = offset_ptr(T, ind_type, '1', ibits, W, X, M, O, false)
+    
+    grv = gep_returns_vector(W, X, M, ind_type)
+    jtyp = isone(W) ? T : _Vec{W,T}
+    
+    alignment = (align & (!grv)) ? Base.datatype_alignment(jtyp) : Base.datatype_alignment(T)
+    
     decl = LOAD_SCOPE_TBAA
-    alignment = Base.datatype_alignment(T)
-    instrs = offset_ptr(T, I, W, ivec, constmul, constoffset, '1')
-    mask && truncate_mask!(instrs, ivec ? '2' : '1', W, 0)
-    if ivec
+    dynamic_index = !(iszero(M) || ind_type === :Static)
+
+    typ = LLVM_TYPES[T]
+    lret = vtyp = vtype(W, typ)
+    
+    mask && truncate_mask!(instrs, '1' + dynamic_index, W, 0)
+    if grv
         loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
         m = mask ? m = "mask.0" : llvmconst(W, "i1 1")
-        # passthrough = mask ? "zeroinitializer" : "undef"
-        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr, i32 $alignment, <$W x i1> %$m, $vtyp undef), !alias.scope !3, !tbaa !5")
+        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> %$m, $vtyp undef), !alias.scope !3, !tbaa !5")
+    elseif mask
+        suff = suffix(W, T)
+        loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
+        decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
+        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp undef), !alias.scope !3, !tbaa !5")
     else
-        if mask
-            suff = suffix(W, T)
-            loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
-            decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
-            push!(instrs, "%res = call $loadinstr($vtyp* %ptr, i32 $alignment, <$W x i1> %mask.0, $vtyp undef), !alias.scope !3, !tbaa !5")
-        else
-            push!(instrs, "%res = load $vtyp, $vtyp* %ptr, align $alignment, !alias.scope !3, !tbaa !5")
-        end
+        push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment, !alias.scope !3, !tbaa !5")
     end
     push!(instrs, "ret $vtyp %res")
+
     ret = isone(W) ? T : Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, T))
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T))
     largs = String[JULIAPOINTERTYPE]
     arg_syms = Union{Symbol,Expr}[:ptr]
-    if !iszero(constmul)
-        if sizeof(I) == ibytes
-            iexpr = Expr(:call, :data, :i)
+    if dynamic_index
+        push!(arg_syms, :(data(i)))
+        if ind_type === :Integer
+            push!(args, I)
+            push!(largs, "i$(ibits)")
         else
-            iexpr = Expr(:call, :data, Expr(:call, :%, iexpr, integer_of_bytes(ibytes)))
-        end
-        push!(arg_syms, iexpr)
-        push!(largs, ityp)
-        if ivec & (W > 1)
-            push!(args.args, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, I)))
-        else
-            push!(args.args, I)
+            push!(args, :(_Vec{$W,$I}))
+            push!(largs, "<$W x i$(ibits)>")
         end
     end
     if mask
-        push!(arg_syms, Expr(:call, :data, :m))
-        push!(largs, 'i'*string(max(8,W)))
-        for (B,U) ∈ [(8,:UInt8),(16,:UInt16),(32,:UInt32),(64,:UInt64)]
-            if W ≤ B
-                push!(args.args, U)
-                break
-            end
-        end
+        push!(arg_syms, :(data(m)))
+        push!(args, mask_type(W))
+        push!(largs, "i$(max(8,nextpow2(W)))")
     end
     llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
 end
-
+# vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
 @generated function vload(ptr::Ptr{T}) where {T <: NativeTypes}
-    vload_quote(T, Int, 1, false, false, 0)
+    vload_quote(T, Int, :Static, 1, 1, 0, 0, false, false)
 end
 @generated function vload(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, 1, false, false, 1)
+    vload_quote(T, I, :Integer, 1, 1, 1, 0, false, false)
 end
 @generated function vload(ptr::Ptr{T}, ::Static{N}) where {T <: NativeTypes, N}
-    vload_quote(T, I, 1, false, false, 0, N)
+    vload_quote(T, Int, :Static, 1, 1, 0, N, false, false)
 end
 @generated function vload(ptr::Ptr{T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, true, false, 1)
+    vload_quote(T, I, :Vec, W, 1, 1, 0, false, false)
 end
-@generated function vload(ptr::Ptr{T}, i::MM{W,I}) where {W, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, false, false, 1)
+@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}) where {W, X, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Integer, W, X, 1, 0, false, false)
 end
-@generated function vload(ptr::Ptr{T}, ::MM{W,Static{N}}) where {W, T <: NativeTypes, N}
-    vload_quote(T, I, W, false, false, 0, N)
+@generated function vload(ptr::Ptr{T}, ::MM{W,X,Static{N}}) where {W, X, T <: NativeTypes, N}
+    vload_quote(T, I, :Static, W, X, 1, N, false, false)
 end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}) where {M, O, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Integer, 1, 1, M, O, false, false)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}) where {W, M, O, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Vec, W, 1, M, O, false, false)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}) where {W, M, O, X, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Integer, W, X, M, O, false, false)
+end
+
 @generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, true, true, 1)
+    vload_quote(T, I, :Vec, W, 1, 1, 0, true, false)
 end
-@generated function vload(ptr::Ptr{T}, i::MM{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, false, true, 1)
+@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, m::Mask{W}) where {W, X, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Integer, W, X, 1, 0, true, false)
 end
-@generated function vload(ptr::Ptr{T}, ::MM{W,Static{N}}, m::Mask{W}) where {W, T <: NativeTypes, N}
-    vload_quote(T, I, W, false, true, 0, N)
+@generated function vload(ptr::Ptr{T}, ::MM{W,X,Static{N}}, m::Mask{W}) where {W, X, T <: NativeTypes, N}
+    vload_quote(T, I, :Static, W, X, 1, N, true, false)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMul{N,I}) where {N, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, 1, false, false, N)
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}) where {W, M, O, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Vec, W, 1, M, O, true, false)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMul{N,Vec{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, true, false, N)
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}) where {W, M, O, X, T <: NativeTypes, I <: Integer}
+    vload_quote(T, I, :Integer, W, X, M, O, true, false)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMul{N,MM{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, false, false, N)
-end
-@generated function vload(ptr::Ptr{T}, i::LazyMul{N,Vec{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, true, true, N)
-end
-@generated function vload(ptr::Ptr{T}, i::LazyMul{N,MM{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
-    vload_quote(T, I, W, false, true, N)
-end
+
 
 # @generated function vload(ptr_base::Ptr{T}, i::Unroll{W,U}) where {W,U,T}
 #     t = Expr(:tuple)
@@ -254,15 +275,18 @@ end
 #     end
 # end
 
-function vstore_quote(::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, mask::Bool = false, constmul::Int = 1, constoffset::Int = 0, noalias::Bool = false) where {T <: NativeTypes, I <: Integer}
-                     ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
+function vstore_quote(
+    ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align = false, noalias::Bool = false
+) where {T <: NativeTypes, I <: Integer}
+    
+    ibytes = ivec ? pick_integer_bytes(W,sizeof(I)) : sizeof(I)
     ityp = vtype(ivec ? W : 1, 'i' * string(8ibytes))
-    typ = LLVM_TYPE[T]
+    typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
     alignment = Base.datatype_alignment(T)
     instrs = offset_ptr(T, I, W, ivec, constmul, constoffset, '2')
-    mask && truncate_mask!(instrs, ivec ? '3' : '2', W, 0)
+    mask && truncate_mask!(instrs, '2' + !iszero(constmul), W, 0)
     if ivec
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
@@ -338,25 +362,25 @@ end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Union{Static{N},MM{W,Static{N}}}, m::Mask{W}) where {W, T <: NativeTypes, N}
     vstore_quote(T, I, W, false, true, 0, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::T, i::LazyMul{N,I}) where {N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::T, i::LazyMulAdd{N,I}) where {N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, 1, false, false, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,Vec{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,Vec{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, true, false, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,I}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,I}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, false, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,MM{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,MM{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, false, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,Vec{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,Vec{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, true, true, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,I}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,I}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, true, N)
 end
-@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,MM{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,MM{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, true, N)
 end
 
@@ -388,25 +412,25 @@ end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Union{Static{N},MM{W,Static{N}}}, m::Mask{W}) where {W, T <: NativeTypes, N}
     vstore_quote(T, I, W, false, true, 0, N, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::LazyMul{N,I}) where {N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::LazyMulAdd{N,I}) where {N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, 1, false, false, N, 0, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,Vec{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,Vec{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, true, false, N, 0, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,I}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,I}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, false, N, 0, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,MM{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,MM{W,I}}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, false, N, 0, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,Vec{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,Vec{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, true, true, N, 0, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,I}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,I}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, true, N, 0, true)
 end
-@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMul{N,MM{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
+@generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{N,MM{W,I}}, m::Mask{W}) where {W, N, T <: NativeTypes, I <: Integer}
     vstore_quote(T, I, W, false, true, N, 0, true)
 end
 
@@ -573,7 +597,7 @@ end
 
 @generated function compressstore!(ptr::Ptr{T}, v::Vec{W,T}, mask::Mask{W,U}) where {W,T <: NativeTypes, U<:Unsigned}
     @assert 8sizeof(U) >= W
-    typ = LLVM_TYPE[T]
+    typ = LLVM_TYPES[T]
     vtyp = "<$W x $typ>"
     mtyp_input = LLVM_TYPES[U]
     mtyp_trunc = "i$W"
@@ -586,7 +610,7 @@ end
 
 @generated function expandload(ptr::Ptr{T}, mask::Mask{W,U}) where {W, T <: NativeTypes, U<:Unsigned}
     @assert 8sizeof(U) >= W
-    typ = LLVM_TYPE[T]
+    typ = LLVM_TYPES[T]
     vtyp = "<$W x $typ>"
     vptrtyp = "<$W x $typ*>"
     mtyp_input = LLVM_TYPES[U]
