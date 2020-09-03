@@ -12,7 +12,7 @@ const One = Static{1}
 end
 
 Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
-Base.convert(::Type{T}, ::Static{N}) where {T <: Number, N} = convert(T, N)
+# Base.convert(::Type{T}, ::Static{N}) where {T <: Number, N} = convert(T, N)
 
 
 # @inline Base.:(:)(::Static{L}, ::Static{U}) where {L,U} = ArrayInterface.OptionallyStaticUnitRange{T}(Val{L}(), Val{U}())
@@ -113,17 +113,21 @@ end
 #     @eval @inline $ff(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
 # end
 
-for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.cld), :(Base.:(>>))]
-    @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
-end
-for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
+# for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.cld), :(Base.:(>>))]
+#     @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+# end
+# for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
+#     @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
+#     @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
+# end
+for f ∈ [:vadd, :vsub, :vmul]
     @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
     @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
 end
-for f ∈ [:(Base.:(>>)), :(Base.:(>>>))]
-    @eval @inline $f(::Static{M}, n::Number) where {M} = shr(M, n)
-    @eval @inline $f(m::Number, ::Static{N}) where {N} = shr(m, N)
-end
+# for f ∈ [:(Base.:(>>)), :(Base.:(>>>))]
+#     @eval @inline $f(::Static{M}, n::Number) where {M} = shr(M, n)
+#     @eval @inline $f(m::Number, ::Static{N}) where {N} = shr(m, N)
+# end
 
 @inline vsub(::Static{N}, ::Zero) where {N} = Static{N}()
 # @inline vsub(::Zero, ::Static{N}) where {N} = Static{-N}()
@@ -198,11 +202,11 @@ end
 @inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
 @inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
 @inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
-@generated function Base.ntuple(f::F, ::Static{N}) where {F,N}
-    t = Expr(:tuple)
-    foreach(n -> push!(t.args, Expr(:call, :f, n)), 1:N)
-    Expr(:block, Expr(:meta, :inline), t)
-end
+# @generated function Base.ntuple(f::F, ::Static{N}) where {F,N}
+#     t = Expr(:tuple)
+#     foreach(n -> push!(t.args, Expr(:call, :f, n)), 1:N)
+#     Expr(:block, Expr(:meta, :inline), t)
+# end
 
 
 # @inline _maybestaticfirst(A::Tuple{}) = tuple()

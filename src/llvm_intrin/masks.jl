@@ -84,9 +84,9 @@ end
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
 
-@inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = ormask(m1, m2)
-@inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = ormask(m, Mask{W}(u))
-@inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = ormask(Mask{W}(u), m)
+# @inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = ormask(m1, m2)
+# @inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = ormask(m, Mask{W}(u))
+# @inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = ormask(Mask{W}(u), m)
 
 @inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
 @inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
@@ -99,9 +99,9 @@ end
 @inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x03 : m.u)
 @inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) where {W} = Mask{W}(b ? 0x03 : m.u)
 
-@inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = xormask(m1, m2)
-@inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = xormask(m, Mask{W}(u))
-@inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = xormask(Mask{W}(u), m)
+# @inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = xormask(m1, m2)
+# @inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = xormask(m, Mask{W}(u))
+# @inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = xormask(Mask{W}(u), m)
 
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
@@ -111,21 +111,21 @@ end
 @inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(shr(m.u, i))
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
-    @eval @inline Base.any(m::Mask{$W,$U}) = m.u != $(zero(U))
-    @eval @inline Base.all(m::Mask{$W,$U}) = m.u == $(typemax(U))
+    @eval @inline vany(m::Mask{$W,$U}) = m.u != $(zero(U))
+    @eval @inline vall(m::Mask{$W,$U}) = m.u == $(typemax(U))
 end
-@inline Base.any(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) != zero(m.u)
-@inline Base.all(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) == (max_mask(Val{W}()).u)
+@inline vany(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) !== zero(m.u)
+@inline vall(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) === (max_mask(Val{W}()).u)
 
 @generated function Base.:(!)(m::Mask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"
     mtyp_trunc = "i$(W)"
     instrs = String[]
-    suffix = truncate_mask!(instrs, '0', W, 0)
-    resv = "resvec.$(suffix)"
-    push!(instrs, '%' * resv * " = xor <$W x i1> %mask.$(suffix), <$(join(("i1 true" for i in 1:W), ", "))>")
-    suffix = zext_mask!(instrs, resv, W, suffix)
-    push!(instrs, "ret $mtyp_input %res.$(suffix)")
+    truncate_mask!(instrs, '0', W, 0)
+    mask = llvmconst(W, "i1 true")
+    push!(instrs, "%resvec.0 = xor <$W x i1> %mask.0, $mask")
+    zext_mask!(instrs, "resvec.0", W, 1)
+    push!(instrs, "ret $mtyp_input %res.1")
     quote
         $(Expr(:meta,:inline))
         Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U}, m.u))
@@ -135,12 +135,21 @@ end
 #@inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
 
 
-@inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
-@inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
-@inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
-@inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u != m2.u
-@inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = m.u != u
-@inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = u != m.u
+# @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
+# @inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
+# @inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
+# @inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u != m2.u
+# @inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = m.u != u
+# @inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = u != m.u
+
+# @inline Base.@pure Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1 == m2
+# @inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
+# @inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
+# @inline Base.@pure Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1 != m2
+# @inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = m.u != u
+# @inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = u != m.u
+
+
 # @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = equalmask(m1, m2)
 # @inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = equalmask(m1, Mask{W}(m2))
 # @inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = equalmask(Mask{W}(m1), m2)
@@ -242,7 +251,7 @@ end
 end
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
-@inline function Base.getindex(m::Mask{W}, i::Integer) where {W}
+@inline function getelement(m::Mask{W}, i::Integer) where {W}
     @boundscheck i > W && throw(BoundsError(m, i))
     getindexzerobased(m, i - 1)
 end
@@ -285,7 +294,8 @@ end
 # for (f,cond) ∈ [(:(==), :eq), (:(!=), :ne), (:(>), :ugt), (:(≥), :uge), (:(<), :ult), (:(≤), :ule)]
 for (f,cond) ∈ [(:(==), "eq"), (:(!=), "ne")]
     @eval @generated function Base.$f(v1::Vec{W,T1}, v2::Vec{W,T2}) where {W,T1<:Integer,T2<:Integer}
-        icmp_quote(W, $cond, sizeof(T), T1, T2)
+        @assert sizeof(T1) == sizeof(T2)
+        icmp_quote(W, $cond, sizeof(T1), T1, T2)
     end
 end
 for (f,cond) ∈ [(:(>), "ugt"), (:(≥), "uge"), (:(<), "ult"), (:(≤), "ule")]

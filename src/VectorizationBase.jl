@@ -1,7 +1,9 @@
 module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
-using ArrayInterface: contiguous_axis, contiguous_axis_indicator, Static, Contiguous, CPUPointer, ContiguousBatch, StrideRank, known_length, known_first, known_last
+using ArrayInterface: Static, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
+    Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
+    known_length, known_first, known_last, sdstrides, sdoffsets
 using IfElse
 # using LinearAlgebra: Adjoint, 
 
@@ -10,7 +12,7 @@ using IfElse
 ## Until SIMDPirates stops importing it
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
-export Vec
+export Vec, Mask, MM, stridedpointer, vload, vstore!, Static, vbroadcast, mask
 
 # using Base: llvmcall
 using Base: llvmcall, VecElement
@@ -51,10 +53,10 @@ const NativeTypes = Union{Bool,Base.HWReal}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
-@eval struct Static{N} <: Number
-    (f::Type{<:Static})() = $(Expr(:new,:f))
-end
-Base.@pure Static(N) = Static{N}()
+# @eval struct Static{N} <: Number
+#     (f::Type{<:Static})() = $(Expr(:new,:f))
+# end
+# Base.@pure Static(N) = Static{N}()
 
 abstract type AbstractSIMDVector{W,T <: Union{Static,NativeTypes}} <: Real end
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
@@ -141,6 +143,9 @@ const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 # @inline Vec{W}(v::Vec{W,T}) where {W,T} = Vec{W,T}(v)
 # @inline vbroadcast(::Val, b::Bool) = b
 
+Vec{W,T}(x::Vararg{Any,W}) where {W,T} = Vec(ntuple(w -> Core.VecElement{T}(x[w]), Val{W}()))
+Vec{1,T}(x) where {T} = T(x)
+Vec{1,T}(x::Integer) where {T<:Integer} = T(x)
 
 @inline Base.length(::AbstractSIMDVector{W}) where W = W
 @inline Base.size(::AbstractSIMDVector{W}) where W = (W,)
@@ -148,7 +153,8 @@ const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 @inline Base.conj(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.adjoint(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.transpose(v::AbstractSIMDVector) = v # so that things like dot products work.
-@inline Base.getindex(v::Vec, i::Integer) = v.data[i].value
+# @inline Base.getindex(v::Vec, i::Integer) = v.data[i].value
+@inline getelement(v::Vec, i::Integer) = v.data[i].value
 
 # @inline function Vec{N,T}(v::Vec{N,T2}) where {N,T,T2}
     # @inbounds Vec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
@@ -169,10 +175,10 @@ const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 # @inline extract_value(v::Vec, i) = v.data[i].value
 
 
-function Base.show(io::IO, v::Vec{W,T}) where {W,T}
+function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
     print(io, "Vec{$W,$T}<")
     for w ∈ 1:W
-        print(io, repr(v[w]))
+        print(io, repr(getelement(v, w)))
         w < W && print(io, ", ")
     end
     print(io, ">")
@@ -202,13 +208,15 @@ The name `MM` type refers to _MM registers such as `XMM`, `YMM`, and `ZMM`.
 
 The `MM{W,X}` type is used to represent SIMD indexes of width `W` with stride `X`.
 """
-struct MM{W,X,I<:Number} <: AbstractSIMDVector{W,X,I}
+struct MM{W,X,I<:Number} <: AbstractSIMDVector{W,I}
     i::I
     @inline MM{W,X}(i::T) where {W,X,T} = new{W,X::Int,T}(i)
 end
 @inline MM{W}(i) where {W} = MM{W,1}(i)
 @inline MM{W}(i, ::Static{X}) where {W,X} = MM{W,X}(i)
+@inline data(i::MM) = i.i
 
+getelement(i::MM{W,X}, j) where {W,X} = i.i + X * (j-1)
 
 include("static.jl")
 include("cartesianvindex.jl")
@@ -237,7 +245,7 @@ include("llvm_intrin/unary_ops.jl")
 include("llvm_intrin/vbroadcast.jl")
 include("llvm_intrin/vector_ops.jl")
 include("promotion.jl")
-include("number_vectors.jl")
+# include("number_vectors.jl")
 include("ranges.jl")
 include("alignment.jl")
 include("precompile.jl")

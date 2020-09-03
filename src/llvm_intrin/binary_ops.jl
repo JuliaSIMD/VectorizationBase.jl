@@ -25,7 +25,7 @@ function binary_op(op, W, @nospecialize(_::Type{T})) where {T}
     instrs = "%res = $op $ty %0, %1\nret $ty %res"
     call = :(llvmcall($instrs, $V, Tuple{$V,$V}, data(v1), data(v2)))
     W > 1 && (call = Expr(:call, :Vec, call))
-    Expr(:block, Expr(:meta, :pure, :inline), call)
+    Expr(:block, Expr(:meta, :inline), call)
 end
 # @generated function binary_operation(::Val{op}, v1::V1, v2::V2) where {op, V1, V2}
 #     M1, N1, W1, T1 = description(V1)
@@ -41,15 +41,19 @@ end
 # Integer
     # vop = Symbol('v', op)
 for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
-    ff = Symbol('v', op)
-    @eval @generated $ff(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
-    @eval @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
+    ff = Symbol('v', op); _ff = Symbol(:_, ff)
+    @eval @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
+    @eval @generated $_ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
     @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op, W, T)
+    @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
+    @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]
-    ff = Symbol('v', op)
+    ff = Symbol('v', op); _ff = Symbol(:_, ff)
     @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
-    @eval @generated $ff(v1::T, v2::T) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
+    @eval @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
+    @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
+    @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
 end
 @inline vcld(x, y) = vadd(vdiv(vsub(x,one(x)), y), one(x))
 @inline function vdivrem(x, y)
@@ -58,9 +62,9 @@ end
     d, r
 end
 for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
-    ff = Symbol('v', op)
+    _ff = Symbol(:_, 'v', op)
     fdef = Expr(:where, :(Base.$f(v1::Vec{W,T}, v2::Vec{W,T})), :W)
-    ffdef = Expr(:where, :($ff(v1::T, v2::T)))
+    ffdef = Expr(:where, :($_ff(v1::T, v2::T)))
     if iszero(s & 0x01)
         push!(fdef.args, :(T <: Unsigned))
         push!(ffdef.args, :(T <: Unsigned))
@@ -73,6 +77,11 @@ for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",
     end
     @eval @generated $fdef = binary_op($op, W, T)
     @eval @generated $ffdef = binary_op($op, 1, T)
+end
+for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
+    ff = Symbol('v', op); _ff = Symbol(:_, ff)
+    @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
+    @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
 end
 
 for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vfdiv),("frem",:%,:vrem)]

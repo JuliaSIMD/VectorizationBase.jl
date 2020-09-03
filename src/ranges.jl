@@ -46,7 +46,7 @@ O - static offset
 F - static multiplicative factor
 """
 @generated function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
-    bytes = pick_integer_bytes(W, sizeof(T))
+    bytes = pick_integer_bytes(W, sizeof(I))
     bits = 8bytes
     jtypesym = Symbol(:Int, bits)
     iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
@@ -116,10 +116,10 @@ end
 
 
 @inline Vec(i::MM{W,X}) where {W,X} = vrangeincr(Val{W}(), data(i), Val{0}(), Val{X}())
-@inline Vec(i::MM{W,X,Static{N}}) where {W,X,N} = vrange(Val{W}(), Val{N}(), Val{X}())
+@inline Vec(i::MM{W,X,Static{N}}) where {W,X,N} = vrange(Val{W}(), Int, Val{N}(), Val{X}())
 @inline Vec(i::MM{1}) = data(i)
 @inline Vec(i::MM{1,<:Any,Static{N}}) where {N} = N
-@inline Base.convert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrange(Val{W}(), T, Val{0}(), Val{X}())
+@inline Base.convert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
 
 # Addition
 # @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
@@ -128,6 +128,8 @@ end
 @inline Base.:(+)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline Base.:(+)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
 
+# @inline vadd(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd(i.i, j))
+# @inline vadd(j::Integer, i::MM{W,X}) where {W,X} = MM{W,X}(vadd(i.i, j))
 @inline vadd(i::MM{W,X}, j::MM{X,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
 @inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
@@ -145,7 +147,8 @@ end
 @inline vmul(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul(Vec(i), j)
 @inline vmul(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul(i, Vec(j))
 @inline vmul(i::MM{W}, j::MM{W}) where {W} = vmul(Vec(i), Vec(j))
-
+@inline vmul(i::MM, j::Integer) = vmul(Vec(i), j)
+@inline vmul(j::Integer, i::MM) = vmul(j, Vec(i))
 
 # Multiplication without promotion
 @inline vmul_no_promote(a, b) = vmul(a, b)

@@ -25,15 +25,15 @@ const STORE_TBAA = """
 # end
 
 function offset_ptr(
-    ::Type{T}, ind_type::Symbol, indargname = '1', ibits::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
-)
+    ::Type{T}, ind_type::Symbol, indargname, ibits::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
+) where {T}
     i = 0
     sizeof_T = sizeof(T)
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ) # vtyp is dest type
     instrs = String[]
 
-    if M = 0
+    if M == 0
         ind_type = :Static
     elseif ind_type === :Static
         M = 0
@@ -79,7 +79,7 @@ function offset_ptr(
         if forgep
             push!(instrs, "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
         elseif index_gep_typ != vtyp
-            push!(instrs, "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $vtyp*>"); i += 1
+            push!(instrs, "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $typ*>"); i += 1
         end
         return instrs, i
     end
@@ -94,18 +94,18 @@ function offset_ptr(
         push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), i$(ibits) %$(indname)"); i += 1
     end
     # ind_type === :Integer || ind_type === :Static
-    if forgep && (isone(X) | izero(X)) # if forgep, just return now
-        push!(instrs, "$ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"); i += 1
+    if forgep && (isone(X) | iszero(X)) # if forgep, just return now
+        push!(instrs, "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"); i += 1
     elseif index_gep_typ != vtyp
-        push!(instrs, "$ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $vtyp*"); i += 1
+        push!(instrs, "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $vtyp*"); i += 1
     end
-    if !(isone(X) | izero(X)) # vec
+    if !(isone(X) | iszero(X)) # vec
         vibytes = min(4, REGISTER_SIZE ÷ W)
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp")
         push!(insrts, "%ptr.$(i) = getelementptr inbounds $(vtyp), $(vtyp)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"); i += 1
         if forgep
-            push!(instrs, "$ptr.$(i) = ptrtoint <$W x $vtyp*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+            push!(instrs, "%ptr.$(i) = ptrtoint <$W x $vtyp*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
         end
     end
     instrs, i
@@ -135,10 +135,10 @@ function gep_quote(
     if !(iszero(M) || ind_type === :Static)
         push!(arg_syms, Expr(:call, :data, :i))
         if ind_type === :Integer
-            push!(args, I)
+            push!(args.args, I)
             push!(largs, "i$(ibits)")
         else
-            push!(args, Expr(:curly, :_Vec, W, I))
+            push!(args.args, Expr(:curly, :_Vec, W, I))
             push!(largs, "<$W x i$(ibits)>")
         end
     end
@@ -183,13 +183,14 @@ function vload_quote(
     if grv
         loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
-        m = mask ? m = "mask.0" : llvmconst(W, "i1 1")
-        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> %$m, $vtyp undef), !alias.scope !3, !tbaa !5")
+        m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
+        passthrough = mask ? "zeroinitializer" : "undef"
+        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough), !alias.scope !3, !tbaa !5")
     elseif mask
         suff = suffix(W, T)
         loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
         decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
-        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp undef), !alias.scope !3, !tbaa !5")
+        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer), !alias.scope !3, !tbaa !5")
     else
         push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment, !alias.scope !3, !tbaa !5")
     end
@@ -202,16 +203,16 @@ function vload_quote(
     if dynamic_index
         push!(arg_syms, :(data(i)))
         if ind_type === :Integer
-            push!(args, I)
+            push!(args.args, I)
             push!(largs, "i$(ibits)")
         else
-            push!(args, :(_Vec{$W,$I}))
+            push!(args.args, :(_Vec{$W,$I}))
             push!(largs, "<$W x i$(ibits)>")
         end
     end
     if mask
         push!(arg_syms, :(data(m)))
-        push!(args, mask_type(W))
+        push!(args.args, mask_type(W))
         push!(largs, "i$(max(8,nextpow2(W)))")
     end
     llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
@@ -296,8 +297,8 @@ function vstore_quote(
     if grv
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
-        m = mask ? m = "mask.0" : llvmconst(W, "i1 1")
-        push!(instrs, "%res = call $storeinstr($vtyp %1, <$W x typ*> %ptr, i32 $alignment, <$W x i1> %$m), !alias.scope !3, !tbaa !5")
+        m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
+        push!(instrs, "%res = call $storeinstr($vtyp %1, <$W x typ*> %ptr, i32 $alignment, <$W x i1> $m), !alias.scope !3, !tbaa !5")
     elseif mask
         suff = suffix(W, T)
         storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
@@ -314,10 +315,10 @@ function vstore_quote(
     if dynamic_index
         push!(arg_syms, :(data(i)))
         if ind_type === :Integer
-            push!(args, I)
+            push!(args.args, I)
             push!(largs, "i$(ibits)")
         else
-            push!(args, :(_Vec{$W,$I}))
+            push!(args.args, :(_Vec{$W,$I}))
             push!(largs, "<$W x i$(ibits)>")
         end
     end

@@ -27,6 +27,7 @@
     end
 end
 @generated function vbroadcast(::Val{W}, s::T) where {W,T<:NativeTypes}
+    isone(W) && return :s
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     instrs = """

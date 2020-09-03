@@ -7,6 +7,7 @@ intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
 nextpow2(W) = vshl(one(W), vsub(8sizeof(W), leading_zeros(vsub(W, one(W)))))
 prevpow2(W) = vshl(one(W), vsub(vsub((8sizeof(W)) % UInt, one(UInt)), leading_zeros(W) % UInt))
+# prevpow2(W) = (one(W) << ((((8sizeof(W)) % UInt) - one(UInt)) - (leading_zeros(W) % UInt)))
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
 
 function pick_vector_width(::Type{T} = Float64) where {T<:NativeTypes}

@@ -1,8 +1,9 @@
 
-abstract type AbstractStridedBitPointer{N,C,B,R,X,P} <: AbstractStridedPointer{Bool,N,C,B,R,X,P} end
-struct StridedBitPointer{N,C,B,R,X,P} <: AbstractStridedBitPointer{N,C,B,R,X,P}
+abstract type AbstractStridedBitPointer{N,C,B,R,X,O} <: AbstractStridedPointer{Bool,N,C,B,R,X,O} end
+struct StridedBitPointer{N,C,B,R,X,O} <: AbstractStridedBitPointer{N,C,B,R,X,O}
     p::Ptr{UInt8}
-    st::SDTuple{N,X,P}
+    strd::X
+    offsets::O
 end
 
 # @inline function ptr_index(ptr::AbstractStridedBitPointer, i::MM{1})

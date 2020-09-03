@@ -24,25 +24,25 @@ c = b .* [3, 5, 7, 9]
 
 
 """
-@generated function vmul_maybe_cached(::Static{I}, b, c::NTuple{N,Int}) where {I,N}
+@generated function lazymul_maybe_cached(::Static{I}, b, c::NTuple{N,Int}) where {I,N}
     Is = (I - 1) >> 1
     if isodd(I) && 1 ≤ Is ≤ N
         Expr(:block, Expr(:meta,:inline), Expr(:call, :getindex, :c, Is))
     elseif I ∈ (6, 10)
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :vmul, Expr(:call, Expr(:curly, :Static, 2)), Expr(:call, :getindex, :c, I >> 2)))
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :Static, 2)), Expr(:call, :getindex, :c, I >> 2)))
     else
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :vmul, Expr(:call, Expr(:curly, :Static, I)), :b))
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :Static, I)), :b))
     end
 end
-@inline vmul_maybe_cached(a, b, c) = vmul(a, b)
-@inline vmul_maybe_cached(a::Static, b, ::Nothing) = vmul(a, b)
-@inline tdot(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = vmul_maybe_cached(Static{I1}(),b[1],c[1])
-@inline tdot(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = vmul(Static{I1}(),b[1])
-@inline tdot(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = vmul(a[1],b[1])
+@inline lazymul_maybe_cached(a, b, c) = lazymul(a, b)
+@inline lazymul_maybe_cached(a::Static, b, ::Nothing) = lazymul(a, b)
+@inline tdotc(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul_maybe_cached(Static{I1}(),b[1],c[1])
+@inline tdotc(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = lazymul(Static{I1}(),b[1])
+@inline tdotc(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul(a[1],b[1])
 
-@inline tdot(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = vadd(vmul_maybe_cached(Static{I1}(),b[1],c[1]), tdot(Base.tail(a), Base.tail(b), Base.tail(c)))
-@inline tdot(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = vadd(vmul(Static{I1}(),b[1]), tdot(Base.tail(a), Base.tail(b), Base.tail(c)))
-@inline tdot(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = vadd(vmul(a[1],b[1]), tdot(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdotc(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul_maybe_cached(Static{I1}(),b[1],c[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdotc(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = lazyadd(lazymul(Static{I1}(),b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdotc(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul(a[1],b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
 
 # descript is a tuple of (unrollfactor) for ech ind; if it shouldn't preallocate, unrollfactor may be set to 1
 function precalc_quote_from_descript(descript, contig, X)
@@ -88,7 +88,7 @@ end
 # @inline stridedoffset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer{T}}, i::Tuple{I}) where {I,T} = Zero()
 # # @inline stridedoffset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer{T}}, i::Integer) where {T} = vmulnp(static_sizeof(T), i)
 # @inline function stridedoffset(ptr::OffsetPrecalc{T,<:AbstractColumnMajorStridedPointer{T}}, i::Tuple{I1,I2,Vararg}) where {I1,I2,T}
-#     @inbounds tdot(Base.tail(i), ptr.ptr.strides, ptr.precalc)
+#     @inbounds tdotc(Base.tail(i), ptr.ptr.strides, ptr.precalc)
 # end
 
 
@@ -102,7 +102,7 @@ end
 # end
 # @inline function stridedoffset(ptr::OffsetPrecalc{T,<:AbstractRowMajorStridedPointer{T}}, i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3,T}
 #     ri = reverse(i)
-#     @inbounds tdot(Base.tail(ri), ptr.ptr.strides, ptr.precalc)
+#     @inbounds tdotc(Base.tail(ri), ptr.ptr.strides, ptr.precalc)
 # end
 
 # @generated function offsetprecalc(p::AbstractSparseStridedPointer, ::Val{descript}) where {descript}
@@ -111,7 +111,7 @@ end
 # @inline stridedoffset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer{T}}, i::Tuple{I}) where {I,T} = @inbounds vmul_maybe_cached(i[1], ptr.ptr.strides[1], ptr.precalc[1])
 # # @inline stridedoffset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer{T}}, i::Integer) where {T} = @inbounds vmul_maybe_cached(i, ptr.ptr.strides[1], ptr.precalc[1])
 # @inline function stridedoffset(ptr::OffsetPrecalc{T,<:AbstractSparseStridedPointer{T}}, i::Tuple{I1,I2,Vararg}) where {I1,I2,T}
-#     @inbounds tdot(i, ptr.ptr.strides, ptr.precalc)
+#     @inbounds tdotc(i, ptr.ptr.strides, ptr.precalc)
 # end
 
 
