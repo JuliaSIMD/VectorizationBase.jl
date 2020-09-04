@@ -75,79 +75,6 @@ const AbstractMask{W} = Union{Mask{W}, SVec{W,Bool}}
 @inline SVec{W,T}(v::SVec{W,T}) where {W,T} = v
 @inline SVec{W}(v::Vec{W,T}) where {W,T} = SVec{W,T}(v)
 @inline vbroadcast(::Val, b::Bool) = b
-@generated function vbroadcast(::Type{_Vec{_W,Ptr{T}}}, s::Ptr{T}) where {_W, T}
-    W = _W + 1
-    typ = "i$(8sizeof(Int))"
-    vtyp = "<$W x $typ>"
-    instrs = String[]
-    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
-    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
-    push!(instrs, "ret $vtyp %v")
-    quote
-        $(Expr(:meta,:inline))
-        llvmcall( $(join(instrs,"\n")), Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s )
-    end
-end
-@generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Integer}
-    W = _W + 1
-    typ = "i$(8sizeof(T))"
-    vtyp = "<$W x $typ>"
-    instrs = String[]
-    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
-    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
-    push!(instrs, "ret $vtyp %v")
-    quote
-        $(Expr(:meta,:inline))
-        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
-    end
-end
-@generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Union{Float16,Float32,Float64}}
-    W = _W + 1
-    typ = llvmtype(T)
-    vtyp = "<$W x $typ>"
-    instrs = String[]
-    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
-    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
-    push!(instrs, "ret $vtyp %v")
-    quote
-        $(Expr(:meta,:inline))
-        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
-    end
-end
-@generated function vbroadcast(::Type{_Vec{_W,T}}, ptr::Ptr{T}) where {_W, T}
-    W = _W + 1
-    typ = llvmtype(T)
-    ptyp = JuliaPointerType
-    vtyp = "<$W x $typ>"
-    instrs = String[]
-    alignment = Base.datatype_alignment(T)
-    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
-    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment")
-    push!(instrs, "%ie = insertelement $vtyp undef, $typ %res, i32 0")
-    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
-    push!(instrs, "ret $vtyp %v")
-    quote
-        $(Expr(:meta,:inline))
-        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{Ptr{$T}}, ptr )
-    end
-end
-@generated function vzero(::Type{_Vec{_W,T}}) where {_W,T}
-    W = _W + 1
-    typ = llvmtype(T)
-    instrs = "ret <$W x $typ> zeroinitializer"
-    quote
-        $(Expr(:meta,:inline))
-        llvmcall($instrs, Vec{$W,$T}, Tuple{}, )
-    end
-end
-@generated function vzero(::Val{W}, ::Type{T}) where {W,T}
-    typ = llvmtype(T)
-    instrs = "ret <$W x $typ> zeroinitializer"
-    quote
-        $(Expr(:meta,:inline))
-        SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
-    end
-end
 
 
 # @inline vzero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
@@ -257,6 +184,82 @@ include("vector_width.jl")
 include("number_vectors.jl")
 include("masks.jl")
 include("alignment.jl")
+
+@generated function vbroadcast(::Type{_Vec{_W,Ptr{T}}}, s::Ptr{T}) where {_W, T}
+    W = _W + 1
+    typ = "i$(8sizeof(Int))"
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        llvmcall( $(join(instrs,"\n")), Vec{$W,Ptr{$T}}, Tuple{Ptr{$T}}, s )
+    end
+end
+@generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Integer}
+    W = _W + 1
+    typ = "i$(8sizeof(T))"
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
+    end
+end
+@generated function vbroadcast(::Type{_Vec{_W,T}}, s::T) where {_W, T <: Union{Float16,Float32,Float64}}
+    W = _W + 1
+    typ = llvmtype(T)
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %0, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{$T}, s )
+    end
+end
+@generated function vbroadcast(::Type{_Vec{_W,T}}, ptr::Ptr{T}) where {_W, T}
+    W = _W + 1
+    typ = llvmtype(T)
+    ptyp = JuliaPointerType
+    vtyp = "<$W x $typ>"
+    instrs = String[]
+    alignment = Base.datatype_alignment(T)
+    push!(instrs, "%ptr = inttoptr $ptyp %0 to $typ*")
+    push!(instrs, "%res = load $typ, $typ* %ptr, align $alignment")
+    push!(instrs, "%ie = insertelement $vtyp undef, $typ %res, i32 0")
+    push!(instrs, "%v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer")
+    push!(instrs, "ret $vtyp %v")
+    quote
+        $(Expr(:meta,:inline))
+        llvmcall( $(join(instrs,"\n")), Vec{$W,$T}, Tuple{Ptr{$T}}, ptr )
+    end
+end
+@generated function vzero(::Type{_Vec{_W,T}}) where {_W,T}
+    W = _W + 1
+    typ = llvmtype(T)
+    instrs = "ret <$W x $typ> zeroinitializer"
+    quote
+        $(Expr(:meta,:inline))
+        llvmcall($instrs, Vec{$W,$T}, Tuple{}, )
+    end
+end
+@generated function vzero(::Val{W}, ::Type{T}) where {W,T}
+    typ = llvmtype(T)
+    instrs = "ret <$W x $typ> zeroinitializer"
+    quote
+        $(Expr(:meta,:inline))
+        SVec(llvmcall($instrs, Vec{$W,$T}, Tuple{}, ))
+    end
+end
+
+
 include("precompile.jl")
 _precompile_()
 
