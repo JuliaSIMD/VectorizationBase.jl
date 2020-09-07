@@ -14,7 +14,7 @@ end
 @inline Base.convert(::Type{T}, a::LazyMulAdd{M,O,I}) where {M,O,I,T<:Number} = convert(T, vadd(vmul(M, a.data), Static{O}()))
 Base.promote_rule(::Type{LazyMulAdd{M,O,I}}, ::Type{T}) where {M,O,I<:Number,T} = symmetric_promote_rule(I, T)
 Base.promote_rule(::Type{LazyMulAdd{M,O,MM{W,X,I}}}, ::Type{T}) where {M,O,W,X,I,T} = symmetric_promote_rule(Vec{W,I}, T)
-Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,X,I,T} = symmetric_promote_rule(Vec{W,I}, T)
+Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T} = symmetric_promote_rule(Vec{W,I}, T)
 
 @inline lazymul(a, b) = vmul(a, b)
 @inline lazymul(::Static{M}, b) where {M} = LazyMulAdd{M}(b)

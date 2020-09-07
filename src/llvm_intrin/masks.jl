@@ -67,19 +67,15 @@ function vadd_expr(W,U)
     %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
     %res = add <$W x i8> %uv.0, %uv.1
     ret <$W x i8> %res""")
-    :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u)))
+    Expr(:block, Expr(:meta, :inline), :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u))))
 end
-for (W,U) in [(2,UInt8),(4,UInt8),(8,UInt8),(16,UInt16),(32,UInt32),(64,UInt64)] # Julia 1.1 bug
-    @eval @inline Base.:(+)(m1::Mask{$W,$U}, m2::Mask{$W,$U}) = $(vadd_expr(W, U))
-end
-# @generated function vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W, U <: Unsigned}
-#     Expr(:block, Expr(:meta, :inline), vadd_expr(W,U))
-# end
-@inline Base.:(+)(m1::Mask, m2::Mask) = vadd(m1,m2)
+@generated Base.:(+)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
+
+# @inline Base.:(+)(m1::Mask, m2::Mask) = vadd(m1,m2)
 
 # @inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = andmask(m1, m2)
-@inline Base.:(&)(m::Mask{W}, u::Unsigned) where {W} = m & Mask{W}(u)
-@inline Base.:(&)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u) & m
+# @inline Base.:(&)(m::Mask{W}, u::Unsigned) where {W} = m & Mask{W}(u)
+# @inline Base.:(&)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u) & m
 
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
@@ -90,14 +86,14 @@ end
 
 @inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
 @inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
-@inline Base.:(|)(m::Mask{16,UInt16}, b::Bool) where {W} = Mask{W}(b ? 0xffff : m.u)
-@inline Base.:(|)(b::Bool, m::Mask{16,UInt16}) where {W} = Mask{W}(b ? 0xffff : m.u)
-@inline Base.:(|)(m::Mask{8,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0xff : m.u)
-@inline Base.:(|)(b::Bool, m::Mask{8,UInt8}) where {W} = Mask{W}(b ? 0xff : m.u)
-@inline Base.:(|)(m::Mask{4,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x0f : m.u)
-@inline Base.:(|)(b::Bool, m::Mask{4,UInt8}) where {W} = Mask{W}(b ? 0x0f : m.u)
-@inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) where {W} = Mask{W}(b ? 0x03 : m.u)
-@inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) where {W} = Mask{W}(b ? 0x03 : m.u)
+# @inline Base.:(|)(m::Mask{16,UInt16}, b::Bool) = Mask{16}(b ? 0xffff : m.u)
+# @inline Base.:(|)(b::Bool, m::Mask{16,UInt16}) = Mask{16}(b ? 0xffff : m.u)
+# @inline Base.:(|)(m::Mask{8,UInt8}, b::Bool) = Mask{8}(b ? 0xff : m.u)
+# @inline Base.:(|)(b::Bool, m::Mask{8,UInt8}) = Mask{8}(b ? 0xff : m.u)
+# @inline Base.:(|)(m::Mask{4,UInt8}, b::Bool) = Mask{4}(b ? 0x0f : m.u)
+# @inline Base.:(|)(b::Bool, m::Mask{4,UInt8}) = Mask{4}(b ? 0x0f : m.u)
+# @inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) = Mask{2}(b ? 0x03 : m.u)
+# @inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) = Mask{2}(b ? 0x03 : m.u)
 
 # @inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = xormask(m1, m2)
 # @inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = xormask(m, Mask{W}(u))

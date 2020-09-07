@@ -61,14 +61,21 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 abstract type AbstractSIMDVector{W,T <: Union{Static,NativeTypes}} <: Real end
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
-    @inline function Vec(x::NTuple{W,Core.VecElement{T}}) where {W,T}
+    @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T} = new{W,T}(x)
+    @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T}
+        W = _W + 1
         @assert W === pick_vector_width(W, T)# || W === 8
-        # @assert ispow2(W) && (W ≤ max(pick_vector_width(W, T), 8))
-        new{W,T}(x)
+        Expr(:block, Expr(:meta,:inline), Expr(:call, Expr(:curly, :Vec, W, T), :x))
     end
+    # @inline function Vec(x::NTuple{W,<:Core.VecElement}) where {W}
+    #     T = eltype(x)
+    #     @assert W === pick_vector_width(W, T)
+    #     # @assert ispow2(W) && (W ≤ max(pick_vector_width(W, T), 8))
+    #     new{W,T}(x)
+    # end
 end
-struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Number#AbstractSIMDVector{W,T}
-    data::NTuple{N,V}
+struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real#AbstractSIMDVector{W,T}
+    data::Tuple{V,Vararg{V,N}}
 end
 
 @inline Base.copy(v::AbstractSIMDVector) = v
@@ -95,11 +102,13 @@ end
 
 function vec_quote(W, Wpow2, offset = 0)
     tup = Expr(:tuple); Wpow2 += offset
-    foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:ref, :x, w+offset))), 1+offset:min(W,Wpow2))
+    iszero(offset) && push!(tup.args, :(VecElement(y)))
+    foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:ref, :x, w+offset))), max(1,offset):min(W,Wpow2)-1)
     foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
     Expr(:call, :Vec, tup)
 end
-@generated function Vec(x::Vararg{T,W}) where {W, T <: NativeTypes}
+@generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
+    W = _W + 1
     Wpow2 = pick_vector_width(W, T)
     if W ≤ Wpow2
         vec_quote(W, Wpow2)

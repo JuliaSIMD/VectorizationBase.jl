@@ -101,6 +101,7 @@ end
 #         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}, ))
 #     end
 # end
+@inline vbroadcast(::Val{W}, v::AbstractSIMDVector{W}) where {W} = v
 # @inline vbroadcast(::Val{1}, s::T) where {T <: NativeTypes} = s
 # @inline vbroadcast(::Val{1}, s::Ptr{T}) where {T <: NativeTypes} = s
 @inline vzero(::Val{W}, ::Type{T}) where {W,T} = zero(Vec{W,T})

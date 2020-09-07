@@ -177,10 +177,11 @@ A = randn(13, 17); L = length(A); M, N = size(A);
     end
 
     @testset "StridedPointer" begin
+        # dims = (41,42,43) .* 3;
         dims = (41,42,43);
-        A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims)
+        A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims);
         P = PermutedDimsArray(A, (3,1,2));
-        O = OffsetArray(P, (-4, -2, -3))
+        O = OffsetArray(P, (-4, -2, -3));
         ptrA = stridedpointer(A)
         ptrP = stridedpointer(P)
         ptrO = stridedpointer(O)
