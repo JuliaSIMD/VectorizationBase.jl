@@ -17,13 +17,22 @@ const STORE_TBAA = """
 !8 = !{!"jtbaa_arraybuf", !6, i64 0}
 """
 
-# function constantoffset!(instrs, argind, offset)
 
-# end
-# function constantmul!(instrs, argind, offset)
+"""
+An omnibus offset constructor.
 
-# end
+The general motivation for generating the memory addresses as LLVM IR rather than combining multiple lllvmcall Julia functions is
+that we want to minimize the `inttoptr` and `ptrtoint` calculations as we go back and fourth. These can get in the way of some
+optimizations, such as memory address calculations.
+It is particulary import for `gather` and `scatter`s, as these functions take a `Vec{W,Ptr{T}}` argument to load/store a
+`Vec{W,T}` to/from. If `sizeof(T) < sizeof(Int)`, converting the `<W x \$(typ)*` vectors of pointers in LLVM to integer
+vectors as they're represented in Julia will likely make them too large to fit in a single register, splitting the operation
+into multiple operations, forcing a corresponding split of the `Vec{W,T}` vector as well.
+This would all be avoided by not promoting/widenting the `<W x \$(typ)>` into a vector of `Int`s.
 
+For this last issue, an alternate workaround would be to wrap a `Vec` of 32-bit integers with a type that defines it as a pointer for use with
+internal llvmcall functions, but I haven't really explored this optimization.
+"""
 function offset_ptr(
     ::Type{T}, ind_type::Symbol, indargname, ibits::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
 ) where {T}
@@ -44,7 +53,7 @@ function offset_ptr(
     
     tz = min(trailing_zeros(M), 3)
     tzf = 1 << tz
-    index_gep_typ = (tzf == sizeof_T | iszero(M)) ? vtyp : "i$(tzf)"
+    index_gep_typ = ((tzf == sizeof_T) | iszero(M)) ? vtyp : "i$(tzf << 3)"
     M >>= tz
     # after this block, we will have a index_gep_typ pointer
     if iszero(O)
@@ -58,7 +67,7 @@ function offset_ptr(
             offset = O >>> tz
         end
         push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"); i += 1
-        push!(insrts, "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"); i += 1
+        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"); i += 1
         if forgep && iszero(M) && (iszero(X) || isone(X))
             push!(instrs, "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"); i += 1
             return instrs, i
@@ -161,6 +170,7 @@ end
 @generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,Vec{W,I}}) where {W, T <: NativeTypes, I <: Integer, M}
     gep_quote(T, :Vec, I, W, 1, M, 0, true)
 end
+@inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
 
 function vload_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool = false
@@ -234,7 +244,7 @@ end
     vload_quote(T, I, :Integer, W, X, 1, 0, false, false)
 end
 @generated function vload(ptr::Ptr{T}, ::MM{W,X,Static{N}}) where {W, X, T <: NativeTypes, N}
-    vload_quote(T, I, :Static, W, X, 1, N, false, false)
+    vload_quote(T, Int, :Static, W, X, 1, N, false, false)
 end
 @generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}) where {M, O, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, :Integer, 1, 1, M, O, false, false)
@@ -253,7 +263,7 @@ end
     vload_quote(T, I, :Integer, W, X, 1, 0, true, false)
 end
 @generated function vload(ptr::Ptr{T}, ::MM{W,X,Static{N}}, m::Mask{W}) where {W, X, T <: NativeTypes, N}
-    vload_quote(T, I, :Static, W, X, 1, N, true, false)
+    vload_quote(T, Int, :Static, W, X, 1, N, true, false)
 end
 @generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}) where {W, M, O, T <: NativeTypes, I <: Integer}
     vload_quote(T, I, :Vec, W, 1, M, O, true, false)
@@ -349,10 +359,10 @@ end
     vstore_quote(T, I, :Integer, W, 1, 1, 0, false, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, 1, 0, N, false, false, false)
+    vstore_quote(T, Int, :Static, W, 1, 0, N, false, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}) where {W, X, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, X, 0, N, false, false, false)
+    vstore_quote(T, Int, :Static, W, X, 0, N, false, false, false)
 end
 
 @generated function vstore!(ptr::Ptr{T}, v::T, i::LazyMulAdd{M,O,I}) where {T <: NativeTypes, M, O, I <: Integer}
@@ -378,10 +388,10 @@ end
     vstore_quote(T, I, :Integer, W, 1, 1, 0, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}, m::Mask{W}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, 1, 0, N, true, false, false)
+    vstore_quote(T, Int, :Static, W, 1, 0, N, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}, m::Mask{W}) where {W, X, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, X, 0, N, true, false, false)
+    vstore_quote(T, Int, :Static, W, X, 0, N, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}) where {W, T <: NativeTypes, M, O, I <: Integer}
     vstore_quote(T, I, :Vec, W, 1, M, O, true, false, false)
@@ -412,10 +422,10 @@ end
     vstore_quote(T, I, :Integer, W, 1, 1, 0, false, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, 1, 0, N, false, false, true)
+    vstore_quote(T, Int, :Static, W, 1, 0, N, false, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}) where {W, X, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, X, 0, N, false, false, true)
+    vstore_quote(T, Int, :Static, W, X, 0, N, false, false, true)
 end
 
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::T, i::LazyMulAdd{M,O,I}) where {T <: NativeTypes, M, O, I <: Integer}
@@ -441,10 +451,10 @@ end
     vstore_quote(T, I, :Integer, W, 1, 1, 0, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}, m::Mask{W}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, 1, 0, N, true, false, true)
+    vstore_quote(T, Int, :Static, W, 1, 0, N, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}, m::Mask{W}) where {W, X, T <: NativeTypes, N}
-    vstore_quote(T, I, :Static, W, X, 0, N, true, false, true)
+    vstore_quote(T, Int, :Static, W, X, 0, N, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}) where {W, T <: NativeTypes, M, O, I <: Integer}
     vstore_quote(T, I, :Vec, W, 1, M, O, true, false, true)
@@ -470,6 +480,7 @@ i::I - index
 struct Unroll{AU,F,N,AV,W,M,I}
     i::I
 end
+@inline Unroll{AU,F,N,AV,W,M}(i::I) where {AU,F,N,AV,W,M,I} = Unroll{AU,F,N,AV,W,M,I}(i)
 
 function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
     baseind = Expr(:tuple)
@@ -481,35 +492,24 @@ function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
         push!(baseind.args, i)
     end
     inds = Vector{Expr}(undef, N)
-    for n in 0:N-1
+    inds[1] = baseind
+    for n in 1:N-1
         ind = copy(baseind)
-        if n != 0
-            i = Expr(:curly, :Static, n*F)
-            if AU == AV && W > 1
-                i = Expr(:call, Expr(:curly, :MM, W), i)
-            end
-            ind.args[AU] = Expr(:call, i)
+        i = Expr(:curly, :Static, n*F)
+        if AU == AV && W > 1
+            i = Expr(:call, Expr(:curly, :MM, W), i)
         end
+        ind.args[AU] = Expr(:call, i)
         inds[n+1] = ind
     end
     inds
 end
 
 function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool)
-    baseind = Expr(:tuple)
-    for d in 1:D
-        push!(baseind.args, Expr(:call, :Zero))
-    end
     t = Expr(:tuple)
     inds = unrolled_indicies(D, AU, F, N, AV, W)
-    for n in 0:N-1
-        if iszero(n)
-            ind = baseind
-        else
-            ind = copy(baseind)
-            ind.args[A] = Expr(:call, Expr(:curly, :Static, n*F))
-        end
-        l = Expr(:call, :vload, :gptr, ind)
+    for n in 1:N
+        l = Expr(:call, :vload, :gptr, inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
         M >>= 1
         push!(t.args, l)
@@ -529,10 +529,6 @@ end
 end
 
 function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool)
-    baseind = Expr(:tuple)
-    for d in 1:D
-        push!(baseind.args, Expr(:call, :Zero))
-    end
     t = Expr(:tuple)
     inds = unrolled_indicies(D, AU, F, N, AV, W)
     q = quote
@@ -540,14 +536,8 @@ function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M
         gptr = gesp(ptr, u.i)
         t = data(v)
     end
-    for n in 0:N-1
-        if iszero(n)
-            ind = baseind
-        else
-            ind = copy(baseind)
-            ind.args[A] = Expr(:call, Expr(:curly, :Static, n*F))
-        end
-        l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n+1), ind)
+    for n in 1:N
+        l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n), inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
         M >>= 1
         push!(q.args, l)

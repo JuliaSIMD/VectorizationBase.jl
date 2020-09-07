@@ -75,6 +75,8 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline vadd(i::Integer, j::MM{W}) where {W} = MM{W}(vadd(i, j.i))
 @inline vadd(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vadd(i.i, j))
 @inline vadd(::Static{i}, j::MM{W}) where {W,i} = MM{W}(vadd(i, j.i))
+@inline vadd(i::MM{W}, ::Static{0}) where {W} = i
+@inline vadd(::Static{0}, j::MM{W}) where {W} = j
 @inline vadd(i::MM{W,X}, j::MM{W,S}) where {W,X,S} = MM{W}(vadd(i.i, j.i), Static{X}() + Static{S}())
 @inline vsub(i::MM{W}, j::Integer) where {W} = MM{W}(vsub(i.i, j))
 @inline vsub(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vsub(i.i, j))
@@ -94,6 +96,9 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline Base.:(-)(i::MM{W}, j::Integer) where {W} = MM{W}(vsub(i.i, j))
 # @inline Base.:(-)(i::Integer, j::MM{W}) where {W} = MM{W}(i - j.i)
 @inline Base.:(-)(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(vsub(i.i, j))
+@inline Base.:(-)(i::MM, ::Static{0}) = i
+@inline Base.:(+)(i::MM, ::Static{0}) = i
+@inline Base.:(+)(::Static{0}, i::MM) = i
 # @inline Base.:(-)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(i - j.i)
 # @inline Base.:(-)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i - j.i)
 # @inline Base.:(*)(i::MM{W}, j) where {W} = MM{W}(i.i * j)
@@ -101,30 +106,31 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 # @inline Base.:(*)(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(i.i * j)
 # @inline Base.:(*)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(i * j.i)
 # @inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i * j.i)
-@inline scalar_less(i, j) = i < j
-@inline scalar_less(i::MM, j::Integer) = i.i < j
-@inline scalar_less(i::Integer, j::MM) = i < j.i
-@inline scalar_less(i::MM, ::Static{j}) where {j} = i.i < j
-@inline scalar_less(::Static{i}, j::MM) where {i} = i < j.i
-@inline scalar_less(i::MM, j::MM) = i.i < j.i
-@inline scalar_greater(i, j) = i > j
-@inline scalar_greater(i::MM, j::Integer) = i.i > j
-@inline scalar_greater(i::Integer, j::MM) = i > j.i
-@inline scalar_greater(i::MM, ::Static{j}) where {j} = i.i > j
-@inline scalar_greater(::Static{i}, j::MM) where {i} = i > j.i
-@inline scalar_greater(i::MM, j::MM) = i.i > j.i
-@inline scalar_equal(i, j) = i == j
-@inline scalar_equal(i::MM, j::Integer) = i.i == j
-@inline scalar_equal(i::Integer, j::MM) = i == j.i
-@inline scalar_equal(i::MM, ::Static{j}) where {j} = i.i == j
-@inline scalar_equal(::Static{i}, j::MM) where {i} = i == j.i
-@inline scalar_equal(i::MM, j::MM) = i.i == j.i
-@inline scalar_notequal(i, j) = i != j
-@inline scalar_notequal(i::MM, j::Integer) = i.i != j
-@inline scalar_notequal(i::Integer, j::MM) = i != j.i
-@inline scalar_notequal(i::MM, ::Static{j}) where {j} = i.i != j
-@inline scalar_notequal(::Static{i}, j::MM) where {i} = i != j.i
-@inline scalar_notequal(i::MM, j::MM) = i.i != j.i
+
+# @inline scalar_less(i, j) = i < j
+# @inline scalar_less(i::MM, j::Integer) = i.i < j
+# @inline scalar_less(i::Integer, j::MM) = i < j.i
+# @inline scalar_less(i::MM, ::Static{j}) where {j} = i.i < j
+# @inline scalar_less(::Static{i}, j::MM) where {i} = i < j.i
+# @inline scalar_less(i::MM, j::MM) = i.i < j.i
+# @inline scalar_greater(i, j) = i > j
+# @inline scalar_greater(i::MM, j::Integer) = i.i > j
+# @inline scalar_greater(i::Integer, j::MM) = i > j.i
+# @inline scalar_greater(i::MM, ::Static{j}) where {j} = i.i > j
+# @inline scalar_greater(::Static{i}, j::MM) where {i} = i > j.i
+# @inline scalar_greater(i::MM, j::MM) = i.i > j.i
+# @inline scalar_equal(i, j) = i == j
+# @inline scalar_equal(i::MM, j::Integer) = i.i == j
+# @inline scalar_equal(i::Integer, j::MM) = i == j.i
+# @inline scalar_equal(i::MM, ::Static{j}) where {j} = i.i == j
+# @inline scalar_equal(::Static{i}, j::MM) where {i} = i == j.i
+# @inline scalar_equal(i::MM, j::MM) = i.i == j.i
+# @inline scalar_notequal(i, j) = i != j
+# @inline scalar_notequal(i::MM, j::Integer) = i.i != j
+# @inline scalar_notequal(i::Integer, j::MM) = i != j.i
+# @inline scalar_notequal(i::MM, ::Static{j}) where {j} = i.i != j
+# @inline scalar_notequal(::Static{i}, j::MM) where {i} = i != j.i
+# @inline scalar_notequal(i::MM, j::MM) = i.i != j.i
 
 @inline extract_data(i::MM) = i.i
 

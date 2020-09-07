@@ -204,10 +204,10 @@ function Base.show(io::IO, m::Mask{W}) where {W}
     print(io, ">")
 end
 function Base.show(io::IO, vu::VecUnroll{N,W,T}) where {N,W,T}
-    println(io, "$N x Vec{$W, $T}")
-    for n in 1:N
+    println(io, "$(N+1) x Vec{$W, $T}")
+    for n in 1:N+1
         show(io, vu.data[n]);
-        n == N || println(io)
+        n > N || println(io)
     end
 end
 
