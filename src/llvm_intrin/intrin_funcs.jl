@@ -20,8 +20,13 @@ end
 
 # for (op,f) ∈ [("abs",:abs)]
 # end
-for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed)]
-    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: $S} = llvmcall_expr($op, W, T, (W,), (T,))
+if Base.libllvm_version ≥ v"12"
+    for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed),("umax",:max,:Unsigned),("umin",:min,:Unsigned)]
+        @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = llvmcall_expr($op, W, T, (W, W), (T, T))
+    end
+else
+    @inline Base.max(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = IfElse.ifelse(v1 > v2, v1, v2)
+    @inline Base.min(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = IfElse.ifelse(v1 < v2, v1, v2)
 end
 # for T ∈ [Float32, Float64]
 #     W = 2
@@ -29,39 +34,119 @@ end
 # floating point
 for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("trunc",:trunc),("round",:round)
               ]
-    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "fast")
+    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
 end
 
 
 @generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    llvmcall_expr("lrint", W, Int64, (W,), (T,), "fast")
+    llvmcall_expr("lrint", W, Int64, (W,), (T,), "nsz arcp contract afn reassoc")
 end
 @generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    llvmcall_expr("lrint", W, Int32, (W,), (T,), "fast")
+    llvmcall_expr("lrint", W, Int32, (W,), (T,), "nsz arcp contract afn reassoc")
 end
+
+
+# """
+#    setbits(x::Unsigned, y::Unsigned, mask::Unsigned)
+
+# If you have AVX512, setbits of vector-arguments will select bits according to mask `m`, selecting from `y` if 0 and from `x` if `1`.
+# For scalar arguments, or vector arguments without AVX512, `setbits` requires the additional restrictions on `y` that all bits for
+# which `m` is 1, `y` must be 0.
+# That is for scalar arguments or vector arguments without AVX512, it requires the restriction that
+# ((y ⊻ m) & m) == m
+# """
+# @inline setbits(x, y, m) = (x & m) | y
+
+"""
+   bitselect(m::Unsigned, x::Unsigned, y::Unsigned)
+
+If you have AVX512, setbits of vector-arguments will select bits according to mask `m`, selecting from `x` if 0 and from `y` if `1`.
+For scalar arguments, or vector arguments without AVX512, `setbits` requires the additional restrictions on `y` that all bits for
+which `m` is 1, `y` must be 0.
+That is for scalar arguments or vector arguments without AVX512, it requires the restriction that
+((y ⊻ m) & m) == m
+"""
+@inline bitselect(m, x, y) = ((~m) & x) | (m & y)
+if AVX512F
+    # AVX512 lets us use 1 instruction instead of 2 dependent instructions to set bits
+    @generated function vpternlog(m::Vec{W,UInt64}, x::Vec{W,UInt64}, y::Vec{W,UInt64}, ::Val{L}) where {W, L}
+        @assert W ∈ (2,4,8)
+        bits = 64W
+        decl64 = "declare <$W x i64> @llvm.x86.avx512.mask.pternlog.q.$(bits)(<$W x i64>, <$W x i64>, <$W x i64>, i32, i8)"
+        instr64 = """
+            %res = call <$W x i64> @llvm.x86.avx512.mask.pternlog.q.$(bits)(<$W x i64> %0, <$W x i64> %1, <$W x i64> %2, i32 $L, i8 -1)
+            ret <$W x i64> %res
+        """
+        arg_syms = [:(data(m)), :(data(x)), :(data(y))]
+        llvmcall_expr(decl64, instr64, :(_Vec{$W,UInt64}), :(Tuple{_Vec{$W,UInt64},_Vec{$W,UInt64},_Vec{$W,UInt64}}), "<$W x i64>", ["<$W x i64>", "<$W x i64>", "<$W x i64>"], arg_syms)
+    end
+    @generated function vpternlog(m::Vec{W,UInt32}, x::Vec{W,UInt32}, y::Vec{W,UInt32}, ::Val{L}) where {W, L}
+        @assert W ∈ (4,8,16)
+            return Expr(:block, Expr(:meta, :inline), :(((~m) & x) | (m & y)))
+        #end
+        bits = 32W
+        decl32 = "declare <$W x i32> @llvm.x86.avx512.mask.pternlog.d.$(bits)(<$W x i32>, <$W x i32>, <$W x i32>, i32, i16)"
+        instr32 = """
+            %res = call <$W x i32> @llvm.x86.avx512.mask.pternlog.d.$(bits)(<$W x i32> %0, <$W x i32> %1, <$W x i32> %2, i32 $L, i16 -1)
+            ret <$W x i32> %res
+        """
+        arg_syms = [:(data(m)), :(data(x)), :(data(y))]
+        llvmcall_expr(decl64, instr64, :(_Vec{$W,UInt32}), :(Tuple{_Vec{$W,UInt32},_Vec{$W,UInt32},_Vec{$W,UInt32}}), "<$W x i32>", ["<$W x i32>", "<$W x i32>", "<$W x i32>"], arg_syms)
+    end
+    # @eval @generated function setbits(x::Vec{W,T}, y::Vec{W,T}, m::Vec{W,T}) where {W,T <: Union{UInt32,UInt64}}
+    #     ex = if W*sizeof(T) ∈ (16,32,64)
+    #         :(vpternlog(x, y, m, Val{216}()))
+    #     else
+    #         :((x & m) | y)
+    #     end
+    #     Expr(:block, Expr(:meta, :inline), ex)
+    # end
+    @generated function bitselect(m::Vec{W,T}, x::Vec{W,T}, y::Vec{W,T}) where {W,T <: Union{UInt32,UInt64}}
+        ex = if W*sizeof(T) ∈ (16,32,64)
+            :(vpternlog(m, x, y, Val{172}()))
+        else
+            :(((~m) & x) | (m & y))
+        end
+        Expr(:block, Expr(:meta, :inline), ex)
+    end
+    @inline Base.copysign(v1::Vec{W,Float64}, v2::Vec{W,Float64}) where {W} = reinterpret(Float64, bitselect(Vec{W,UInt64}(0x8000000000000000), reinterpret(UInt64, v1), reinterpret(UInt64, v2)))
+    @inline Base.copysign(v1::Vec{W,Float32}, v2::Vec{W,Float32}) where {W} = reinterpret(Float32, bitselect(Vec{W,UInt32}(0x80000000), reinterpret(UInt32, v1), reinterpret(UInt32, v2)))
+end
+
 
 for (op,f) ∈ [("minnum",:min),("maxnum",:max),("copysign",:copysign),
               ]
-    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T}
-        llvmcall_expr($op, W, T, (W for _ in 1:2), (T for _ in 1:2), "fast")
+    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+        llvmcall_expr($op, W, T, (W for _ in 1:2), (T for _ in 1:2), "nsz arcp contract afn reassoc")
     end
 end
+@inline _signbit(v::Vec{W, I}) where {W, I<:Signed} = v & Vec{W,I}(typemin(I))
+@inline Base.copysign(v1::Vec{W,I}, v2::Vec{W,I}) where {W, I <: Signed} = IfElse.ifelse(_signbit(v1) == _signbit(v2), v1, -v1)
+
+@inline Base.copysign(x::Float32, v::Vec{W}) where {W} = copysign(vbroadcast(Val{W}(), x), v)
+@inline Base.copysign(x::Float64, v::Vec{W}) where {W} = copysign(vbroadcast(Val{W}(), x), v)
+@inline Base.copysign(x::Float32, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
+@inline Base.copysign(x::Float64, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
+@inline Base.copysign(v::Vec, u::VecUnroll) = VecUnroll(fmap(copysign, v, u.data))
+@inline Base.copysign(v::Vec{W,T}, x::Real) where {W,T} = copysign(v, Vec{W,T}(x))
+
+
 # ternary
 for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
     @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3), $(f === :fma ? nothing : "fast"))
+        llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3), $(f === :fma ? nothing : "nsz arcp contract afn reassoc"))
     end
 end
 # floating vector, integer scalar
 @generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
-    llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "fast")
+    llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")
 end
 for (op,f) ∈ [
     ("experimental.vector.reduce.v2.fadd",:vsum),
     ("experimental.vector.reduce.v2.fmul",:vprod)
 ]
     @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, 1, T, (1, W), (T, T), "fast")
+        llvmcall_expr($op, 1, T, (1, W), (T, T), "nsz arcp contract afn reassoc")
     end
 end
 for (op,f) ∈ [
@@ -69,7 +154,7 @@ for (op,f) ∈ [
     ("experimental.vector.reduce.v2.fmin",:vminimum)
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, 1, T, (W,), (T,), "fast")
+        llvmcall_expr($op, 1, T, (W,), (T,), "nsz arcp contract afn reassoc")
     end
 end
 for (op,f,S) ∈ [
@@ -91,7 +176,6 @@ end
 #         W += W
 #     end
 # end
-
 @inline vsum(v::Vec{W,T}) where {W,T} = vsum(-zero(T), v)
 @inline vprod(v::Vec{W,T}) where {W,T} = vprod(one(T), v)
 
@@ -128,10 +212,14 @@ end
 
 for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
               ]
-    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
+    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W,T}
         llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3))
     end
 end
+funnel_shift_left(a, b, c) = (a << c) | (b >>> (8sizeof(b) - c))
+funnel_shift_right(a, b, c) = (a >>> c) | (b << (8sizeof(b) - c))
+@inline rotate_left(a, b) = funnel_shift_left(a, a, b)
+@inline rotate_right(a, b) = funnel_shift_right(a, a, b)
 
 # for T ∈ [UInt8,UInt16,UInt32,UInt64]
 #     bytes = sizeof(T)
@@ -329,5 +417,7 @@ end
     #         end
     #         W += W
     #     end
-    # end
+# end
+
 @inline IfElse.ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = IfElse.ifelse(m, f(a...), a[K])
+

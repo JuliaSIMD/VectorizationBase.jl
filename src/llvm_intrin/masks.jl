@@ -347,10 +347,12 @@ end
     if Base.libllvm_version ≥ v"9" && ((T === Float32) || (T === Float64))
         f *= " nsz arcp contract reassoc"
     end
-    instrs = "%res = select $f $selty %0, $vtyp %1, $vtyp %2\nret $vtyp %res"
+    instrs = String[]
+    truncate_mask!(instrs, '0', W, 0)
+    push!(instrs, "%res = $f $selty %mask.0, $vtyp %1, $vtyp %2\nret $vtyp %res")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
+        Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
 

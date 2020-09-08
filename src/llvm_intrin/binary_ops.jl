@@ -61,7 +61,7 @@ end
     r = vsub(x, vmul(d, y))
     d, r
 end
-for (op,f,s) ∈ [("lshr",:>>,0x01),("ashr",:>>,0x02),("ashr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
+for (op,f,s) ∈ [("ashr",:>>,0x01),("lshr",:>>,0x02),("lshr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
     _ff = Symbol(:_, 'v', op)
     fdef = Expr(:where, :(Base.$f(v1::Vec{W,T}, v2::Vec{W,T})), :W)
     ffdef = Expr(:where, :($_ff(v1::T, v2::T)))
@@ -85,17 +85,10 @@ for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
 end
 
 for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vfdiv),("frem",:%,:vrem)]
-    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = binary_op($(op * " fast"), W, T)
+    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = binary_op($(op * " nsz arcp contract afn reassoc"), W, T)
 end
 @inline Base.inv(v::Vec) = vdiv(one(v), v)
 
 @inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
 
-for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷]
-    @eval begin
-        @inline Base.$op(v1::VecUnroll{N,W,T}, v2) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2)))
-        @inline Base.$op(v1, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data))
-        @inline Base.$op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
-    end
-end
 

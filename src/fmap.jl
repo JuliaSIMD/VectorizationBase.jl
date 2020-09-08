@@ -37,4 +37,36 @@ struct TupleLength{N} end
 # @inline fmap(f::F, w, x, y) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x), unrolleddata(y)))
 # @inline fmap(f::F, w, x, y, z) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x), unrolleddata(y), unrolleddata(z)))
 
+for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt]
+    @eval @inline Base.$op(v1::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data))
+end
+
+for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷,:max,:min,:copysign,:^]
+    @eval begin
+        @inline Base.$op(v1::VecUnroll{N,W,T}, v2::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2)))
+        @inline Base.$op(v1::Real, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data))
+        @inline Base.$op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
+    end
+end
+@inline Base.copysign(v1::Signed, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(copysign, Vec{W,T}(v1), v2.data))
+for op ∈ [:rotate_left,:rotate_right,:funnel_shift_left,:funnel_shift_right]
+    @eval begin
+        @inline $op(v1::VecUnroll{N,W,T}, v2::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2)))
+        @inline $op(v1::Real, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data))
+        @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
+    end
+end
+
+for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :vfmadd231, :vfnmadd231, :vfmsub231, :vfnmsub231]
+    @eval begin
+        @inline $op(v1::VecUnroll{N,W,T}, v2::Real, v3::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2), Vec{W,T}(v3)))
+        @inline $op(v1::Real, v2::VecUnroll{N,W,T}, v3::Real) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data, Vec{W,T}(v3)))
+        @inline $op(v1::Real, v2::Real, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), Vec{W,T}(v2), v3.data))
+        @inline $op(v1::VecUnroll{N,W,T}, v2::VecUnroll{N,W,T}, v3::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, v2.data, Vec{W,T}(v3)))
+        @inline $op(v1::VecUnroll{N,W,T}, v2::Real, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2), v3.data))
+        @inline $op(v1::Real, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data, v3.data))
+        @inline $op(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data, v3.data))
+    end
+end
+
 

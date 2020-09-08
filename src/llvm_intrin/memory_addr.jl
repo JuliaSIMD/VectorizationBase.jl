@@ -491,15 +491,16 @@ function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
         end
         push!(baseind.args, i)
     end
+    WF = AU == AV ? W : 1
     inds = Vector{Expr}(undef, N)
     inds[1] = baseind
     for n in 1:N-1
         ind = copy(baseind)
-        i = Expr(:curly, :Static, n*F)
+        i = Expr(:call, Expr(:curly, :Static, n*F*WF))
         if AU == AV && W > 1
             i = Expr(:call, Expr(:curly, :MM, W), i)
         end
-        ind.args[AU] = Expr(:call, i)
+        ind.args[AU] = i
         inds[n+1] = ind
     end
     inds

@@ -6,6 +6,20 @@ const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 const VE = Core.VecElement
 
+function tovector(u::VectorizationBase.VecUnroll{_N,W,T}) where {_N,W,T}
+    N = _N + 1; i = 0
+    x = Vector{T}(undef, N * W)
+    for n ∈ 1:N
+        v = u.data[n]
+        for w ∈ 1:W
+            x[(i += 1)] = VectorizationBase.getelement(v, w)
+        end
+    end
+    x
+end
+tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.getelement(v,w) for w ∈ 1:W]
+tovector(v::VectorizationBase.LazyMulAdd) = tovector(convert(Vec, v))
+tovector(x) = x
 A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
@@ -177,35 +191,134 @@ A = randn(13, 17); L = length(A); M, N = size(A);
     end
 
     @testset "StridedPointer" begin
-        # dims = (41,42,43) .* 3;
-        dims = (41,42,43);
+        dims = (41,42,43) .* 3;
+        # dims = (41,42,43);
         A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims);
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
-        ptrA = stridedpointer(A)
-        ptrP = stridedpointer(P)
-        ptrO = stridedpointer(O)
 
-        toind(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.getelement(v,w) for w ∈ 1:W]
-        toind(v::VectorizationBase.LazyMulAdd) = toind(convert(Vec, v))
-        toind(x) = x
         indices = [
             2, MM{W64}(1), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))))
         ]
         for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
             # @show typeof(B), i, j, k
-            x = getindex.(Ref(B), toind(i), toind(j), toind(k))
+            x = getindex.(Ref(B), tovector(i), tovector(j), tovector(k))
             GC.@preserve B begin
                 v = vload(stridedpointer(B), (i, j, k))
             end
-            @test x == toind(v)
+            @test x == tovector(v)
             m = Mask{W64}(rand(UInt8))
-            x .*= toind(m)
+            x .*= tovector(m)
             GC.@preserve B begin
                 v = vload(stridedpointer(B), (i, j, k), m)
             end
-            @test x == toind(v)
+            @test x == tovector(v)
+        end
+        for AU ∈ 1:3, AV ∈ 1:3, B ∈ [A, P, O]
+            i, j, k = 2, 3, 4
+            ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
+            x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+            if AU == 1
+                ir = ir .+ length(ir)
+            elseif AU == 2
+                jr = jr .+ length(jr)
+            elseif AU == 3
+                kr = kr .+ length(kr)
+            end
+            x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+            if AU == 1
+                ir = ir .+ length(ir)
+            elseif AU == 2
+                jr = jr .+ length(jr)
+            elseif AU == 3
+                kr = kr .+ length(kr)
+            end
+            x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+            GC.@preserve B begin
+                vu = vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
+            end
+            @test x1 == tovector(vu.data[1])
+            @test x2 == tovector(vu.data[2])
+            @test x3 == tovector(vu.data[3])
+        end
+    end
+
+    @testset "Unary Functions" begin
+        v = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+        ))
+        x = tovector(v)
+        for f ∈ [-, abs, floor, ceil, trunc, round, sqrt ∘ abs]
+            @test tovector(f(v)) == map(f, x)
+        end
+        # vpos = VectorizationBase.VecUnroll((
+        #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
+        #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
+        #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64)))
+        # ))
+        # for f ∈ [sqrt]
+        #     @test tovector(f(vpos)) == map(f, tovector(vpos))
+        # end
+    end
+    @testset "Binary Functions" begin
+        vi1 = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64)))
+        ))
+        vi2 = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64)))
+        ))
+        i = rand(1:8sizeof(Int)); j = rand(Int);
+        xi1 = tovector(vi1); xi2 = tovector(vi2);
+        for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
+            @show f
+            @test tovector(f(vi1, vi2)) ≈ f.(xi1, xi2)
+            @test tovector(f(j, vi2)) ≈ f.(j, xi2)
+            @test tovector(f(vi1, i)) ≈ f.(xi1, i)
+        end
+        
+        vf1 = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+        ))
+        vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+        xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
+        a = randn();
+        for f ∈ [+, -, *, /, %, max, min, copysign]
+            # @show f
+            @test tovector(f(vf1, vf2)) ≈ f.(xf1, xf22)
+            @test tovector(f(a, vf1)) ≈ f.(a, xf1)
+            @test tovector(f(a, vf2)) ≈ f.(a, xf2)
+            @test tovector(f(vf1, a)) ≈ f.(xf1, a)
+            @test tovector(f(vf2, a)) ≈ f.(xf2, a)
+        end
+    end
+    @testset "Ternary Functions" begin
+        v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+        v2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+        v3 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+        x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
+        a = randn(); b = randn()
+        for f ∈ [
+            muladd, fma,
+            VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
+            VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
+        ]
+            @test tovector(f(v1, v2, v3)) ≈ map(f, x1, x2, x3)
+            @test tovector(f(v1, v2, a)) ≈ f.(x1, x2, a)
+            @test tovector(f(v1, a, v3)) ≈ f.(x1, a, x3)
+            @test tovector(f(a, v2, v3)) ≈ f.(a, x2, x3)
+            @test tovector(f(v1, a, b)) ≈ f.(x1, a, b)
+            @test tovector(f(a, v2, b)) ≈ f.(a, x2, b)
+            @test tovector(f(a, b, v3)) ≈ f.(a, b, x3)
         end
     end
 end
