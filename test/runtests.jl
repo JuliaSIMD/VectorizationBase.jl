@@ -25,6 +25,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
     @test isempty(detect_unbound_args(VectorizationBase))
+    @test isempty(detect_ambiguities(VectorizationBase))
 
     W = VectorizationBase.pick_vector_width(Float64)
     @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.AVX512DQ ? Int64 : Int32)
@@ -46,6 +47,26 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         @test one(v) === one(typeof(v))
         # @test Vec{W32,Float32}(one(Vec{W32,Float64})) === Vec(one(Vec{W32,Float32})) === one(Vec{W32,Float32}) # conversions should be tested in SIMDPirates
         @test Vec{1,Int}(1) === 1
+
+        vu = Vec(collect(1.0:16.0)...) + 2
+        if W64 == 8
+            @test vu.data[1] === Vec(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
+            @test vu.data[2] === Vec(11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0)
+        elseif W64 == 4
+            @test vu.data[1] === Vec(3.0, 4.0, 5.0, 6.0)
+            @test vu.data[2] === Vec(7.0, 8.0, 9.0, 10.0)
+            @test vu.data[3] === Vec(11.0, 12.0, 13.0, 14.0)
+            @test vu.data[4] === Vec(15.0, 16.0, 17.0, 18.0)
+        elseif W64 == 2
+            @test vu.data[1] === Vec(3.0, 4.0)
+            @test vu.data[2] === Vec(5.0, 6.0)
+            @test vu.data[3] === Vec(7.0, 8.0)
+            @test vu.data[4] === Vec(9.0, 10.0)
+            @test vu.data[5] === Vec(11.0, 12.0)
+            @test vu.data[6] === Vec(13.0, 14.0)
+            @test vu.data[7] === Vec(15.0, 16.0)
+            @test vu.data[8] === Vec(17.0, 18.0)
+        end
     end
 
     @testset "alignment.jl" begin

@@ -29,6 +29,18 @@
 #     SDTuple{N,mulsizeof(T, X),P}(mulsizeof(T, t.x))
 # end
 
+@inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
+@inline memory_reference(::CPUPointer, A) = pointer(A)
+@inline memory_reference(::ArrayInterface.CheckParent, A)
+    P = parent(A)
+    if P === A
+        memory_reference(ArrayInterface.CPUIndex(), A)
+    else
+        memory_reference(device(P), P)
+    end
+end
+@inline memory_reference(::ArrayInterface.CPUIndex, A) = throw("Not implemented yet.")
+
 
 """
   abstract type AbstractStridedPointer{T,N,C,B,R,X,O} end
@@ -49,23 +61,10 @@ struct StridedPointer{T,N,C,B,R,X,O} <: AbstractStridedPointer{T,N,C,B,R,X,O}
     offsets::O
 end
 @inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
-@inline stridedpointer(A::AbstractArray) = stridedpointer(device(A), A)
-@inline function stridedpointer(::CPUPointer, A::AbstractArray{T}) where {T <: NativeTypes}
-    stridedpointer(pointer(A), contiguous_axis(A), contiguous_batch_size(A), stride_rank(A), mulsizeof(T, sdstrides(A)), sdoffsets(A))
-end
-@inline function stridedpointer(
-    ::ArrayInterface.CheckParent, A::AbstractArray{T},
-    C = contiguous_axis(A), B = contiguous_batch_size(A), R = stride_rank(A), X = mulsizeof(T, sdstrides(A)), O = sdoffsets(A)
-) where {T <: NativeTypes}
-    P = parent(A)
-    if P === A
-        stridedpointer(ArrayInterface.CPUIndex(), P, C, B, R, X, O)
-    else
-        stridedpointer(device(A), P, C, B, R, X, O)
-    end
-end
-@inline function stridedpointer(::ArrayInterface.CPUPointer, A::AbstractArray{T}, C, B, R, X, O) where {T<:NativeTypes}
-    stridedpointer(pointer(A), C, B, R, X, O)
+
+
+@inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
+    stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), stride_rank(A), mulsizeof(T, sdstrides(A)), sdoffsets(A))
 end
 @inline function stridedpointer(
     ptr::Ptr{T}, ::Contiguous{C}, ::ContiguousBatch{B}, ::StrideRank{R}, strd::X, offsets::O

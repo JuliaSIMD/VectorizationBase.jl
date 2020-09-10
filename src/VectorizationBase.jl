@@ -103,7 +103,7 @@ end
 function vec_quote(W, Wpow2, offset = 0)
     tup = Expr(:tuple); Wpow2 += offset
     iszero(offset) && push!(tup.args, :(VecElement(y)))
-    foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:ref, :x, w+offset))), max(1,offset):min(W,Wpow2)-1)
+    foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:ref, :x, w))), max(1,offset):min(W,Wpow2)-1)
     foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
     Expr(:call, :Vec, tup)
 end
