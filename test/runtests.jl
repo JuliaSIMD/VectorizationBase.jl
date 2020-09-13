@@ -211,30 +211,47 @@ A = randn(13, 17); L = length(A); M, N = size(A);
 
     end
 
-    @testset "StridedPointer" begin
+    @testset "Memory" begin
         dims = (41,42,43) .* 3;
         # dims = (41,42,43);
         A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims);
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
 
-        indices = [
+        indices = Real[
             2, MM{W64}(1), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))))
         ]
         for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
             # @show typeof(B), i, j, k
-            x = getindex.(Ref(B), tovector(i), tovector(j), tovector(k))
+            iv = tovector(i); jv = tovector(j); kv = tovector(k)
+            x = getindex.(Ref(B), iv, jv, kv)
             GC.@preserve B begin
-                v = vload(stridedpointer(B), (i, j, k))
+                v = @inferred(vload(stridedpointer(B), (i, j, k)))
             end
             @test x == tovector(v)
-            m = Mask{W64}(rand(UInt8))
-            x .*= tovector(m)
-            GC.@preserve B begin
-                v = vload(stridedpointer(B), (i, j, k), m)
+            if length(x) > 1
+                m = Mask{W64}(rand(UInt8))
+                mv = tovector(m)
+                x .*= mv
+                GC.@preserve B begin
+                    v = @inferred(vload(stridedpointer(B), (i, j, k), m))
+                end
+                @test x == tovector(v)
             end
-            @test x == tovector(v)
+            for store! ∈ (vstore!, VectorizationBase.vnoaliasstore!)
+                y = isone(length(x)) ? randn() : Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
+                GC.@preserve B store!(stridedpointer(B), y, (i, j, k))
+                x = getindex.(Ref(B), iv, jv, kv)
+                # @show i, j, k typeof.((i, j, k)), store!, typeof(B) y
+                @test x == tovector(y)
+                if length(x) > 1
+                    z = Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
+                    GC.@preserve B store!(stridedpointer(B), z, (i, j, k), m)
+                    y = getindex.(Ref(B), iv, jv, kv)
+                    @test y == ifelse.(mv, tovector(z), x)
+                end
+            end
         end
         for AU ∈ 1:3, AV ∈ 1:3, B ∈ [A, P, O]
             i, j, k = 2, 3, 4
@@ -257,7 +274,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             end
             x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
             GC.@preserve B begin
-                vu = vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
+                vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
             end
             @test x1 == tovector(vu.data[1])
             @test x2 == tovector(vu.data[2])
@@ -293,7 +310,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         ))
         x = tovector(v)
         for f ∈ [-, abs, floor, ceil, trunc, round, sqrt ∘ abs]
-            @test tovector(f(v)) == map(f, x)
+            @test tovector(@inferred(f(v))) == map(f, x)
         end
         # vpos = VectorizationBase.VecUnroll((
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
@@ -320,10 +337,10 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         i = rand(1:8sizeof(Int)); j = rand(Int);
         xi1 = tovector(vi1); xi2 = tovector(vi2);
         for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
-            @show f
-            @test tovector(f(vi1, vi2)) ≈ f.(xi1, xi2)
-            @test tovector(f(j, vi2)) ≈ f.(j, xi2)
-            @test tovector(f(vi1, i)) ≈ f.(xi1, i)
+            # @show f
+            @test tovector(@inferred(f(vi1, vi2))) ≈ f.(xi1, xi2)
+            @test tovector(@inferred(f(j, vi2))) ≈ f.(j, xi2)
+            @test tovector(@inferred(f(vi1, i))) ≈ f.(xi1, i)
         end
         
         vf1 = VectorizationBase.VecUnroll((
@@ -335,11 +352,11 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         a = randn();
         for f ∈ [+, -, *, /, %, max, min, copysign]
             # @show f
-            @test tovector(f(vf1, vf2)) ≈ f.(xf1, xf22)
-            @test tovector(f(a, vf1)) ≈ f.(a, xf1)
-            @test tovector(f(a, vf2)) ≈ f.(a, xf2)
-            @test tovector(f(vf1, a)) ≈ f.(xf1, a)
-            @test tovector(f(vf2, a)) ≈ f.(xf2, a)
+            @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
+            @test tovector(@inferred(f(a, vf1))) ≈ f.(a, xf1)
+            @test tovector(@inferred(f(a, vf2))) ≈ f.(a, xf2)
+            @test tovector(@inferred(f(vf1, a))) ≈ f.(xf1, a)
+            @test tovector(@inferred(f(vf2, a))) ≈ f.(xf2, a)
         end
     end
     @testset "Ternary Functions" begin
@@ -353,13 +370,13 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
             VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
         ]
-            @test tovector(f(v1, v2, v3)) ≈ map(f, x1, x2, x3)
-            @test tovector(f(v1, v2, a)) ≈ f.(x1, x2, a)
-            @test tovector(f(v1, a, v3)) ≈ f.(x1, a, x3)
-            @test tovector(f(a, v2, v3)) ≈ f.(a, x2, x3)
-            @test tovector(f(v1, a, b)) ≈ f.(x1, a, b)
-            @test tovector(f(a, v2, b)) ≈ f.(a, x2, b)
-            @test tovector(f(a, b, v3)) ≈ f.(a, b, x3)
+            @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
+            @test tovector(@inferred(f(v1, v2, a))) ≈ f.(x1, x2, a)
+            @test tovector(@inferred(f(v1, a, v3))) ≈ f.(x1, a, x3)
+            @test tovector(@inferred(f(a, v2, v3))) ≈ f.(a, x2, x3)
+            @test tovector(@inferred(f(v1, a, b))) ≈ f.(x1, a, b)
+            @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
+            @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
         end
     end
 end

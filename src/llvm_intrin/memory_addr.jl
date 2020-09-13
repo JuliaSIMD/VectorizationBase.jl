@@ -41,7 +41,6 @@ function offset_ptr(
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ) # vtyp is dest type
     instrs = String[]
-
     if M == 0
         ind_type = :Static
     elseif ind_type === :Static
@@ -122,8 +121,12 @@ end
 gep_returns_vector(W::Int, X::Int, M::Int, ind_type::Symbol) = (!isone(W) && ((ind_type === :Vec) || !(isone(X) | iszero(X))))
 #::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
 function gep_quote(
-    ::Type{T}, ind_type::Symbol, ::Type{I}, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
+    ::Type{T}, ind_type::Symbol, ::Type{I}, W::Int = 1, X::Int = sizeof(T), M::Int = 1, O::Int = 0, forgep::Bool = false
 ) where {T, I}
+    if W > 1 && ind_type !== :Vec
+        X, Xr = divrem(X, sizeof(T))
+        @assert iszero(Xr)
+    end
     if iszero(O) && (iszero(X) | isone(X)) && (iszero(M) || ind_type === :Static)
         return Expr(:block, Expr(:meta, :inline), :ptr)
     end
@@ -176,6 +179,10 @@ function vload_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool = false
 ) where {T <: NativeTypes, I <: Integer}
     ibits = 8sizeof(I)
+    if W > 1 && ind_type !== :Vec
+        X, Xr = divrem(X, sizeof(T))
+        @assert iszero(Xr)
+    end
     instrs, i = offset_ptr(T, ind_type, '1', ibits, W, X, M, O, false)
     
     grv = gep_returns_vector(W, X, M, ind_type)
@@ -290,6 +297,10 @@ function vstore_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align = false, noalias::Bool = false
 ) where {T <: NativeTypes, I <: Integer}
     ibits = 8sizeof(I)
+    if W > 1 && ind_type !== :Vec
+        X, Xr = divrem(X, sizeof(T))
+        @assert iszero(Xr)
+    end
     instrs, i = offset_ptr(T, ind_type, '2', ibits, W, X, M, O, false)
     
     grv = gep_returns_vector(W, X, M, ind_type)
@@ -302,20 +313,21 @@ function vstore_quote(
 
     typ = LLVM_TYPES[T]
     lret = vtyp = vtype(W, typ)
-    
+    metadata = noalias ? "!alias.scope !3, !tbaa !7" : "!tbaa !7"
     mask && truncate_mask!(instrs, '2' + dynamic_index, W, 0)
     if grv
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
-        push!(instrs, "%res = call $storeinstr($vtyp %1, <$W x typ*> %ptr, i32 $alignment, <$W x i1> $m), !alias.scope !3, !tbaa !5")
+        push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m), $metadata")
+        # push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
     elseif mask
         suff = suffix(W, T)
         storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
         decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
-        push!(instrs, "%res = call $storeinstr($vtyp %1, $vtyp* %ptr, i32 $alignment, <$W x i1> %mask.0), !alias.scope !3, !tbaa !5")
+        push!(instrs, "call $storeinstr($vtyp %1, $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0), $metadata")
     else
-        push!(instrs, "%res = store $vtyp %1, $vtyp* %ptr, align $alignment, !alias.scope !3, !tbaa !5")
+        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment, $metadata")
     end
     push!(instrs, "ret void")
     ret = :Cvoid; lret = "void"
@@ -334,7 +346,7 @@ function vstore_quote(
     end
     if mask
         push!(arg_syms, :(data(m)))
-        push!(args, mask_type(W))
+        push!(args.args, mask_type(W))
         push!(largs, "i$(max(8,nextpow2(W)))")
     end
     llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
@@ -356,10 +368,10 @@ end
     vstore_quote(T, I, :Integer, W, X, 1, 0, false, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::I) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, 1, 0, false, false, false)
+    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, false, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, Int, :Static, W, 1, 0, N, false, false, false)
+    vstore_quote(T, Int, :Static, W, sizeof(T), 0, N, false, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}) where {W, X, T <: NativeTypes, N}
     vstore_quote(T, Int, :Static, W, X, 0, N, false, false, false)
@@ -375,7 +387,7 @@ end
     vstore_quote(T, I, :Integer, W, X, M, O, false, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}) where {W, T <: NativeTypes, M, O, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, M, O, false, false, false)
+    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, false, false, false)
 end
 
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
@@ -385,10 +397,10 @@ end
     vstore_quote(T, I, :Integer, W, X, 1, 0, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::I, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, 1, 0, true, false, false)
+    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}, m::Mask{W}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, Int, :Static, W, 1, 0, N, true, false, false)
+    vstore_quote(T, Int, :Static, W, sizeof(T), 0, N, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}, m::Mask{W}) where {W, X, T <: NativeTypes, N}
     vstore_quote(T, Int, :Static, W, X, 0, N, true, false, false)
@@ -400,7 +412,7 @@ end
     vstore_quote(T, I, :Integer, W, X, M, O, true, false, false)
 end
 @generated function vstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, m::Mask{W}) where {W, T <: NativeTypes, M, O, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, M, O, true, false, false)
+    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, true, false, false)
 end
 
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::T) where {T <: NativeTypes}
@@ -419,10 +431,10 @@ end
     vstore_quote(T, I, :Integer, W, X, 1, 0, false, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::I) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, 1, 0, false, false, true)
+    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, false, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, Int, :Static, W, 1, 0, N, false, false, true)
+    vstore_quote(T, Int, :Static, W, sizeof(T), 0, N, false, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}) where {W, X, T <: NativeTypes, N}
     vstore_quote(T, Int, :Static, W, X, 0, N, false, false, true)
@@ -438,7 +450,7 @@ end
     vstore_quote(T, I, :Integer, W, X, M, O, false, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}) where {W, T <: NativeTypes, M, O, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, M, O, false, false, true)
+    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, false, false, true)
 end
 
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
@@ -448,10 +460,10 @@ end
     vstore_quote(T, I, :Integer, W, X, 1, 0, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::I, m::Mask{W}) where {W, T <: NativeTypes, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, 1, 0, true, false, true)
+    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::Static{N}, m::Mask{W}) where {W, T <: NativeTypes, N}
-    vstore_quote(T, Int, :Static, W, 1, 0, N, true, false, true)
+    vstore_quote(T, Int, :Static, W, sizeof(T), 0, N, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,Static{N}}, m::Mask{W}) where {W, X, T <: NativeTypes, N}
     vstore_quote(T, Int, :Static, W, X, 0, N, true, false, true)
@@ -463,7 +475,7 @@ end
     vstore_quote(T, I, :Integer, W, X, M, O, true, false, true)
 end
 @generated function vnoaliasstore!(ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, m::Mask{W}) where {W, T <: NativeTypes, M, O, I <: Integer}
-    vstore_quote(T, I, :Integer, W, 1, M, O, true, false, true)
+    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, true, false, true)
 end
 
 

@@ -18,9 +18,14 @@ struct TupleLength{N} end
 @inline fmap(f::F, x::Tuple{X}, y::Tuple{Y}) where {F,X,Y} = (f(first(x), first(y)),)
 @inline fmap(f::F, x::Tuple{X}, y) where {F,X} = (f(first(x), y),)
 @inline fmap(f::F, x, y::Tuple{Y}) where {F,Y} = (f(x, first(y)),)
-@inline fmap(f::F, x::NTuple, y::NTuple) where {F} = (f(first(x), first(y)), fmap(f, Base.tail(x), Base.tail(y))...)
-@inline fmap(f::F, x::NTuple, y) where {F} = (f(first(x), y), fmap(f, Base.tail(x), y)...)
-@inline fmap(f::F, x, y::NTuple) where {F} = (f(x, first(y)), fmap(f, x, Base.tail(y))...)
+@inline fmap(f::F, x::Tuple{Vararg{Any,N}}, y::Tuple{Vararg{Any,N}}) where {F,N} = (f(first(x), first(y)), fmap(f, Base.tail(x), Base.tail(y))...)
+@inline fmap(f::F, x::Tuple, y) where {F} = (f(first(x), y), fmap(f, Base.tail(x), y)...)
+@inline fmap(f::F, x, y::Tuple) where {F} = (f(x, first(y)), fmap(f, x, Base.tail(y))...)
+
+
+fmap(f::F, x::Tuple{X}, y::Tuple) where {F,X} = throw("Dimension mismatch.")
+fmap(f::F, x::Tuple, y::Tuple{Y}) where {F,Y} = throw("Dimension mismatch.")
+fmap(f::F, x::Tuple, y::Tuple) where {F} = throw("Dimension mismatch.")
 
 # ternary # 2^4 - 2 = 14 definitions, or 3
 @inline fmap(f::F, x, y, z) where {F} = fmap(f, tuple_len(x, y, z), x, y, z)
@@ -65,7 +70,12 @@ for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :
         @inline $op(v1::VecUnroll{N,W,T}, v2::VecUnroll{N,W,T}, v3::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, v2.data, Vec{W,T}(v3)))
         @inline $op(v1::VecUnroll{N,W,T}, v2::Real, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2), v3.data))
         @inline $op(v1::Real, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data, v3.data))
-        @inline $op(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data, v3.data))
+        $op(v1::VecUnroll, v2::VecUnroll, v3::Real) = throw("Size mismatch")
+        $op(v1::VecUnroll, v2::Real, v3::VecUnroll) = throw("Size mismatch")
+        $op(v1::Real, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
+        # @inline $op(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data, v3.data))
+        $op(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
+        @inline $op(v1::VecUnroll{N,W,T}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data, v2.data, v3.data))
     end
 end
 

@@ -23,10 +23,26 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul(a, ::Static{M}) where {M} = LazyMulAdd{M}(a)
 @inline lazymul(a, ::Static{1}) = a
 @inline lazymul(a, ::Static{0}) = Static{0}()
+@inline lazymul(a::LazyMulAdd, ::Static{1}) = a
+@inline lazymul(::Static{1}, a::LazyMulAdd) = a
+@inline lazymul(a::LazyMulAdd, ::Static{0}) = Static{0}()
+@inline lazymul(::Static{0}, a::LazyMulAdd) = Static{0}()
+# @inline lazymul(a::LazyMulAdd, ::Static{0}) = Static{0}()
 # @inline lazymul(::Static{M}, b::MM{W,X}) where {W,M,X} = LazyMulAdd{M}(MM{W}(b.data, Static{M}()*Static{X}()))
 # @inline lazymul(a::MM{W,X}, ::Static{M}) where {W,M,X} = LazyMulAdd{M}(MM{W}(a.data, Static{M}()*Static{X}()))
 @inline lazymul(::Static{M}, b::MM{W,X}) where {W,M,X} = MM{W}(vmul(Static{M}(), data(b)), Static{X}() * Static{M}())
 @inline lazymul(a::MM{W,X}, ::Static{M}) where {W,M,X} = MM{W}(vmul(Static{M}(), data(b)), Static{X}() * Static{M}())
+@inline lazymul(a::MM{W,X}, ::Static{0}) where {W,X} = Static{0}()
+@inline lazymul(::Static{0}, a::MM{W,X}) where {W,X} = Static{0}()
+@inline lazymul(a::MM{W,X}, ::Static{1}) where {W,X} = a
+@inline lazymul(::Static{1}, a::MM{W,X}) where {W,X} = a
+
+@inline lazymul_no_promote(::Type{T}, a, b) where {T} = lazymul_no_promote(a, b)
+@inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::Static) where {W,X,T} = MM{W}(vmul(a.i, b), mulsizeof(T, Static{X}()))
+@inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::Integer) where {W,X,T} = MM{W}(vmul(a.i, b), mulsizeof(T, Static{X}()))
+@inline lazymul_no_promote(::Type{T}, b::Static, a::MM{W,X}) where {W,X,T} = MM{W}(vmul(b, a.i), mulsizeof(T, Static{X}()))
+@inline lazymul_no_promote(::Type{T}, b::Integer, a::MM{W,X}) where {W,X,T} = MM{W}(vmul(b, a.i), mulsizeof(T, Static{X}()))
+
 # @inline lazymul(::Static{M}, b::MM{W,X,Static{N}}) where {W,M,X,N} = MM{W}(Static{N}() * Static{M}(), Static{X}() * Static{M}())
 # @inline lazymul(a::MM{W,X,Static{N}}, ::Static{M}) where {W,M,X,N} = MM{W}(Static{N}() * Static{M}(), Static{X}() * Static{M}())
 
@@ -47,6 +63,10 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 
 @inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::Static{N}) where {M,N,W,X} = LazyMulAdd(MM{W}(a.data, Static{M}()*Static{N}()*Static{X}()), Static{M}()*Static{N}())
 @inline lazymul(::Static{M}, b::LazyMulAdd{N,<:MM{W,X}}) where {M,N,W,X} = LazyMulAdd(MM{W}(b.data, Static{M}()*Static{N}()*Static{X}()), Static{M}()*Static{N}())
+@inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::Static{0}) where {M,W,X} = Static{0}()
+@inline lazymul(::Static{0}, b::LazyMulAdd{N,<:MM{W,X}}) where {N,W,X} = Static{0}()
+@inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::Static{1}) where {M,W,X} = a
+@inline lazymul(::Static{1}, b::LazyMulAdd{N,<:MM{W,X}}) where {N,W,X} = b
 @inline lazymul(a::LazyMulAdd{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(vmul(a.data, b.data), Static{M}()*Static{N}())
 
 @inline lazymul_no_promote(a, b) = vmul_no_promote(a, b)
@@ -60,15 +80,24 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul_no_promote(::Static{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(b.data, Static{M}()*Static{N}())
 @inline lazymul_no_promote(a::LazyMulAdd{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(vmul(a.data, b.data), Static{M}()*Static{N}())
 
-@inline lazyadd(a, b) = vadd(a, b)
-@inline lazyadd(a::LazyMulAdd{M,O,T}, ::Static{A}) where {M,O,T,A} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{A}())
-@inline lazyadd(::Static{A}, a::LazyMulAdd{M,O,T}) where {M,O,T,A} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{A}())
-@inline lazyadd(a::LazyMulAdd{M,O,T}, ::MM{W,X,Static{A}}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), Static{M}(), Static{O}()+Static{A}())
-@inline lazyadd(::MM{W,X,Static{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), Static{M}(), Static{O}()+Static{A}())
+# @inline lazyadd(a, b) = vadd(a, b)
+@inline vadd(a::LazyMulAdd{M,O,T}, ::Static{A}) where {M,O,T,A} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{A}())
+@inline vadd(::Static{A}, a::LazyMulAdd{M,O,T}) where {M,O,T,A} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{A}())
+@inline vadd(a::LazyMulAdd{M,O,T}, ::Static{0}) where {M,O,T} = a
+@inline vadd(::Static{0}, a::LazyMulAdd{M,O,T}) where {M,O,T} = a
+# @inline vadd(a::LazyMulAdd{M,O,T}, ::Static{A}) where {M,O,T<:MM,A} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{A}())
+# @inline vadd(::Static{A}, a::LazyMulAdd{M,O,T}) where {M,O,T,A} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{A}())
+@inline vadd(a::LazyMulAdd{M,O,T}, ::MM{W,X,Static{A}}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), Static{M}(), Static{O}()+Static{A}())
+@inline vadd(::MM{W,X,Static{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), Static{M}(), Static{O}()+Static{A}())
 
-@inline lazyadd(a::LazyMulAdd{M,O}, b::LazyMulAdd{M,A}) where {M,O,A} = LazyMulAdd(vadd(a.data, b.data), Static{M}(), Static{O}()+Static{A}())
+@inline vadd(a::LazyMulAdd{M,O}, b::LazyMulAdd{M,A}) where {M,O,A} = LazyMulAdd(vadd(a.data, b.data), Static{M}(), Static{O}()+Static{A}())
 
 @inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, b::Integer) where {M,O,W,X,I} = MM{W,X}(vadd(vmul(Static{M}(), data(a)), vadd(Static{0}(), b)))
+@inline vadd(::Static{N}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {N,M,O,W,X,I} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{N}())
+@inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, ::Static{N}) where {N,M,O,W,X,I} = LazyMulAdd(a.data, Static{M}(), Static{O}()+Static{N}())
 @inline vadd(b::Integer, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = MM{W,X}(vadd(vmul(Static{M}(), data(a)), vadd(Static{0}(), b)))
+@inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, ::Static{0}) where {M,O,W,X,I} = a
+@inline vadd(::Static{0}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
+# @inline vadd(::Static{M}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
 
 

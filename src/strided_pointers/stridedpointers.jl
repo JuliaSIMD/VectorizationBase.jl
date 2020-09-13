@@ -106,87 +106,117 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
 end
 
 # Fast compile path?
-@inline function vload(ptr::AbstractStridedPointer{<:Any,N,<:Any,<:Any,<:Any,<:Any,NTuple{N,Static{0}}}, i::Tuple{Vararg{Any,N}}) where {N}
-    vload(pointer(ptr), tdot(i, strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vload(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, i::Tuple{Vararg{Any,N}}) where {T,N,C,B,R,X}
+    vload(pointer(ptr), tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vload(ptr::AbstractStridedPointer{<:Any,N,<:Any,<:Any,<:Any,<:Any,NTuple{N,Static{0}}}, i::Tuple{Vararg{Any,N}}, m) where {N}
-    vload(pointer(ptr), tdot(i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vload(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, i::Tuple{Vararg{Any,N}}, m) where {T, N,C,B,R,X}
+    vload(pointer(ptr), tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,N,<:Any,<:Any,<:Any,<:Any,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}) where {N}
-    vstore!(pointer(ptr), v, tdot(i, strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X}
+    vstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,N,<:Any,<:Any,<:Any,<:Any,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}, m) where {N}
-    vstore!(pointer(ptr), v, tdot(i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}, m) where {T, N,C,B,R,X}
+    vstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function gep(ptr::AbstractStridedPointer{<:Any,N,<:Any,<:Any,<:Any,<:Any,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}) where {N}
-    gep(pointer(ptr), tdot(i, strides(ptr), nopromote_axis_indicator(ptr)))
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
+end
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}, m) where {T, N,C,B,R,X}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+end
+@inline function gep(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Static{0}}}, v, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X}
+    gep(pointer(ptr), tdot(T, i, strides(ptr), nopromote_axis_indicator(ptr)))
 end
 
-@inline function vload(ptr::AbstractStridedPointer{<:Any,N}, i::Tuple{Vararg{Any,N}}) where {N}
-    vload(pointer(ptr), tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vload(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X,O}
+    vload(pointer(ptr), tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vload(ptr::AbstractStridedPointer{<:Any,N}, i::Tuple{Vararg{Any,N}}, m) where {N}
-    vload(pointer(ptr), tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vload(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, i::Tuple{Vararg{Any,N}}, m) where {T, N,C,B,R,X,O}
+    vload(pointer(ptr), tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,N}, v, i::Tuple{Vararg{Any,N}}) where {N}
-    vstore!(pointer(ptr), v, tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, v, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X,O}
+    vstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,N}, v, i::Tuple{Vararg{Any,N}}, m) where {N}
-    vstore!(pointer(ptr), v, tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, v, i::Tuple{Vararg{Any,N}}, m) where {T, N,C,B,R,X,O}
+    vstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function gep(ptr::AbstractStridedPointer{<:Any,N}, i::Tuple{Vararg{Any,N}}) where {N}
-    gep(pointer(ptr), tdot(map(-, i, sdoffsets(ptr)), strides(ptr), nopromote_axis_indicator(ptr)))
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, v, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X,O}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
+end
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, v, i::Tuple{Vararg{Any,N}}, m) where {T, N,C,B,R,X,O}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
+end
+@inline function gep(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, i::Tuple{Vararg{Any,N}}) where {T, N,C,B,R,X,O}
+    gep(pointer(ptr), tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), nopromote_axis_indicator(ptr)))
 end
 
 # LinearIndexing -- no offset
 # Danger, this means 1-dim indexing is 0-based?
-@inline function vload(ptr::AbstractStridedPointer, i::Tuple{I}) where {I}
-    vload(pointer(ptr), tdot(i, strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}) where {T, I}
+    vload(pointer(ptr), tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vload(ptr::AbstractStridedPointer, i::Tuple{I}, m) where {I}
-    vload(pointer(ptr), tdot(i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m) where {T, I}
+    vload(pointer(ptr), tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function vstore!(ptr::AbstractStridedPointer, v, i::Tuple{I}) where {I}
-    vstore!(pointer(ptr), v, tdot(i, strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vstore!(ptr::AbstractStridedPointer{T}, v, i::Tuple{I}) where {T, I}
+    vstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vstore!(ptr::AbstractStridedPointer, v, i::Tuple{I}, m) where {I}
-    vstore!(pointer(ptr), v, tdot(i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vstore!(ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m) where {T, I}
+    vstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function gep(ptr::AbstractStridedPointer, i::Tuple{I}) where {I}
-    gep(pointer(ptr), tdot(i, strides(ptr), nopromote_axis_indicator(ptr)))
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T}, v, i::Tuple{I}) where {T, I}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
+end
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m) where {T, I}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+end
+@inline function gep(ptr::AbstractStridedPointer{T}, i::Tuple{I}) where {T, I}
+    gep(pointer(ptr), tdot(T, i, strides(ptr), nopromote_axis_indicator(ptr)))
 end
 
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
-@inline function vload(ptr::AbstractStridedPointer{<:Any,1}, i::Tuple{I}) where {I}
-    vload(pointer(ptr), tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}) where {T, I,C,B,R,X,O}
+    vload(pointer(ptr), tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vload(ptr::AbstractStridedPointer{<:Any,1}, i::Tuple{I}, m) where {I}
-    vload(pointer(ptr), tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, m) where {T, I,C,B,R,X,O}
+    vload(pointer(ptr), tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,1}, v, i::Tuple{I}) where {I}
-    vstore!(pointer(ptr), v, tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, v, i::Tuple{I}) where {T, I,C,B,R,X,O}
+    vstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,1}, v, i::Tuple{I}, m) where {I}
-    vstore!(pointer(ptr), v, tdot(map(-, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, v, i::Tuple{I}, m) where {T, I,C,B,R,X,O}
+    vstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function gep(ptr::AbstractStridedPointer{<:Any,1}, i::Tuple{I}) where {I}
-    gep(pointer(ptr), tdot(map(-, i, sdoffsets(ptr)), strides(ptr), nopromote_axis_indicator(ptr)))
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, v, i::Tuple{I}) where {T, I,C,B,R,X,O}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)))
+end
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, v, i::Tuple{I}, m) where {T, I,C,B,R,X,O}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m)
+end
+@inline function gep(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}) where {T, I,C,B,R,X,O}
+    gep(pointer(ptr), tdot(T, map(vsub, i, sdoffsets(ptr)), strides(ptr), nopromote_axis_indicator(ptr)))
 end
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
-@inline function vload(ptr::AbstractStridedPointer{<:Any,1,<:Any,<:Any,<:Any,<:Any,Tuple{Static{0}}}, i::Tuple{I}) where {I}
-    vload(pointer(ptr), tdot(i, strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, i::Tuple{I}) where {T, I,C,B,R,X}
+    vload(pointer(ptr), tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vload(ptr::AbstractStridedPointer{<:Any,1,<:Any,<:Any,<:Any,<:Any,Tuple{Static{0}}}, i::Tuple{I}, m) where {I}
-    vload(pointer(ptr), tdot(i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, i::Tuple{I}, m) where {T, I,C,B,R,X}
+    vload(pointer(ptr), tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,1,<:Any,<:Any,<:Any,<:Any,Tuple{Static{0}}}, v, i::Tuple{I}) where {I}
-    vstore!(pointer(ptr), v, tdot(i, strides(ptr), contiguous_axis_indicator(ptr)))
+@inline function vstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, v, i::Tuple{I}) where {T, I,C,B,R,X}
+    vstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
 end
-@inline function vstore!(ptr::AbstractStridedPointer{<:Any,1,<:Any,<:Any,<:Any,<:Any,Tuple{Static{0}}}, v, i::Tuple{I}, m) where {I}
-    vstore!(pointer(ptr), v, tdot(i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+@inline function vstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, v, i::Tuple{I}, m) where {T, I,C,B,R,X}
+    vstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function gep(ptr::AbstractStridedPointer{<:Any,1,<:Any,<:Any,<:Any,<:Any,Tuple{Static{0}}}, i::Tuple{I}) where {I}
-    gep(pointer(ptr), tdot(i, strides(ptr), nopromote_axis_indicator(ptr)))
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, v, i::Tuple{I}) where {T, I,C,B,R,X}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)))
+end
+@inline function vnoaliasstore!(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, v, i::Tuple{I}, m) where {T, I,C,B,R,X}
+    vnoaliasstore!(pointer(ptr), v, tdot(T, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
+end
+@inline function gep(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{Static{0}}}, i::Tuple{I}) where {T, I,C,B,R,X}
+    gep(pointer(ptr), tdot(T, i, strides(ptr), nopromote_axis_indicator(ptr)))
 end
 
 

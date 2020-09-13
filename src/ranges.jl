@@ -124,13 +124,13 @@ end
 # Addition
 # @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
 # @inline Base.:(+)(i::MM{W,X}, j::MM{W,Y}) where {W} = vrange(vrangeincr(Val{W}(), data(i) + data(j), Val{0}(), Static{X}() + Static{Y}()))
-@inline Base.:(+)(i::MM{W,X}, j::MM{X,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
+@inline Base.:(+)(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
 @inline Base.:(+)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline Base.:(+)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
 
 # @inline vadd(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd(i.i, j))
 # @inline vadd(j::Integer, i::MM{W,X}) where {W,X} = MM{W,X}(vadd(i.i, j))
-@inline vadd(i::MM{W,X}, j::MM{X,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
+@inline vadd(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), Static{X}() + Static{Y}())
 @inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
 # Subtraction
@@ -155,6 +155,7 @@ end
 @inline vmul_no_promote(a::MM{W}, b) where {W} = MM{W}(vmul(a.i, b))
 @inline vmul_no_promote(a, b::MM{W}) where {W} = MM{W}(vmul(a, b.i))
 @inline vmul_no_promote(a::MM{W}, b::MM{W}) where {W} = vmul(a, b) # must promote
+vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 
 # Division
 @generated function floattype(::Val{W}) where {W}
@@ -185,8 +186,8 @@ for op ∈ [:(&), :(|), :(⊻), :(%)]
     @eval @inline Base.$op(i::MM, j::MM) = $op(Vec(i), Vec(j))
 end
 
-@inline vadd(::MM{W,Zero}, v::AbstractSIMDVector{W,T}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)
-@inline vadd(v::AbstractSIMDVector{W,T}, ::MM{W,Zero}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)
+# @inline vadd(::MM{W,Zero}, v::AbstractSIMDVector{W,T}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)
+# @inline vadd(v::AbstractSIMDVector{W,T}, ::MM{W,Zero}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)
 @inline vadd(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
 # @inline vadd(a::MM, ::Zero) = a
 # @inline vadd(::Zero, a::MM) = a

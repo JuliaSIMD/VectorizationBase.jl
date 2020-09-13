@@ -193,6 +193,10 @@ end
 @inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width_val(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
+@generated function valrem(::Val{W}, l) where {W}
+    ex = ispow2(W) ? :(l & $(W - 1)) : :(l % $W)
+    Expr(:block, Expr(:meta, :inline), ex)
+end
 @generated function mask(::Val{W}, l::Integer) where {W}
     M = mask_type(W)
     quote

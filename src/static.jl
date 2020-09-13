@@ -132,6 +132,7 @@ end
 @inline vsub(::Static{N}, ::Zero) where {N} = Static{N}()
 # @inline vsub(::Zero, ::Static{N}) where {N} = Static{-N}()
 @inline vsub(::Zero, ::Zero) = Zero()
+@inline vsub(a::Number, ::Zero) = a
 @inline vsub(a, ::Zero) = a
 
 @inline vadd(::Static{N}, ::Zero) where {N} = Static{N}()
@@ -150,6 +151,10 @@ end
 @inline vmul(::One, a::Number) = a
 @inline vmul(::Zero, ::One) = Zero()
 @inline vmul(::One, ::Zero) = Zero()
+@inline vmul(i::MM{W,X}, ::Static{N}) where {W,X,N} = MM{W}(vmul(data(i), Static{N}()), Static{X}() * Static{N}())
+@inline vmul(i::MM{W,X}, ::Static{1}) where {W,X} = i
+@inline vmul(::Static{N}, i::MM{W,X}) where {W,X,N} = MM{W}(vmul(data(i), Static{N}()), Static{X}() * Static{N}())
+@inline vmul(::Static{1}, i::MM{W,X}) where {W,X} = i
 
 # @inline Base.:<<(::Static{N}, i) where {N} = shl(N, i)
 # @inline Base.:<<(i, ::Static{N}) where {N} = shl(i, N)
