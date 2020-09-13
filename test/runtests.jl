@@ -265,6 +265,26 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         end
     end
 
+    @testset "Grouped Strided Pointers" begin
+        M, K, N = 4, 5, 6
+        A = rand(M, K); B = rand(K, N); C = rand(M, N);
+        fs = [identity, adjoint]
+        for fA ∈ fs, fB ∈ fs, fC ∈ fs
+            At = fA === identity ? A : copy(A')'
+            Bt = fB === identity ? B : copy(B')'
+            Ct = fC === identity ? C : copy(C')'
+            gsp = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
+            if fA === fC
+                @test sizeof(gsp.strides) == 2sizeof(Int)
+            end
+            @test sizeof(gsp.offsets) == 0
+            pA, pB, pC = VectorizationBase.stridedpointers(gsp)
+            @test pA === stridedpointer(At)
+            @test pB === stridedpointer(Bt)
+            @test pC === stridedpointer(Ct)
+        end
+    end
+
     @testset "Unary Functions" begin
         v = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),

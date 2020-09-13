@@ -11,7 +11,9 @@ struct GroupedStridedPointers{P,C,B,R,I,X,O}
     offsets::O
 end
 
-@inline GroupedStridedPointers{P,C,B,R,I}(ptrs::P, strides::X, offsets::O) = GroupedStridedPointers{P,C,B,R,I,X,O}(ptrs, strides, offsets)
+@inline function GroupedStridedPointers{P,C,B,R,I}(ptrs::P, strides::X, offsets::O) where {P,C,B,R,I,X,O}
+    GroupedStridedPointers{P,C,B,R,I,X,O}(ptrs, strides, offsets)
+end
 
 """
 G is a tuple(tuple((A_ind,A's dim),(A_ind,A's dim)), ())
@@ -23,9 +25,9 @@ it gives the groups.
         map(contiguous_axis, A),
         map(contiguous_batch_size, A),
         map(stride_rank, A),
-        map(sdstrides, A),
+        map(sdbytestrides, A),
         map(sdoffsets, A),
-        map(dense_dims, A),
+        map(ArrayInterface.dense_dims, A),
         Val{G}()
     )
 end
@@ -77,18 +79,22 @@ function matching_values(Xₙ, j, Xₚ, k)::Bool
     xₚₖ === Int && return false
     xₙⱼ === xₚₖ
 end
-function check_match(pm, Rₙ, Sₙ, Xₙ, Dₙ, j, Rₚ, Sₚ, Dₚ, Xₚ, k)::Bool
+
+function check_match(pm, Rₙ, Sₙ, Xₙ, Dₙ, j, Rₚ, Sₚ, Xₚ, Dₚ, k)::Bool
     # if strides match, we're done
+    # @show Xₙ, j, Xₚ, k
     matching_values(Xₙ, j, Xₚ, k) && return true
     Rₙⱼ = Rₙ[j]
     Rₚₖ = Rₚ[k]
-    if Rₚₖ > 1 && Rₙₖ > 1
+    if Rₚₖ > 1 && Rₙⱼ > 1
         # Otherwise, we check preceding axis
-        nind = Sₙ[Rₙₖ-1]
+        nind = Sₙ[Rₙⱼ-1]
         pind = Sₚ[Rₚₖ-1]
-        # for them being of equal size, 
+        # matching_values(Xₙ, nind, Xₚ, pind) && return true
+        # for them being of equal size,
+        # @show pm[nind, pind], Dₙ[nind], Dₚ[pind], nind, pind
         if pm[nind, pind] && Dₙ[nind] && Dₚ[pind]
-            return check_match(pm, Rₙ, Sₙ, Xₙ, Dₙ, nind, Rₚ, Sₚ, Dₚ, Xₚ, pind)
+            return check_match(pm, Rₙ, Sₙ, Xₙ, Dₙ, nind, Rₚ, Sₚ, Xₚ, Dₚ, pind)
         end
     # elseif isone(Rₚₖ) && isone(Rₙⱼ)
     end
@@ -105,13 +111,16 @@ end
     for g ∈ G
         # each `g` is a tuple of (array ind, paired dim)
         ng = length(g)
+        # @show g
         for i ∈ 1:ng
             ai, di = g[i]
-            idim = length(Xₙ.parameters[ai])
+            # @show ai, di
+            idim = length(X.parameters[ai].parameters)
             for j ∈ i+1:ng
                 aj, dj = g[j]
-                jdim = length(Xₙ.parameters[aj])
-                pm = if isdefined(m, LinearIndices(m)[ai,aj])
+                # @show aj, dj
+                jdim = length(X.parameters[aj].parameters)
+                pm = if isassigned(m, LinearIndices(m)[ai,aj])
                     m[ai, aj]
                 elseif ai < aj
                     m[ai,aj] = m[aj,ai] = fill(false, jdim, idim)
@@ -128,6 +137,7 @@ end
             end
         end
     end
+    # @show m G
     # Here we check for static size equivalence info
     # m contains information on matching sizes
     q = Expr(:block, Expr(:meta, :inline))
@@ -146,17 +156,17 @@ end
             Dₙ = D.parameters[n].parameters[1]
             xₙ = Symbol(:x_,n)
             oₙ = Symbol(:o_,n)
-            push!(q.args, Expr(:(=), xₙ, Expr(:ref, :x, n)))
-            push!(q.args, Expr(:(=), oₙ, Expr(:ref, :o, n)))
+            xₙ_oₙ_not_extracted = true
             for j in 1:ndim
                 # Here, we now check if we actually need to add info, or if we can find it
                 match = false
                 Rₙⱼ = (Rₙ[j])::Int
                 # nprev_max = isone(Rₙⱼ) ? 0 : n - 1
-                nprev_max = n - 1
-                for nprev in 1:nprev_max
-                    isdefined(m, LinearIndices(m)[n,nprev]) || continue
+                for nprev in 1:n - 1
+                    # @show n, nprev
+                    isassigned(m, LinearIndices(m)[n,nprev]) || continue
                     pm = m[n, nprev] # just accessing lower triangle, but matrix is symmetric
+                    # @show pm
                     # pm is ndim_n x ndim_nprev
                     # we need to search back through stride ranks...
                     for k ∈ axes(pm,1)
@@ -170,17 +180,23 @@ end
                             break
                         end
                     end
+                    match && break
                 end
                 if !match
+                    if xₙ_oₙ_not_extracted
+                        push!(q.args, Expr(:(=), xₙ, Expr(:ref, :x, n)))
+                        push!(q.args, Expr(:(=), oₙ, Expr(:ref, :o, n)))
+                        xₙ_oₙ_not_extracted = false
+                    end
                     push!(Xt.args, Expr(:ref, xₙ, j))
                     push!(Ot.args, Expr(:ref, oₙ, j))
-                    push!(It.args, (i += 1))
+                    push!(Itt.args, (i += 1))
                 end
             end
         end
         push!(It.args, Itt)
     end    
-    push!(q.args, :(GroupedStridedPointers{$P,$Ct,$Bt,$Rt,$It}($Xt, $Ot)))
+    push!(q.args, :(GroupedStridedPointers{$P,$Ct,$Bt,$Rt,$It}(ptrs, $Xt, $Ot)))
     q
 end
 

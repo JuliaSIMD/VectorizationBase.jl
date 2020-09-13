@@ -17,6 +17,9 @@
 @inline mulsizeof(::Type{T}, ::Tuple{}) where {T} = ()
 @inline mulsizeof(::Type{T}, x::Tuple{X}) where {T,X} = (mulsizeof(T, first(x)), )
 @inline mulsizeof(::Type{T}, x::Tuple) where {T} = (mulsizeof(T, first(x)), mulsizeof(T, Base.tail(x))...)
+
+@inline sdbytestrides(A::AbstractArray{T}) where {T} = mulsizeof(T, sdstrides(A))
+
 # @generated function mulsizeof(::Type{T}, ::Type{S}) where {T, N, S <: Tuple{Vararg{Any,N}}}
 #     Smul = Expr(:curly, :Tuple)
 #     for n in 1:N
@@ -31,7 +34,7 @@
 
 @inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
 @inline memory_reference(::CPUPointer, A) = pointer(A)
-@inline memory_reference(::ArrayInterface.CheckParent, A)
+@inline function memory_reference(::ArrayInterface.CheckParent, A)
     P = parent(A)
     if P === A
         memory_reference(ArrayInterface.CPUIndex(), A)
@@ -64,7 +67,7 @@ end
 
 
 @inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
-    stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), stride_rank(A), mulsizeof(T, sdstrides(A)), sdoffsets(A))
+    stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), stride_rank(A), sdbytestrides(A), sdoffsets(A))
 end
 @inline function stridedpointer(
     ptr::Ptr{T}, ::Contiguous{C}, ::ContiguousBatch{B}, ::StrideRank{R}, strd::X, offsets::O
