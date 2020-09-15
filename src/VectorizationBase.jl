@@ -81,6 +81,7 @@ end
 @inline Base.copy(v::AbstractSIMDVector) = v
 @inline asvec(x::_Vec) = Vec(x)
 @inline asvec(x) = x
+@inline data(vu::VecUnroll) = vu.data
 
 # struct VecUnroll{N,W,T} <: AbstractSIMDVector{W,T}
 #     data::NTuple{N,Vec{W,T}}

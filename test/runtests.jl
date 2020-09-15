@@ -5,7 +5,7 @@ using Test
 const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 const VE = Core.VecElement
-
+randnvec(N = Val{W64}()) = Vec(ntuple(_ -> Core.VecElement(randn()), N))
 function tovector(u::VectorizationBase.VecUnroll{_N,W,T}) where {_N,W,T}
     N = _N + 1; i = 0
     x = Vector{T}(undef, N * W)
@@ -240,7 +240,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
                 @test x == tovector(v)
             end
             for store! ∈ (vstore!, VectorizationBase.vnoaliasstore!)
-                y = isone(length(x)) ? randn() : Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
+                y = isone(length(x)) ? randn() : randnvec(length(x))
                 GC.@preserve B store!(stridedpointer(B), y, (i, j, k))
                 x = getindex.(Ref(B), iv, jv, kv)
                 # @show i, j, k typeof.((i, j, k)), store!, typeof(B) y
@@ -253,35 +253,55 @@ A = randn(13, 17); L = length(A); M, N = size(A);
                 end
             end
         end
-        for AU ∈ 1:3, AV ∈ 1:3, B ∈ [A, P, O]
+        for AU ∈ 1:3, B ∈ [A, P, O]
             i, j, k = 2, 3, 4
-            ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
-            x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-            if AU == 1
-                ir = ir .+ length(ir)
-            elseif AU == 2
-                jr = jr .+ length(jr)
-            elseif AU == 3
-                kr = kr .+ length(kr)
-            end
-            x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-            if AU == 1
-                ir = ir .+ length(ir)
-            elseif AU == 2
-                jr = jr .+ length(jr)
-            elseif AU == 3
-                kr = kr .+ length(kr)
-            end
-            x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-            GC.@preserve B begin
-                vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
-            end
-            @test x1 == tovector(vu.data[1])
-            @test x2 == tovector(vu.data[2])
-            @test x3 == tovector(vu.data[3])
-        end
-    end
+            for AV ∈ 1:3
 
+                v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
+                GC.@preserve B begin
+                    vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
+                    vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+                end
+                @test v1 === vu.data[1]
+                @test v2 === vu.data[2]
+                @test v3 === vu.data[3]
+                
+                ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
+                x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                if AU == 1
+                    ir = ir .+ length(ir)
+                elseif AU == 2
+                    jr = jr .+ length(jr)
+                elseif AU == 3
+                    kr = kr .+ length(kr)
+                end
+                x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                if AU == 1
+                    ir = ir .+ length(ir)
+                elseif AU == 2
+                    jr = jr .+ length(jr)
+                elseif AU == 3
+                    kr = kr .+ length(kr)
+                end
+                x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                
+                @test x1 == tovector(vu.data[1])
+                @test x2 == tovector(vu.data[2])
+                @test x3 == tovector(vu.data[3])
+
+            end
+            v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
+            GC.@preserve B begin
+                vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,W64,zero(UInt)}((i, j, k)))
+            end
+            ir = 0:(AU == 1 ? 4 : 0); jr = 0:(AU == 2 ? 4 : 0); kr = 0:(AU == 3 ? 4 : 0)
+            xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+            @test xvs ≈ map(VectorizationBase.vsum, [v1,v2,v3,v4,v5])
+        end
+
+        
+    end
+    
     @testset "Grouped Strided Pointers" begin
         M, K, N = 4, 5, 6
         A = rand(M, K); B = rand(K, N); C = rand(M, N);

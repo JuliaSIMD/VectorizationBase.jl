@@ -421,6 +421,13 @@ end
 
 @inline IfElse.ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = IfElse.ifelse(m, f(a...), a[K])
 
+"""
+Fast approximate reciprocal.
+
+Guaranteed accurate to at least 2^-14 ≈ 6.103515625e-5.
+
+Useful for special funcion implementations.
+"""
 @inline inv_approx(x) = Base.FastMath.inv_fast(x)
 @inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, v.data))
 @generated function inv_approx(v::Vec{W,T}) where {W, T <: Union{Float32, Float64}}
