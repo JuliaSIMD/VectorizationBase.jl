@@ -25,8 +25,8 @@ it gives the groups.
         map(contiguous_axis, A),
         map(contiguous_batch_size, A),
         map(stride_rank, A),
-        map(sdbytestrides, A),
-        map(sdoffsets, A),
+        map(bytestrides, A),
+        map(offsets, A),
         map(ArrayInterface.dense_dims, A),
         Val{G}()
     )

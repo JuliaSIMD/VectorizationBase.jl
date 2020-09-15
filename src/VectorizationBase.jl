@@ -3,7 +3,7 @@ module VectorizationBase
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
 using ArrayInterface: Static, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
     Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
-    known_length, known_first, known_last, sdstrides, sdoffsets
+    known_length, known_first, known_last, strides, offsets
 using IfElse
 # using LinearAlgebra: Adjoint, 
 
@@ -256,7 +256,6 @@ include("llvm_intrin/vbroadcast.jl")
 include("llvm_intrin/vector_ops.jl")
 include("fmap.jl")
 include("promotion.jl")
-# include("number_vectors.jl")
 include("ranges.jl")
 include("alignment.jl")
 include("precompile.jl")

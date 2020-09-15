@@ -42,18 +42,19 @@ Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
 @inline _maybestaticlength(::Any, L::Int) = Static{L}()
 @inline maybestaticlength(a::T) where {T} = _maybestaticlength(a, known_length(T))
 # @inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
-@inline maybestaticsize(A, ::Val{I}) where {I} = maybestaticlength(axes(A, I))
+
+# @inline maybestaticsize(A, ::Val{I}) where {I} = maybestaticlength(axes(A, I))
 # @inline maybestaticsize(A::AbstractArray{<:Any,0}, ::Val{1:2}) = (1, 1)
 # @inline maybestaticsize(A::AbstractVector, ::Val{1:2}) = (length(A), 1)
 # @inline maybestaticsize(A::AbstractMatrix, ::Val{1:2}) = size(A)
 # @inline maybestaticsize(A::AbstractArray, ::Val{1:2}) = (size(A,1),size(A,2))
 # Former is not type stable
 # @inline maybestaticsize(A::AbstractArray{<:Any,N}) where {N} = ntuple(n -> maybestaticsize(A, Val{n}()), Val{N}())
-@generated function maybestaticsize(A::AbstractArray{<:Any,N}) where {N}
-    out = Expr(:tuple)
-    foreach(n -> push!(out.args, :(maybestaticsize(A, Val{$n}()))), 1:N)
-    out
-end
+# @generated function maybestaticsize(A::AbstractArray{<:Any,N}) where {N}
+#     out = Expr(:tuple)
+#     foreach(n -> push!(out.args, :(maybestaticsize(A, Val{$n}()))), 1:N)
+#     out
+# end
 # @inline maybestaticlength(A) = length(A)
 
 # @inline maybestaticfirstindex(A::AbstractArray, ::Val{I}) where {I} = firstindex(A, I)
