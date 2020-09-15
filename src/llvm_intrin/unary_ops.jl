@@ -24,4 +24,6 @@ end
 @inline Base.:(-)(v::Vec{1,<:FloatingTypes}) = -first(v)
 @inline Base.:(-)(v::Vec{<:Any,<:NativeTypes}) = zero(v) - v
 
+@inline Base.inv(v::Vec) = vdiv(one(v), v)
+
 

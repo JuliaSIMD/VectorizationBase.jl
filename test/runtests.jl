@@ -309,9 +309,10 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
         ))
         x = tovector(v)
-        for f ∈ [-, abs, floor, ceil, trunc, round, sqrt ∘ abs]
+        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
             @test tovector(@inferred(f(v))) == map(f, x)
         end
+        @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = 2^-14)
         # vpos = VectorizationBase.VecUnroll((
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),

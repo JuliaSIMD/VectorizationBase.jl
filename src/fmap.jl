@@ -45,6 +45,7 @@ fmap(f::F, x::Tuple, y::Tuple) where {F} = throw("Dimension mismatch.")
 for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt]
     @eval @inline Base.$op(v1::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data))
 end
+@inline Base.inv(v::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(vdiv, vbroadcast(Val{W}(), one(T)), v.data))
 
 for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷,:max,:min,:copysign,:^]
     @eval begin

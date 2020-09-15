@@ -421,3 +421,36 @@ end
 
 @inline IfElse.ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = IfElse.ifelse(m, f(a...), a[K])
 
+@inline inv_approx(x) = Base.FastMath.inv_fast(x)
+@inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, v.data))
+@generated function inv_approx(v::Vec{W,T}) where {W, T <: Union{Float32, Float64}}
+    ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)) || return Expr(:block, Expr(:meta, :inline), :(inv(v)))
+    bits = 8sizeof(T) * W
+    if (AVX512F && (bits === 512)) || (AVX512VL && (bits ∈ (128, 256)))
+        typ = T === Float64 ? "double" : "float"
+        vtyp = "<$W x $(typ)>"
+        dors = T === Float64 ? "d" : "s"
+        f = "@llvm.x86.avx512.rcp14.p$(dors).$(bits)"
+        decl = "declare $(vtyp) $f($(vtyp), $(vtyp), i$(min(8,W))) nounwind readnone"
+        instrs = "%res = call $(vtyp) $f($vtyp %0, $vtyp zeroinitializer, i$(min(8,W)) -1)\nret $(vtyp) %res"
+        return llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], [:(data(v))])
+    end
+    if (AVX && (W == 8)) && (T === Float32)
+        decl = "declare <8 x float> @llvm.x86.avx.rcp.ps.256(<8 x float>) nounwind readnone"
+        instrs = "%res = call <8 x float> @llvm.x86.avx.rcp.ps.256(<8 x float> %0)\nret <8 x float> %res"
+        return llvmcall_expr(decl, instrs, :(_Vec{8,Float32}), :(Tuple{_Vec{8,Float32}}), "<8 x float>", ["<8 x float>"], [:(data(v))])
+    elseif W == 4
+        decl = "declare <4 x float> @llvm.x86.sse.rcp.ps(<4 x float>) nounwind readnone"
+        instrs = "%res = call <4 x float> @llvm.x86.sse.rcp.ps(<4 x float> %0)\nret <4 x float> %res"
+        if T === Float32
+            return llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), "<4 x float>", ["<4 x float>"], [:(data(v))])
+            :(data(v))
+        else#if T === Float64
+            argexpr = [:(data(convert(Float32, v)))]
+            call = llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), vtyp, [vtyp], argexpr, true)
+            return Expr(:block, Expr(:meta, :inline), :(convert(Float64, $call)))
+        end
+    end
+    Expr(:block, Expr(:meta, :inline), :(inv(v)))
+end
+

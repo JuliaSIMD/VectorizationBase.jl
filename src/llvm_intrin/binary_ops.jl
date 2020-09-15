@@ -77,6 +77,12 @@ for (op,f,s) ∈ [("ashr",:>>,0x01),("lshr",:>>,0x02),("lshr",:>>>,0x03),("and",
     end
     @eval @generated $fdef = binary_op($op, W, T)
     @eval @generated $ffdef = binary_op($op, 1, T)
+    if op !== "ashr" # skip first iteration...
+        @eval begin
+            @inline Base.$f(v::Vec, i::Real) = ((x, y) = promote(v, i); $f(x, y))
+            @inline Base.$f(i::Real, v::Vec) = ((x, y) = promote(v, i); $f(x, y))
+        end
+    end
 end
 for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
     ff = Symbol('v', op); _ff = Symbol(:_, ff)
@@ -84,10 +90,10 @@ for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
     @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
 end
 
-for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vfdiv),("frem",:%,:vrem)]
-    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T} = binary_op($(op * " nsz arcp contract afn reassoc"), W, T)
+for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vdiv),("frem",:%,:vrem)]
+    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($(op * " nsz arcp contract afn reassoc"), W, T)
+    @eval @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($op, W, T)
 end
-@inline Base.inv(v::Vec) = vdiv(one(v), v)
 
 @inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
 

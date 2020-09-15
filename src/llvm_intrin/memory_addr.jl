@@ -541,8 +541,9 @@ end
     vload_unroll_quote(D, AU, F, N, AV, W, M, true)
 end
 
-function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool)
+function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool, noalias::Bool)
     t = Expr(:tuple)
+    f = noalias ? :vnoaliasstore! : :vstore!
     inds = unrolled_indicies(D, AU, F, N, AV, W)
     q = quote
         $(Expr(:meta, :inline))
@@ -550,7 +551,7 @@ function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M
         t = data(v)
     end
     for n in 1:N
-        l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n), inds[n])
+        l = Expr(:call, f, :gptr, Expr(:ref, :t, n), inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
         M >>= 1
         push!(q.args, l)
@@ -558,11 +559,131 @@ function vstore_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M
     q
 end
 @generated function vstore!(ptr::AbstractStridedPointer{T,D}, v::VecUnroll{N,W}, u::Unroll{AU,F,N,AV,W,M,I}) where {AU,F,N,AV,W,M,I,T,D}
-    vstore_unroll_quote(D, AU, F, N, AV, W, M, false)
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, false, false)
 end
 @generated function vstore!(ptr::AbstractStridedPointer{T,D}, v::VecUnroll{N,W}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}) where {AU,F,N,AV,W,M,I,T,D}
-    vstore_unroll_quote(D, AU, F, N, AV, W, M, true)
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, true, false)
 end
+@generated function vnoaliasstore!(ptr::AbstractStridedPointer{T,D}, v::VecUnroll{N,W}, u::Unroll{AU,F,N,AV,W,M,I}) where {AU,F,N,AV,W,M,I,T,D}
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, false, true)
+end
+@generated function vnoaliasstore!(ptr::AbstractStridedPointer{T,D}, v::VecUnroll{N,W}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}) where {AU,F,N,AV,W,M,I,T,D}
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, true, true)
+end
+
+@inline vstore!(::typeof(identity), ptr, v, u) = vstore!(ptr, v, u)
+@inline vstore!(::typeof(identity), ptr, v, u, m) = vstore!(ptr, v, u, m)
+@inline vnoaliasstore!(::typeof(identity), ptr, v, u) = vnoaliasstore!(ptr, v, u)
+@inline vnoaliasstore!(::typeof(identity), ptr, v, u, m) = vnoaliasstore!(ptr, v, u, m)
+
+@generated function vstore!(
+    ::typeof(vsum), ptr::AbstractStridedPointer{T,D}, v::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}
+) where {T,D,U,AU,F,N,AV,W,M,I}
+    
+end
+    
+function transposeshuffle0(split, W)
+    tup = Expr(:tuple)
+    w = 0
+    S = 1 << split
+    while w < W
+        for s ∈ 0:S-1
+            push!(tup.args, w + s)
+        end
+        for s ∈ 0:S-1
+            # push!(tup.args, w + S + W + s)
+            push!(tup.args, w + W + s)
+        end
+        w += 2S
+    end
+    Expr(:call, Expr(:curly, :Val, tup))
+end
+function transposeshuffle1(split, W)
+    tup = Expr(:tuple)
+    w = 0
+    S = 1 << split
+    while w < W
+        for s ∈ 0:S-1
+            push!(tup.args, w+S + s)
+        end
+        for s ∈ 0:S-1
+            # push!(tup.args, w + W + s)
+            push!(tup.args, w + S + W + s)
+        end
+        w += 2S
+    end
+    Expr(:call, Expr(:curly, :Val, tup))
+end
+
+function horizonal_reduce_store_expr(W, Ntotal, op = :+, reduct = :vsum, noalias::Bool = false)
+    N = prevpow2(Ntotal)
+    q = Expr(:block, Expr(:meta, :inline), Expr(:(=), :bptr, Expr(:call, :gep, :ptr, :i)))
+    store = noalias ? :vnoaliasstore! : :vstore!
+    @assert ispow2(W)
+    if N > 1
+        extractblock = Expr(:block)
+        vectors = [Symbol(:v_, n) for n ∈ 0:N-1]
+        for n ∈ 1:N
+            push!(extractblock.args, Expr(:(=), vectors[n], Expr(:ref, :v, n)))
+        end
+        push!(q.args, Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), extractblock))
+        ncomp = 0
+        minWN = min(W,N)
+        while ncomp < N
+            Nt = minWN;
+            Wt = W
+            splits = 0
+            while Nt > 1
+                Nt >>>= 1
+                shuffle0 = transposeshuffle0(splits, Wt)
+                shuffle1 = transposeshuffle1(splits, Wt)
+                splits += 1
+                for nh ∈ 1:Nt
+                    n1 = 2nh
+                    n0 = n1 - 1
+                    v0 = vectors[n0 + ncomp]; v1 = vectors[n1 + ncomp]; vh = vectors[nh + ncomp];
+                    # combine n0 and n1
+                    push!(q.args, Expr(
+                        :(=), vh, Expr(
+                            :call, op,
+                            Expr(:call, :shufflevector, v0, v1, shuffle0),
+                            Expr(:call, :shufflevector, v0, v1, shuffle1))
+                    ))
+                end
+            end
+            # v0 is now the only vector
+            v0 = vectors[ncomp + 1]
+            while Wt > minWN
+                Wh = Wt >>> 1
+                push!(q.args, Expr(
+                    :(=), v0, Expr(
+                        :call, op,
+                        Expr(:call, :shufflevector, v0, Expr(:call, Expr(:curly, :Val, Expr(:tuple, [w for w ∈ 0:Wh-1]...)))),
+                        Expr(:call, :shufflevector, v0, Expr(:call, Expr(:curly, :Val, Expr(:tuple, [w for w ∈ Wh:Wt-1]...)))))
+                )
+                      )
+                Wt = Wh
+            end
+            push!(q.args, Expr(:call, store, :bptr, v0))
+            ncomp += minWN
+        end
+    end
+    for n ∈ N+1:Ntotal
+        push!(
+            q.args,
+            Expr(
+                :call, store,
+                Expr(:call, :gep, :bptr, Expr(:tuple, n-1)),
+                Expr(
+                    :call, reduct,
+                    Expr(:macrocall, Symbol("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), Expr(:ref, :v, n))
+                )
+            )
+        )
+    end
+    q
+end
+
 
 """
 O - An `NTuple{M,NTuple{N,Int}}` tuple of tuples, specifies offsets of `N`-dim array for each of `M` loads.
