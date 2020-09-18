@@ -1,10 +1,10 @@
 module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
-using ArrayInterface: Static, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
+using ArrayInterface: StaticInt, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
     Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
     known_length, known_first, known_last, strides, offsets
-using IfElse
+import IfElse: ifelse
 # using LinearAlgebra: Adjoint, 
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
@@ -12,7 +12,7 @@ using IfElse
 ## Until SIMDPirates stops importing it
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
-export Vec, Mask, MM, stridedpointer, vload, vstore!, Static, vbroadcast, mask
+export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, vbroadcast, mask
 
 # using Base: llvmcall
 using Base: llvmcall, VecElement
@@ -26,8 +26,8 @@ using Base: llvmcall, VecElement
 #     pick_vector_width_shift,
 #     stridedpointer,
 #     PackedStridedPointer, RowMajorStridedPointer,
-#     StaticStridedPointer, StaticStridedStruct,
-#     vload, vstore!, vbroadcast, Static, mask, masktable
+#     StaticIntStridedPointer, StaticIntStridedStruct,
+#     vload, vstore!, vbroadcast, StaticInt, mask, masktable
 
 # @static if VERSION < v"1.4"
 #     # I think this is worth using, and simple enough that I may as well.
@@ -53,12 +53,12 @@ const NativeTypes = Union{Bool,Base.HWReal}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
-# @eval struct Static{N} <: Number
-#     (f::Type{<:Static})() = $(Expr(:new,:f))
+# @eval struct StaticInt{N} <: Number
+#     (f::Type{<:StaticInt})() = $(Expr(:new,:f))
 # end
-# Base.@pure Static(N) = Static{N}()
+# Base.@pure StaticInt(N) = StaticInt{N}()
 
-abstract type AbstractSIMDVector{W,T <: Union{Static,NativeTypes}} <: Real end
+abstract type AbstractSIMDVector{W,T <: Union{StaticInt,NativeTypes}} <: Real end
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
     @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T} = new{W,T}(x)
@@ -223,7 +223,7 @@ struct MM{W,X,I<:Number} <: AbstractSIMDVector{W,I}
     @inline MM{W,X}(i::T) where {W,X,T} = new{W,X::Int,T}(i)
 end
 @inline MM{W}(i) where {W} = MM{W,1}(i)
-@inline MM{W}(i, ::Static{X}) where {W,X} = MM{W,X}(i)
+@inline MM{W}(i, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = i.i
 
 getelement(i::MM{W,X}, j) where {W,X} = i.i + X * (j-1)

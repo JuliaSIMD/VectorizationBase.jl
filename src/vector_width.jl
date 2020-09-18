@@ -39,13 +39,13 @@ pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}
 pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
 
 
-# @inline vadd(::Static{i}, j) where {i} = vadd(i, j)
-# @inline vadd(i, ::Static{j}) where {j} = vadd(i, j)
-# @inline vsub(::Static{i}, j) where {i} = vsub(i, j)
-# @inline vsub(i, ::Static{j}) where {j} = vsub(i, j)
+# @inline vadd(::StaticInt{i}, j) where {i} = vadd(i, j)
+# @inline vadd(i, ::StaticInt{j}) where {j} = vadd(i, j)
+# @inline vsub(::StaticInt{i}, j) where {i} = vsub(i, j)
+# @inline vsub(i, ::StaticInt{j}) where {j} = vsub(i, j)
 
-# @inline staticmul(::Val{W}, i) where {W} = vmul(Static(W), i)
-# @inline staticmuladd(::Val{W}, b, c) where {W} = vadd(vmul(Static(W), b), c)
+# @inline staticmul(::Val{W}, i) where {W} = vmul(StaticInt(W), i)
+# @inline staticmuladd(::Val{W}, b, c) where {W} = vadd(vmul(StaticInt(W), b), c)
 # @inline valmul(::Val{W}, i) where {W} = vmul(W, i)
 # @inline valadd(::Val{W}, i) where {W} = vadd(W, i)
 # @inline valsub(::Val{W}, i) where {W} = vsub(W, i)
@@ -73,14 +73,14 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline staticp1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vadd(i.i, one(I)))
 @inline vadd(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd(i.i, j))
 @inline vadd(i::Integer, j::MM{W,X}) where {W,X} = MM{W,X}(vadd(i, j.i))
-@inline vadd(i::MM{W,X}, ::Static{j}) where {W,X,j} = MM{W,X}(vadd(i.i, j))
-@inline vadd(::Static{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd(i, j.i))
-@inline vadd(i::MM{W,X}, ::Static{0}) where {W,X} = i
-@inline vadd(::Static{0}, j::MM{W,X}) where {W,X} = j
-# @inline vadd(i::MM{W,X}, j::MM{W,S}) where {W,X,S} = MM{W}(vadd(i.i, j.i), Static{X}() + Static{S}())
+@inline vadd(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd(i.i, j))
+@inline vadd(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd(i, j.i))
+@inline vadd(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
+@inline vadd(::StaticInt{0}, j::MM{W,X}) where {W,X} = j
+# @inline vadd(i::MM{W,X}, j::MM{W,S}) where {W,X,S} = MM{W}(vadd(i.i, j.i), StaticInt{X}() + StaticInt{S}())
 @inline vsub(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub(i.i, j))
-@inline vsub(i::MM{W,X}, ::Static{j}) where {W,X,j} = MM{W,X}(vsub(i.i, j))
-@inline vsub(i::MM{W,X}, ::Static{0}) where {W,X} = i
+@inline vsub(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub(i.i, j))
+@inline vsub(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 # @inline vmul_no_promote(i, j) = vmul(i,j)
 # @inline vmul_no_promote(i, j::MM{W,X}) where {W,X} = MM{W,X}(vmul(i, j.i))
 # @inline vmuladdnp(a, b, c) = vadd(vmul(a,b), c)
@@ -91,46 +91,46 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 
 @inline Base.:(+)(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd(i.i, j))
 @inline Base.:(+)(i::Integer, j::MM{W,X}) where {W,X} = MM{W,X}(vadd(i, j.i))
-@inline Base.:(+)(i::MM{W,X}, ::Static{j}) where {W,X,j} = MM{W,X}(vadd(i.i, j))
-@inline Base.:(+)(::Static{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd(i, j.i))
+@inline Base.:(+)(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd(i.i, j))
+@inline Base.:(+)(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd(i, j.i))
 # @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i + j.i)
 @inline Base.:(-)(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub(i.i, j))
 # @inline Base.:(-)(i::Integer, j::MM{W}) where {W} = MM{W}(i - j.i)
-@inline Base.:(-)(i::MM{W,X}, ::Static{j}) where {W,X,j} = MM{W,X}(vsub(i.i, j))
-@inline Base.:(-)(i::MM, ::Static{0}) = i
-@inline Base.:(+)(i::MM, ::Static{0}) = i
-@inline Base.:(+)(::Static{0}, i::MM) = i
-# @inline Base.:(-)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(i - j.i)
+@inline Base.:(-)(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub(i.i, j))
+@inline Base.:(-)(i::MM, ::StaticInt{0}) = i
+@inline Base.:(+)(i::MM, ::StaticInt{0}) = i
+@inline Base.:(+)(::StaticInt{0}, i::MM) = i
+# @inline Base.:(-)(::StaticInt{i}, j::MM{W}) where {W,i} = MM{W}(i - j.i)
 # @inline Base.:(-)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i - j.i)
 # @inline Base.:(*)(i::MM{W}, j) where {W} = MM{W}(i.i * j)
 # @inline Base.:(*)(i, j::MM{W}) where {W} = MM{W}(i * j.i)
-# @inline Base.:(*)(i::MM{W}, ::Static{j}) where {W,j} = MM{W}(i.i * j)
-# @inline Base.:(*)(::Static{i}, j::MM{W}) where {W,i} = MM{W}(i * j.i)
+# @inline Base.:(*)(i::MM{W}, ::StaticInt{j}) where {W,j} = MM{W}(i.i * j)
+# @inline Base.:(*)(::StaticInt{i}, j::MM{W}) where {W,i} = MM{W}(i * j.i)
 # @inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i * j.i)
 
 # @inline scalar_less(i, j) = i < j
 # @inline scalar_less(i::MM, j::Integer) = i.i < j
 # @inline scalar_less(i::Integer, j::MM) = i < j.i
-# @inline scalar_less(i::MM, ::Static{j}) where {j} = i.i < j
-# @inline scalar_less(::Static{i}, j::MM) where {i} = i < j.i
+# @inline scalar_less(i::MM, ::StaticInt{j}) where {j} = i.i < j
+# @inline scalar_less(::StaticInt{i}, j::MM) where {i} = i < j.i
 # @inline scalar_less(i::MM, j::MM) = i.i < j.i
 # @inline scalar_greater(i, j) = i > j
 # @inline scalar_greater(i::MM, j::Integer) = i.i > j
 # @inline scalar_greater(i::Integer, j::MM) = i > j.i
-# @inline scalar_greater(i::MM, ::Static{j}) where {j} = i.i > j
-# @inline scalar_greater(::Static{i}, j::MM) where {i} = i > j.i
+# @inline scalar_greater(i::MM, ::StaticInt{j}) where {j} = i.i > j
+# @inline scalar_greater(::StaticInt{i}, j::MM) where {i} = i > j.i
 # @inline scalar_greater(i::MM, j::MM) = i.i > j.i
 # @inline scalar_equal(i, j) = i == j
 # @inline scalar_equal(i::MM, j::Integer) = i.i == j
 # @inline scalar_equal(i::Integer, j::MM) = i == j.i
-# @inline scalar_equal(i::MM, ::Static{j}) where {j} = i.i == j
-# @inline scalar_equal(::Static{i}, j::MM) where {i} = i == j.i
+# @inline scalar_equal(i::MM, ::StaticInt{j}) where {j} = i.i == j
+# @inline scalar_equal(::StaticInt{i}, j::MM) where {i} = i == j.i
 # @inline scalar_equal(i::MM, j::MM) = i.i == j.i
 # @inline scalar_notequal(i, j) = i != j
 # @inline scalar_notequal(i::MM, j::Integer) = i.i != j
 # @inline scalar_notequal(i::Integer, j::MM) = i != j.i
-# @inline scalar_notequal(i::MM, ::Static{j}) where {j} = i.i != j
-# @inline scalar_notequal(::Static{i}, j::MM) where {i} = i != j.i
+# @inline scalar_notequal(i::MM, ::StaticInt{j}) where {j} = i.i != j
+# @inline scalar_notequal(::StaticInt{i}, j::MM) where {i} = i != j.i
 # @inline scalar_notequal(i::MM, j::MM) = i.i != j.i
 
 @inline extract_data(i::MM) = i.i

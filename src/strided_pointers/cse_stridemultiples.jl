@@ -24,24 +24,24 @@ c = b .* [3, 5, 7, 9]
 
 
 """
-@generated function lazymul_maybe_cached(::Static{I}, b, c::NTuple{N,Int}) where {I,N}
+@generated function lazymul_maybe_cached(::StaticInt{I}, b, c::NTuple{N,Int}) where {I,N}
     Is = (I - 1) >> 1
     if isodd(I) && 1 ≤ Is ≤ N
         Expr(:block, Expr(:meta,:inline), Expr(:call, :getindex, :c, Is))
     elseif I ∈ (6, 10)
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :Static, 2)), Expr(:call, :getindex, :c, I >> 2)))
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, 2)), Expr(:call, :getindex, :c, I >> 2)))
     else
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :Static, I)), :b))
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, I)), :b))
     end
 end
 @inline lazymul_maybe_cached(a, b, c) = lazymul(a, b)
-@inline lazymul_maybe_cached(a::Static, b, ::Nothing) = lazymul(a, b)
-@inline tdotc(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul_maybe_cached(Static{I1}(),b[1],c[1])
-@inline tdotc(a::Tuple{Static{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = lazymul(Static{I1}(),b[1])
+@inline lazymul_maybe_cached(a::StaticInt, b, ::Nothing) = lazymul(a, b)
+@inline tdotc(a::Tuple{StaticInt{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul_maybe_cached(StaticInt{I1}(),b[1],c[1])
+@inline tdotc(a::Tuple{StaticInt{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = lazymul(StaticInt{I1}(),b[1])
 @inline tdotc(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul(a[1],b[1])
 
-@inline tdotc(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul_maybe_cached(Static{I1}(),b[1],c[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
-@inline tdotc(a::Tuple{Static{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = lazyadd(lazymul(Static{I1}(),b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdotc(a::Tuple{StaticInt{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul_maybe_cached(StaticInt{I1}(),b[1],c[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+@inline tdotc(a::Tuple{StaticInt{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = lazyadd(lazymul(StaticInt{I1}(),b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
 @inline tdotc(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul(a[1],b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
 
 # descript is a tuple of (unrollfactor) for ech ind; if it shouldn't preallocate, unrollfactor may be set to 1

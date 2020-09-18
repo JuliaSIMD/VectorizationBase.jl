@@ -3,43 +3,43 @@
 
 
 
-const Zero = Static{0}
-const One = Static{1}
-@inline static(::Val{N}) where {N} = Static{N}()
+const Zero = StaticInt{0}
+const One = StaticInt{1}
+@inline static(::Val{N}) where {N} = StaticInt{N}()
 @inline static(::Nothing) = nothing
 @generated function static_sizeof(::Type{T}) where {T}
-    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Static, sizeof(T))))
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :StaticInt, sizeof(T))))
 end
 
-Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
-# Base.convert(::Type{T}, ::Static{N}) where {T <: Number, N} = convert(T, N)
+# Base.promote_rule(::Type{<:StaticInt}, ::Type{T}) where {T <: NativeTypes} = T
+# Base.convert(::Type{T}, ::StaticInt{N}) where {T <: Number, N} = convert(T, N)
 
 
-# @inline Base.:(:)(::Static{L}, ::Static{U}) where {L,U} = ArrayInterface.OptionallyStaticUnitRange{T}(Val{L}(), Val{U}())
-# @inline Base.:(:)(::Static{L}, U::Int) where {L} = ArrayInterface.OptionallyStaticUnitRange{T}(Val{L}(), U)
-# @inline Base.:(:)(L::Int, ::Static{U}) where {U} = ArrayInterface.OptionallyStaticUnitRange{T}(L, Val{U}())
+# @inline Base.:(:)(::StaticInt{L}, ::StaticInt{U}) where {L,U} = ArrayInterface.OptionallyStaticIntUnitRange{T}(Val{L}(), Val{U}())
+# @inline Base.:(:)(::StaticInt{L}, U::Int) where {L} = ArrayInterface.OptionallyStaticIntUnitRange{T}(Val{L}(), U)
+# @inline Base.:(:)(L::Int, ::StaticInt{U}) where {U} = ArrayInterface.OptionallyStaticIntUnitRange{T}(L, Val{U}())
 # @inline unwrap(x) = x
 # @inline unwrap(::Val{N}) where {N} = N
 # @inline unwrap(::Type{Val{N}}) where {N} = N
-# @inline unwrap(::Static{N}) where {N} = N
-# @inline unwrap(::Type{Static{N}}) where {N} = N
+# @inline unwrap(::StaticInt{N}) where {N} = N
+# @inline unwrap(::Type{StaticInt{N}}) where {N} = N
 
 @inline static_last(::Type{T}) where {T} = static(known_last(T))
 @inline static_first(::Type{T}) where {T} = static(known_first(T))
 @inline static_length(::Type{T}) where {T} = static(known_length(T))
 
 @inline _maybestaticfirst(a, ::Nothing) = first(a)
-@inline _maybestaticfirst(::Any, L) = Static{L}()
+@inline _maybestaticfirst(::Any, L) = StaticInt{L}()
 @inline maybestaticfirst(a::T) where {T} = _maybestaticfirst(a, known_first(T))
 
 @inline _maybestaticlast(a, ::Nothing) = last(a)
-@inline _maybestaticlast(::Any, L) = Static{L}()
+@inline _maybestaticlast(::Any, L) = StaticInt{L}()
 @inline maybestaticlast(a::T) where {T} = _maybestaticlast(a, known_last(T))
 
-@inline _maybestaticlength(a, L::Int, U::Int) = Static{U-L}()
+@inline _maybestaticlength(a, L::Int, U::Int) = StaticInt{U-L}()
 @inline _maybestaticlength(a, ::Any, ::Any) = length(a)
 @inline _maybestaticlength(a, ::Nothing) = _maybestaticlength(a, known_first(a), known_last(a))
-@inline _maybestaticlength(::Any, L::Int) = Static{L}()
+@inline _maybestaticlength(::Any, L::Int) = StaticInt{L}()
 @inline maybestaticlength(a::T) where {T} = _maybestaticlength(a, known_length(T))
 # @inline maybestaticsize(A, ::Val{I}) where {I} = size(A, I)
 
@@ -63,14 +63,14 @@ Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
 
 # @inline maybestaticeachindex(A::AbstractArray) = maybestaticrange(eachindex(A))
 
-@inline maybestaticrange(r::Base.OneTo{T}) where {T} = ArrayInterface.OptionallyStaticUnitRange{T}(Val{1}(), last(r))
+@inline maybestaticrange(r::Base.OneTo{T}) where {T} = ArrayInterface.OptionallyStaticIntUnitRange{T}(Val{1}(), last(r))
 @inline maybestaticrange(r::UnitRange) = r
-# @inline maybestaticrange(r::AbstractStaticUnitRange) = r
+# @inline maybestaticrange(r::AbstractStaticIntUnitRange) = r
 @inline maybestaticrange(r) = maybestaticfirst(r):maybestaticlast(r)
 # @inline maybestaticaxis(A::AbstractArray, ::Val{I}) where {I} = maybestaticfirstindex(A, Val{I}()):maybestaticsize(A, Val{I}())
 
-@inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = Static{N}() # should we assert that i == 1?
-@inline maybestaticlength(::NTuple{N}) where {N} = Static{N}()
+@inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = StaticInt{N}() # should we assert that i == 1?
+@inline maybestaticlength(::NTuple{N}) where {N} = StaticInt{N}()
 @inline maybestaticsize(::LinearAlgebra.Adjoint{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticsize(::LinearAlgebra.Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticlength(B::LinearAlgebra.Adjoint) = maybestaticlength(parent(B))
@@ -80,7 +80,7 @@ Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
 @inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
 @inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
 
-# @generated function Base.divrem(N::Integer, ::Static{L}) where {L}
+# @generated function Base.divrem(N::Integer, ::StaticInt{L}) where {L}
 #     if ispow2(L)
 #         quote
 #             $(Expr(:meta,:inline))
@@ -97,75 +97,75 @@ Base.promote_rule(::Type{<:Static}, ::Type{T}) where {T <: NativeTypes} = T
 # end
 
 
-# These have versions that may allow for more optimizations, so we override base methods with a single `Static` argument.
+# These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.
 for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(Base.:<<),:vshl), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)]
     @eval begin
-        # @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+        # @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
     # If `M` and `N` are known at compile time, there's no need to add nsw/nuw flags.
-        @inline $ff(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
-        # @inline $f(::Static{M}, x) where {M} = $ff(M, x)
-        @inline $ff(::Static{M}, x) where {M} = $ff(M, x)
-        # @inline $f(x, ::Static{M}) where {M} = $ff(x, M)
-        @inline $ff(x, ::Static{M}) where {M} = $ff(x, M)
+        @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
+        # @inline $f(::StaticInt{M}, x) where {M} = $ff(M, x)
+        @inline $ff(::StaticInt{M}, x) where {M} = $ff(M, x)
+        # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
+        @inline $ff(x, ::StaticInt{M}) where {M} = $ff(x, M)
     end
 end
 # for (f,ff) ∈ [(:(Base.:&),:vand), (:(Base.:|),:vor), (:(Base.:⊻),:vxor)]
-#     @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
-#     @eval @inline $ff(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+#     @eval @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
+#     @eval @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
 # end
 
 # for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.cld), :(Base.:(>>))]
-#     @eval @inline $f(::Static{M}, ::Static{N}) where {M, N} = Static{$f(M, N)}()
+#     @eval @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
 # end
 # for f ∈ [:(Base.:(&)), :(Base.:(>)), :(Base.:(<)), :(Base.:(≥)), :(Base.:(≤)), :(Base.div), :(Base.cld), :vadd, :vsub, :vmul]
-#     @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
-#     @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
+#     @eval @inline $f(::StaticInt{M}, n::Number) where {M} = $f(M, n)
+#     @eval @inline $f(m::Number, ::StaticInt{N}) where {N} = $f(m, N)
 # end
 for f ∈ [:vadd, :vsub, :vmul]
-    @eval @inline $f(::Static{M}, n::Number) where {M} = $f(M, n)
-    @eval @inline $f(m::Number, ::Static{N}) where {N} = $f(m, N)
+    @eval @inline $f(::StaticInt{M}, n::Number) where {M} = $f(M, n)
+    @eval @inline $f(m::Number, ::StaticInt{N}) where {N} = $f(m, N)
 end
 # for f ∈ [:(Base.:(>>)), :(Base.:(>>>))]
-#     @eval @inline $f(::Static{M}, n::Number) where {M} = shr(M, n)
-#     @eval @inline $f(m::Number, ::Static{N}) where {N} = shr(m, N)
+#     @eval @inline $f(::StaticInt{M}, n::Number) where {M} = shr(M, n)
+#     @eval @inline $f(m::Number, ::StaticInt{N}) where {N} = shr(m, N)
 # end
 
-@inline vsub(::Static{N}, ::Zero) where {N} = Static{N}()
-# @inline vsub(::Zero, ::Static{N}) where {N} = Static{-N}()
+@inline vsub(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
+# @inline vsub(::Zero, ::StaticInt{N}) where {N} = StaticInt{-N}()
 @inline vsub(::Zero, ::Zero) = Zero()
 @inline vsub(a::Number, ::Zero) = a
 @inline vsub(a, ::Zero) = a
 
-@inline vadd(::Static{N}, ::Zero) where {N} = Static{N}()
-@inline vadd(::Zero, ::Static{N}) where {N} = Static{N}()
+@inline vadd(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
+@inline vadd(::Zero, ::StaticInt{N}) where {N} = StaticInt{N}()
 @inline vadd(::Zero, ::Zero) = Zero()
 @inline vadd(a::Number, ::Zero) = a
 @inline vadd(::Zero, a::Number) = a
 
-@inline vmul(::Static{N}, ::Zero) where {N} = Zero()
-@inline vmul(::Zero, ::Static{N}) where {N} = Zero()
+@inline vmul(::StaticInt{N}, ::Zero) where {N} = Zero()
+@inline vmul(::Zero, ::StaticInt{N}) where {N} = Zero()
 @inline vmul(::Zero, ::Zero) = Zero()
-@inline vmul(::Static{N}, ::One) where {N} = Static{N}()
-@inline vmul(::One, ::Static{N}) where {N} = Static{N}()
+@inline vmul(::StaticInt{N}, ::One) where {N} = StaticInt{N}()
+@inline vmul(::One, ::StaticInt{N}) where {N} = StaticInt{N}()
 @inline vmul(::One, ::One) = One()
 @inline vmul(a::Number, ::One) = a
 @inline vmul(::One, a::Number) = a
 @inline vmul(::Zero, ::One) = Zero()
 @inline vmul(::One, ::Zero) = Zero()
-@inline vmul(i::MM{W,X}, ::Static{N}) where {W,X,N} = MM{W}(vmul(data(i), Static{N}()), Static{X}() * Static{N}())
-@inline vmul(i::MM{W,X}, ::Static{1}) where {W,X} = i
-@inline vmul(::Static{N}, i::MM{W,X}) where {W,X,N} = MM{W}(vmul(data(i), Static{N}()), Static{X}() * Static{N}())
-@inline vmul(::Static{1}, i::MM{W,X}) where {W,X} = i
+@inline vmul(i::MM{W,X}, ::StaticInt{N}) where {W,X,N} = MM{W}(vmul(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
+@inline vmul(i::MM{W,X}, ::StaticInt{1}) where {W,X} = i
+@inline vmul(::StaticInt{N}, i::MM{W,X}) where {W,X,N} = MM{W}(vmul(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
+@inline vmul(::StaticInt{1}, i::MM{W,X}) where {W,X} = i
 
-# @inline Base.:<<(::Static{N}, i) where {N} = shl(N, i)
-# @inline Base.:<<(i, ::Static{N}) where {N} = shl(i, N)
-# @inline Base.:<<(::Static{M}, ::Static{N}) where {M,N} = Static{M << N}()
-# @inline Base.:(%)(::Static{M}, ::Type{I}) where {M,I<:Integer} = M % I
+# @inline Base.:<<(::StaticInt{N}, i) where {N} = shl(N, i)
+# @inline Base.:<<(i, ::StaticInt{N}) where {N} = shl(i, N)
+# @inline Base.:<<(::StaticInt{M}, ::StaticInt{N}) where {M,N} = StaticInt{M << N}()
+# @inline Base.:(%)(::StaticInt{M}, ::Type{I}) where {M,I<:Integer} = M % I
 
-# @inline Base.:(==)(::Static{M}, i) where {M} = M == i
-# @inline Base.:(==)(i, ::Static{M}) where {M} = M == i
-# @inline Base.:(==)(::Static{M}, ::Static{N}) where {M,N} = false
-# @inline Base.:(==)(::Static{M}, ::Static{M}) where {M} = true
+# @inline Base.:(==)(::StaticInt{M}, i) where {M} = M == i
+# @inline Base.:(==)(i, ::StaticInt{M}) where {M} = M == i
+# @inline Base.:(==)(::StaticInt{M}, ::StaticInt{N}) where {M,N} = false
+# @inline Base.:(==)(::StaticInt{M}, ::StaticInt{M}) where {M} = true
 
 # @inline vadd(::Tuple{}, ::Tuple{}) = tuple()
 # @inline vadd(a::Tuple{I1,Vararg}, b::Tuple{}) where {I1} = a
@@ -178,37 +178,37 @@ end
 #     i == j || throw("$i ≠ $j")
 #     i
 # end
-# function static_promote(::Static{M}, i) where {M}
+# function static_promote(::StaticInt{M}, i) where {M}
 #     M == i || throw("$M ≠ $i")
-#     Static{M}()
+#     StaticInt{M}()
 # end
-# function static_promote(i, ::Static{M}) where {M}
+# function static_promote(i, ::StaticInt{M}) where {M}
 #     M == i || throw("$M ≠ $i")
-#     Static{M}()
+#     StaticInt{M}()
 # end
-# static_promote(::Static{M}, ::Static{N}) where {M, N} = throw("$M ≠ $N")
-# static_promote(::Static{M}, ::Static{M}) where {M} = Static{M}()
+# static_promote(::StaticInt{M}, ::StaticInt{N}) where {M, N} = throw("$M ≠ $N")
+# static_promote(::StaticInt{M}, ::StaticInt{M}) where {M} = StaticInt{M}()
 
-@generated staticp1(::Static{N}) where {N} = Static{N+1}()
+@generated staticp1(::StaticInt{N}) where {N} = StaticInt{N+1}()
 @inline staticp1(N) = vadd(N, one(N))
 @inline staticp1(i::Tuple{}) = tuple()
 @inline staticp1(i::Tuple{I}) where {I} = @inbounds (staticp1(i[1]),)
 @inline staticp1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticp1(i[1]), staticp1(i[2]))
 @inline staticp1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticp1(i[1]), staticp1(Base.tail(i))...)
-@generated staticm1(::Static{N}) where {N} = Static{N-1}()
+@generated staticm1(::StaticInt{N}) where {N} = StaticInt{N-1}()
 @inline staticm1(N) = vsub(N, one(N))
 @inline staticm1(i::Tuple{}) = tuple()
 @inline staticm1(i::Tuple{I}) where {I} = @inbounds (staticm1(i[1]),)
 @inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticm1(i[1]), staticm1(i[2]))
 @inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticm1(i[1]), staticm1(Base.tail(i))...)
-@generated staticmul(::Type{T}, ::Static{N}) where {T,N} = sizeof(T) * N
+@generated staticmul(::Type{T}, ::StaticInt{N}) where {T,N} = sizeof(T) * N
 @generated staticmul(::Type{T}, ::Val{N}) where {T,N} = sizeof(T) * N
 @inline staticmul(::Type{T}, N) where {T} = vmul(N, sizeof(T))
 @inline staticmul(::Type{T}, i::Tuple{}) where {T} = tuple()
 @inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
 @inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
 @inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
-# @generated function Base.ntuple(f::F, ::Static{N}) where {F,N}
+# @generated function Base.ntuple(f::F, ::StaticInt{N}) where {F,N}
 #     t = Expr(:tuple)
 #     foreach(n -> push!(t.args, Expr(:call, :f, n)), 1:N)
 #     Expr(:block, Expr(:meta, :inline), t)
@@ -228,7 +228,7 @@ end
 
 
 
-# # Static 0
+# # StaticInt 0
 # @inline vsub(::Zero, i) = vsub(i)
 # @inline vsub(i, ::Zero) = i
 # @inline vsub(::Zero, i::Number) = vsub(i)

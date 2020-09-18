@@ -9,8 +9,8 @@ ff_promote_rule(::Type{T1}, ::Type{T2}) where {T1,T2} = symmetric_promote_rule(T
 ff_promote_rule(::Type{T}, ::Type{<:Integer}) where {T <: Integer} = T
 ff_promote_rule(::Type{T}, ::Type{<:FloatingTypes}) where {T <: FloatingTypes} = T
 
-Base.promote_rule(::Type{<:AbstractSIMDVector{W,T1}}, ::Type{T2}) where {W,T1,T2<:NativeTypes} = Vec{W,ff_promote_rule(T1,T2)}
-Base.promote_rule(::Type{<:AbstractSIMDVector{W,T1}}, ::Type{<:AbstractSIMDVector{W,T2}}) where {W,T1,T2} = Vec{W,symmetric_promote_rule(T1,T2)}
+Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:AbstractSIMDVector{W,T1}} = Vec{W,ff_promote_rule(T1,T2)}
+Base.promote_rule(::Type{V1}, ::Type{V2}) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2}} = Vec{W,symmetric_promote_rule(T1,T2)}
 
 
 Base.promote_rule(::Type{VecUnroll{N,W,T1}}, ::Type{T2}) where {N,W,T1,T2<:NativeTypes} = VecUnroll{N,W,ff_promote_rule(T1,T2)}

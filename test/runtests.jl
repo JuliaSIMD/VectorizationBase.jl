@@ -112,7 +112,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         @test Mask{8,UInt8}(0xff) === mask(Val(8), 0)
         @test Mask{8,UInt8}(0xff) === mask(Val(8), 8)
         @test Mask{8,UInt8}(0xff) === mask(Val(8), 16)
-        @test Mask{8,UInt8}(0xff) === mask(Val(8), VectorizationBase.Static(0))
+        @test Mask{8,UInt8}(0xff) === mask(Val(8), VectorizationBase.StaticInt(0))
         @test Mask{16,UInt16}(0xffff) === mask(Val(16), 0)
         @test Mask{16,UInt16}(0xffff) === mask(Val(16), 16)
         @test Mask{16,UInt16}(0xffff) === mask(Val(16), 32)
@@ -411,16 +411,16 @@ end
             # @test vA == VectorizationBase.stridedpointer(vA)
             # @test all(i -> A[i+1] === VectorizationBase.vload(ptr_A + 8i) === VectorizationBase.vload(vA, (i,)) === Float64(i), 0:15)
             # VectorizationBase.vstore!(vA, 99.9, (3,))
-            # @test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (VectorizationBase.Static(3),)) === VectorizationBase.vload(vA, (3,0)) === A[4,1]
+            # @test 99.9 === VectorizationBase.vload(ptr_A + 8*3) === VectorizationBase.vload(vA, (VectorizationBase.StaticInt(3),)) === VectorizationBase.vload(vA, (3,0)) === A[4,1]
             # VectorizationBase.vstore!(vAtt, 99.9, (3,1))
-            # @test 99.9 === VectorizationBase.vload(vAtt, (3,1)) === VectorizationBase.vload(vAtt, (VectorizationBase.Static(3),1)) === Att[4,2]
+            # @test 99.9 === VectorizationBase.vload(vAtt, (3,1)) === VectorizationBase.vload(vAtt, (VectorizationBase.StaticInt(3),1)) === Att[4,2]
             # VectorizationBase.vnoaliasstore!(ptr_A+8*4, 999.9)
             # @test 999.9 === VectorizationBase.vload(ptr_A + 8*4) === VectorizationBase.vload(pointer(vA), 4*sizeof(eltype(A))) === VectorizationBase.vload(vA, (4,))
             # @test vload(vA, (7,2)) == vload(vAtt, (7,2)) == A[8,3]
             # @test vload(VectorizationBase.subsetview(vA, Val(1), 7), (2,)) == vload(VectorizationBase.subsetview(vAtt, Val(1), 7), (2,)) == A[8,3]
             # @test vload(VectorizationBase.subsetview(vA, Val(2), 2), (7,)) == vload(VectorizationBase.subsetview(vAtt, Val(2), 2), (7,)) == A[8,3]
-            #     @test vload(VectorizationBase.double_index(vA, Val(0), Val(1)), (2,)) == vload(VectorizationBase.double_index(vA, Val(0), Val(1)), (VectorizationBase.Static(2),)) == A[3,3]
-            #     @test vload(VectorizationBase.double_index(vAtt, Val(0), Val(1)), (1,)) == vload(VectorizationBase.double_index(vAtt, Val(0), Val(1)), (VectorizationBase.Static(1),)) == A[2,2]
+            #     @test vload(VectorizationBase.double_index(vA, Val(0), Val(1)), (2,)) == vload(VectorizationBase.double_index(vA, Val(0), Val(1)), (VectorizationBase.StaticInt(2),)) == A[3,3]
+            #     @test vload(VectorizationBase.double_index(vAtt, Val(0), Val(1)), (1,)) == vload(VectorizationBase.double_index(vAtt, Val(0), Val(1)), (VectorizationBase.StaticInt(1),)) == A[2,2]
             #     B = rand(5, 5)
             # vB = VectorizationBase.stridedpointer(B)
             # @test vB[1, 2] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))

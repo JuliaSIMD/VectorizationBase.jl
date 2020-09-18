@@ -1,17 +1,17 @@
 
 struct CartesianVIndex{N,T} <: Base.AbstractCartesianIndex{N}
     I::T
-    @inline CartesianVIndex(I::T) where {N, T <: Tuple{Vararg{Union{Integer,Static},N}}} = new{N,T}(I)
+    @inline CartesianVIndex(I::T) where {N, T <: Tuple{Vararg{Union{Integer,StaticInt},N}}} = new{N,T}(I)
 end
 Base.length(::CartesianVIndex{N}) where {N} = N
-Base.length(::Type{<:CartesianVIndex{N}}) where {N} = N
+ArrayInterface.known_length(::Type{<:CartesianVIndex{N}}) where {N} = N
 Base.Tuple(i::CartesianVIndex) = i.I
 function Base.:(:)(I::CartesianVIndex{N}, J::CartesianVIndex{N}) where {N} 
    CartesianIndices(map((i,j) -> i:j, I.I, J.I))
 end
 ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
 ndim(::Type{<:AbstractArray{N}}) where {N} = N
-@generated function CartesianVIndex(I::T) where {T <: Tuple{Vararg{<:Union{Integer,Static,CartesianIndex,CartesianVIndex}}}}
+@generated function CartesianVIndex(I::T) where {T <: Tuple{Vararg{<:Union{Integer,StaticInt,CartesianIndex,CartesianVIndex}}}}
     iexp = Expr(:tuple)
     Tp = T.paramters
     q = Expr(:block)
@@ -30,7 +30,7 @@ ndim(::Type{<:AbstractArray{N}}) where {N} = N
     Expr(:block, Expr(:meta, :inline), Expr(:macrocall, Symobl("@inbounds"), LineNumberNode(@__LINE__, Symbol(@__FILE__)), q), Expr(:call, :CartesianVIndex, iexpr))
 end
 
-@inline Base.CartesianIndex(I::Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,Static}}}) = CartesianVIndex(I)
+@inline Base.CartesianIndex(I::Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,StaticInt}}}) = CartesianVIndex(I)
 
 @inline maybestaticfirst(A::CartesianIndices) = CartesianVIndex(_maybestaticfirst(A.indices))
 @inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))

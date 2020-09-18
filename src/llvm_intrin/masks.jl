@@ -205,7 +205,7 @@ end
         Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
     end
 end
-@generated mask(::Val{W}, ::Static{L}) where {W, L} = mask(Val(W), L)
+@generated mask(::Val{W}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
 @inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)
 
 # @generated function masktable(::Val{W}, rem::Integer) where {W}
@@ -343,7 +343,8 @@ for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"),
     # end
 end
 
-@generated function IfElse.ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
+# import IfElse: ifelse
+@generated function ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     selty = vtype(W, "i1")
