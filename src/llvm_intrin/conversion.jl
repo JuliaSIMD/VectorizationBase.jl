@@ -34,7 +34,7 @@ end
     sz1 = sizeof(T1)::Int; sz2 = sizeof(T2)::Int
     if sz1 < sz2
         convert_func("trunc", T1, W, T2)
-    elseif sz1 == 2
+    elseif sz1 == sz2
         identity_func(W, T1, T2)
     else
         convert_func(((T1 <: Signed) && (T2 <: Signed)) ? "sext" : "zext", T1, W, T2)
@@ -80,20 +80,25 @@ end
     # @eval @generated Vec{W,$jint}(v::Vec{W,$juint}) where {W} = $expr
 # end
 
-@generated function Vec{W2,Float32}(v::Vec{W,Float64}) where {W,W2}
-    @assert W2 == 2W
-    convert_func("fptrunc", :Float32, 2W, :Float64, W)
+@generated function Vec{W,Float32}(v::Vec{W,Float64}) where {W}
+    convert_func("fptrunc", Float32, W, Float64, W)
 end
-@generated function Vec{W,Float64}(v::Vec{W2,Float32}) where {W,W2}
-    @assert W2 == 2W
-    convert_func("fpext", :Float64, W, :Float32, 2W)
+@generated function Vec{W,Float64}(v::Vec{W,Float32}) where {W}
+    convert_func("fpext", Float64, W, Float32, W)
 end
 
-Base.convert(::Vec{W,T}, s::T) where {W, T <: NativeTypes} = vbroadcast(Val{W}(), s)
-Base.convert(::Vec{W,T}, s::T) where {W, T <: Integer} = vbroadcast(Val{W}(), s)
-Base.convert(::Vec{W,T}, s::NativeTypes) where {W, T} = vbroadcast(Val{W}(), T(s))
-Base.convert(::Vec{W,T1}, s::T2) where {W, T1 <: Integer, T2 <: Integer} = vbroadcast(Val{W}(), s % T1)
-
+@inline Base.convert(::Vec{W,T}, s::T) where {W, T <: NativeTypes} = vbroadcast(Val{W}(), s)
+@inline Base.convert(::Vec{W,T}, s::T) where {W, T <: Integer} = vbroadcast(Val{W}(), s)
+@inline Base.convert(::Vec{W,T}, s::NativeTypes) where {W, T} = vbroadcast(Val{W}(), T(s))
+@inline Base.convert(::Vec{W,T1}, s::T2) where {W, T1 <: Integer, T2 <: Integer} = vbroadcast(Val{W}(), s % T1)
+@inline function Base.convert(::Type{T}, v::Vec{W,S}) where {T<:Number,S,W}
+    if S <: T
+        v
+    else
+        Vec{W,T}(v)
+    end
+end
+@inline Base.convert(::Type{Vec{W,T}}, v::Vec{W,S}) where {T<:Number,S,W} = Vec{W,T}(v)
 
 @generated function Base.reinterpret(::Type{T1}, v::Vec{W2,T2}) where {W2, T1 <: NativeTypes, T2}
     W1 = W2 * sizeof(T2) ÷ sizeof(T1)

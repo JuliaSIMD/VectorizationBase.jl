@@ -15,6 +15,7 @@ let llvmlib = Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), 
     @eval const REGISTER_SIZE = $register_size
     @eval const REGISTER_COUNT = $register_count
     @eval const SIMD_NATIVE_INTEGERS = $(avx2)
+    # @eval const SIMD_NATIVE_INTEGERS = false
 
     for ext ∈ features
         @eval const $(Symbol(replace(Base.Unicode.uppercase(ext[2:end]), r"\." => "_"))) = $(first(ext) == '+')
