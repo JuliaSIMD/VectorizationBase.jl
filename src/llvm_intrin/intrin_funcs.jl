@@ -454,7 +454,7 @@ Useful for special funcion implementations.
             :(data(v))
         else#if T === Float64
             argexpr = [:(data(convert(Float32, v)))]
-            call = llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), vtyp, [vtyp], argexpr, true)
+            call = llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), "<4 x float>", ["<4 x float>"], argexpr, true)
             return Expr(:block, Expr(:meta, :inline), :(convert(Float64, $call)))
         end
     end

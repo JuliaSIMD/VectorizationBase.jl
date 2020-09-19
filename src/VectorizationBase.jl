@@ -111,7 +111,7 @@ end
 @generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
     W = _W + 1
     Wpow2 = pick_vector_width(W, T)
-    if W ≤ Wpow2
+    if W ≤ Wpow2 || (T <: Integer && (!SIMD_NATIVE_INTEGERS))
         vec_quote(W, Wpow2)
     else
         tup = Expr(:tuple)
