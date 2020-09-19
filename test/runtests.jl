@@ -351,10 +351,10 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64)))
         ))
         vi2 = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int))), Val(W64)))
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64)))
         ))
         i = rand(1:8sizeof(Int)); j = rand(Int);
         xi1 = tovector(vi1); xi2 = tovector(vi2);
