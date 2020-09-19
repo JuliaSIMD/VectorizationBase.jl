@@ -332,7 +332,8 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
             @test tovector(@inferred(f(v))) == map(f, x)
         end
-        @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = 2^-14)
+        invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
+        @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
         # vpos = VectorizationBase.VecUnroll((
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),

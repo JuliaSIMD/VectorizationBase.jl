@@ -451,7 +451,6 @@ Useful for special funcion implementations.
         instrs = "%res = call <4 x float> @llvm.x86.sse.rcp.ps(<4 x float> %0)\nret <4 x float> %res"
         if T === Float32
             return llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), "<4 x float>", ["<4 x float>"], [:(data(v))])
-            :(data(v))
         else#if T === Float64
             argexpr = [:(data(convert(Float32, v)))]
             call = llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), "<4 x float>", ["<4 x float>"], argexpr, true)
