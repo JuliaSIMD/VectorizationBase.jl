@@ -64,7 +64,7 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
     @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T} = new{W,T}(x)
     @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T}
         W = _W + 1
-        @assert W === pick_vector_width(W, T)# || W === 8
+        # @assert W === pick_vector_width(W, T)# || W === 8
         Expr(:block, Expr(:meta,:inline), Expr(:call, Expr(:curly, :Vec, W, T), :x))
     end
     # @inline function Vec(x::NTuple{W,<:Core.VecElement}) where {W}
