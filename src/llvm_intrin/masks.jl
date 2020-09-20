@@ -365,4 +365,7 @@ end
 end
 @inline ifelse(m::Mask, v::Vec, s) = ((x,y) = promote(v,s); ifelse(m,x,y))
 @inline ifelse(m::Mask, s, v::Vec) = ((x,y) = promote(s,v); ifelse(m,x,y))
+@inline ifelse(m::Mask{W}, s1::T, s2::T) where {W,T} = ifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
+
+@inline isnan(v::AbstractSIMD) = v != v
 

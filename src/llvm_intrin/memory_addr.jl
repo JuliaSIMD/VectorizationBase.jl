@@ -725,6 +725,30 @@ end
 end
 
 
+
+function lazymulunroll_load_quote(M,O,N,mask)
+    t = Expr(:tuple)
+    for n in 1:N+1
+        call = :(vload(ptr, LazyMulAdd{$M,$O}(u[$n])))
+        mask && push!(call.args, m)
+        push!(t.args, call)
+    end
+    Expr(:block, Expr(:meta, :inline), :(u = um.data.data), Expr(:call, :VecUnroll, t))    
+end
+@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}) where {T,M,O,N,W,I,V}
+    lazymulunroll_load_quote(M,O,N,false)
+end
+@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask{W}) where {T,M,O,N,W,I,V}
+    lazymulunroll_load_quote(M,O,N,true)
+end
+function lazymulunroll_store_quote(M,O,N,mask)
+    q = Expr(:block, Expr(:meta, :inline), :(u = um.data.data), :(v = vm.data.data))
+    for n in 1:N+1
+        push!(q.args, :(vstore!(ptr, v[$n], LazyMulAdd{$M,$O}(u[$n]))))
+    end
+    q
+end
+
 # """
 # O - An `NTuple{M,NTuple{N,Int}}` tuple of tuples, specifies offsets of `N`-dim array for each of `M` loads.
 # u::U - the base unrolled description.
