@@ -183,7 +183,7 @@ end
     mask_type(pick_vector_width(T))
 end
 @generated function Base.zero(::Type{<:Mask{W}}) where {W}
-    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask), zero(mask_type(W))))
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), zero(mask_type(W))))
 end
 
 @generated function max_mask(::Val{W}) where {W}
@@ -207,6 +207,7 @@ end
 end
 @generated mask(::Val{W}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
 @inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)
+
 
 # @generated function masktable(::Val{W}, rem::Integer) where {W}
 #     masks = Expr(:tuple)
@@ -240,15 +241,17 @@ end
 end
 @inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(data(v))
 
-@generated function toboolvec(m::Mask{W,U}) where {W,U}
+@generated function Base.:(%)(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Integer}
+    bits = 8sizeof(I)
     instrs = String[]
     truncate_mask!(instrs, '0', W, 0)
-    push!(instrs, "%res = zext <$W x i1> %mask.0 to <$W x i8>\nret <$W x i8> %res")
+    push!(instrs, "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,Bool}, Tuple{$U}, data(m)))
+        Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,$I}, Tuple{$U}, data(m)))
     end
 end
+Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
 @inline function getelement(m::Mask{W}, i::Integer) where {W}
@@ -285,7 +288,7 @@ function icmp_quote(W, cond, bytes, T1, T2 = T1)
     cmp_quote(W, "icmp " * cond, vtyp, T1, T2)
 end
 function fcmp_quote(W, cond, T)
-    vtyp = vtype(W, T === :Float32 ? "float" : "double");
+    vtyp = vtype(W, T === Float32 ? "float" : "double");
     cmp_quote(W, "fcmp nsz arcp contract reassoc " * cond, vtyp, T)
 end
 # @generated function compare(::Val{cond}, v1::Vec{W,I}, v2::Vec{W,I}) where {cond, W, I}
@@ -344,7 +347,7 @@ for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"),
 end
 
 # import IfElse: ifelse
-@generated function ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
+@generated function ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U<:Unsigned,T}
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     selty = vtype(W, "i1")
@@ -360,4 +363,6 @@ end
         Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
+@inline ifelse(m::Mask, v::Vec, s) = ((x,y) = promote(v,s); ifelse(m,x,y))
+@inline ifelse(m::Mask, s, v::Vec) = ((x,y) = promote(s,v); ifelse(m,x,y))
 

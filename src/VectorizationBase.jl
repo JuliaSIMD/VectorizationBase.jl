@@ -1,7 +1,7 @@
 module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
-using ArrayInterface: StaticInt, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
+using ArrayInterface: StaticInt, Zero, One, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
     Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
     known_length, known_first, known_last, strides, offsets
 import IfElse: ifelse
@@ -58,7 +58,8 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # end
 # Base.@pure StaticInt(N) = StaticInt{N}()
 
-abstract type AbstractSIMDVector{W,T <: Union{StaticInt,NativeTypes}} <: Real end
+abstract type AbstractSIMD{W,T <: Union{StaticInt,NativeTypes}} <: Real end
+abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
     @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T} = new{W,T}(x)
@@ -74,7 +75,7 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
     #     new{W,T}(x)
     # end
 end
-struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real#AbstractSIMDVector{W,T}
+struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMD{W,T}
     data::Tuple{V,Vararg{V,N}}
 end
 

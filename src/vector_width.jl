@@ -38,6 +38,18 @@ pick_vector_width(::Val{N}, ::Type{T} = Float64) where {N,T} = pick_vector_width
 pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}()
 pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
 
+@generated function int_type(::Val{W}) where {W}
+    bits = 8*(REGISTER_SIZE ÷ W)
+    if bits ≤ 8
+        :Int8
+    elseif bits ≤ 16
+        :Int16
+    elseif bits ≤ 32
+        :Int32
+    else # even if Int === Int32? Or should this be `Int`?
+        :Int64
+    end
+end
 
 # @inline vadd(::StaticInt{i}, j) where {i} = vadd(i, j)
 # @inline vadd(i, ::StaticInt{j}) where {j} = vadd(i, j)
@@ -66,7 +78,7 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 
 @inline MM(::Val{W}) where {W} = MM{W}(0)
 @inline MM(::Val{W}, i) where {W} = MM{W}(i)
-# @inline MM{W}(a::LazyMul) where {W} = MM{W}(extract_data(a))
+# @inline MM{W}(a::LazyMul) where {W} = MM{W}(data(a))
 @inline gep(ptr::Ptr, i::MM) = gep(ptr, i.i)
 
 @inline staticm1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vsub(i.i, one(I)))
@@ -133,8 +145,11 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 # @inline scalar_notequal(::StaticInt{i}, j::MM) where {i} = i != j.i
 # @inline scalar_notequal(i::MM, j::MM) = i.i != j.i
 
-@inline extract_data(i::MM) = i.i
-
+@inline Base.:(==)(::AbstractIrrational, ::MM{W,<:Integer}) where {W} = zero(Mask{W})
+@inline Base.:(==)(x::AbstractIrrational, i::MM{W}) where {W} = x == Vec(i)
+@inline Base.:(==)(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
+@inline Base.:(==)(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
+                   
 
 
 

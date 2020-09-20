@@ -14,7 +14,8 @@
 
 
 
-function binary_op(op, W, @nospecialize(_::Type{T})) where {T}
+function binary_op(op, W, @nospecialize(UNUSED::Type{T}), W2 = W) where {T}
+    @assert W == W2
     ty = LLVM_TYPES[T]
     if isone(W)
         V = T
@@ -43,14 +44,14 @@ end
 for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
     ff = Symbol('v', op); _ff = Symbol(:_, ff)
     @eval @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
-    @eval @generated $_ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
-    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op, W, T)
+    @eval @generated $_ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W1, T, W2)
+    @eval @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op($op, W1, T, W2)
     @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
     @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]
     ff = Symbol('v', op); _ff = Symbol(:_, ff)
-    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
+    @eval @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W1, T, W2)
     @eval @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
     @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
     @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
@@ -63,7 +64,7 @@ end
 end
 for (op,f,s) ∈ [("ashr",:>>,0x01),("lshr",:>>,0x02),("lshr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
     _ff = Symbol(:_, 'v', op)
-    fdef = Expr(:where, :(Base.$f(v1::Vec{W,T}, v2::Vec{W,T})), :W)
+    fdef = Expr(:where, :(Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T})), :W1, :W2)
     ffdef = Expr(:where, :($_ff(v1::T, v2::T)))
     if iszero(s & 0x01)
         push!(fdef.args, :(T <: Unsigned))
@@ -75,13 +76,14 @@ for (op,f,s) ∈ [("ashr",:>>,0x01),("lshr",:>>,0x02),("lshr",:>>>,0x03),("and",
         push!(fdef.args, :T)
         push!(ffdef.args, :T)
     end
-    @eval @generated $fdef = binary_op($op, W, T)
+    @eval @generated $fdef = binary_op($op, W1, T, W2)
     @eval @generated $ffdef = binary_op($op, 1, T)
-    if op !== "ashr" # skip first iteration...
-        @eval begin
-            @inline Base.$f(v::Vec, i::Real) = ((x, y) = promote(v, i); $f(x, y))
-            @inline Base.$f(i::Real, v::Vec) = ((x, y) = promote(v, i); $f(x, y))
-        end
+    if op === "ashr" # replace first iteration with <<
+        f = :(<<)
+    end
+    @eval begin
+        @inline Base.$f(v::Vec, i::Integer) = ((x, y) = promote(v, i); $f(x, y))
+        @inline Base.$f(i::Integer, v::Vec) = ((x, y) = promote(v, i); $f(x, y))
     end
 end
 for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
@@ -91,10 +93,9 @@ for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
 end
 
 for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vdiv),("frem",:%,:vrem)]
-    @eval @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($(op * " nsz arcp contract afn reassoc"), W, T)
-    @eval @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($op, W, T)
+    @eval @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($(op * " nsz arcp contract afn reassoc"), W1, T, W2)
+    @eval @generated $ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($op, W1, T, W2)
 end
 
 @inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
-
 

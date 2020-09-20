@@ -52,7 +52,7 @@ function offset_ptr(
     
     tz = min(trailing_zeros(M), 3)
     tzf = 1 << tz
-    index_gep_typ = ((tzf == sizeof_T) | iszero(M)) ? vtyp : "i$(tzf << 3)"
+    index_gep_typ = ((tzf == sizeof_T) | iszero(M)) ? typ : "i$(tzf << 3)"
     M >>= tz
     # after this block, we will have a index_gep_typ pointer
     if iszero(O)
@@ -755,16 +755,16 @@ end
 @inline prefetch(ptr::Ptr, i, ::Val{L}) where {L} = prefetch(ptr, i, Val{L}(), Val{0}())
 
 
-@inline prefetch0(x, i) = prefetch(gep(stridedpointer(x), (extract_data(i),)), Val{3}(), Val{0}())
-@inline prefetch0(x, I::Tuple) = prefetch(gep(stridedpointer(x), extract_data.(I)), Val{3}(), Val{0}())
-@inline prefetch0(x, i, j) = prefetch(gep(stridedpointer(x), (extract_data(i), extract_data(j))), Val{3}(), Val{0}())
-# @inline prefetch0(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (extract_data(i) + extract_data(oi) - 1, extract_data(j) + extract_data(oj) - 1)), Val{3}(), Val{0}())
-@inline prefetch1(x, i) = prefetch(gep(stridedpointer(x), (extract_data(i),)), Val{2}(), Val{0}())
-@inline prefetch1(x, i, j) = prefetch(gep(stridedpointer(x), (extract_data(i), extract_data(j))), Val{2}(), Val{0}())
-# @inline prefetch1(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (extract_data(i) + extract_data(oi) - 1, extract_data(j) + extract_data(oj) - 1)), Val{2}(), Val{0}())
-@inline prefetch2(x, i) = prefetch(gep(stridedpointer(x), (extract_data(i),)), Val{1}(), Val{0}())
-@inline prefetch2(x, i, j) = prefetch(gep(stridedpointer(x), (extract_data(i), extract_data(j))), Val{1}(), Val{0}())
-# @inline prefetch2(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (extract_data(i) + extract_data(oi) - 1, extract_data(j) + extract_data(oj) - 1)), Val{1}(), Val{0}())
+@inline prefetch0(x, i) = prefetch(gep(stridedpointer(x), (data(i),)), Val{3}(), Val{0}())
+@inline prefetch0(x, I::Tuple) = prefetch(gep(stridedpointer(x), data.(I)), Val{3}(), Val{0}())
+@inline prefetch0(x, i, j) = prefetch(gep(stridedpointer(x), (data(i), data(j))), Val{3}(), Val{0}())
+# @inline prefetch0(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (data(i) + data(oi) - 1, data(j) + data(oj) - 1)), Val{3}(), Val{0}())
+@inline prefetch1(x, i) = prefetch(gep(stridedpointer(x), (data(i),)), Val{2}(), Val{0}())
+@inline prefetch1(x, i, j) = prefetch(gep(stridedpointer(x), (data(i), data(j))), Val{2}(), Val{0}())
+# @inline prefetch1(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (data(i) + data(oi) - 1, data(j) + data(oj) - 1)), Val{2}(), Val{0}())
+@inline prefetch2(x, i) = prefetch(gep(stridedpointer(x), (data(i),)), Val{1}(), Val{0}())
+@inline prefetch2(x, i, j) = prefetch(gep(stridedpointer(x), (data(i), data(j))), Val{1}(), Val{0}())
+# @inline prefetch2(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (data(i) + data(oi) - 1, data(j) + data(oj) - 1)), Val{1}(), Val{0}())
 
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
     decl = "declare void @llvm.lifetime.start(i64, i8* nocapture)"

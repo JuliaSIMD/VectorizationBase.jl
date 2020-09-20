@@ -90,7 +90,7 @@ end
 @inline Base.convert(::Vec{W,T}, s::T) where {W, T <: NativeTypes} = vbroadcast(Val{W}(), s)
 @inline Base.convert(::Vec{W,T}, s::T) where {W, T <: Integer} = vbroadcast(Val{W}(), s)
 @inline Base.convert(::Vec{W,T}, s::NativeTypes) where {W, T} = vbroadcast(Val{W}(), T(s))
-@inline Base.convert(::Vec{W,T1}, s::T2) where {W, T1 <: Integer, T2 <: Integer} = vbroadcast(Val{W}(), s % T1)
+@inline Base.convert(::Vec{W,T1}, s::T2) where {W, T1 <: Integer, T2 <: Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64}} = vbroadcast(Val{W}(), s % T1)
 @inline function Base.convert(::Type{T}, v::Vec{W,S}) where {T<:Number,S,W}
     if S <: T
         v

@@ -47,13 +47,26 @@ for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt]
 end
 @inline Base.inv(v::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(vdiv, vbroadcast(Val{W}(), one(T)), v.data))
 
-for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷,:max,:min,:copysign,:^]
+for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷,:max,:min,:copysign]
     @eval begin
         @inline Base.$op(v1::VecUnroll{N,W,T}, v2::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2)))
         @inline Base.$op(v1::Real, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data))
         @inline Base.$op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
+        @inline Base.$op(v1::VecUnroll{N,W,T}, ::StaticInt{M}) where {N,W,T,M} = VecUnroll(fmap($op, v1.data, vbroadcast(Val{W}(), T(M))))
+        @inline Base.$op(::StaticInt{M}, v1::VecUnroll{N,W,T}) where {N,W,T,M} = VecUnroll(fmap($op, vbroadcast(Val{W}(), T(M)), v1.data))
     end
 end
+for op ∈ [:%, :&, :|, :⊻, :>>, :>>>, :<<]
+    @eval begin
+        @inline Base.$op(vu::VecUnroll, i::MM) = $op(vu, Vec(i))
+        @inline Base.$op(i::MM, vu::VecUnroll) = $op(Vec(i), vu)
+    end
+end
+for op ∈ [:>>, :>>>, :<<]
+    @eval @inline Base.$op(m::Mask, vu::VecUnroll) = $op(Vec(m), vu)
+end
+# @inline Base.:(^)(v1::VecUnroll{N,W,T}, v2::Rational) where {N,W,T} = VecUnroll(fmap(^, v1.data, Vec{W,T}(v2)))
+@inline Base.copysign(v1::Rational, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(copysign, Vec{W,T}(v1), v2.data))
 @inline Base.copysign(v1::Signed, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(copysign, Vec{W,T}(v1), v2.data))
 for op ∈ [:rotate_left,:rotate_right,:funnel_shift_left,:funnel_shift_right]
     @eval begin
@@ -80,4 +93,5 @@ for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :
     end
 end
 
+@inline Base.:(^)(v::VecUnroll, i::Integer) = VecUnroll(fmap(^, v.data, i))
 

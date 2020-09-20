@@ -3,8 +3,6 @@
 
 
 
-const Zero = StaticInt{0}
-const One = StaticInt{1}
 @inline static(::Val{N}) where {N} = StaticInt{N}()
 @inline static(::Nothing) = nothing
 @generated function static_sizeof(::Type{T}) where {T}
@@ -294,6 +292,19 @@ end
 #     @eval @inline vmul(a::$T, ::One) = a
 # end
 
-
+for T ∈ [:VecUnroll, :Mask]
+    @eval begin
+        @inline Base.:(+)(x::$T, ::Zero) = x
+        @inline Base.:(+)(::Zero, x::$T) = x
+        @inline Base.:(-)(x::$T, ::Zero) = x
+        @inline Base.:(*)(x::$T, ::One) = x
+        @inline Base.:(*)(::One, x::$T) = x
+        @inline Base.:(*)(::$T, ::Zero) = Zero()
+        @inline Base.:(*)(::Zero, ::$T) = Zero()
+    end
+end
+@inline Base.:(+)(m::Mask{W}, ::StaticInt{N}) where {N,W} = m + vbroadcast(Val{W}(), N)
+@inline Base.:(+)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) + m
+# @inline Base.:(*)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) * m
 
 

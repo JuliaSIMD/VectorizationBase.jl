@@ -161,26 +161,31 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @generated function floattype(::Val{W}) where {W}
     (REGISTER_SIZE ÷ W) ≥ 8 ? :Float64 : :Float32
 end
-floatvec(i::MM{W}) where {W} = Vec(MM{W}(floattype(Val{W}())(i.i)))
-@inline Base.:(/)(i::MM, j::T) where {T<:Number} = floatvec(i) / j
-@inline Base.:(/)(j::T, i::MM) where {T<:Number} = j / floatvec(i)
-@inline Base.:(/)(i::MM, j::MM) = floatvec(i) / floatvec(j)
-@inline Base.inv(i::MM) = inv(floatvec(i))
+@inline Base.float(i::MM{W}) where {W} = Vec(MM{W}(floattype(Val{W}())(i.i)))
+@inline Base.:(/)(i::MM, j::T) where {T<:Real} = float(i) / j
+@inline Base.:(/)(j::T, i::MM) where {T<:Real} = j / float(i)
+@inline Base.:(/)(i::MM, j::MM) = float(i) / float(j)
+@inline Base.inv(i::MM) = inv(float(i))
+@inline Base.:(/)(vu::VecUnroll, m::MM) = vu * inv(m)
+@inline Base.:(/)(m::MM, vu::VecUnroll) = Vec(m) / vu
 
-@inline Base.:(<<)(i::MM, j::Number) = Vec(i) << j
-@inline Base.:(>>)(i::MM, j::Number) = Vec(i) >> j
-@inline Base.:(>>>)(i::MM, j::Number) = Vec(i) >>> j
+@inline Base.:(<<)(i::MM, j::Real) = Vec(i) << j
+@inline Base.:(>>)(i::MM, j::Real) = Vec(i) >> j
+@inline Base.:(>>>)(i::MM, j::Real) = Vec(i) >>> j
+@inline Base.:(<<)(i::MM, j::Vec) = Vec(i) << j
+@inline Base.:(>>)(i::MM, j::Vec) = Vec(i) >> j
+@inline Base.:(>>>)(i::MM, j::Vec) = Vec(i) >>> j
 
 for op ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=)]
-    @eval @inline Base.$op(i::MM, j::Number) = $op(data(i), j)
-    @eval @inline Base.$op(i::Number, j::MM) = $op(i, data(j))
+    @eval @inline Base.$op(i::MM, j::Real) = $op(data(i), j)
+    @eval @inline Base.$op(i::Real, j::MM) = $op(i, data(j))
     @eval @inline Base.$op(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
     @eval @inline Base.$op(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
     @eval @inline Base.$op(i::MM, j::MM) = $op(data(i), data(j))
 end
 for op ∈ [:(&), :(|), :(⊻), :(%)]
-    @eval @inline Base.$op(i::MM, j::Number) = $op(Vec(i), j)
-    @eval @inline Base.$op(i::Number, j::MM) = $op(i, Vec(j))
+    @eval @inline Base.$op(i::MM, j::Real) = $op(Vec(i), j)
+    @eval @inline Base.$op(i::Real, j::MM) = $op(i, Vec(j))
     @eval @inline Base.$op(i::MM, ::StaticInt{j}) where {j} = $op(Vec(i), j)
     @eval @inline Base.$op(::StaticInt{i}, j::MM) where {i} = $op(i, Vec(j))
     @eval @inline Base.$op(i::MM, j::MM) = $op(Vec(i), Vec(j))

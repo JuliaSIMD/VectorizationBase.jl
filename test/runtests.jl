@@ -1,4 +1,4 @@
-using VectorizationBase, OffsetArrays
+using VectorizationBase, OffsetArrays, Aqua
 using VectorizationBase: data
 using Test
 
@@ -24,8 +24,9 @@ A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
-    @test isempty(detect_unbound_args(VectorizationBase))
-    @test isempty(detect_ambiguities(VectorizationBase))
+    Aqua.test_all(VectorizationBase)
+    # @test isempty(detect_unbound_args(VectorizationBase))
+    # @test isempty(detect_ambiguities(VectorizationBase))
 
     W = VectorizationBase.pick_vector_width(Float64)
     @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.AVX512DQ ? Int64 : Int32)

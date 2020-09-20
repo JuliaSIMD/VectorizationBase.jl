@@ -65,7 +65,6 @@ struct StridedPointer{T,N,C,B,R,X,O} <: AbstractStridedPointer{T,N,C,B,R,X,O}
 end
 @inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 
-
 @inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
     stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), stride_rank(A), bytestrides(A), offsets(A))
 end
@@ -81,6 +80,12 @@ end
 @generated function zerotuple(::Val{N}) where {N}
     t = Expr(:tuple); foreach(n -> push!(t.args, Expr(:call, :Zero)), 1:N)
     Expr(:block, Expr(:meta,:inline), t)
+end
+
+@generated function zero_offsets(sptr::StridedPointer{T,N,C,B,R,X}) where {T,N,C,B,R,X}
+    o = Expr(:tuple); foreach(n -> push!(o.args, :(StaticInt{0}())), 1:N)
+    O = Expr(:curly, :Tuple); foreach(n -> push!(O.args, :(StaticInt{0})), 1:N)
+    Expr(:block, Expr(:meta, :inline), :(StridedPointer{$T,$N,$C,$B,$R,$X,$O}(sptr.p, sptr.strd, $o)))
 end
 
 # @inline function Base.similar(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
