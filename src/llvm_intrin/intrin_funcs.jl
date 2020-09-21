@@ -32,9 +32,10 @@ end
 #     W = 2
 #     while W * sizeof(T) ≤ REGISTER_SIZE
 # floating point
-for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("trunc",:trunc),("round",:round)
+for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("trunc",:trunc),("nearbyint",:round)
               ]
-    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
+    # @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
+    @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "fast")
 end
 
 

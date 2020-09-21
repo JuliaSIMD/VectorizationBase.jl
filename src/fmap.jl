@@ -168,3 +168,7 @@ ifelse(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
 @inline Base.:(==)(v::VecUnroll{N,W,T}, x::AbstractIrrational) where {N,W,T} = v == vbroadcast(Val{W}(), T(x))
 @inline Base.:(==)(x::AbstractIrrational, v::VecUnroll{N,W,T}) where {N,W,T} = vbroadcast(Val{W}(), T(x)) == v
 
+@inline Base.convert(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(convert, T, v.data))
+@inline Base.unsafe_trunc(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(unsafe_trunc, T, v.data))
+@inline Base.:(%)(v::VecUnroll, ::Type{T}) where {T<:Real} = VecUnroll(fmap(%, v.data, T))
+

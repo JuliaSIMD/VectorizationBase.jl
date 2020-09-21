@@ -164,7 +164,7 @@ Vec{1,T}(x::Integer) where {T<:Integer} = T(x)
 
 @inline Base.length(::AbstractSIMDVector{W}) where W = W
 @inline Base.size(::AbstractSIMDVector{W}) where W = (W,)
-@inline Base.eltype(::AbstractSIMDVector{W,T}) where {W,T} = T
+@inline Base.eltype(::AbstractSIMD{W,T}) where {W,T} = T
 @inline Base.conj(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.adjoint(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.transpose(v::AbstractSIMDVector) = v # so that things like dot products work.

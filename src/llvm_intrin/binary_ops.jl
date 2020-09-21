@@ -83,7 +83,7 @@ for (op,f,s) ∈ [("ashr",:>>,0x01),("lshr",:>>,0x02),("lshr",:>>>,0x03),("and",
     end
     @eval begin
         @inline Base.$f(v::Vec, i::Integer) = ((x, y) = promote(v, i); $f(x, y))
-        @inline Base.$f(i::Integer, v::Vec) = ((x, y) = promote(v, i); $f(x, y))
+        @inline Base.$f(i::Integer, v::Vec) = ((x, y) = promote(i, v); $f(x, y))
     end
 end
 for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]

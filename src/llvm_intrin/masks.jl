@@ -363,9 +363,10 @@ end
         Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
-@inline ifelse(m::Mask, v::Vec, s) = ((x,y) = promote(v,s); ifelse(m,x,y))
-@inline ifelse(m::Mask, s, v::Vec) = ((x,y) = promote(s,v); ifelse(m,x,y))
-@inline ifelse(m::Mask{W}, s1::T, s2::T) where {W,T} = ifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
+# @inline ifelse(m::Mask, v::Vec, s) = ((x,y) = promote(v,s); ifelse(m,x,y))
+# @inline ifelse(m::Mask, s, v::Vec) = ((x,y) = promote(s,v); ifelse(m,x,y))
+@inline ifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = ifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
+@inline ifelse(m::Mask{W}, s1, s2) where {W} = ((x1,x2) = promote(s1,s2); ifelse(m, x1, x2))
 
-@inline isnan(v::AbstractSIMD) = v != v
+@inline Base.isnan(v::AbstractSIMD) = v != v
 
