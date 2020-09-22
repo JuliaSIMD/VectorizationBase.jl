@@ -42,7 +42,7 @@ end
 end
 
 @inline Base.float(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
-@generated function Base.float(v::Vec{W,I}) where {W, I}
+@generated function Base.float(v::Vec{W,I}) where {W, I <: Integer}
     ex = if 8W ≤ REGISTER_SIZE
         :(Vec{$W,Float64}(v))
     else
@@ -50,6 +50,8 @@ end
     end
     Expr(:block, Expr(:meta, :inline), ex)
 end
+@inline Base.float(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
+@inline Base.float(vu::VecUnroll) = VecUnroll(fmap(float, vu.data))
 
     # for bytes2 in (1,2,4)
     #     bytes2 == bytes1 && break

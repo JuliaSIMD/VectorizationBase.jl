@@ -333,7 +333,8 @@ for (f,cond) ∈ [(:(>), "sgt"), (:(≥), "sge"), (:(<), "slt"), (:(≤), "sle")
     # end
 end
 
-for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"), (:(≤), "ole"), (:(≠), "one")]
+# for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"), (:(≤), "ole"), (:(≠), "one")]
+for (f,cond) ∈ [(:(==), "ueq"), (:(>), "ugt"), (:(≥), "uge"), (:(<), "ult"), (:(≤), "ule"), (:(≠), "une")]
     @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         fcmp_quote(W, $cond, T)
     end
@@ -369,4 +370,18 @@ end
 @inline ifelse(m::Mask{W}, s1, s2) where {W} = ((x1,x2) = promote(s1,s2); ifelse(m, x1, x2))
 
 @inline Base.isnan(v::AbstractSIMD) = v != v
+
+@inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)
+
+@inline Base.flipsign(x::AbstractSIMD, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
+for T ∈ [:Float32, :Float64]
+    @eval begin
+        @inline Base.flipsign(x::AbstractSIMD, y::$T) = ifelse(y > zero(y), x, -x)
+        @inline Base.flipsign(x::$T, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
+    end
+end
+@inline Base.flipsign(x::AbstractSIMD, y::Real) = ifelse(y > zero(y), x, -x)
+@inline Base.flipsign(x::Real, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
+@inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
+@inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) != zero(T)
 

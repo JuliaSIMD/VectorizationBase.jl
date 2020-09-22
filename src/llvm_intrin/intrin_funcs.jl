@@ -139,9 +139,9 @@ for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
     end
 end
 # floating vector, integer scalar
-@generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
-    llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")
-end
+# @generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
+#     llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")
+# end
 for (op,f) ∈ [
     ("experimental.vector.reduce.v2.fadd",:vsum),
     ("experimental.vector.reduce.v2.fmul",:vprod)

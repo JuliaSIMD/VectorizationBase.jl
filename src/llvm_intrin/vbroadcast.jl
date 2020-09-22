@@ -20,6 +20,7 @@
 #     """
 # end
 @generated function vzero(::Val{W}, ::Type{T}) where {W,T<:NativeTypes}
+    typ = LLVM_TYPES[T]
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
         $(Expr(:meta,:inline))
@@ -106,6 +107,7 @@ end
 # @inline vbroadcast(::Val{1}, s::T) where {T <: NativeTypes} = s
 # @inline vbroadcast(::Val{1}, s::Ptr{T}) where {T <: NativeTypes} = s
 @inline vzero(::Val{W}, ::Type{T}) where {W,T} = zero(Vec{W,T})
+@inline Base.zero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline Base.zero(::Vec{W,T}) where {W,T} = zero(Vec{W,T})
 @inline Base.one(::Vec{W,T}) where {W,T} = vbroadcast(Val{W}(), one(T))
 
@@ -121,7 +123,29 @@ end
 @inline Vec{W}(s::T) where {W,T<:NativeTypes} = vbroadcast(Val{W}(), s)
 @inline Vec(s::T) where {T<:NativeTypes} = vbroadcast(pick_vector_width_val(T), s)
 
+@generated function Base.zero(::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V}
+    t = Expr(:tuple); foreach(_ -> push!(t.args, :(zero(Vec{$W,$T}))), 0:N)
+    Expr(:block, Expr(:meta, :inline), :(VecUnroll($t)))
+end
+@inline Base.zero(::VecUnroll{N,W,T,V}) where {N,W,T,V} = zero(VecUnroll{N,W,T,V})
+
+@generated function VecUnroll{N,W,T,V}(x::S) where {N,W,T,V<:AbstractSIMDVector{W,T},S<:Real}
+    t = Expr(:tuple)
+    for n ∈ 0:N
+        push!(t.args, :($V(x)))
+    end
+    Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
+end
+
+# @inline vbroadcast(::Val{W}, ::Type{T}, s::T) where {W,T} = vbroadcast(Val{W}(), s)
+# @generated function vbroadcast(::Val{W}, ::Type{T}, s::S) where {W,T,S}
+#     ex = if sizeof(T) < sizeof(S)
+#         vbroadcast(Val{W}(), symmetric_promote_rule(T, S)(s))
+#     else
+        
+#     end
+#     Expr(:block, Expr(:meta, :inline), ex)
+# end
 
 
 
-    

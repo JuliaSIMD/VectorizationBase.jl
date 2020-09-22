@@ -101,18 +101,24 @@ end
 # @inline fmap(f::F, w, x, y) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x), unrolleddata(y)))
 # @inline fmap(f::F, w, x, y, z) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x), unrolleddata(y), unrolleddata(z)))
 
-for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt]
+for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt, :!, :(~)]
     @eval @inline Base.$op(v1::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data))
 end
 @inline Base.inv(v::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(vdiv, vbroadcast(Val{W}(), one(T)), v.data))
 @inline Base.reinterpret(::Type{T}, v::VecUnroll) where {T<:Number} = VecUnroll(fmap(reinterpret, T, v.data))
-for op ∈ [:+,:-,:*,:/,:%,:<<,:>>,:>>>,:&,:|,:⊻,:÷,:max,:min,:copysign,:(<),:(≤),:(>),:(≥),:(==),:(≠)]
+for op ∈ [:(Base.:(+)),:(Base.:(-)),:(Base.:(*)),:(Base.:(/)),:(Base.:(%)),:(Base.:(<<)),:(Base.:(>>)),:(Base.:(>>>)),:(Base.:(&)),:(Base.:(|)),:(Base.:(⊻)),
+          :(Base.:(÷)),:(Base.max),:(Base.min),:(Base.copysign),:(Base.:(<)),:(Base.:(≤)),:(Base.:(>)),:(Base.:(≥)),:(Base.:(==)),:(Base.:(≠)),:vadd,:vsub,:vmul]
     @eval begin
-        @inline Base.$op(v1::VecUnroll{N,W,T}, v2::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2)))
-        @inline Base.$op(v1::Real, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data))
-        @inline Base.$op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
-        @inline Base.$op(v1::VecUnroll{N,W,T}, ::StaticInt{M}) where {N,W,T,M} = VecUnroll(fmap($op, v1.data, vbroadcast(Val{W}(), T(M))))
-        @inline Base.$op(::StaticInt{M}, v1::VecUnroll{N,W,T}) where {N,W,T,M} = VecUnroll(fmap($op, vbroadcast(Val{W}(), T(M)), v1.data))
+        # @inline $op(v1::VecUnroll{N,W,T}, v2::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, vbroadcast(Val{W}(), T, v2)))
+        # @inline $op(v1::Real, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, vbroadcast(Val{W}(), T, v1), v2.data))
+        @inline $op(v1::VecUnroll{N,W,T}, v2::S) where {N,W,T,S<:Real} = VecUnroll(fmap($op, v1.data, promote_rule(Vec{W,T}, S)(v2)))
+        @inline $op(v1::S, v2::VecUnroll{N,W,T}) where {N,W,T,S<:Real} = VecUnroll(fmap($op, promote_rule(Vec{W,T}, S)(v1), v2.data))
+        # @inline $op(v1::VecUnroll{N,W,T}, v2::AbstractSIMD{W,S}) where {N,W,T,S<:Real} = VecUnroll(fmap($op, v1.data, symmetric_promote_rule(Vec{W,T}, Vec{W,S})(v2)))
+        # @inline $op(v1::AbstractSIMD{W,S}, v2::VecUnroll{N,W,T}) where {N,W,T,S<:Real} = VecUnroll(fmap($op, symmetric_promote_rule(Vec{W,T}, Vec{W,S})(v1), v2.data))
+        # @inline $op(v1::Real, v2::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data))
+        @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
+        @inline $op(v1::VecUnroll{N,W,T}, ::StaticInt{M}) where {N,W,T,M} = VecUnroll(fmap($op, v1.data, vbroadcast(Val{W}(), T(M))))
+        @inline $op(::StaticInt{M}, v1::VecUnroll{N,W,T}) where {N,W,T,M} = VecUnroll(fmap($op, vbroadcast(Val{W}(), T(M)), v1.data))
     end
 end
 for op ∈ [:%, :&, :|, :⊻, :>>, :>>>, :<<,:(<),:(≤),:(>),:(≥),:(==),:(≠)]
@@ -151,7 +157,8 @@ for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :
         @inline $op(v1::VecUnroll{N,W,T}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data, v2.data, v3.data))
     end
 end
-@inline ifelse(v1::VecUnroll{N,W}, v2::T, v3::T) where {N,W,T<:Real} = VecUnroll(fmap(ifelse, v1.data, Vec{W,T}(v2), Vec{W,T}(v3)))
+@inline ifelse(v1::VecUnroll{N,W}, v2::T, v3::T) where {N,W,T<:NativeTypes} = VecUnroll(fmap(ifelse, v1.data, Vec{W,T}(v2), Vec{W,T}(v3)))
+@inline ifelse(v1::VecUnroll{N,W}, v2::T, v3::T) where {N,W,T<:Real} = VecUnroll(fmap(ifelse, v1.data, v2, v3))
 @inline ifelse(v1::Real, v2::VecUnroll{N,W,T}, v3::Real) where {N,W,T} = VecUnroll(fmap(ifelse, Vec{W,T}(v1), v2.data, Vec{W,T}(v3)))
 @inline ifelse(v1::Real, v2::Real, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, Vec{W,T}(v1), Vec{W,T}(v2), v3.data))
 @inline ifelse(v1::VecUnroll{N,W}, v2::VecUnroll{N,W,T}, v3::Real) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, v2.data, Vec{W,T}(v3)))
@@ -169,6 +176,10 @@ ifelse(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
 @inline Base.:(==)(x::AbstractIrrational, v::VecUnroll{N,W,T}) where {N,W,T} = vbroadcast(Val{W}(), T(x)) == v
 
 @inline Base.convert(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(convert, T, v.data))
+@inline Base.convert(::Type{VU}, v::VU) where {VU <: VecUnroll} = v
 @inline Base.unsafe_trunc(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(unsafe_trunc, T, v.data))
 @inline Base.:(%)(v::VecUnroll, ::Type{T}) where {T<:Real} = VecUnroll(fmap(%, v.data, T))
+
+@inline (::Type{VecUnroll{N,W,T,V}})(vu::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = vu
+@inline (::Type{VecUnroll{N,W,T,VT}})(vu::VecUnroll{N,W,S,VS})  where {N,W,T,VT<:AbstractSIMDVector{W,T},S,VS<:AbstractSIMDVector{W,S}} = VecUnroll(fmap(convert, Vec{W,T}, vu.data))
 

@@ -263,6 +263,7 @@ include("fmap.jl")
 include("promotion.jl")
 include("ranges.jl")
 include("alignment.jl")
+include("special/misc.jl")
 include("precompile.jl")
 _precompile_()
 

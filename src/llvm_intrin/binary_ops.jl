@@ -53,7 +53,7 @@ for (op,f) ∈ [("div",:÷),("rem",:%)]
     ff = Symbol('v', op); _ff = Symbol(:_, ff)
     @eval @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W1, T, W2)
     @eval @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
-    @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
+    @eval Base.@pure @inline $ff(v1::T, v2::T) where {T<:Integer} = $_ff(v1, v2)
     @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
 end
 @inline vcld(x, y) = vadd(vdiv(vsub(x,one(x)), y), one(x))
@@ -93,8 +93,11 @@ for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
 end
 
 for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vdiv),("frem",:%,:vrem)]
-    @eval @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($(op * " nsz arcp contract afn reassoc"), W1, T, W2)
-    @eval @generated $ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($op, W1, T, W2)
+    @eval begin
+        @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($(op * " nsz arcp contract afn reassoc"), W1, T, W2)
+        @generated $ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($op, W1, T, W2)
+        @inline $ff(a::T, b::T) where {T <: Union{Float32,Float64}} = $f(a, b)
+    end
 end
 
 @inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)

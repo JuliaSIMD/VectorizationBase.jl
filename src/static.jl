@@ -306,5 +306,12 @@ end
 @inline Base.:(+)(m::Mask{W}, ::StaticInt{N}) where {N,W} = m + vbroadcast(Val{W}(), N)
 @inline Base.:(+)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) + m
 # @inline Base.:(*)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) * m
+@inline vadd(x::VecUnroll, ::Zero) = x
+@inline vadd(::Zero, x::VecUnroll) = x
+@inline vsub(x::VecUnroll, ::Zero) = x
+@inline vmul(x::VecUnroll, ::One) = x
+@inline vmul(::One, x::VecUnroll) = x
+@inline vmul(::VecUnroll, ::Zero) = Zero()
+@inline vmul(::Zero, ::VecUnroll) = Zero()
 
 
