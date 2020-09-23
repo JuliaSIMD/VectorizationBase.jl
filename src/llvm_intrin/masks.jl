@@ -71,33 +71,11 @@ function vadd_expr(W,U)
 end
 @generated Base.:(+)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
 
-# @inline Base.:(+)(m1::Mask, m2::Mask) = vadd(m1,m2)
-
-# @inline Base.:(&)(m1::Mask{W}, m2::Mask{W}) where {W} = andmask(m1, m2)
-# @inline Base.:(&)(m::Mask{W}, u::Unsigned) where {W} = m & Mask{W}(u)
-# @inline Base.:(&)(u::Unsigned, m::Mask{W}) where {W} = Mask{W}(u) & m
-
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
 
-# @inline Base.:(|)(m1::Mask{W}, m2::Mask{W}) where {W} = ormask(m1, m2)
-# @inline Base.:(|)(m::Mask{W}, u::Unsigned) where {W} = ormask(m, Mask{W}(u))
-# @inline Base.:(|)(u::Unsigned, m::Mask{W}) where {W} = ormask(Mask{W}(u), m)
-
 @inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
 @inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
-# @inline Base.:(|)(m::Mask{16,UInt16}, b::Bool) = Mask{16}(b ? 0xffff : m.u)
-# @inline Base.:(|)(b::Bool, m::Mask{16,UInt16}) = Mask{16}(b ? 0xffff : m.u)
-# @inline Base.:(|)(m::Mask{8,UInt8}, b::Bool) = Mask{8}(b ? 0xff : m.u)
-# @inline Base.:(|)(b::Bool, m::Mask{8,UInt8}) = Mask{8}(b ? 0xff : m.u)
-# @inline Base.:(|)(m::Mask{4,UInt8}, b::Bool) = Mask{4}(b ? 0x0f : m.u)
-# @inline Base.:(|)(b::Bool, m::Mask{4,UInt8}) = Mask{4}(b ? 0x0f : m.u)
-# @inline Base.:(|)(m::Mask{2,UInt8}, b::Bool) = Mask{2}(b ? 0x03 : m.u)
-# @inline Base.:(|)(b::Bool, m::Mask{2,UInt8}) = Mask{2}(b ? 0x03 : m.u)
-
-# @inline Base.:(⊻)(m1::Mask{W}, m2::Mask{W}) where {W} = xormask(m1, m2)
-# @inline Base.:(⊻)(m::Mask{W}, u::Unsigned) where {W} = xormask(m, Mask{W}(u))
-# @inline Base.:(⊻)(u::Unsigned, m::Mask{W}) where {W} = xormask(Mask{W}(u), m)
 
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
@@ -128,30 +106,6 @@ end
     end
 end
 @inline Base.:(~)(m::Mask) = !m
-#@inline Base.:(!)(m::Mask{W}) where {W} = Mask{W}( ~m.u )
-
-
-# @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u == m2.u
-# @inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
-# @inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
-# @inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1.u != m2.u
-# @inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = m.u != u
-# @inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = u != m.u
-
-# @inline Base.@pure Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = m1 == m2
-# @inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = m.u == u
-# @inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = u == m.u
-# @inline Base.@pure Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = m1 != m2
-# @inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = m.u != u
-# @inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = u != m.u
-
-
-# @inline Base.:(==)(m1::Mask{W}, m2::Mask{W}) where {W} = equalmask(m1, m2)
-# @inline Base.:(==)(m::Mask{W}, u::Unsigned) where {W} = equalmask(m1, Mask{W}(m2))
-# @inline Base.:(==)(u::Unsigned, m::Mask{W}) where {W} = equalmask(Mask{W}(m1), m2)
-# @inline Base.:(!=)(m1::Mask{W}, m2::Mask{W}) where {W} = notequalmask(m1, m2)
-# @inline Base.:(!=)(m::Mask{W}, u::Unsigned) where {W} = notequalmask(m1, Mask{W}(m2))
-# @inline Base.:(!=)(u::Unsigned, m::Mask{W}) where {W} = notequalmask(Mask{W}(m1), m2)
 
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
 @inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m)
@@ -259,19 +213,21 @@ Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
     getindexzerobased(m, i - 1)
 end
 
-@generated function Base.isodd(i::MM{W}) where {W}
-    U = mask_type(W)
-    evenfirst = 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % U
-    # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($oddfirst) : Mask{$W}($evenfirst)))
-    Expr(:block, Expr(:meta, :inline), :(Mask{$W}($evenfirst >> (i.i & 0x03))))
-end
-@generated function Base.iseven(i::MM{W}) where {W}
-    U = mask_type(W)
-    oddfirst = 0x55555555555555555555555555555555 % U
-    evenfirst = oddfirst << 1
-    # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($evenfirst) : Mask{$W}($oddfirst)))
-    Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (i.i & 0x03))))
-end
+# @generated function Base.isodd(i::MM{W,1}) where {W}
+#     U = mask_type(W)
+#     evenfirst = 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % U
+#     # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($oddfirst) : Mask{$W}($evenfirst)))
+#     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($evenfirst >> (i.i & 0x03))))
+# end
+# @generated function Base.iseven(i::MM{W,1}) where {W}
+#     U = mask_type(W)
+#     oddfirst = 0x55555555555555555555555555555555 % U
+#     # evenfirst = oddfirst << 1
+#     # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($evenfirst) : Mask{$W}($oddfirst)))
+#     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (i.i & 0x03))))
+# end
+@inline Base.isodd(i::MM{W,1}) where {W} = Mask{W}((0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>> (i.i & 0x03))
+@inline Base.iseven(i::MM{W,1}) where {W} = Mask{W}((0x55555555555555555555555555555555 % mask_type(Val{W}())) >>> (i.i & 0x03))
 
 function cmp_quote(W, cond, vtyp, T1, T2 = T1)
     instrs = String["%m = $cond $vtyp %0, %1"]

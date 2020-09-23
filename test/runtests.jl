@@ -168,6 +168,35 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         @test !VectorizationBase.vany((!Mask{8}(0xac) & Mask{8}(0xac)))
         @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)) == Mask{8}(0xff))
         @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)))
+
+        @test (Mask{8}(0xac) | false) === Mask{8}(0xac)
+        @test (Mask{8}(0xac) | true) === Mask{8}(0xff)
+        @test (false | Mask{8}(0xac)) === Mask{8}(0xac)
+        @test (true | Mask{8}(0xac)) === Mask{8}(0xff)
+        @test (Mask{8}(0xac) & false) === Mask{8}(0x00)
+        @test (Mask{8}(0xac) & true) === Mask{8}(0xac)
+        @test (false & Mask{8}(0xac)) === Mask{8}(0x00)
+        @test (true & Mask{8}(0xac)) === Mask{8}(0xac)
+        @test (Mask{8}(0xac) ⊻ false) === Mask{8}(0xac)
+        @test (Mask{8}(0xac) ⊻ true) === Mask{8}(0x53)
+        @test (false ⊻ Mask{8}(0xac)) === Mask{8}(0xac)
+        @test (true ⊻ Mask{8}(0xac)) === Mask{8}(0x53)
+                
+        @test (Mask{4}(0x05) | true) === Mask{4}(0x0f)
+        @test (Mask{4}(0x05) | false) === Mask{4}(0x05)
+        @test (true | Mask{4}(0x05)) === Mask{4}(0x0f)
+        @test (false | Mask{4}(0x05)) === Mask{4}(0x05)
+        for T ∈ [UInt8, UInt16, UInt32]
+            Ws = T === UInt8 ? [2,4,8] : [8sizeof(T)]
+            for W ∈ Ws
+                u1 = rand(T)
+                u2 = rand(T)
+                m = ~(typemax(T) << W)
+                @test (Mask{W}(u1) & Mask{W}(u2)) === Mask{W}( (u1 & u2) & m )
+                @test (Mask{W}(u1) | Mask{W}(u2)) === Mask{W}( (u1 | u2) & m )
+                @test (Mask{W}(u1) ⊻ Mask{W}(u2)) === Mask{W}( (u1 ⊻ u2) & m )
+            end
+        end
     end
 
     # @testset "number_vectors.jl" begin
