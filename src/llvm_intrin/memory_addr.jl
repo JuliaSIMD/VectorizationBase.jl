@@ -102,19 +102,23 @@ function offset_ptr(
         push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), i$(ibits) %$(indname)"); i += 1
     end
     # ind_type === :Integer || ind_type === :StaticInt
-    if forgep && (isone(X) | iszero(X)) # if forgep, just return now
-        push!(instrs, "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"); i += 1
-    elseif index_gep_typ != vtyp
-        push!(instrs, "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $vtyp*"); i += 1
-    end
     if !(isone(X) | iszero(X)) # vec
         vibytes = min(4, REGISTER_SIZE ÷ W)
         vityp = "i$(8vibytes)"
-        vi = join((X*w for w ∈ 0:W-1), ", $vityp")
-        push!(insrts, "%ptr.$(i) = getelementptr inbounds $(vtyp), $(vtyp)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"); i += 1
-        if forgep
-            push!(instrs, "%ptr.$(i) = ptrtoint <$W x $vtyp*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+        vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
+        if typ !== index_gep_typ
+            push!(instrs, "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(typ)*"); i += 1
         end
+        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(typ), $(typ)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"); i += 1
+        if forgep
+            push!(instrs, "%ptr.$(i) = ptrtoint <$W x $typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+        end
+        return instrs, i
+    end
+    if forgep # if forgep, just return now
+        push!(instrs, "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"); i += 1
+    elseif index_gep_typ != vtyp
+        push!(instrs, "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(vtyp)*"); i += 1
     end
     instrs, i
 end

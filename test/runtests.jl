@@ -249,7 +249,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         O = OffsetArray(P, (-4, -2, -3));
 
         indices = Real[
-            2, MM{W64}(1), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
+            2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))))
         ]
         for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
@@ -394,7 +394,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             @test tovector(@inferred(f(j, vi2))) ≈ f.(j, xi2)
             @test tovector(@inferred(f(vi1, i))) ≈ f.(xi1, i)
         end
-        
+        @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
         vf1 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
