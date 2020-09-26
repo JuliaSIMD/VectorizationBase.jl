@@ -24,7 +24,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
-    Aqua.test_all(VectorizationBase)
+    Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
     # @test isempty(detect_unbound_args(VectorizationBase))
     # @test isempty(detect_ambiguities(VectorizationBase))
 
