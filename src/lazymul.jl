@@ -1,11 +1,12 @@
 
 # abstract type AbstractLazyMul end
-struct LazyMulAdd{M,O,T} <: Number
+struct LazyMulAdd{M,O,T<:NativeTypesV} <: Number
     data::T
+    @inline LazyMulAdd{M,O,T}(data::T) where {M,O,T<:NativeTypesV} = new{M,O,T}(data)
 end
 # O for offset is kind of hard to read next to default of 0?
-@inline LazyMulAdd{M,O}(data::T) where {M,O,T} = LazyMulAdd{M,O,T}(data)
-@inline LazyMulAdd{M}(data::T) where {M,T} = LazyMulAdd{M,0,T}(data)
+@inline LazyMulAdd{M,O}(data::T) where {M,O,T<:Union{Base.HWReal,AbstractSIMD}} = LazyMulAdd{M,O,T}(data)
+@inline LazyMulAdd{M}(data::T) where {M,T<:NativeTypesV} = LazyMulAdd{M,0,T}(data)
 @inline LazyMulAdd(data::T, ::StaticInt{M}) where {M,T} = LazyMulAdd{M,0,T}(data)
 @inline LazyMulAdd(data::T, ::StaticInt{M}, ::StaticInt{O}) where {M,O,T} = LazyMulAdd{M,O,T}(data)
 

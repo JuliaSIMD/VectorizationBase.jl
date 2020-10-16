@@ -15,7 +15,7 @@ import IfElse: ifelse
 export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, vbroadcast, mask
 
 # using Base: llvmcall
-using Base: llvmcall, VecElement
+using Base: llvmcall, VecElement, HWReal
 # @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
 # @inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
 
@@ -48,8 +48,7 @@ const FloatingTypes = Union{Float32, Float64} # Float16
 # const SUPPORTED_FLOATS = [Float32, Float64]
 # const SUPPORTED_TYPES = [Float32, Float64, Int16, Int32, Int64, Int8, UInt16, UInt32, UInt64, UInt8]
 
-const NativeTypes = Union{Bool,Base.HWReal}
-
+const NativeTypes = Union{Bool,HWReal}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
@@ -58,12 +57,13 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # end
 # Base.@pure StaticInt(N) = StaticInt{N}()
 
-abstract type AbstractSIMD{W,T <: Union{StaticInt,NativeTypes}} <: Real end
+abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
+const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
-    @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T} = new{W,T}(x)
-    @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T}
+    @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:Union{NativeTypes,StaticInt}} = new{W,T}(x)
+    @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T<:Union{NativeTypes,StaticInt}}
         W = _W + 1
         # @assert W === pick_vector_width(W, T)# || W === 8
         Expr(:block, Expr(:meta,:inline), Expr(:call, Expr(:curly, :Vec, W, T), :x))
@@ -77,6 +77,7 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
 end
 struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMD{W,T}
     data::Tuple{V,Vararg{V,N}}
+    @inline VecUnroll(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
 end
 
 @inline Base.copy(v::AbstractSIMDVector) = v
@@ -131,6 +132,7 @@ end
 
 struct Mask{W,U<:Unsigned} <: AbstractSIMDVector{W,Bool}
     u::U
+    @inline Mask{W,U}(u::Unsigned) where {W,U} = new{W,U}(u)
 end
 const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
@@ -158,9 +160,10 @@ const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 # @inline Vec{W}(v::Vec{W,T}) where {W,T} = Vec{W,T}(v)
 # @inline vbroadcast(::Val, b::Bool) = b
 
-Vec{W,T}(x::Vararg{Any,W}) where {W,T} = Vec(ntuple(w -> Core.VecElement{T}(x[w]), Val{W}()))
-Vec{1,T}(x) where {T} = T(x)
-Vec{1,T}(x::Integer) where {T<:Integer} = T(x)
+Vec{W,T}(x::Vararg{NativeTypes,W}) where {W,T<:NativeTypes} = Vec(ntuple(w -> Core.VecElement{T}(x[w]), Val{W}()))
+Vec{1,T}(x::Union{Float32,Float64}) where {T<:NativeTypes} = T(x)
+Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where {T<:NativeTypes} = T(x)
+# Vec{1,T}(x::Integer) where {T<:HWReal} = T(x)
 
 @inline Base.length(::AbstractSIMDVector{W}) where W = W
 @inline Base.size(::AbstractSIMDVector{W}) where W = (W,)
@@ -223,12 +226,13 @@ The name `MM` type refers to _MM registers such as `XMM`, `YMM`, and `ZMM`.
 
 The `MM{W,X}` type is used to represent SIMD indexes of width `W` with stride `X`.
 """
-struct MM{W,X,I<:Number} <: AbstractSIMDVector{W,I}
+struct MM{W,X,I<:Union{HWReal,StaticInt}} <: AbstractSIMDVector{W,I}
     i::I
-    @inline MM{W,X}(i::T) where {W,X,T} = new{W,X::Int,T}(i)
+    @inline MM{W,X}(i::T) where {W,X,T<:Union{HWReal,StaticInt}} = new{W,X::Int,T}(i)
 end
-@inline MM{W}(i) where {W} = MM{W,1}(i)
-@inline MM{W}(i, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
+@inline MM(i::MM{W,X}) where {W,X} = MM{W,X}(i.i)
+@inline MM{W}(i::Union{HWReal,StaticInt}) where {W} = MM{W,1}(i)
+@inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = i.i
 
 getelement(i::MM{W,X}, j) where {W,X} = i.i + X * (j-1)
