@@ -844,5 +844,8 @@ end
     llvmcall_expr(decl, join(instrs,"\n"), :(NTuple{$W,VecElement{$T}}), :(Tuple{Ptr{$T}, $U}), vtyp, [JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:ptr, :(data(mask))])
 end
 
+@inline vload(::StaticInt{N}, args...) where {N} = StaticInt{N}()
+@inline stridedpointer(::StaticInt{N}) where {N} = StaticInt{N}()
+@inline zero_offsets(::StaticInt{N}) where {N} = StaticInt{N}()
 
 

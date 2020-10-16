@@ -101,7 +101,7 @@ end
 # @inline fmap(f::F, w, x, y) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x), unrolleddata(y)))
 # @inline fmap(f::F, w, x, y, z) where {F} = VecUnroll(fmapt(f, unrolleddata(w), unrolleddata(x), unrolleddata(y), unrolleddata(z)))
 
-for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt, :!, :(~)]
+for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt, :!, :(~), :leading_zeros, :trailing_zeros]
     @eval @inline Base.$op(v1::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data))
 end
 @inline Base.inv(v::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(vdiv, vbroadcast(Val{W}(), one(T)), v.data))

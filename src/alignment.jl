@@ -22,6 +22,6 @@ alignment(x::Integer, N = 64) = reinterpret(Int, x) % N
 
 function valloc(N::Int, ::Type{T} = Float64) where {T}
     # We want alignment to both vector and cacheline-sized boundaries
-    a = max(REGISTER_SIZE, CACHELINE_SIZE) 
+    a = max(REGISTER_SIZE, L₁CACHE.linesize) 
     reinterpret(Ptr{T}, align(reinterpret(UInt,Libc.malloc(sizeof(T)*N + a - 1)), a))
 end
