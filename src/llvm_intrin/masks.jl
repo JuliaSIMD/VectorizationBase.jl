@@ -59,6 +59,28 @@ end
     binary_mask_op(W, U, "icmp ne")
 end
 
+@generated function splitint(i::S, ::Type{T}) where {S <: Base.BitInteger, T <: Base.BitInteger}
+    sizeof_S = sizeof(S)
+    sizeof_T = sizeof(T)
+    if sizeof_T > sizeof_S
+        return :(i % T)
+    elseif sizeof_T == sizeof_S
+        return :i
+    end
+    W, r = divrem(sizeof_S, sizeof_T)
+    @assert iszero(r)
+    vtyp = "<$W x i$(8sizeof_T)>"
+    instrs = """
+        %split = bitcast i$(8sizeof_S) %0 to $vtyp
+        ret $vtyp %split
+    """
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$S}, i))
+    end
+end
+
+
 function vadd_expr(W,U)
     instrs = String[]
     truncate_mask!(instrs, '0', W, 0)

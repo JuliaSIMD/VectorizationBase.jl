@@ -68,6 +68,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             @test vu.data[7] === Vec(15.0, 16.0)
             @test vu.data[8] === Vec(17.0, 18.0)
         end
+
     end
 
     @testset "alignment.jl" begin
@@ -168,6 +169,15 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         @test !VectorizationBase.vany((!Mask{8}(0xac) & Mask{8}(0xac)))
         @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)) == Mask{8}(0xff))
         @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)))
+
+        @test VectorizationBase.vall(VectorizationBase.splitint(0xb53a5d6426a9d29d, Int8) == Vec{8,Int8}(-99, -46, -87, 38, 100, 93, 58, -75))
+        # other splitint tests for completeness sake
+        @test VectorizationBase.splitint(0xb53a5d6426a9d29d, Int64) === 0xb53a5d6426a9d29d
+        @test VectorizationBase.splitint(0xff, UInt16) === 0x00ff
+        @test !VectorizationBase.vany(
+        VectorizationBase.splitint(0x47766b9a9509d175acd77ff497236795, Int8) != Vec{16,Int8}(-107, 103, 35, -105, -12, 127, -41, -84, 117, -47, 9, -107, -102, 107, 118, 71)
+        )
+
 
         @test (Mask{8}(0xac) | false) === Mask{8}(0xac)
         @test (Mask{8}(0xac) | true) === Mask{8}(0xff)
