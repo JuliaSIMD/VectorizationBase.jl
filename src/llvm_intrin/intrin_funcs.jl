@@ -1,4 +1,15 @@
 
+@generated function saturated_add(x::I, y::I) where {I <: Base.BitInteger}
+    typ = "i$(8sizeof(I))"
+    s = I <: Signed ? 's' : 'u'
+    f = "@llvm.$(s)add.sat.$typ"
+    decl = "declare $typ $f($typ, $typ)"
+    instrs = """
+        %res = call $typ $f($typ %0, $typ %1)
+        ret $typ %res
+    """
+    llvmcall_expr(decl, instrs, I, :(Tuple{$I,$I}), typ, [typ,typ], [:x,:y])
+end
 
 @eval @inline function assume(b::Bool)
     $(llvmcall_expr("declare void @llvm.assume(i1)", "%b = trunc i8 %0 to i1\ncall void @llvm.assume(i1 %b)\nret void", :Cvoid, :(Tuple{Bool}), "void", ["i8"], [:b]))
@@ -190,8 +201,6 @@ else
     @inline roundint(v::Vec{W}) where {W} = round(Int32, v)
 end
 # binary
-
-
 
 function count_zeros_func(W, I, op, tf = 1)
     typ = "i$(8sizeof(I))"
