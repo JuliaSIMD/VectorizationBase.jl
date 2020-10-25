@@ -10,6 +10,9 @@
     """
     llvmcall_expr(decl, instrs, I, :(Tuple{$I,$I}), typ, [typ,typ], [:x,:y])
 end
+@generated function saturated_add(x::Vec{W,I}, y::Vec{W,I}) where {W,I}
+    
+end
 
 @eval @inline function assume(b::Bool)
     $(llvmcall_expr("declare void @llvm.assume(i1)", "%b = trunc i8 %0 to i1\ncall void @llvm.assume(i1 %b)\nret void", :Cvoid, :(Tuple{Bool}), "void", ["i8"], [:b]))

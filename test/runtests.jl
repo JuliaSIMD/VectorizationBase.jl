@@ -11,13 +11,13 @@ function tovector(u::VectorizationBase.VecUnroll{_N,W,T}) where {_N,W,T}
     x = Vector{T}(undef, N * W)
     for n ∈ 1:N
         v = u.data[n]
-        for w ∈ 1:W
-            x[(i += 1)] = VectorizationBase.getelement(v, w)
+        for w ∈ 0:W-1
+            x[(i += 1)] = VectorizationBase.extractelement(v, w)
         end
     end
     x
 end
-tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.getelement(v,w) for w ∈ 1:W]
+tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.extractelement(v,w) for w ∈ 0:W-1]
 tovector(v::VectorizationBase.LazyMulAdd) = tovector(convert(Vec, v))
 tovector(x) = x
 A = randn(13, 17); L = length(A); M, N = size(A);
@@ -41,7 +41,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         @test length(v) == 4 == first(size(v))
         @test eltype(v) == Float64
         for i in 1:4
-            @test i == VectorizationBase.getelement(v, i)
+            @test i == VectorizationBase.extractelement(v, i-1)
             # @test i === Vec{4,Int}(v)[i] # should use fptosi (ie, vconvert defined in SIMDPirates).
         end
         @test zero(v) === zero(typeof(v))

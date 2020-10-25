@@ -79,6 +79,23 @@ end
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$S}, i))
     end
 end
+@generated function fuseint(v::Vec{W,I}) where {W, I <: Base.BitInteger}
+    @assert ispow2(W)
+    bytes = W * sizeof(I)
+    bits = 8bytes
+    @assert bytes ≤ 16
+    T = (I <: Signed) ? Symbol(:Int, bits) : Symbol(:UInt, bits)
+    vtyp = "<$W x i$(8sizeof(I))>"
+    styp = "i$(bits)"
+    instrs = """
+        %fused = bitcast $vtyp %0 to $styp
+        ret $styp %fused
+    """
+    quote
+        $(Expr(:meta,:inline))
+        llvmcall($instrs, $T, Tuple{_Vec{$W,$I}}, data(v))
+    end            
+end
 
 
 function vadd_expr(W,U)
@@ -230,9 +247,9 @@ end
 Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
 
 @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
-@inline function getelement(m::Mask{W}, i::Integer) where {W}
+@inline function extractelement(m::Mask{W}, i::Integer) where {W}
     @boundscheck i > W && throw(BoundsError(m, i))
-    getindexzerobased(m, i - 1)
+    getindexzerobased(m, i)
 end
 
 # @generated function Base.isodd(i::MM{W,1}) where {W}

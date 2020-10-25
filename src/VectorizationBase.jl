@@ -172,7 +172,26 @@ Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where
 @inline Base.adjoint(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.transpose(v::AbstractSIMDVector) = v # so that things like dot products work.
 # @inline Base.getindex(v::Vec, i::Integer) = v.data[i].value
-@inline getelement(v::Vec, i::Integer) = v.data[i].value
+
+# Not using getindex/setindex as names to emphasize that these are generally treated as single objects, not collections.
+@generated function extractelement(v::Vec{W,T}, i::I) where {W,I <: Base.BitInteger,T}
+    typ = LLVM_TYPES[T]
+    instrs = """
+        %res = extractelement <$W x $typ> %0, i$(8sizeof(I)) %1
+        ret $typ %res
+    """
+    call = :(llvmcall($instrs, $T, Tuple{_Vec{$W,$T},$I}, data(v), i))
+    Expr(:block, Expr(:meta, :inline), call)
+end
+@generated function insertelement(v::Vec{W,T}, x::T, i::I) where {W,I <: Base.BitInteger,T}
+    typ = LLVM_TYPES[T]
+    instrs = """
+        %res = insertelement <$W x $typ> %0, $typ %1, i$(8sizeof(I)) %2
+        ret <$W x $typ> %res
+    """
+    call = :(Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T},$T,$I}, data(v), x, i)))
+    Expr(:block, Expr(:meta, :inline), call)
+end
 
 # @inline function Vec{N,T}(v::Vec{N,T2}) where {N,T,T2}
     # @inbounds Vec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
@@ -196,7 +215,7 @@ Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where
 function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
     print(io, "Vec{$W,$T}<")
     for w ∈ 1:W
-        print(io, repr(getelement(v, w)))
+        print(io, repr(extractelement(v, w-1)))
         w < W && print(io, ", ")
     end
     print(io, ">")
@@ -235,7 +254,7 @@ end
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = i.i
 
-getelement(i::MM{W,X}, j) where {W,X} = i.i + X * (j-1)
+extractelement(i::MM{W,X}, j) where {W,X} = i.i + X * j
 
 include("static.jl")
 include("cartesianvindex.jl")
