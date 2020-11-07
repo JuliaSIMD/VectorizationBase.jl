@@ -1,6 +1,5 @@
 
-
-let llvmlib = VERSION ≥ v"1.6.0-DEV.1361" ? Libdl.dlopen(Base.libllvm()) : Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist()))),
+let llvmlib = VERSION ≥ v"1.6.0-DEV.1429" ? Libdl.dlopen(Base.libllvm_path()) : Libdl.dlopen(only(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist()))),
     gethostcpufeatures = Libdl.dlsym(llvmlib, :LLVMGetHostCPUFeatures),
     features_cstring = ccall(gethostcpufeatures, Cstring, ()),
     features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ), split(unsafe_string(features_cstring), ','))
