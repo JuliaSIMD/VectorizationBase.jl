@@ -59,7 +59,7 @@ end
     binary_mask_op(W, U, "icmp ne")
 end
 
-@generated function splitint(i::S, ::Type{T}) where {S <: Base.BitInteger, T <: Base.BitInteger}
+@generated function splitint(i::S, ::Type{T}) where {S <: Base.BitInteger, T <: Union{Bool,Base.BitInteger}}
     sizeof_S = sizeof(S)
     sizeof_T = sizeof(T)
     if sizeof_T > sizeof_S
@@ -79,7 +79,7 @@ end
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$S}, i))
     end
 end
-@generated function fuseint(v::Vec{W,I}) where {W, I <: Base.BitInteger}
+@generated function fuseint(v::Vec{W,I}) where {W, I <: Union{Bool,Base.BitInteger}}
     @assert ispow2(W)
     bytes = W * sizeof(I)
     bits = 8bytes
@@ -246,11 +246,32 @@ end
 end
 Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
 
-@inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
-@inline function extractelement(m::Mask{W}, i::Integer) where {W}
-    @boundscheck i > W && throw(BoundsError(m, i))
-    getindexzerobased(m, i)
+# @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
+# @inline function extractelement(m::Mask{W}, i::Integer) where {W}
+#     @boundscheck i > W && throw(BoundsError(m, i))
+#     getindexzerobased(m, i)
+# end
+@generated function extractelement(v::Mask{W,U}, i::I) where {W,U,I}
+    instrs = String[]
+    truncate_mask!(instrs, '0', W, 0)
+    push!(instrs, "%res1 = extractelement <$W x i1> %mask.0, i$(8sizeof(I)) %1")
+    push!(instrs, "%res8 = zext i1 %res1 to i8\nret i8 %res8")
+    instrs_string = join(instrs, "\n")
+    call = :(llvmcall($instrs_string, Bool, Tuple{$U,$I}, data(v), i))
+    Expr(:block, Expr(:meta, :inline), call)
 end
+@generated function insertelement(v::Mask{W,U}, x::T, i::I) where {W, T, U, I <: Union{Bool,Base.BitInteger}}
+    mtyp_input = "i$(max(8,W))"
+    instrs = String["%bit = trunc i$(8sizeof(T)) %1 to i1"]
+    truncate_mask!(instrs, '0', W, 0)
+    push!(instrs, "%bitvec = insertelement <$W x i1> %mask.0, i1 %bit, i$(8sizeof(I)) %2")
+    zext_mask!(instrs, "bitvec", W, 1)
+    push!(instrs, "ret $(mtyp_input) %res.1")
+    instrs_string = join(instrs, "\n")
+    call = :(Mask{$W}(llvmcall($instrs_string, $U, Tuple{$U,$T,$I}, data(v), x, i)))
+    Expr(:block, Expr(:meta, :inline), call)
+end
+
 
 # @generated function Base.isodd(i::MM{W,1}) where {W}
 #     U = mask_type(W)
