@@ -179,11 +179,11 @@ end
 for (f,op) ∈ [
     (:scalar_less, :(<)), (:scalar_greater,:(>)), (:scalar_greaterequal,:(≥)), (:scalar_lessequal,:(≤)), (:scalar_equal,:(==)), (:scalar_notequal,:(!=))
 ]
-    @eval @inline Base.$op(i::MM, j::Real) = $op(data(i), j)
-    @eval @inline Base.$op(i::Real, j::MM) = $op(i, data(j))
-    @eval @inline Base.$op(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
-    @eval @inline Base.$op(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
-    @eval @inline Base.$op(i::MM, j::MM) = $op(data(i), data(j))
+    @eval @inline $f(i::MM, j::Real) = $op(data(i), j)
+    @eval @inline $f(i::Real, j::MM) = $op(i, data(j))
+    @eval @inline $f(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
+    @eval @inline $f(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
+    @eval @inline $f(i::MM, j::MM) = $op(data(i), data(j))
 end
 for op ∈ [:(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=)]
     @eval @inline Base.$op(i::MM, j::Real) = $op(Vec(i), j)
