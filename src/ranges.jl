@@ -176,14 +176,16 @@ end
 @inline Base.:(>>)(i::MM, j::Vec) = Vec(i) >> j
 @inline Base.:(>>>)(i::MM, j::Vec) = Vec(i) >>> j
 
-for op ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=)]
+for (f,op) ∈ [
+    (:scalar_less, :(<)), (:scalar_greater,:(>)), (:scalar_greaterequal,:(≥)), (:scalar_lessequal,:(≤)), (:scalar_equal,:(==)), (:scalar_notequal,:(!=))
+]
     @eval @inline Base.$op(i::MM, j::Real) = $op(data(i), j)
     @eval @inline Base.$op(i::Real, j::MM) = $op(i, data(j))
     @eval @inline Base.$op(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
     @eval @inline Base.$op(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
     @eval @inline Base.$op(i::MM, j::MM) = $op(data(i), data(j))
 end
-for op ∈ [:(&), :(|), :(⊻), :(%)]
+for op ∈ [:(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=)]
     @eval @inline Base.$op(i::MM, j::Real) = $op(Vec(i), j)
     @eval @inline Base.$op(i::Real, j::MM) = $op(i, Vec(j))
     @eval @inline Base.$op(i::MM, ::StaticInt{j}) where {j} = $op(Vec(i), j)
