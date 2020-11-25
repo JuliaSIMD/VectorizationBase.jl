@@ -37,6 +37,8 @@ end
 pick_vector_width(::Val{N}, ::Type{T} = Float64) where {N,T} = pick_vector_width(N, T)
 pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}()
 pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
+pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = Val{pick_vector_width(T1,T2,args...)}()
+pick_vector_width_val(::Val{N}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K} = Val{pick_vector_width(Val{N}(),T1,T2,args...)}()
 
 @generated function int_type(::Val{W}) where {W}
     bits = 8*(REGISTER_SIZE ÷ W)
