@@ -63,6 +63,7 @@ struct StridedPointer{T,N,C,B,R,X,O} <: AbstractStridedPointer{T,N,C,B,R,X,O}
     strd::X
     offsets::O
 end
+@inline StridedPointer{T,N,C,B,R}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 @inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 
 @inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
@@ -76,6 +77,7 @@ end
 @inline Base.strides(ptr::StridedPointer) = ptr.strd
 @inline ArrayInterface.offsets(ptr::StridedPointer) = ptr.offsets
 @inline ArrayInterface.contiguous_axis_indicator(ptr::StridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(Contiguous{C}(), Val{N}())
+
 
 @generated function zerotuple(::Val{N}) where {N}
     t = Expr(:tuple); foreach(n -> push!(t.args, Expr(:call, :Zero)), 1:N)
