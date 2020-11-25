@@ -22,7 +22,6 @@ end
 # For the sake of convenient mask support, we allow 8 so that the mask can be a full byte
 # max_vector_width(::Type{T}) where {T} = max(8, pick_vector_width(T))
 
-
 pick_vector_width(::Type{T1}, ::Type{T2}) where {T1,T2} = min(pick_vector_width(T1), pick_vector_width(T2))
 @inline pick_vector_width(::Type{T1}, ::Type{T2}, ::Type{T3}, args::Vararg{Any,K}) where {T1,T2,T3,K} = min(pick_vector_width(T1), pick_vector_width(T2, T3, args...))
 
@@ -34,13 +33,13 @@ end
     W, intlog2(W)
 end
 
-pick_vector_width(::Val{N}, ::Type{T} = Float64) where {N,T} = pick_vector_width(N, T)
-pick_vector_width_val(::Type{T} = Float64) where {T} = Val{pick_vector_width(T)}()
-pick_vector_width_val(::Val{N}, ::Type{T} = Float64) where {N,T} = Val{pick_vector_width(Val(N), T)}()
-pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = Val{pick_vector_width(T1,T2,args...)}()
-pick_vector_width_val(::Val{N}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K} = Val{pick_vector_width(Val{N}(),T1,T2,args...)}()
+pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T} = Float64) where {N,T} = pick_vector_width(N, T)
+pick_vector_width_val(::Type{T} = Float64) where {T} = StaticInt{pick_vector_width(T)}()
+pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T} = Float64) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
+pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = StaticInt{pick_vector_width(T1,T2,args...)}()
+pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K} = StaticInt{pick_vector_width(Val{N}(),T1,T2,args...)}()
 
-@generated function int_type(::Val{W}) where {W}
+@generated function int_type(::Union{Val{W},StaticInt{W}}) where {W}
     bits = 8*(REGISTER_SIZE ÷ W)
     if bits ≤ 8
         :Int8
@@ -53,33 +52,12 @@ pick_vector_width_val(::Val{N}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) whe
     end
 end
 
-# @inline vadd(::StaticInt{i}, j) where {i} = vadd(i, j)
-# @inline vadd(i, ::StaticInt{j}) where {j} = vadd(i, j)
-# @inline vsub(::StaticInt{i}, j) where {i} = vsub(i, j)
-# @inline vsub(i, ::StaticInt{j}) where {j} = vsub(i, j)
-
-# @inline staticmul(::Val{W}, i) where {W} = vmul(StaticInt(W), i)
-# @inline staticmuladd(::Val{W}, b, c) where {W} = vadd(vmul(StaticInt(W), b), c)
-# @inline valmul(::Val{W}, i) where {W} = vmul(W, i)
-# @inline valadd(::Val{W}, i) where {W} = vadd(W, i)
-# @inline valsub(::Val{W}, i) where {W} = vsub(W, i)
-# @inline valsub(i, ::Val{W}) where {W} = vsub(i, W)
-# @inline valrem(::Val{W}, i) where {W} = i & vsub(W, 1)
-# @inline valmuladd(::Val{W}, b, c) where {W} = vadd(vmul(W, b), c)
-# @inline valmulsub(::Val{W}, b, c) where {W} = vsub(vmul(W, b), c)
-# @inline valmul(::Val{W}, i::T) where {W,T<:Integer} = vmul((W % T), i)
-# @inline valadd(::Val{W}, i::T) where {W,T<:Integer} = vadd((W % T), i)
-# @inline valsub(::Val{W}, i::T) where {W,T<:Integer} = vsub((W % T), i)
-# @inline valrem(::Val{W}, i::T) where {W,T<:Integer} = i & vsub((W % T), one(T))
-# @inline valmuladd(::Val{W}, b::T, c::T) where {W,T<:Integer} = vadd(vmul(W % T, b), c)
-# @inline valmulsub(::Val{W}, b::T, c::T) where {W,T<:Integer} = vsub(vmul(W % T, b), c)
-
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  pick_vector(N, T)
 
-@inline MM(::Val{W}) where {W} = MM{W}(0)
-@inline MM(::Val{W}, i) where {W} = MM{W}(i)
+@inline MM(::Union{Val{W},StaticInt{W}}) where {W} = MM{W}(0)
+@inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
 # @inline MM{W}(a::LazyMul) where {W} = MM{W}(data(a))
 @inline gep(ptr::Ptr, i::MM) = gep(ptr, i.i)
 

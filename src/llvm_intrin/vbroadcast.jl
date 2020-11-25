@@ -19,7 +19,7 @@
 #         ret $vtyp %v
 #     """
 # end
-@generated function vzero(::Val{W}, ::Type{T}) where {W,T<:NativeTypes}
+@generated function vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T<:NativeTypes}
     typ = LLVM_TYPES[T]
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
@@ -27,7 +27,7 @@
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
     end
 end
-@generated function vbroadcast(::Val{W}, s::T) where {W,T<:NativeTypes}
+@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, s::T) where {W,T<:NativeTypes}
     isone(W) && return :s
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
@@ -77,7 +77,7 @@ end
 #         Vec(llvmcall( $instrs, _Vec{$W,$T}, Tuple{$T}, s))
 #     end
 # end
-@generated function vbroadcast(::Val{W}, ptr::Ptr{T}) where {W, T}
+@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ptr::Ptr{T}) where {W, T}
     typ = LLVM_TYPES[T]
     ptyp = JuliaPointerType
     vtyp = "<$W x $typ>"
@@ -102,11 +102,11 @@ end
 #         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}, ))
 #     end
 # end
-@inline vbroadcast(::Val{W}, v::AbstractSIMDVector{W}) where {W} = v
+@inline vbroadcast(::Union{Val{W},StaticInt{W}}, v::AbstractSIMDVector{W}) where {W} = v
 @inline Vec{W,T}(v::Vec{W,T}) where {W,T} = v
 # @inline vbroadcast(::Val{1}, s::T) where {T <: NativeTypes} = s
 # @inline vbroadcast(::Val{1}, s::Ptr{T}) where {T <: NativeTypes} = s
-@inline vzero(::Val{W}, ::Type{T}) where {W,T} = zero(Vec{W,T})
+@inline vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T} = zero(Vec{W,T})
 @inline Base.zero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline Base.zero(::Vec{W,T}) where {W,T} = zero(Vec{W,T})
 @inline Base.one(::Vec{W,T}) where {W,T} = vbroadcast(Val{W}(), one(T))
@@ -137,8 +137,8 @@ end
     Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
 end
 
-# @inline vbroadcast(::Val{W}, ::Type{T}, s::T) where {W,T} = vbroadcast(Val{W}(), s)
-# @generated function vbroadcast(::Val{W}, ::Type{T}, s::S) where {W,T,S}
+# @inline vbroadcast(::Union{Val{W},StaticInt{W}}, ::Type{T}, s::T) where {W,T} = vbroadcast(Val{W}(), s)
+# @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ::Type{T}, s::S) where {W,T,S}
 #     ex = if sizeof(T) < sizeof(S)
 #         vbroadcast(Val{W}(), symmetric_promote_rule(T, S)(s))
 #     else

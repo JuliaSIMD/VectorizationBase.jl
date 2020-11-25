@@ -58,6 +58,8 @@ O: offsets
 """
 abstract type AbstractStridedPointer{T<:NativeTypes,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 
+@inline Base.eltype(::AbstractStridedPointer{T}) where {T} = T
+
 struct StridedPointer{T,N,C,B,R,X,O} <: AbstractStridedPointer{T,N,C,B,R,X,O}
     p::Ptr{T}
     strd::X

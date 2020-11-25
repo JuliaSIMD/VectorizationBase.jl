@@ -164,6 +164,8 @@ for (op,f) ∈ [
         llvmcall_expr($op, 1, T, (1, W), (T, T), "nsz arcp contract afn reassoc")
     end
 end
+vsum(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.add_fast(s, vsum(v))
+vprod(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.mul_fast(s, vprod(v))
 for (op,f) ∈ [
     ("experimental.vector.reduce.v2.fmax",:vmaximum),
     ("experimental.vector.reduce.v2.fmin",:vminimum)
@@ -187,12 +189,31 @@ for (op,f,S) ∈ [
         llvmcall_expr($op, 1, T, (W,), (T,))
     end
 end
-        
+
 #         W += W
 #     end
 # end
-@inline vsum(v::Vec{W,T}) where {W,T} = vsum(-zero(T), v)
-@inline vprod(v::Vec{W,T}) where {W,T} = vprod(one(T), v)
+@inline vsum(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vsum(-zero(T), v)
+@inline vprod(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vprod(one(T), v)
+
+for (f,f_to,op,reduce,twoarg) ∈ [
+    (:reduced_add,:reduce_to_add,:+,:vsum,true),(:reduced_prod,:reduce_to_prod,:*,:vprod,true),
+    (:reduced_max,:reduce_to_max,:max,:vmax,false),(:reduced_min,:reduce_to_min,:min,:vmin,false)
+]
+    @eval begin
+        @inline $f_to(x::T, y::T) where {T} = x
+        @inline $f_to(x::AbstractSIMD{W,T}, y::T) where {W,T} = $reduce(x)
+        @inline $f(x::T, y::T) where {T} = $op(x,y)
+    end
+    if twoarg
+        # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $reduce(y, x)
+        @eval @inline $f(x::AbstractSIMD{W,T}, y::T) where {W,T} = $reduce(y, x)
+    else
+        # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $op(y, $reduce(x))
+        @eval @inline $f(x::AbstractSIMD{W,T}, y::T) where {W,T} = $op(y, $reduce(x))
+    end
+end
+
 
 @inline roundint(x::Float32) = round(Int32, x)
 if AVX512DQ

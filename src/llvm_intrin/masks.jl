@@ -163,13 +163,13 @@ function mask_type(W)
         return UInt128
     end
 end
-mask_type(::Val{4}) = UInt8
-mask_type(::Val{8}) = UInt8
-mask_type(::Val{16}) = UInt16
-mask_type(::Val{32}) = UInt32
-mask_type(::Val{64}) = UInt64
+mask_type(::Union{Val{4},StaticInt{4}}) = UInt8
+mask_type(::Union{Val{8},StaticInt{8}}) = UInt8
+mask_type(::Union{Val{16},StaticInt{16}}) = UInt16
+mask_type(::Union{Val{32},StaticInt{32}}) = UInt32
+mask_type(::Union{Val{64},StaticInt{64}}) = UInt64
 
-@generated function mask_type(::Type{T}, ::Val{P}) where {T,P}
+@generated function mask_type(::Type{T}, ::Union{Val{P},StaticInt{P}}) where {T,P}
     mask_type(pick_vector_width(P, T))
 end
 @generated function mask_type(::Type{T}) where {T}
@@ -179,18 +179,18 @@ end
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), zero(mask_type(W))))
 end
 
-@generated function max_mask(::Val{W}) where {W}
+@generated function max_mask(::Union{Val{W},StaticInt{W}}) where {W}
     U = mask_type(W)
     Mask{W,U}(one(U)<<W - one(U))
 end
 @inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width_val(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
-@generated function valrem(::Val{W}, l) where {W}
+@generated function valrem(::Union{Val{W},StaticInt{W}}, l) where {W}
     ex = ispow2(W) ? :(l & $(W - 1)) : :(l % $W)
     Expr(:block, Expr(:meta, :inline), ex)
 end
-@generated function mask(::Val{W}, l::Integer) where {W}
+@generated function mask(::Union{Val{W},StaticInt{W}}, l::Integer) where {W}
     M = mask_type(W)
     quote
         $(Expr(:meta,:inline))
@@ -198,11 +198,11 @@ end
         Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
     end
 end
-@generated mask(::Val{W}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
+@generated mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
 @inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)
 
 
-# @generated function masktable(::Val{W}, rem::Integer) where {W}
+# @generated function masktable(::Union{Val{W},StaticInt{W}}, rem::Integer) where {W}
 #     masks = Expr(:tuple)
 #     for w ∈ 0:W-1
 #         push!(masks.args, data(mask(Val(W), w == 0 ? W : w)))

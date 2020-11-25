@@ -184,6 +184,7 @@ for (f,op) ∈ [
     @eval @inline $f(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
     @eval @inline $f(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
     @eval @inline $f(i::MM, j::MM) = $op(data(i), data(j))
+    @eval @inline $f(i, j) = $op(i, j)
 end
 for op ∈ [:(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=)]
     @eval @inline Base.$op(i::MM, j::Real) = $op(Vec(i), j)
