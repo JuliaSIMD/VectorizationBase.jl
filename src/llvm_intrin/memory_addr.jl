@@ -168,14 +168,14 @@ end
 @generated function gep(ptr::Ptr{T}, ::StaticInt{N}) where {T <: NativeTypes, N}
     gep_quote(T, :StaticInt, Int, 1, 1, 0, N, true)
 end
-@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,I}) where {T <: NativeTypes, I <: Integer, M}
-    gep_quote(T, :Integer, I, 1, 1, M, 0, true)
+@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}) where {T <: NativeTypes, I <: Integer, M, O}
+    gep_quote(T, :Integer, I, 1, 1, M, O, true)
 end
 @generated function gep(ptr::Ptr{T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
     gep_quote(T, :Vec, I, W, 1, 1, 0, true)
 end
-@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,Vec{W,I}}) where {W, T <: NativeTypes, I <: Integer, M}
-    gep_quote(T, :Vec, I, W, 1, M, 0, true)
+@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}) where {W, T <: NativeTypes, I <: Integer, M, O}
+    gep_quote(T, :Vec, I, W, 1, M, O, true)
 end
 @inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
 

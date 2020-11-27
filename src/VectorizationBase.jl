@@ -3,7 +3,8 @@ module VectorizationBase
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc
 using ArrayInterface: StaticInt, Zero, One, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
     Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
-    known_length, known_first, known_last, strides, offsets
+    known_length, known_first, known_last, strides, offsets,
+    static_first, static_last, static_length
 import IfElse: ifelse
 # using LinearAlgebra: Adjoint, 
 
@@ -254,7 +255,7 @@ end
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = i.i
 
-extractelement(i::MM{W,X}, j) where {W,X} = i.i + X * j
+@inline extractelement(i::MM{W,X}, j) where {W,X} = i.i + X * j
 
 include("static.jl")
 include("cartesianvindex.jl")

@@ -7,6 +7,8 @@ end
 # O for offset is kind of hard to read next to default of 0?
 @inline LazyMulAdd{M,O}(data::T) where {M,O,T<:Union{Base.HWReal,AbstractSIMD}} = LazyMulAdd{M,O,T}(data)
 @inline LazyMulAdd{M}(data::T) where {M,T<:NativeTypesV} = LazyMulAdd{M,0,T}(data)
+@inline LazyMulAdd{0,O}(data::T) where {M,O,T<:Union{Base.HWReal,AbstractSIMD}} = @assert false#StaticInt{O}()
+@inline LazyMulAdd{0}(data::T) where {M,T<:NativeTypesV} = @assert false#StaticInt{0}()
 @inline LazyMulAdd(data::T, ::StaticInt{M}) where {M,T} = LazyMulAdd{M,0,T}(data)
 @inline LazyMulAdd(data::T, ::StaticInt{M}, ::StaticInt{O}) where {M,O,T} = LazyMulAdd{M,O,T}(data)
 
@@ -32,7 +34,7 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 # @inline lazymul(::StaticInt{M}, b::MM{W,X}) where {W,M,X} = LazyMulAdd{M}(MM{W}(b.data, StaticInt{M}()*StaticInt{X}()))
 # @inline lazymul(a::MM{W,X}, ::StaticInt{M}) where {W,M,X} = LazyMulAdd{M}(MM{W}(a.data, StaticInt{M}()*StaticInt{X}()))
 @inline lazymul(::StaticInt{M}, b::MM{W,X}) where {W,M,X} = MM{W}(vmul(StaticInt{M}(), data(b)), StaticInt{X}() * StaticInt{M}())
-@inline lazymul(a::MM{W,X}, ::StaticInt{M}) where {W,M,X} = MM{W}(vmul(StaticInt{M}(), data(b)), StaticInt{X}() * StaticInt{M}())
+@inline lazymul(a::MM{W,X}, ::StaticInt{M}) where {W,M,X} = MM{W}(vmul(StaticInt{M}(), data(a)), StaticInt{X}() * StaticInt{M}())
 @inline lazymul(a::MM{W,X}, ::StaticInt{0}) where {W,X} = StaticInt{0}()
 @inline lazymul(::StaticInt{0}, a::MM{W,X}) where {W,X} = StaticInt{0}()
 @inline lazymul(a::MM{W,X}, ::StaticInt{1}) where {W,X} = a
@@ -77,9 +79,22 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul_no_promote(a::MM{W,X,StaticInt{M}}, ::StaticInt{N}) where {N,W,X,M} = MM{W,X}(StaticInt{M}() * StaticInt{N}())
 @inline lazymul_no_promote(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{M*N}()
 
+
 @inline lazymul_no_promote(a::LazyMulAdd{M}, ::StaticInt{N}) where {M,N} = LazyMulAdd(a.data, StaticInt{M}()*StaticInt{N}())
 @inline lazymul_no_promote(::StaticInt{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(b.data, StaticInt{M}()*StaticInt{N}())
 @inline lazymul_no_promote(a::LazyMulAdd{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(vmul(a.data, b.data), StaticInt{M}()*StaticInt{N}())
+
+@inline lazymul_no_promote(::StaticInt{0}, b) = StaticInt{0}()
+@inline lazymul_no_promote(a, ::StaticInt{0}) = StaticInt{0}()
+@inline lazymul_no_promote(::StaticInt{0}, ::StaticInt{0}) = StaticInt{0}()
+@inline lazymul_no_promote(::StaticInt{0}, ::StaticInt{M}) where {M} = StaticInt{0}()
+@inline lazymul_no_promote(::StaticInt{M}, ::StaticInt{0}) where {M} = StaticInt{0}()
+@inline lazymul_no_promote(::StaticInt{0}, b::MM{W,X,StaticInt{M}}) where {W,X,M} = StaticInt{0}()
+@inline lazymul_no_promote(a::MM{W,X,StaticInt{M}}, ::StaticInt{0}) where {W,X,M} = StaticInt{0}()
+@inline lazymul_no_promote(a::LazyMulAdd{M}, ::StaticInt{0}) where {M} = StaticInt{0}()
+@inline lazymul_no_promote(::StaticInt{0}, b::LazyMulAdd{N}) where {N} = StaticInt{0}()
+
+
 
 # @inline lazyadd(a, b) = vadd(a, b)
 @inline vadd(a::LazyMulAdd{M,O,T}, ::StaticInt{A}) where {M,O,T,A} = LazyMulAdd(a.data, StaticInt{M}(), StaticInt{O}()+StaticInt{A}())

@@ -8,23 +8,29 @@
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :StaticInt, sizeof(T))))
 end
 
-@inline static_last(::Type{T}) where {T} = static(known_last(T))
-@inline static_first(::Type{T}) where {T} = static(known_first(T))
-@inline static_length(::Type{T}) where {T} = static(known_length(T))
+# @inline static_last(::Type{T}) where {T} = static(known_last(T))
+# @inline static_first(::Type{T}) where {T} = static(known_first(T))
+# @inline static_length(::Type{T}) where {T} = static(known_length(T))
 
-@inline _maybestaticfirst(a, ::Nothing) = first(a)
-@inline _maybestaticfirst(::Any, L) = StaticInt{L}()
-@inline maybestaticfirst(a::T) where {T} = _maybestaticfirst(a, known_first(T))
+@inline maybestaticfirst(a) = static_first(a)
+@inline maybestaticlast(a) = static_last(a)
+@inline maybestaticlength(a) = static_length(a)
 
-@inline _maybestaticlast(a, ::Nothing) = last(a)
-@inline _maybestaticlast(::Any, L) = StaticInt{L}()
-@inline maybestaticlast(a::T) where {T} = _maybestaticlast(a, known_last(T))
+# @inline _maybestaticfirst(a, ::Nothing) = first(a)
+# @inline _maybestaticfirst(::Any, L) = StaticInt{L}()
+# @inline maybestaticfirst(a::T) where {T} = _maybestaticfirst(a, known_first(T))
 
-@inline _maybestaticlength(a, L::Int, U::Int) = StaticInt{U-L}()
-@inline _maybestaticlength(a, ::Any, ::Any) = length(a)
-@inline _maybestaticlength(a, ::Nothing) = _maybestaticlength(a, known_first(a), known_last(a))
-@inline _maybestaticlength(::Any, L::Int) = StaticInt{L}()
-@inline maybestaticlength(a::T) where {T} = _maybestaticlength(a, known_length(T))
+# @inline _maybestaticlast(a, ::Nothing) = last(a)
+# @inline _maybestaticlast(::Any, L) = StaticInt{L}()
+# @inline maybestaticlast(a::T) where {T} = _maybestaticlast(a, known_last(T))
+
+
+
+# @inline _maybestaticlength(a, L::Int, U::Int) = StaticInt{U-L}()
+# @inline _maybestaticlength(a, ::Any, ::Any) = length(a)
+# @inline _maybestaticlength(a, ::Nothing) = _maybestaticlength(a, known_first(a), known_last(a))
+# @inline _maybestaticlength(::Any, L::Int) = StaticInt{L}()
+# @inline maybestaticlength(a::T) where {T} = _maybestaticlength(a, known_length(T))
 
 @inline maybestaticrange(r::Base.OneTo{T}) where {T} = ArrayInterface.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
 @inline maybestaticrange(r::UnitRange) = r

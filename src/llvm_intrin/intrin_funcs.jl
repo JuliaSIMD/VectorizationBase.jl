@@ -167,8 +167,8 @@ end
 vsum(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.add_fast(s, vsum(v))
 vprod(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.mul_fast(s, vprod(v))
 for (op,f) ∈ [
-    ("experimental.vector.reduce.v2.fmax",:vmaximum),
-    ("experimental.vector.reduce.v2.fmin",:vminimum)
+    ("experimental.vector.reduce.fmax",:vmaximum),
+    ("experimental.vector.reduce.fmin",:vminimum)
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         llvmcall_expr($op, 1, T, (W,), (T,), "nsz arcp contract afn reassoc")
@@ -198,7 +198,7 @@ end
 
 for (f,f_to,op,reduce,twoarg) ∈ [
     (:reduced_add,:reduce_to_add,:+,:vsum,true),(:reduced_prod,:reduce_to_prod,:*,:vprod,true),
-    (:reduced_max,:reduce_to_max,:max,:vmax,false),(:reduced_min,:reduce_to_min,:min,:vmin,false)
+    (:reduced_max,:reduce_to_max,:max,:vmaximum,false),(:reduced_min,:reduce_to_min,:min,:vminimum,false)
 ]
     @eval begin
         @inline $f_to(x::T, y::T) where {T} = x

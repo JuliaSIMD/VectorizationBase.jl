@@ -5,8 +5,18 @@ end
 @inline Base.pointer(ptr::OffsetPrecalc) = pointer(ptr.ptr)
 @inline Base.similar(ptr::OffsetPrecalc, p::Ptr) = OffsetPrecalc(similar(ptr.ptr, p), ptr.precalc)
 @inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(p.ptr)
-@inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
+# @inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
 @inline offsetprecalc(x, ::Any) = x
+@inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
+@inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
+@inline ArrayInterface.offsets(p::OffsetPrecalc) = offsets(p.ptr)
+
+@inline Base.strides(p::OffsetPrecalc) = strides(p.ptr)
+
+@inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}) where {T}
+    OffsetPrecalc(similar_no_offset(sptr.ptr, ptr), sptr.precalc)
+end
+
 
 """
 
@@ -24,40 +34,56 @@ c = b .* [3, 5, 7, 9]
 
 
 """
-@generated function lazymul_maybe_cached(::StaticInt{I}, b, c::NTuple{N,Int}) where {I,N}
+@generated function lazymul(::StaticInt{I}, b, c::Tuple{Vararg{Any,N}}) where {I,N}
     Is = (I - 1) >> 1
-    if isodd(I) && 1 ≤ Is ≤ N
+    if (isodd(I) && 1 ≤ Is ≤ N) && (c.parameters[Is] !== nothing)
         Expr(:block, Expr(:meta,:inline), Expr(:call, :getindex, :c, Is))
-    elseif I ∈ (6, 10)
+    elseif (I ∈ (6, 10) && (I >> 2 ≤ N)) && (c.parameters[I >> 2] !== nothing)
         Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, 2)), Expr(:call, :getindex, :c, I >> 2)))
     else
         Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, I)), :b))
     end
 end
-@inline lazymul_maybe_cached(a, b, c) = lazymul(a, b)
-@inline lazymul_maybe_cached(a::StaticInt, b, ::Nothing) = lazymul(a, b)
-@inline tdotc(a::Tuple{StaticInt{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul_maybe_cached(StaticInt{I1}(),b[1],c[1])
-@inline tdotc(a::Tuple{StaticInt{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = lazymul(StaticInt{I1}(),b[1])
-@inline tdotc(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul(a[1],b[1])
+@inline lazymul(a, b, c) = lazymul(a, b)
+@inline lazymul(a::StaticInt, b, ::Nothing) = lazymul(a, b)
 
-@inline tdotc(a::Tuple{StaticInt{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul_maybe_cached(StaticInt{I1}(),b[1],c[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
-@inline tdotc(a::Tuple{StaticInt{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = lazyadd(lazymul(StaticInt{I1}(),b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
-@inline tdotc(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul(a[1],b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+@generated function lazymul_no_promote(::Type{T}, ::StaticInt{I}, b, c::Tuple{Vararg{Any,N}}) where {T, I, N}
+    Is = (I - 1) >> 1
+    if (isodd(I) && 1 ≤ Is ≤ N) && (c.parameters[Is] !== nothing)
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :getindex, :c, Is))
+    elseif (I ∈ (6, 10) && (I >> 2 ≤ N)) && (c.parameters[I >> 2] !== nothing)
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul_no_promote, Expr(:call, Expr(:curly, :StaticInt, 2)), Expr(:call, :getindex, :c, I >> 2)))
+    else
+        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul_no_promote, Expr(:call, Expr(:curly, :StaticInt, I)), :b))
+    end
+end
+@inline lazymul_no_promote(::Type{T}, a, b, c) where {T} = lazymul_no_promote(T, a, b)
+@inline lazymul_no_promote(::Type{T}, a::StaticInt, b, ::Nothing) where {T} = lazymul_no_promote(T, a, b)
 
-# descript is a tuple of (unrollfactor) for ech ind; if it shouldn't preallocate, unrollfactor may be set to 1
+# @inline tdotc(a::Tuple{StaticInt{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul_maybe_cached(StaticInt{I1}(),b[1],c[1])
+# @inline tdotc(a::Tuple{StaticInt{I1},Vararg}, b::Tuple{I2,Vararg}, c::Tuple{Nothing,Vararg}) where {I1,I2} = lazymul(StaticInt{I1}(),b[1])
+# @inline tdotc(a::Tuple{I1,Vararg}, b::Tuple{I2,Vararg}, c::Tuple{I3,Vararg}) where {I1,I2,I3} = lazymul(a[1],b[1])
+
+# @inline tdotc(a::Tuple{StaticInt{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul_maybe_cached(StaticInt{I1}(),b[1],c[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+# @inline tdotc(a::Tuple{StaticInt{I1},I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{Nothing,I6,Vararg}) where {I1,I2,I4,I5,I6} = lazyadd(lazymul(StaticInt{I1}(),b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+# @inline tdotc(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul(a[1],b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
+
+
+unwrap(::Type{StaticInt{N}}) where {N} = N
+unwrap(_) = nothing
+# descript is a tuple of (unrollfactor) for each ind; if it shouldn't preallocate, unrollfactor may be set to 1
 function precalc_quote_from_descript(descript, contig, X)
     precalc = Expr(:tuple)
     anyprecalcs = anydynamicprecals = false
     pstrideextracts = Expr(:block)
     for (i,uf) ∈ enumerate(descript)
-        i == contig && continue
-        if uf < 3
+        if i == contig || uf < 3
             push!(precalc.args, nothing)
         else
             t = Expr(:tuple)
-            Xᵢ = X[i]
+            Xᵢ = unwrap(X[i])
             anyprecalcs = true
-            if Xᵢ == -1
+            if Xᵢ === nothing
                 anydynamicprecals = true
                 pstride_i = Symbol(:pstride_, i)
                 push!(pstrideextracts.args, Expr(:(=), pstride_i, Expr(:ref, :pstride, i)))
@@ -80,6 +106,10 @@ function precalc_quote_from_descript(descript, contig, X)
     end
     q
 end
+@generated function offsetprecalc(p::AbstractStridedPointer{T,N,C,B,R,X,O}, ::Val{descript}) where {T,N,C,B,R,X,O,descript}
+    precalc_quote_from_descript(descript, C, X.parameters)
+end
+
 
 
 # @inline stride1offset(ptr::OffsetPrecalc, i) = stride1offset(ptr.ptr, i)
@@ -114,4 +144,6 @@ end
 #     @inbounds tdotc(i, ptr.ptr.strides, ptr.precalc)
 # end
 
+
+@inline tdot(ptr::OffsetPrecalc{T}, a, b, c) where {T} = tdot(T, a, b, ptr.precalc, c)
 

@@ -33,7 +33,7 @@ end
     W, intlog2(W)
 end
 
-pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T} = Float64) where {N,T} = pick_vector_width(N, T)
+pick_vector_width(::Union{Val{N},StaticInt{N}}, args::Vararg{Any,K}) where {N,K} = pick_vector_width(N, args...)
 pick_vector_width_val(::Type{T} = Float64) where {T} = StaticInt{pick_vector_width(T)}()
 pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T} = Float64) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
 pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = StaticInt{pick_vector_width(T1,T2,args...)}()

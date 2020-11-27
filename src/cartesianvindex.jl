@@ -32,6 +32,18 @@ end
 
 @inline Base.CartesianIndex(I::Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,StaticInt}}}) = CartesianVIndex(I)
 
+@generated function _maybestaticfirst(a::Tuple{Vararg{Any,N}}) where {N}
+    quote
+        $(Expr(:meta,:inline))
+        Base.Cartesian.@ntuple $N n -> maybestaticfirst(a[n])
+    end
+end
+@generated function _maybestaticlast(a::Tuple{Vararg{Any,N}}) where {N}
+    quote
+        $(Expr(:meta,:inline))
+        Base.Cartesian.@ntuple $N n -> maybestaticlast(a[n])
+    end
+end
 @inline maybestaticfirst(A::CartesianIndices) = CartesianVIndex(_maybestaticfirst(A.indices))
 @inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))
 
