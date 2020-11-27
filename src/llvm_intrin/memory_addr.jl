@@ -49,16 +49,22 @@ function offset_ptr(
     if isone(W)
         X = 1
     end
-    
-    tz = min(trailing_zeros(M), 3)
-    tzf = 1 << tz
-    index_gep_typ = ((tzf == sizeof_T) | iszero(M)) ? typ : "i$(tzf << 3)"
-    M >>= tz
+    Morig = M
+    if iszero(M)
+        tz = intlog2(sizeof_T)
+        tzf = sizeof_T
+        index_gep_typ = typ
+    else
+        tz = min(trailing_zeros(M), 3)
+        tzf = 1 << tz
+        index_gep_typ = ((tzf == sizeof_T) | iszero(M)) ? typ : "i$(tzf << 3)"
+        M >>= tz
+    end
     # after this block, we will have a index_gep_typ pointer
     if iszero(O)
         push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(index_gep_typ)*"); i += 1
     else # !iszero(O)
-        if iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
+        if !iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
             offset_gep_typ = "i8"
             offset = O
         else # then we need another intermediary
@@ -162,13 +168,13 @@ function gep_quote(
     llvmcall_expr("", join(instrs, "\n"), ret, args, lret, largs, arg_syms)
 end
 
-@generated function gep(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
+@generated function gep(ptr::Ptr{T}, i::I) where {I <: Integer, T <: NativeTypes}
     gep_quote(T, :Integer, I, 1, 1, 1, 0, true)
 end
-@generated function gep(ptr::Ptr{T}, ::StaticInt{N}) where {T <: NativeTypes, N}
+@generated function gep(ptr::Ptr{T}, ::StaticInt{N}) where {N, T <: NativeTypes}
     gep_quote(T, :StaticInt, Int, 1, 1, 0, N, true)
 end
-@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}) where {T <: NativeTypes, I <: Integer, M, O}
+@generated function gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}) where {T <: NativeTypes, I <: Integer, O, M}
     gep_quote(T, :Integer, I, 1, 1, M, O, true)
 end
 @generated function gep(ptr::Ptr{T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
@@ -245,7 +251,7 @@ end
 @generated function vload(ptr::Ptr{T}, i::I) where {T <: NativeTypes, I <: Integer}
     vload_quote(T, I, :Integer, 1, 1, 1, 0, false, false)
 end
-@generated function vload(ptr::Ptr{T}, ::StaticInt{N}) where {T <: NativeTypes, N}
+@generated function vload(ptr::Ptr{T}, ::StaticInt{N}) where {N, T <: NativeTypes}
     vload_quote(T, Int, :StaticInt, 1, 1, 0, N, false, false)
 end
 @generated function vload(ptr::Ptr{T}, i::Vec{W,I}) where {W, T <: NativeTypes, I <: Integer}
