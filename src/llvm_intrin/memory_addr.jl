@@ -53,9 +53,20 @@ function offset_ptr(
     ::Type{T}, ind_type::Symbol, indargname, ibits::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
 ) where {T}
     i = 0
-    sizeof_T = sizeof(T)
-    typ = LLVM_TYPES[T]
-    vtyp = vtype(W, typ) # vtyp is dest type
+    isbit = T === Bit
+    Morig = M
+    if isbit
+        sizeof_T = 1
+        typ = "i1"
+        vtyp = isone(W) ? typ : "<$W x i1>"
+        M = max(1, M >> 3)
+        O >>= 3
+        @assert ((isone(X) | iszero(X)) && (ind_type !== :Vec)) "indexing BitArrays with a vector not currently supported."
+    else
+        sizeof_T = sizeof(T)
+        typ = LLVM_TYPES[T]
+        vtyp = vtype(W, typ) # vtyp is dest type
+    end
     instrs = String[]
     if M == 0
         ind_type = :StaticInt
@@ -65,7 +76,6 @@ function offset_ptr(
     if isone(W)
         X = 1
     end
-    Morig = M
     if iszero(M)
         tz = intlog2(sizeof_T)
         tzf = sizeof_T
@@ -114,18 +124,47 @@ function offset_ptr(
         return instrs, i
     end
     if ind_type === :Integer
-        if isone(M)
-            indname = indargname
+        if isbit
+            scale = 8
+            if ispow2(Morig)
+                if abs(Morig) ≥ 8
+                    M = Morig >> 3
+                    if M != 1
+                        indname = "indname"
+                        push!(instrs, "%$(indname) = mul nsw i$(ibits) %$(indargname), $M")
+                    else
+                        indname = indargname
+                    end
+                else
+                    shifter = 3 - intlog2(Morig)
+                    push!(instrs, "%shiftedind = ashr i$(ibits) %$(indargname), $shifter")
+                    if Morig > 0
+                        indname = "shiftedind"
+                    else
+                        indname = "indname"
+                        push!(instrs, "%$(indname) = mul i$(ibits) %shiftedind, -1")
+                    end
+                end
+            else
+                @assert iszero(Morig) "Scale factors on bit accesses must be 0 or a power of 2."
+                indname = "0"
+            end
         else
-            indname = "indname"
-            push!(instrs, "%$(indname) = mul nsw i$(ibits) %$(indargname), $M")
+            if isone(M)
+                indname = indargname
+            elseif iszero(M)
+                indname = "0"
+            else
+                indname = "indname"
+                push!(instrs, "%$(indname) = mul nsw i$(ibits) %$(indargname), $M")
+            end
+            # TODO: if X != 1 and X != 0, check if it is better to gep -> gep, or broadcast -> add -> gep
         end
-        # TODO: if X != 1 and X != 0, check if it is better to gep -> gep, or broadcast -> add -> gep
         push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), i$(ibits) %$(indname)"); i += 1
     end
     # ind_type === :Integer || ind_type === :StaticInt
     if !(isone(X) | iszero(X)) # vec
-        vibytes = min(4, REGISTER_SIZE ÷ W)
+        vibytes = min(4, REGISTER_SIZE ÷ W)n
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
         if typ !== index_gep_typ
@@ -144,6 +183,9 @@ function offset_ptr(
     end
     instrs, i
 end
+
+
+
 gep_returns_vector(W::Int, X::Int, M::Int, ind_type::Symbol) = (!isone(W) && ((ind_type === :Vec) || !(isone(X) | iszero(X))))
 #::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
 function gep_quote(
@@ -210,18 +252,25 @@ function vload_quote(
         @assert iszero(Xr)
     end
     instrs, i = offset_ptr(T, ind_type, '1', ibits, W, X, M, O, false)
-    
     grv = gep_returns_vector(W, X, M, ind_type)
-    jtyp = isone(W) ? T : _Vec{W,T}
-    
+    # considers booleans to only occupy 1 bit in memory, so they must be handled specially
+    isbit = T === Bit
+    if isbit
+        # @assert !grv "gather's not are supported with `BitArray`s."
+        mask = false # TODO: not this?
+        jtyp = isone(W) ? Bool : mask_type(W)
+        # typ = "i$W"
+        typ = "i1"
+    else
+        jtyp = isone(W) ? T : _Vec{W,T}
+        typ = LLVM_TYPES[T]
+    end
     alignment = (align & (!grv)) ? Base.datatype_alignment(jtyp) : Base.datatype_alignment(T)
-    
+        
     decl = LOAD_SCOPE_TBAA
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
-    typ = LLVM_TYPES[T]
-    lret = vtyp = vtype(W, typ)
-    
+    vtyp = vtype(W, typ)
     mask && truncate_mask!(instrs, '1' + dynamic_index, W, 0)
     if grv
         loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T) * '.' * suffix(W, Ptr{T})
@@ -237,8 +286,23 @@ function vload_quote(
     else
         push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment, !alias.scope !3, !tbaa !5")
     end
-    push!(instrs, "ret $vtyp %res")
-
+    if isbit
+        lret = string('i', max(8,W))
+        if W > 1
+            if W < 8
+                push!(instrs, "%resint = bitcast <$W x i1> %res to i$(W)")
+                push!(instrs, "%resfinal = zext i$(W) %resint to i8")
+            else
+                push!(instrs, "%resfinal = bitcast <$W x i1> %res to i$(W)")
+            end
+        else
+            push!(instrs, "%resfinal = zext i1 %res to i8")
+        end
+        push!(instrs, "ret $lret %resfinal")
+    else
+        lret = vtyp
+        push!(instrs, "ret $vtyp %res")
+    end
     ret = jtyp
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T))
     largs = String[JULIAPOINTERTYPE]
@@ -258,7 +322,14 @@ function vload_quote(
         push!(args.args, mask_type(W))
         push!(largs, "i$(max(8,nextpow2(W)))")
     end
-    llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
+    if isbit && W > 1
+        quote
+            $(Expr(:meta,:inline))
+            Mask{$W}($(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)))
+        end
+    else
+        llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
+    end
 end
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
 @generated function vload(ptr::Ptr{T}, ::Val{A}) where {T <: NativeTypes, A}
@@ -305,25 +376,59 @@ end
     vload_quote(T, I, :Integer, W, X, M, O, true, A)
 end
 
+@inline function vload(ptr::Ptr{Bit}, i::Integer, ::Val{A}) where {A}
+    d = i >> 3; r = i & 7;
+    u = vload(Base.unsafe_convert(Ptr{UInt8}, ptr), d, Val{A}())
+    (u >> r) % Bool
+end
+
+
 @inline vload(ptr) = vload(ptr, Val{false}())
 @inline vloada(ptr) = vload(ptr, Val{true}())
 @inline vload(ptr, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{false}())
 @inline vloada(ptr, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{true}())
 @inline vload(ptr, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{false}())
 @inline vloada(ptr, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{true}())
+@inline vload(ptr, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{false}())
+@inline vloada(ptr, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{true}())
 
-# @generated function vload(ptr_base::Ptr{T}, i::Unroll{W,U}) where {W,U,T}
-#     t = Expr(:tuple)
-#     for u ∈ 0:U-1
-#         push!(t.args, :(vload(ptr, MM{$W}(lazymul(StaticInt{$u}(), x)))))
-#     end
-#     quote
-#         $(Expr(:meta,:inline))
-#         x = stride(i)
-#         ptr = gep(ptr_base, base(i))
-#         VecUnroll($t)
-#     end
-# end
+@inline function vload(ptr::Ptr{T}, i::Number, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
+    if b
+        vload(ptr, i, Val{A}())
+    else
+        zero(T)
+    end
+end
+@inline vwidth_from_ind(i::Tuple) = vwidth_from_ind(i, StaticInt(1), StaticInt(0))
+@inline vwidth_from_ind(i::Tuple{}, ::StaticInt{W}, ::StaticInt{U}) where {W,U} = (StaticInt{W}(), StaticInt{U}())
+@inline function vwidth_from_ind(i::Tuple{<:AbstractSIMDVector{W},Vararg}, ::Union{StaticInt{1},StaticInt{W}}, ::StaticInt{U}) where {W,U}
+    vwidth_from_ind(Base.tail(i), StaticInt{W}(), StaticInt{W}(U))
+end
+@inline function vwidth_from_ind(
+    i::Tuple{<:VecUnroll{U,W},Vararg}, ::Union{StaticInt{1},StaticInt{W}}, ::Union{StaticInt{0},StaticInt{U}}
+) where {U,W}
+    vwidth_from_ind(Base.tail(i), StaticInt{W}(), StaticInt{W}(U))
+end
+@inline zero_init(::Type{T}, ::StaticInt{1}, ::StaticInt{0}) where {W,U,T} = zero(T)
+@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{0}) where {W,U,T} = vzero(Val(W), T)
+@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{U}) where {W,U,T} = zero(VecUnroll{U,W,T,Vec{W,T}})
+
+@inline zero_init(::Type{T}, ::Tuple{StaticInt{W},StaticInt{U}}) where {W,U,T} = zero_init(T, StaticInt{W}(), StaticInt{U}())
+
+@inline function vload(ptr::Ptr{T}, i::Tuple, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
+    if b
+        vload(ptr, i, Val{A}())
+    else
+        zero_init(T, vwidth_from_ind(i))
+    end
+end
+@inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,I}, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
+    if b
+        vload(ptr, i, Val{A}())
+    else
+        VecUnroll(ntuple(@inline(_ -> vzero(Val{W}(), T)), Val{N}()))
+    end
+end
 
 function vstore_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool
@@ -494,6 +599,16 @@ end
     vstore_quote(T, I, :Integer, W, sizeof(T), M, O, true, A, S, NT)
 end
 
+@inline function vstore!(
+    ptr::Ptr, v::Base.HWReal, i::Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, A, S, NT}
+    vstore!(ptr, vbroadcast(Val{W}(), v), i, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    ptr::Ptr, v::Base.HWReal, i::Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, A, S, NT}
+    vstore!(ptr, vbroadcast(Val{W}(), v), i, m, Val{A}(), Val{S}(), Val{NT}())
+end
 
 @inline function vstore!(ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT}
     vstore!(ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
@@ -535,6 +650,9 @@ for (store,align,alias,nontemporal) ∈ [
         @inline $store(ptr, v::Number) = vstore!(ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         @inline $store(ptr, v::Number, i::Union{Number,Tuple,Unroll}) = vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         @inline $store(ptr, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask) = vstore!(ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+        @inline function $store(ptr, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool)
+            b && vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+        end
         
         @inline function $store(f::F, ptr, v::Number) where {F<:Function}
             vstore!(f, ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
@@ -544,6 +662,9 @@ for (store,align,alias,nontemporal) ∈ [
         end
         @inline function $store(f::F, ptr, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask) where {F<:Function}
             vstore!(f, ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+        end
+        @inline function $store(f::F, ptr, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool) where {F<:Function}
+            b && vstore!(f, ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
     end
 end

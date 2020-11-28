@@ -42,7 +42,7 @@
         memory_reference(device(P), P)
     end
 end
-@inline memory_reference(::ArrayInterface.CPUIndex, A) = throw("Not implemented yet.")
+@inline memory_reference(::ArrayInterface.CPUIndex, A) = throw("Memory access for $(typeof(A)) not implemented yet.")
 
 
 """
@@ -76,8 +76,8 @@ end
 ) where {T<:NativeTypes,C,B,R,N,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
-@inline Base.strides(ptr::StridedPointer) = ptr.strd
-@inline ArrayInterface.offsets(ptr::StridedPointer) = ptr.offsets
+@inline Base.strides(ptr::AbstractStridedPointer) = ptr.strd
+@inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = ptr.offsets
 @inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(Contiguous{C}(), Val{N}())
 
 
@@ -114,7 +114,8 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
     Expr(:block, Expr(:meta, :inline), t)
 end
 
-@inline vload(ptr::AbstractStridedPointer{T,0}, i::Tuple{}, ::Val{A}) where {A,T} = vload(pointer(ptr))
+@inline vload(ptr::AbstractStridedPointer{T,0}, i::Tuple{}, ::Val{A}) where {A,T} = vload(pointer(ptr), Val{A}())
+@inline gep(ptr::AbstractStridedPointer{T,0}, i::Tuple{}) where {T} = pointer(ptr)
 
 # Fast compile path?
 @inline function vload(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,StaticInt{0}}}, i::Tuple{Vararg{Any,N}}, ::Val{A}) where {A,T,N,C,B,R,X}
@@ -217,16 +218,16 @@ end
     gep(pointer(ptr), tdot(ptr, i, strides(ptr), nopromote_axis_indicator(ptr)))
 end
 
-
-struct StridedBitPointer{N,C,B,R,X,O} <: AbstractStridedPointer{Bool,N,C,B,R,X,O}
-    p::Ptr{Bool}
+struct StridedBitPointer{N,C,B,R,X,O} <: AbstractStridedPointer{Bit,N,C,B,R,X,O}
+    p::Ptr{Bit}
     strd::X
     offsets::O
 end
-function StridedBitPointer{N,C,B,R}(p::Ptr{Bool}, strd::X, offsets::O) where {N,C,B,R,X,O}
+function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets::O) where {N,C,B,R,X,O}
     StridedBitPointer{N,C,B,R,X,O}(p, strd, offsets)
 end
-@inline stridedpointer(A::BitVector) = StridedBitPointer(Base.unsafe_convert(Ptr{Bool}, pointer(A.chunks)), (Static{1}(),), (Static{1}(),))
+@inline Base.pointer(p::StridedBitPointer) = p.p
+@inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
 @generated function stridedpointer(A::BitArray{N}) where {N}
     q = quote;
         s = size(A)
@@ -236,16 +237,104 @@ end
     strd = Expr(:tuple, sone, :s_2); offsets = Expr(:tuple, sone, sone);
     last_stride = next_stride = :s_2
     push!(q.args, :(s_2 = size(A,1))); # >>> 3
+    R = Expr(:tuple, 1, 2)
     for n ∈ 3:N
         next_stride = Symbol(:s_, n)
         push!(q.args, Expr(:(=), next_stride, Expr(:call, :(*), Expr(:ref, :s, n-1), last_stride)))
         push!(strd.args, next_stride)
         push!(offsets.args, :(StaticInt{1}()))
         last_stride = next_stride
+        push!(R.args, n)
     end
-    push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{UInt8}, pointer(A.chunks)), $strd, $offsets)))
+    push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), $strd, $offsets)))
     q
 end
+@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X,O}, ptr::Ptr{Bit}) where {N,C,B,R,X,O}
+    StridedBitPointer{N,C,B,R}(ptr, sptr.strd, zerotuple(Val{N}()))
+end
 
-@inline tdot(ptr::StridedBitPointer, a, b, c) = tdot(Bool, a, b, c) >>> StaticInt(3)
+# @inline tdot(ptr::StridedBitPointer, a, b, c) = tdot(Bool, a, b, c) >>> StaticInt(3)
+
+# There is probably a smarter way to do indexing adjustment here.
+# The reasoning for the current approach of geping for Zero() on extracted inds
+# and for offsets otherwise is best demonstrated witht his motivational example:
+# 
+# A = OffsetArray(rand(10,11), 6:15, 5:15);
+# for i in 6:15
+    # s += A[i,i]
+# end
+# first access is at zero-based index
+# (first(6:16) - ArrayInterface.offsets(a)[1]) * ArrayInterface.strides(A)[1] + (first(6:16) - ArrayInterface.offsets(a)[2]) * ArrayInterface.strides(A)[2]
+# equal to
+#  (6 - 6)*1 + (6 - 5)*10 = 10
+# i.e., the 1-based index 11.
+# So now we want to adjust the offsets and pointer's value
+# so that indexing it with a single `i` (after summing strides) is correct.
+# Moving to 0-based indexing is easiest for combining strides. So we gep by 0 on these inds.
+# E.g., gep(stridedpointer(A), (0,0))
+# ptr += (0 - 6)*1 + (0 - 5)*10 = -56
+# new stride = 1 + 10 = 11
+# new_offset = 0
+# now if we access the 6th element
+# (6 - new_offse) * new_stride
+# ptr += (6 - 0) * 11 = 66
+# cumulative:
+# ptr = pointer(A) + 66 - 56  = pointer(A) + 10
+# so initial load is of pointer(A) + 10 -> the 11th element w/ 1-based indexing
+
+
+function double_index_quote(C,B,R::NTuple{N,Int},I1,I2,typ) where {N}
+    # place into position of second arg
+    J1 = I1 + 1; J2 = I2 + 1;
+    @assert (J1 != B) & (J2 != B)
+    Cnew = ((C == J1) | (C == J2)) ? -1 : (C - (J1 < C))
+    push!(typ.args, Cnew); push!(typ.args, B);
+    strd = Expr(:tuple); offs = Expr(:tuple);
+    inds = Expr(:tuple); Rtup = Expr(:tuple)
+    for n in 1:N
+        if n == J1
+            push!(inds.args, :(Zero()))
+        elseif n == J2
+            push!(strd.args, Expr(:call, :vadd, Expr(:ref, :strd, J1), Expr(:ref, :strd, J2)))
+            push!(offs.args, :(Zero()))
+            push!(inds.args, :(Zero()))
+            push!(Rtup.args, max(R[J1], R[J2]))
+        else
+            push!(strd.args, Expr(:ref, :strd, n))
+            push!(offs.args, Expr(:ref, :offs, n))
+            push!(inds.args, Expr(:ref, :offs, n))
+            push!(Rtup.args, R[n])
+        end
+    end
+    push!(typ.args, Rtup)
+    gepedptr = Expr(:call, :gep, :ptr, inds)
+    newptr = Expr(:call, typ, gepedptr, strd, offs)
+    Expr(:block, Expr(:meta,:inline), :(strd = ptr.strd), :(offs = ptr.offsets), newptr)
+end
+@generated function double_index(ptr::StridedPointer{T,N,C,B,R}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
+    double_index_quote(C,B,R,I1,I2, Expr(:curly, :StridedPointer, :T, N - 1))
+end
+@generated function double_index(ptr::StridedBitPointer{N,C,B,R}, ::Val{I1}, ::Val{I2}) where {N,C,B,R,I1,I2}
+    double_index_quote(C,B,R,I1,I2, Expr(:curly, :StridedBitPointer, N - 1))
+end
+
+@inline stridedpointer(ptr::AbstractStridedPointer) = ptr
+
+struct FastRange{F,S,O}
+    f::F
+    s::S
+    offset::O
+end
+@inline function stridedpointer(r::AbstractRange)
+    FastRange(ArrayInterface.static_first(r), ArrayInterface.static_step(r), One())
+end
+@inline function gesp(r::FastRange, i::Tuple{I}) where {I}
+    ii = first(i) - r.offset
+    f = r.f
+    s = r.s
+    FastRange(f + ii * s, r.s, Zero())
+end
+@inline vload(r::FastRange, i::Tuple{I}) where {I} = r.f + r.s * (first(i) - r.offset)
+@inline vload(r::FastRange, i, m::Union{Mask,Bool}) = vload(r, i)
+
 

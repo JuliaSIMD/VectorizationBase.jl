@@ -137,6 +137,7 @@ end
     Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
 end
 
+
 # @inline vbroadcast(::Union{Val{W},StaticInt{W}}, ::Type{T}, s::T) where {W,T} = vbroadcast(Val{W}(), s)
 # @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ::Type{T}, s::S) where {W,T,S}
 #     ex = if sizeof(T) < sizeof(S)

@@ -81,6 +81,12 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul_no_promote(a::MM{W,X,StaticInt{M}}, ::StaticInt{N}) where {N,W,X,M} = MM{W,X}(StaticInt{M}() * StaticInt{N}())
 @inline lazymul_no_promote(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{M*N}()
 
+@inline lazymul_no_promote(::StaticInt{1}, b) where {N} = b
+@inline lazymul_no_promote(a, ::StaticInt{1}) where {N} = a
+@inline lazymul_no_promote(::StaticInt{1}, ::StaticInt{N}) where {N} = StaticInt{N}()
+@inline lazymul_no_promote(::StaticInt{M}, ::StaticInt{1}) where {M} = StaticInt{M}()
+@inline lazymul_no_promote(::StaticInt{1}, ::StaticInt{0}) = StaticInt{0}()
+@inline lazymul_no_promote(::StaticInt{0}, ::StaticInt{1}) = StaticInt{0}()
 
 @inline lazymul_no_promote(a::LazyMulAdd{M}, ::StaticInt{N}) where {M,N} = LazyMulAdd(a.data, StaticInt{M}()*StaticInt{N}())
 @inline lazymul_no_promote(::StaticInt{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(b.data, StaticInt{M}()*StaticInt{N}())

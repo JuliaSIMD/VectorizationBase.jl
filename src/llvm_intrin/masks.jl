@@ -401,3 +401,21 @@ end
 @inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) != zero(T)
 
+
+@generated function ifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
+    typ = LLVM_TYPES[T]
+    vtyp = vtype(W, typ)
+    selty = vtype(W, "i1")
+    f = "select"
+    if Base.libllvm_version ≥ v"9" && ((T === Float32) || (T === Float64))
+        f *= " nsz arcp contract reassoc"
+    end
+    instrs = String["%mask.0 = trunc <$W x i8> %0 to <$W x i1>"]
+    # truncate_mask!(instrs, '0', W, 0)
+    push!(instrs, "%res = $f $selty %mask.0, $vtyp %1, $vtyp %2\nret $vtyp %res")
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
+    end
+end
+

@@ -49,7 +49,8 @@ const FloatingTypes = Union{Float32, Float64} # Float16
 # const SUPPORTED_FLOATS = [Float32, Float64]
 # const SUPPORTED_TYPES = [Float32, Float64, Int16, Int32, Int64, Int8, UInt16, UInt32, UInt64, UInt8]
 
-const NativeTypes = Union{Bool,HWReal}
+struct Bit; data::Bool; end # Dummy for Ptr
+const NativeTypes = Union{Bit,Bool,HWReal}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}

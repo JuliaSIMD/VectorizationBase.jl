@@ -10,7 +10,8 @@ const LLVM_TYPES = IdDict{Type{<:NativeTypes},String}(
     UInt16 => "i16",
     UInt32 => "i32",
     UInt64 => "i64",
-    Bool => "i8"
+    Bool => "i8",
+    Bit => "i1"
 )
 const LLVM_TYPES_SYM = IdDict{Symbol,String}(
     :Float32 => "float",
@@ -23,7 +24,8 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
     :UInt16 => "i16",
     :UInt32 => "i32",
     :UInt64 => "i64",
-    :Bool => "i8"
+    :Bool => "i8",
+    :Bit => "i1"
 )
 
     
@@ -39,10 +41,12 @@ suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
 function suffix(@nospecialize(T))
     if T === Float32 || T === Float64
         t = 'f'
+    elseif T === Bool
+        return "i1"
     else
         t = 'i'
     end
-    t * string(8sizeof(T))
+    string(t, 8sizeof(T))
 end
 
 # Type-dependent LLVM constants

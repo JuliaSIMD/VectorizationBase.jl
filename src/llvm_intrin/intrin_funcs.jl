@@ -195,22 +195,26 @@ end
 # end
 @inline vsum(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vsum(-zero(T), v)
 @inline vprod(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vprod(one(T), v)
+@inline vsum(x, v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vsum(convert(T, x), v)
+@inline vprod(x, v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vprod(convert(T, x), v)
 
 for (f,f_to,op,reduce,twoarg) ∈ [
     (:reduced_add,:reduce_to_add,:+,:vsum,true),(:reduced_prod,:reduce_to_prod,:*,:vprod,true),
     (:reduced_max,:reduce_to_max,:max,:vmaximum,false),(:reduced_min,:reduce_to_min,:min,:vminimum,false)
 ]
     @eval begin
-        @inline $f_to(x::T, y::T) where {T} = x
-        @inline $f_to(x::AbstractSIMD{W,T}, y::T) where {W,T} = $reduce(x)
-        @inline $f(x::T, y::T) where {T} = $op(x,y)
+        @inline $f_to(x::NativeTypes, y::NativeTypes) = x
+        @inline $f_to(x::AbstractSIMD, y::AbstractSIMD) = x
+        @inline $f_to(x::AbstractSIMD, y::NativeTypes) = $reduce(x)
+        @inline $f(x::NativeTypes, y::NativeTypes) = $op(x,y)
+        @inline $f(x::AbstractSIMD, y::AbstractSIMD) = $op(x,y)
     end
     if twoarg
         # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $reduce(y, x)
-        @eval @inline $f(x::AbstractSIMD{W,T}, y::T) where {W,T} = $reduce(y, x)
+        @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $reduce(y, x)
     else
         # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $op(y, $reduce(x))
-        @eval @inline $f(x::AbstractSIMD{W,T}, y::T) where {W,T} = $op(y, $reduce(x))
+        @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $op(y, $reduce(x))
     end
 end
 
