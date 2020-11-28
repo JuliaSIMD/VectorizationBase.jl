@@ -176,6 +176,11 @@ end
 @inline Base.:(>>)(i::MM, j::Vec) = Vec(i) >> j
 @inline Base.:(>>>)(i::MM, j::Vec) = Vec(i) >>> j
 
+@inline Base.:(<<)(i::MM{W,X}, j::StaticInt) where {W,X} = MM{W}(i.i << j, StaticInt{X}() << j)
+@inline Base.:(>>)(i::MM{W,X}, j::StaticInt) where {W,X} = MM{W}(i.i >> j, StaticInt{X}() >> j)
+@inline Base.:(>>>)(i::MM{W,X}, j::StaticInt) where {W,X} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
+
+
 for (f,op) ∈ [
     (:scalar_less, :(<)), (:scalar_greater,:(>)), (:scalar_greaterequal,:(≥)), (:scalar_lessequal,:(≤)), (:scalar_equal,:(==)), (:scalar_notequal,:(!=))
 ]

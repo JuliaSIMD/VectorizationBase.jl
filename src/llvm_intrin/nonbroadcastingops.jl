@@ -12,11 +12,11 @@
     end
 end
 @generated function addscalar(v::Vec{W,T}, s::T) where {W, T <: Union{Float16,Float32,Float64}}
-    typ = llvmtype(T)
+    typ = LLVM_TYPES[T]
     vtyp = "<$W x $typ>"
     instrs = String[]
     push!(instrs, "%ie = insertelement $vtyp zeroinitializer, $typ %1, i32 0")
-    push!(instrs, "%v = fadd $(fastflags(T)) $vtyp %0, %ie")
+    push!(instrs, "%v = fadd nsz arcp contract afn reassoc $vtyp %0, %ie")
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
@@ -37,11 +37,11 @@ end
     end
 end
 @generated function mulscalar(v::Vec{W,T}, s::T) where {W, T <: Union{Float16,Float32,Float64}}
-    typ = llvmtype(T)
+    typ = LLVM_TYPES[T]
     vtyp = "<$W x $typ>"
     instrs = String[]
     push!(instrs, "%ie = insertelement $vtyp $(llvmconst(W, T, 1.0)), $typ %1, i32 0")
-    push!(instrs, "%v = fmul $(fastflags(T)) $vtyp %0, %ie")
+    push!(instrs, "%v = fmul nsz arcp contract afn reassoc $vtyp %0, %ie")
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
@@ -64,15 +64,16 @@ function scalar_maxmin(W, ::Type{T}, ismax) where {T}
         basevalue = llvmconst(W, T, ismax ? typemin(T) : typemax(T))
     else
         opzero = ismax ? -Inf : Inf
+        basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
         if T === Float64
             typ = "double"
-            basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
+            # basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
         elseif T === Float32
             typ = "float"
-            basevalue = llvmconst(W, T, repr(reinterpret(UInt32, Float32(opzero))))
+            # basevalue = llvmconst(W, T, repr(reinterpret(UInt32, Float32(opzero))))
         elseif T === Float16
             typ = "half"
-            basevalue = llvmconst(W, T, repr(reinterpret(UInt16, Float16(opzero))))
+            # basevalue = llvmconst(W, T, repr(reinterpret(UInt16, Float16(opzero))))
         else
             throw("T === $T not currently supported.")
         end

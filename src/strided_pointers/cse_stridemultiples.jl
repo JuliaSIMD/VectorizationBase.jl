@@ -110,6 +110,8 @@ end
     precalc_quote_from_descript(descript, C, X.parameters)
 end
 
+# TODO: support this?
+offsetprecalc(p::StridedBitPointer) = p
 
 
 # @inline stride1offset(ptr::OffsetPrecalc, i) = stride1offset(ptr.ptr, i)

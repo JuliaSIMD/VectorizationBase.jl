@@ -44,10 +44,11 @@ end
 @inline maybestaticsize(::LinearAlgebra.Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticlength(B::LinearAlgebra.Adjoint) = maybestaticlength(parent(B))
 @inline maybestaticlength(B::LinearAlgebra.Transpose) = maybestaticlength(parent(B))
-@inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
-@inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
-@inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
-@inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
+@inline maybestaticsize(A, ::Val{N}) where {N} = ArrayInterface.size(A)[N]
+# @inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
+# @inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
+# @inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
+# @inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
 
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.

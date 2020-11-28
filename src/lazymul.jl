@@ -61,8 +61,8 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul(::StaticInt{1}, ::StaticInt{0}) = StaticInt{0}()
 @inline lazymul(::StaticInt{1}, ::StaticInt{1}) = StaticInt{1}()
 
-@inline lazymul(a::LazyMulAdd{M}, ::StaticInt{N}) where {M,N} = LazyMulAdd(a.data, StaticInt{M}() * StaticInt{N}())
-@inline lazymul(::StaticInt{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(b.data, StaticInt{M}() * StaticInt{N}())
+@inline lazymul(a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N} = LazyMulAdd(a.data, StaticInt{M}() * StaticInt{N}(), StaticInt{O}() * StaticInt{N}())
+@inline lazymul(::StaticInt{M}, b::LazyMulAdd{N,O}) where {M,O,N} = LazyMulAdd(b.data, StaticInt{M}() * StaticInt{N}(), StaticInt{O}() * StaticInt{M}())
 
 @inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::StaticInt{N}) where {M,N,W,X} = LazyMulAdd(MM{W}(a.data, StaticInt{M}()*StaticInt{N}()*StaticInt{X}()), StaticInt{M}()*StaticInt{N}())
 @inline lazymul(::StaticInt{M}, b::LazyMulAdd{N,<:MM{W,X}}) where {M,N,W,X} = LazyMulAdd(MM{W}(b.data, StaticInt{M}()*StaticInt{N}()*StaticInt{X}()), StaticInt{M}()*StaticInt{N}())
@@ -71,6 +71,8 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::StaticInt{1}) where {M,W,X} = a
 @inline lazymul(::StaticInt{1}, b::LazyMulAdd{N,<:MM{W,X}}) where {N,W,X} = b
 @inline lazymul(a::LazyMulAdd{M}, b::LazyMulAdd{N}) where {M,N} = LazyMulAdd(vmul(a.data, b.data), StaticInt{M}()*StaticInt{N}())
+
+@inline Base.:(>>>)(a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N} = LazyMulAdd(a.data, StaticInt{M}() >>> StaticInt{N}(), StaticInt{O}() >>> StaticInt{N}())
 
 @inline lazymul_no_promote(a, b) = vmul_no_promote(a, b)
 @inline lazymul_no_promote(::StaticInt{N}, b) where {N} = LazyMulAdd{N}(b)
@@ -115,5 +117,6 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, ::StaticInt{0}) where {M,O,W,X,I} = a
 @inline vadd(::StaticInt{0}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
 # @inline vadd(::StaticInt{M}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
+
 
 

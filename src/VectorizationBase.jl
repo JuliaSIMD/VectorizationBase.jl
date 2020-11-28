@@ -289,7 +289,41 @@ include("promotion.jl")
 include("ranges.jl")
 include("alignment.jl")
 include("special/misc.jl")
+
+
+function reduce_to_onevec_quote(Nm1)
+    N = Nm1 + 1
+    q = Expr(:block, Expr(:meta,:inline))
+    assign = Expr(:tuple); syms = Vector{Symbol}(undef, N)
+    for n ∈ 1:N
+        x_n = Symbol(:x_, n)
+        push!(assign.args, x_n); syms[n] = x_n;
+    end
+    push!(q.args, Expr(:(=), assign, :(data(vu))))
+    while N > 1
+        tz = trailing_zeros(N)
+        for h ∈ 1:tz
+            N >>= 1
+            for n ∈ 1:N
+                push!(q.args, Expr(:(=), syms[n], Expr(:call, :f, syms[n], syms[n+N])))
+            end
+        end
+        if N > 1 # N must be odd
+            push!(q.args, Expr(:(=), syms[N-1], Expr(:call, :f, syms[N-1], syms[N])))
+            N -= 1
+        end
+    end
+    push!(q.args, first(syms))
+    q
+end
+@generated function reduce_to_onevec(f::F, vu::VecUnroll{Nm1}) where {F, Nm1}
+    reduce_to_onevec_quote(Nm1)
+end
+
+
 include("precompile.jl")
 _precompile_()
+
+
 
 end # module
