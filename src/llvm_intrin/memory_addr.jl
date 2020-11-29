@@ -426,11 +426,15 @@ end
         zero_init(T, vwidth_from_ind(i))
     end
 end
+@generated function zero_vecunroll(::Val{N}, ::Val{W}, ::Type{T}) where {N,W,T}
+    Expr(:block, Expr(:meta, :inline), :(zero(VecUnroll{$(N-1),$W,$T,Vec{$W,$T}})))
+end
 @inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,I}, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
     if b
         vload(ptr, i, Val{A}())
     else
-        VecUnroll(ntuple(@inline(_ -> vzero(Val{W}(), T)), Val{N}()))
+        zero_vecunroll(Val{N}(), Val{W}(), T)
+        # VecUnroll(ntuple(@inline(_ -> vzero(Val{W}(), T)), Val{N}()))
     end
 end
 
