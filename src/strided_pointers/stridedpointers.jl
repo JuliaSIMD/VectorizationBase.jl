@@ -221,13 +221,14 @@ end
 struct StridedBitPointer{N,C,B,R,X,O} <: AbstractStridedPointer{Bit,N,C,B,R,X,O}
     p::Ptr{Bit}
     strd::X
-    offsets::O
+    offsets::NTuple{N,Int}
 end
 function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets::O) where {N,C,B,R,X,O}
     StridedBitPointer{N,C,B,R,X,O}(p, strd, offsets)
 end
 @inline Base.pointer(p::StridedBitPointer) = p.p
-@inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
+# @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
+@inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (1,))
 @generated function stridedpointer(A::BitArray{N}) where {N}
     q = quote;
         s = size(A)
@@ -242,7 +243,8 @@ end
         next_stride = Symbol(:s_, n)
         push!(q.args, Expr(:(=), next_stride, Expr(:call, :(*), Expr(:ref, :s, n-1), last_stride)))
         push!(strd.args, next_stride)
-        push!(offsets.args, :(StaticInt{1}()))
+        # push!(offsets.args, :(StaticInt{1}()))
+        push!(offsets.args, 1)
         last_stride = next_stride
         push!(R.args, n)
     end
@@ -253,6 +255,17 @@ end
     StridedBitPointer{N,C,B,R}(ptr, sptr.strd, zerotuple(Val{N}()))
 end
 
+@generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
+    quote
+        $(Expr(:meta,:inline))
+        offs = ptr.offsets
+        StridedBitPointer{$N,$C,$B,$R}(ptr.p, ptr.strd, Base.Cartesian.@ntuple $N n -> vsub(offs[n], i[n]))
+    end
+end
+@generated function pointerforcomparison(p::StridedBitPointer{N}) where {N}
+    inds = Expr(:tuple); foreach(_ -> push!(inds.args, :(Zero())), 1:N)
+    Expr(:block, Expr(:meta,:inline), Expr(:call, :gep, :p, inds))
+end
 # @inline tdot(ptr::StridedBitPointer, a, b, c) = tdot(Bool, a, b, c) >>> StaticInt(3)
 
 # There is probably a smarter way to do indexing adjustment here.
@@ -320,21 +333,24 @@ end
 
 @inline stridedpointer(ptr::AbstractStridedPointer) = ptr
 
-struct FastRange{F,S,O}
+struct FastRange{T,F,S,O}# <: AbstractRange{T}
     f::F
     s::S
     offset::O
 end
-@inline function stridedpointer(r::AbstractRange)
-    FastRange(ArrayInterface.static_first(r), ArrayInterface.static_step(r), One())
+FastRange{T}(f::F,s::S,o::O) where {T,F,S,O} = FastRange{T,F,S,O}(f,s,o)
+@inline function stridedpointer(r::AbstractRange{T}) where {T}
+    FastRange{T}(ArrayInterface.static_first(r), ArrayInterface.static_step(r), One())
 end
-@inline function gesp(r::FastRange, i::Tuple{I}) where {I}
+@inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T}
     ii = first(i) - r.offset
     f = r.f
     s = r.s
-    FastRange(f + ii * s, r.s, Zero())
+    FastRange{T}(f + ii * s, r.s, Zero())
 end
-@inline vload(r::FastRange, i::Tuple{I}) where {I} = r.f + r.s * (first(i) - r.offset)
-@inline vload(r::FastRange, i, m::Union{Mask,Bool}) = vload(r, i)
-
+@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, r.f) + convert(T, r.s) * (first(i) - convert(T, r.offset))
+@inline vload(r::FastRange, i::Tuple, m::Mask) = vload(r, i)
+@inline vload(r::FastRange, i::Tuple, m::Bool) = vload(r, i)
+# @inline Base.getindex(r::FastRange, i::Integer) = vload(r, (i,))
+@inline Base.eltype(::FastRange{T}) where {T} = T
 

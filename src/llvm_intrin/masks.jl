@@ -119,9 +119,9 @@ end
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
 
-@inline Base.:(<<)(m::Mask{W}, i) where {W} = Mask{W}(shl(m.u, i))
-@inline Base.:(>>)(m::Mask{W}, i) where {W} = Mask{W}(shr(m.u, i))
-@inline Base.:(>>>)(m::Mask{W}, i) where {W} = Mask{W}(shr(m.u, i))
+@inline Base.:(<<)(m::Mask{W}, i::Base.BitInteger) where {W} = Mask{W}(shl(m.u, i))
+@inline Base.:(>>)(m::Mask{W}, i::Base.BitInteger) where {W} = Mask{W}(shr(m.u, i))
+@inline Base.:(>>>)(m::Mask{W}, i::Base.BitInteger) where {W} = Mask{W}(shr(m.u, i))
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline vany(m::Mask{$W,$U}) = m.u != $(zero(U))
@@ -150,6 +150,19 @@ end
 @inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m)
 @inline Base.:(+)(i::Integer, m::Mask) = i + count_ones(m)
 
+function mask_type_symbol(W)
+    if W <= 8
+        return :UInt8
+    elseif W <= 16
+        return :UInt16
+    elseif W <= 32
+        return :UInt32
+    elseif W <= 64
+        return :UInt64
+    else#if W <= 128
+        return :UInt128
+    end
+end
 function mask_type(W)
     if W <= 8
         return UInt8
@@ -170,13 +183,15 @@ mask_type(::Union{Val{32},StaticInt{32}}) = UInt32
 mask_type(::Union{Val{64},StaticInt{64}}) = UInt64
 
 @generated function mask_type(::Type{T}, ::Union{Val{P},StaticInt{P}}) where {T,P}
-    mask_type(pick_vector_width(P, T))
+    mask_type_symbol(pick_vector_width(P, T))
 end
 @generated function mask_type(::Type{T}) where {T}
-    mask_type(pick_vector_width(T))
+    W = max(1, register_size(T) >>> intlog2(T))
+    mask_type_symbol(W)
+    # mask_type_symbol(pick_vector_width(T))
 end
 @generated function Base.zero(::Type{<:Mask{W}}) where {W}
-    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), zero(mask_type(W))))
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), Expr(:call, :zero, mask_type_symbol(W))))
 end
 
 @generated function max_mask(::Union{Val{W},StaticInt{W}}) where {W}
@@ -222,7 +237,7 @@ end
 @generated function tomask(v::Vec{W,Bool}) where {W}
     usize = W > 8 ? nextpow2(W) : 8
     utyp = "i$(usize)"
-    U = mask_type(W)
+    U = mask_type_symbol(W)
     instrs = String[]
     push!(instrs, "%bitvec = trunc <$W x i8> %0 to <$W x i1>")
     zext_mask!(instrs, "bitvec", W, 0)
@@ -418,4 +433,6 @@ end
         Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
+@inline ifelse(b::Bool, s::NativeTypes, v::V) where {V <: AbstractSIMD} = ifelse(b, convert(V, s), v)
+@inline ifelse(b::Bool, v::V, s::NativeTypes) where {V <: AbstractSIMD} = ifelse(b, v, convert(V, s))
 

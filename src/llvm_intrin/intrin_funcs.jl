@@ -143,7 +143,7 @@ end
 @inline Base.copysign(x::Float32, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
 @inline Base.copysign(x::Float64, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
 @inline Base.copysign(v::Vec, u::VecUnroll) = VecUnroll(fmap(copysign, v, u.data))
-@inline Base.copysign(v::Vec{W,T}, x::Real) where {W,T} = copysign(v, Vec{W,T}(x))
+@inline Base.copysign(v::Vec{W,T}, x::NativeTypes) where {W,T} = copysign(v, Vec{W,T}(x))
 
 
 # ternary
@@ -161,7 +161,7 @@ for (op,f) ∈ [
     ("experimental.vector.reduce.v2.fmul",:vprod)
 ]
     @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, 1, T, (1, W), (T, T), "nsz arcp contract afn reassoc")
+        llvmcall_expr($op, -1, T, (1, W), (T, T), "nsz arcp contract afn reassoc")
     end
 end
 vsum(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.add_fast(s, vsum(v))
@@ -171,7 +171,7 @@ for (op,f) ∈ [
     ("experimental.vector.reduce.fmin",:vminimum)
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, 1, T, (W,), (T,), "nsz arcp contract afn reassoc")
+        llvmcall_expr($op, -1, T, (W,), (T,), "nsz arcp contract afn reassoc")
     end
 end
 for (op,f,S) ∈ [
@@ -186,7 +186,7 @@ for (op,f,S) ∈ [
     ("experimental.vector.reduce.umin",:vminimum,:Unsigned)
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: $S}
-        llvmcall_expr($op, 1, T, (W,), (T,))
+        llvmcall_expr($op, -1, T, (W,), (T,))
     end
 end
 
@@ -212,6 +212,7 @@ for (f,f_to,op,reduce,twoarg) ∈ [
     if twoarg
         # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $reduce(y, x)
         @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $reduce(y, x)
+        # @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = ((y2,x2,r) = @show (y, x, $reduce(y, x)); r)
     else
         # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $op(y, $reduce(x))
         @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $op(y, $reduce(x))
@@ -346,7 +347,7 @@ if FMA
     end
     if AVX512BW
         @eval begin
-            @generated function ifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function ifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
                     return Expr(:block, Expr(:meta, :inline), :(ifelse(vfmadd, m, a, b, c)))
                 end
@@ -356,10 +357,10 @@ if FMA
                                 ret <$W x $(typ)> %res"""
                 quote
                     $(Expr(:meta,:inline))
-                    Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                    Vec(llvmcall($vfmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            @generated function ifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function ifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
                     return Expr(:block, Expr(:meta, :inline), :(ifelse(vfmmadd, m, a, b, c)))
                 end
@@ -369,10 +370,10 @@ if FMA
                             ret <$W x $(typ)> %res"""
                 quote
                     $(Expr(:meta,:inline))
-                    Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                    Vec(llvmcall($vfnmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            @generated function ifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function ifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
                     return Expr(:block, Expr(:meta, :inline), :(ifelse(vfmsub, m, a, b, c)))
                 end
@@ -382,10 +383,10 @@ if FMA
                             ret <$W x $(typ)> %res"""
                 quote
                     $(Expr(:meta,:inline))
-                    Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                    Vec(llvmcall($vfmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
-            @generated function ifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U,T}
+            @generated function ifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
                 if !((W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ REGISTER_SIZE))
                     return Expr(:block, Expr(:meta, :inline), :(ifelse(vfnmsub, m, a, b, c)))
                 end
@@ -395,7 +396,7 @@ if FMA
                             ret <$W x $(typ)> %res"""
                 quote
                     $(Expr(:meta,:inline))
-                    Vec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+                    Vec(llvmcall($vfnmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
                 end
             end
         end

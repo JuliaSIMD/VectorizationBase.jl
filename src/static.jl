@@ -114,7 +114,7 @@ end
 @inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
 @inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
 @inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
-for T ∈ [:VecUnroll, :Mask]
+for T ∈ [:VecUnroll, :Mask, :MM]
     @eval begin
         @inline Base.:(+)(x::$T, ::Zero) = x
         @inline Base.:(+)(::Zero, x::$T) = x

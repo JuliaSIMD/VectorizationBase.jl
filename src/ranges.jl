@@ -120,6 +120,7 @@ end
 @inline Vec(i::MM{1}) = data(i)
 @inline Vec(i::MM{1,<:Any,StaticInt{N}}) where {N} = N
 @inline Base.convert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
+@inline Base.convert(::Type{T}, i::MM{W,X}) where {W,X,T<:NativeTypes} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
 
 # Addition
 # @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
@@ -134,7 +135,8 @@ end
 @inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
 @inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
 # Subtraction
-@inline Base.:(-)(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
+@inline Base.:(-)(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), StaticInt{X}() - StaticInt{Y}())
+# @inline Base.:(-)(i::MM{W,X}, j::MM{W,X}) where {W,X} = vsub(data(i), data(j))
 @inline Base.:(-)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(Vec(i), j)
 @inline Base.:(-)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, Vec(j))
 @inline vsub(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
@@ -161,7 +163,7 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @generated function floattype(::Val{W}) where {W}
     (REGISTER_SIZE ÷ W) ≥ 8 ? :Float64 : :Float32
 end
-@inline Base.float(i::MM{W}) where {W} = Vec(MM{W}(floattype(Val{W}())(i.i)))
+@inline Base.float(i::MM{W,X}) where {W,X} = Vec(MM{W,X}(floattype(Val{W}())(i.i)))
 @inline Base.:(/)(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline Base.:(/)(j::T, i::MM) where {T<:Real} = j / float(i)
 @inline Base.:(/)(i::MM, j::MM) = float(i) / float(j)

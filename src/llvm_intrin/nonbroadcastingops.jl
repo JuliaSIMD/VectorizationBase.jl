@@ -103,7 +103,7 @@ end
 for (f,op) ∈ [(:addscalar,:(+)), (:mulscalar,:(*)), (:maxscalar,:max), (:minscalar,:min)]
     @eval begin
         @inline $f(v::VecUnroll, s) = VecUnroll(fmap($f, v.data, s))
-        @inline $f(s::T, v::AbstractSIMD{W,T}) where {W,T} = $f(v, s)
+        @inline $f(s::T, v::AbstractSIMD{W,T}) where {W,T<:NativeTypes} = $f(v, s)
         @inline $f(a, b) = $op(a, b)
     end
 end

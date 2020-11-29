@@ -10,10 +10,10 @@ prevpow2(W) = vshl(one(W), vsub(vsub((8sizeof(W)) % UInt, one(UInt)), leading_ze
 # prevpow2(W) = (one(W) << ((((8sizeof(W)) % UInt) - one(UInt)) - (leading_zeros(W) % UInt)))
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
 
-function pick_vector_width(::Type{T} = Float64) where {T<:NativeTypes}
+function pick_vector_width(::Type{T}) where {T<:NativeTypes}
     max(1, register_size(T) >>> intlog2(T))
 end
-function pick_vector_width_shift(::Type{T} = Float64) where {T<:NativeTypes}
+function pick_vector_width_shift(::Type{T}) where {T<:NativeTypes}
     W = pick_vector_width(T)
     Wshift = intlog2(register_size(T)) - intlog2(T)
     W, Wshift
@@ -33,13 +33,18 @@ end
     W, intlog2(W)
 end
 
-pick_vector_width(::Union{Val{N},StaticInt{N}}, args::Vararg{Any,K}) where {N,K} = pick_vector_width(N, args...)
-pick_vector_width_val(::Type{T} = Float64) where {T} = StaticInt{pick_vector_width(T)}()
-pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T} = Float64) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
+@generated function pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, args::Vararg{Any,K}) where {N,T,K}
+    pick_vector_width(N, T, args...)
+end
+# pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, args::Vararg{Any,K}) where {N,T,K} = min(@show(nextpow2(N)), @show(pick_vector_width(T, args...)))
+# pick_vector_width(::Union{Val{N},StaticInt{N}}, arg, args::Vararg{Any,K}) where {N,K} = min(nextpow2(N), pick_vector_width(arg, args...))
+# pick_vector_width(::Val{N}, args::Vararg{Any,K}) where {N,K} = ((Nmax,a,W) = @show((N, args, pick_vector_width(N, args...))); W)
+pick_vector_width_val(::Type{T}) where {T} = StaticInt{pick_vector_width(T)}()
+pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T}) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
 pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = StaticInt{pick_vector_width(T1,T2,args...)}()
 pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K} = StaticInt{pick_vector_width(Val{N}(),T1,T2,args...)}()
 
-@generated function int_type(::Union{Val{W},StaticInt{W}}) where {W}
+function int_type_symbol(W)
     bits = 8*(REGISTER_SIZE ÷ W)
     if bits ≤ 8
         :Int8
@@ -51,6 +56,7 @@ pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T1}, ::Type{T2}, args
         :Int64
     end
 end
+@generated int_type(::Union{Val{W},StaticInt{W}}) where {W} = int_type_symbol(W)
 
 @generated pick_vector(::Type{T}) where {T} = Vec{pick_vector_width(T),T}
 pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
@@ -89,9 +95,10 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline Base.:(-)(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub(i.i, j))
 # @inline Base.:(-)(i::Integer, j::MM{W}) where {W} = MM{W}(i - j.i)
 @inline Base.:(-)(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub(i.i, j))
-@inline Base.:(-)(i::MM, ::StaticInt{0}) = i
-@inline Base.:(+)(i::MM, ::StaticInt{0}) = i
-@inline Base.:(+)(::StaticInt{0}, i::MM) = i
+# @inline Base.:(-)(i::MM, ::StaticInt{0}) = i
+@inline Base.:(-)(i::MM) = i * StaticInt{-1}()
+# @inline Base.:(+)(i::MM, ::StaticInt{0}) = i
+# @inline Base.:(+)(::StaticInt{0}, i::MM) = i
 @inline Base.:(*)(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(i.i * StaticInt{M}(), StaticInt{X}() * StaticInt{M}())
 @inline Base.:(*)(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(i.i * StaticInt{M}(), StaticInt{X}() * StaticInt{M}())
 # @inline Base.:(-)(::StaticInt{i}, j::MM{W}) where {W,i} = MM{W}(i - j.i)
@@ -133,6 +140,27 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
 @inline Base.:(==)(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
                    
 
+@generated function Base.promote_rule(::Type{MM{W,X,I}}, ::Type{T2}) where {W,X,I,T2<:NativeTypes}
+    if REGISTER_SIZE ≥ sizeof(T2) * W
+        return :(Vec{$W,$T2})
+    elseif T2 <: Signed
+        return :(Vec{$W,$(int_type_symbol(W))})
+    elseif T2 <: Unsigned
+        return :(Vec{$W,unsigned($(int_type_symbol(W)))})
+    else
+        return :(Vec{$W,$T2})
+    end
+end
+
+for f ∈ [:(<<), :(>>>), :(>>), :(÷), :min, :max, :copysign]
+    @eval begin
+        @inline Base.$f(i::MM, v::Base.BitInteger) = $f(Vec(i), v)
+        @inline Base.$f(v::Base.BitInteger, i::MM) = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W}, v::AbstractSIMDVector{W}) where {W} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W}, i::MM{W}) where {W} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W}, j::MM{W}) where {W} = $f(Vec(i), Vec(j))
+    end
+end
 
 
 # @inline _vload(ptr::Ptr{T}, i::Integer) where {T} = vload(ptr + vmul(sizeof(T), i))

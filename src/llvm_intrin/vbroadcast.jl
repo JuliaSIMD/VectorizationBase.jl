@@ -132,16 +132,16 @@ end
 @generated function VecUnroll{N,W,T,V}(x::S) where {N,W,T,V<:AbstractSIMDVector{W,T},S<:Real}
     t = Expr(:tuple)
     for n ∈ 0:N
-        push!(t.args, :($V(x)))
+        push!(t.args, :(convert($V, x)))
     end
     Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
 end
-
+@inline VecUnroll{N,W,T}(x::NativeTypesV) where {N,W,T} = VecUnroll{N,W,T,Vec{W,T}}(x)
 
 # @inline vbroadcast(::Union{Val{W},StaticInt{W}}, ::Type{T}, s::T) where {W,T} = vbroadcast(Val{W}(), s)
 # @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ::Type{T}, s::S) where {W,T,S}
 #     ex = if sizeof(T) < sizeof(S)
-#         vbroadcast(Val{W}(), symmetric_promote_rule(T, S)(s))
+#         vbroadcast(Val{W}(), promote_type(T, S)(s))
 #     else
         
 #     end

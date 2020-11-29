@@ -164,7 +164,7 @@ function offset_ptr(
     end
     # ind_type === :Integer || ind_type === :StaticInt
     if !(isone(X) | iszero(X)) # vec
-        vibytes = min(4, REGISTER_SIZE ÷ W)n
+        vibytes = min(4, REGISTER_SIZE ÷ W)
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
         if typ !== index_gep_typ
@@ -376,23 +376,27 @@ end
     vload_quote(T, I, :Integer, W, X, M, O, true, A)
 end
 
-@inline function vload(ptr::Ptr{Bit}, i::Integer, ::Val{A}) where {A}
+
+@inline function _vload_scalar(ptr::Ptr{Bit}, i::Integer, ::Val{A}) where {A}
     d = i >> 3; r = i & 7;
     u = vload(Base.unsafe_convert(Ptr{UInt8}, ptr), d, Val{A}())
     (u >> r) % Bool
 end
+@inline vload(ptr::Ptr{Bit}, i::Integer, ::Val{A}) where {A} = _vload_scalar(ptr, i, Val{A}())
+# avoid ambiguities
+@inline vload(ptr::Ptr{Bit}, ::StaticInt{N}, ::Val{A}) where {A,N} = _vload_scalar(ptr, StaticInt{N}(), Val{A}())
 
 
-@inline vload(ptr) = vload(ptr, Val{false}())
-@inline vloada(ptr) = vload(ptr, Val{true}())
-@inline vload(ptr, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{false}())
-@inline vloada(ptr, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{true}())
-@inline vload(ptr, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{false}())
-@inline vloada(ptr, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{true}())
-@inline vload(ptr, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{false}())
-@inline vloada(ptr, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{true}())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}) = vload(ptr, Val{false}())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}) = vload(ptr, Val{true}())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{false}())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{true}())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{false}())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{true}())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{false}())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{true}())
 
-@inline function vload(ptr::Ptr{T}, i::Number, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
+@inline function vload(ptr::Ptr{T}, i::Number, b::Bool, ::Val{A}) where {T,A}
     if b
         vload(ptr, i, Val{A}())
     else
@@ -409,13 +413,13 @@ end
 ) where {U,W}
     vwidth_from_ind(Base.tail(i), StaticInt{W}(), StaticInt{W}(U))
 end
-@inline zero_init(::Type{T}, ::StaticInt{1}, ::StaticInt{0}) where {W,U,T} = zero(T)
-@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{0}) where {W,U,T} = vzero(Val(W), T)
+@inline zero_init(::Type{T}, ::StaticInt{1}, ::StaticInt{0}) where {T} = zero(T)
+@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{0}) where {W,T} = vzero(Val(W), T)
 @inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{U}) where {W,U,T} = zero(VecUnroll{U,W,T,Vec{W,T}})
 
 @inline zero_init(::Type{T}, ::Tuple{StaticInt{W},StaticInt{U}}) where {W,U,T} = zero_init(T, StaticInt{W}(), StaticInt{U}())
 
-@inline function vload(ptr::Ptr{T}, i::Tuple, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
+@inline function vload(ptr::Ptr{T}, i::Tuple, b::Bool, ::Val{A}) where {T,A}
     if b
         vload(ptr, i, Val{A}())
     else
@@ -574,7 +578,7 @@ end
     vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, true, A, S, NT)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, ::StaticInt{N}, m::Mask{W}
+    ptr::Ptr{T}, v::Vec{W,T}, ::StaticInt{N}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, T <: NativeTypes, N, A, S, NT}
     vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, N, true, A, S, NT)
 end
@@ -623,17 +627,17 @@ end
 ) where {T, A, S, NT}
     vstore!(ptr, convert(T, v), i, m, Val{A}(), Val{S}(), Val{NT}())
 end
-@inline function vstore!(f::F, ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT, F}
+@inline function vstore!(f::F, ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT, F<:Function}
     vstore!(f, ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
     f::F, ptr::Ptr{T}, v, i::Union{Number,Tuple,Unroll}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT, F}
+) where {T, A, S, NT, F<:Function}
     vstore!(f, ptr, convert(T, v), i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
     f::F, ptr::Ptr{T}, v, i::Union{Number,Tuple,Unroll}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT, F}
+) where {T, A, S, NT, F<:Function}
     vstore!(f, ptr, convert(T, v), i, m, Val{A}(), Val{S}(), Val{NT}())
 end
 
@@ -647,23 +651,29 @@ for (store,align,alias,nontemporal) ∈ [
     (:vnoaliasstorent!,true,true,true)
 ]
     @eval begin
-        @inline $store(ptr, v::Number) = vstore!(ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
-        @inline $store(ptr, v::Number, i::Union{Number,Tuple,Unroll}) = vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
-        @inline $store(ptr, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask) = vstore!(ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
-        @inline function $store(ptr, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool)
+        @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number)
+            vstore!(ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+        end
+        @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll})
+            vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+        end
+        @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask)
+            vstore!(ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+        end
+        @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool)
             b && vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
         
-        @inline function $store(f::F, ptr, v::Number) where {F<:Function}
+        @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number) where {F<:Function}
             vstore!(f, ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
-        @inline function $store(f::F, ptr, v::Number, i::Union{Number,Tuple,Unroll}) where {F<:Function}
+        @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}) where {F<:Function}
             vstore!(f, ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
-        @inline function $store(f::F, ptr, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask) where {F<:Function}
+        @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask) where {F<:Function}
             vstore!(f, ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
-        @inline function $store(f::F, ptr, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool) where {F<:Function}
+        @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool) where {F<:Function}
             b && vstore!(f, ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
     end
@@ -914,15 +924,16 @@ function lazymulunroll_store_quote(M,O,N,mask,align,noalias,nontemporal)
     q
 end
 
-for locality ∈ 0:3, readorwrite ∈ 0:1
+@generated function prefetch(ptr::Ptr{Cvoid}, ::Val{L}, ::Val{R}) where {L, R}
+    @assert L ∈ (0,1,2,3)
+    @assert R ∈ (0, 1)
+    decl = "declare void @llvm.prefetch(i8*, i32, i32, i32)"
     instrs = """
         %addr = inttoptr $JULIAPOINTERTYPE %0 to i8*
-        call void @llvm.prefetch(i8* %addr, i32 $readorwrite, i32 $locality, i32 1)
+        call void @llvm.prefetch(i8* %addr, i32 $R, i32 $L, i32 1)
         ret void
     """
-    @eval @inline function prefetch(ptr::Ptr{Cvoid}, ::Val{$locality}, ::Val{$readorwrite})
-        llvmcall(("declare void @llvm.prefetch(i8*, i32, i32, i32)",$instrs), Cvoid, Tuple{Ptr{Cvoid}}, ptr)
-    end
+    llvmcall_expr(decl, instrs, Cvoid, :(Tuple{Ptr{Cvoid}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
 @inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) where {T,L,R} = prefetch(Base.unsafe_convert(Ptr{Cvoid}, ptr), Val{L}(), Val{R}())
 

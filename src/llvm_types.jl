@@ -31,9 +31,9 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
     
 const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
-vtype(W, typ) = isone(W) ? typ : "<$W x $typ>"
+vtype(W, typ) = isone(abs(W)) ? typ : "<$W x $typ>"
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])
-julia_type(W, T) = isone(W) ? T : _Vec{W,T}
+julia_type(W, T) = isone(abs(W)) ? T : _Vec{W,T}
 
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
 suffix(W::Int, T) = suffix(W, suffix(T))
@@ -81,8 +81,8 @@ end
 
 function llvmname(op, WR, WA, T, TA)
     lret = LLVM_TYPES[T]
-    ln = "llvm.$op.$(suffix(WR,lret))"
-    (isone(WR) || T !== first(TA)) ? ln * '.' * suffix(first(WA),first(TA)) : ln
+    ln = "llvm.$op.$(suffix(WR,T))"
+    (isone(abs(WR)) || T !== first(TA)) ? ln * '.' * suffix(maximum(WA),first(TA)) : ln
 end
 
 function llvmcall_expr(op, WR, R, WA, TA, ::Nothing = nothing)
@@ -91,7 +91,7 @@ function llvmcall_expr(op, WR, R, WA, TA, ::Nothing = nothing)
     foreach(WT -> push!(argt.args, julia_type(WT[1], WT[2])), zip(WA,TA))
     call = Expr(:call, :ccall, ff, :llvmcall, julia_type(WR, R), argt)
     foreach(n -> push!(call.args, Expr(:call, :data, Symbol(:v, n))), 1:length(TA))
-    Expr(:block, Expr(:meta, :inline), isone(WR) ? call : Expr(:call, :Vec, call))
+    Expr(:block, Expr(:meta, :inline), isone(abs(WR)) ? call : Expr(:call, :Vec, call))
 end
 function llvmcall_expr(op, WR, R, WA, TA, flags::String)
     lret = LLVM_TYPES[R]

@@ -20,6 +20,7 @@ end
 tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.extractelement(v,w) for w ∈ 0:W-1]
 tovector(v::VectorizationBase.LazyMulAdd) = tovector(convert(Vec, v))
 tovector(x) = x
+tovector(i::MM{W,X}) where {W,X} = collect(range(i.i, step = X, length = W))
 A = randn(13, 17); L = length(A); M, N = size(A);
 
 @testset "VectorizationBase.jl" begin
@@ -227,13 +228,13 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             W = VectorizationBase.pick_vector_width(T)
             @test Vec{W,T} == VectorizationBase.pick_vector(Val(W), T) == VectorizationBase.pick_vector(T)
             @test W == VectorizationBase.pick_vector_width(Val(W), T)
-            @test Val(W) === VectorizationBase.pick_vector_width_val(Val(W), T) == VectorizationBase.pick_vector_width_val(T)
+            @test StaticInt(W) === VectorizationBase.pick_vector_width_val(Val(W), T) == VectorizationBase.pick_vector_width_val(T)
             while true
                 W >>= 1
                 W == 0 && break
                 W2, Wshift2 = VectorizationBase.pick_vector_width_shift(W, T)
                 @test W2 == 1 << Wshift2 == VectorizationBase.pick_vector_width(W, T) == VectorizationBase.pick_vector_width(Val(W),T)  == W
-                @test Val(W) === VectorizationBase.pick_vector_width_val(Val(W), T)
+                @test StaticInt(W) === VectorizationBase.pick_vector_width_val(Val(W), T)
                 for n in W+1:2W
                     W3, Wshift3 = VectorizationBase.pick_vector_width_shift(n, T)
                     @test W2 << 1 == W3 == 1 << (Wshift2+1) == 1 << Wshift3 == VectorizationBase.pick_vector_width(n, T) == VectorizationBase.pick_vector_width(Val(n),T) == W << 1
@@ -397,12 +398,29 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64)))
         ))
         i = rand(1:8sizeof(Int)); j = rand(Int);
+        m1 = VectorizationBase.VecUnroll((MM{W64}(7), MM{W64}(1), MM{W64}(13), MM{W64}(32)));
+        m2 = VectorizationBase.VecUnroll((MM{W64,2}(3), MM{W64,2}(8), MM{W64,2}(39), MM{W64,2}(17)));
         xi1 = tovector(vi1); xi2 = tovector(vi2);
+        xi3 =  mapreduce(tovector, vcat, m1.data);
+        xi4 =  mapreduce(tovector, vcat, m2.data);
         for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
             # @show f
             @test tovector(@inferred(f(vi1, vi2))) ≈ f.(xi1, xi2)
             @test tovector(@inferred(f(j, vi2))) ≈ f.(j, xi2)
             @test tovector(@inferred(f(vi1, i))) ≈ f.(xi1, i)
+            
+            @test tovector(@inferred(f(m1, i))) ≈ f.(xi3, i)
+            @test tovector(@inferred(f(m1, vi2))) ≈ f.(xi3, xi2)
+            @test tovector(@inferred(f(m1, m2))) ≈ f.(xi3, xi4)
+            @test tovector(@inferred(f(m1, m1))) ≈ f.(xi3, xi3)
+            @test tovector(@inferred(f(m2, i))) ≈ f.(xi4, i)
+            @test tovector(@inferred(f(m2, vi2))) ≈ f.(xi4, xi2)
+            @test tovector(@inferred(f(m2, m2))) ≈ f.(xi4, xi4)
+            @test tovector(@inferred(f(m2, m1))) ≈ f.(xi4, xi3)
+            if !((f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right))
+                @test tovector(@inferred(f(j, m1))) ≈ f.(j, xi3)
+                @test tovector(@inferred(f(j, m2))) ≈ f.(j, xi4)
+            end
         end
         @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
         vf1 = VectorizationBase.VecUnroll((
