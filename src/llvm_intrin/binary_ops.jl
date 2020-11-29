@@ -103,7 +103,7 @@ end
 
 function promote_shift_quote(op::Symbol, ::Type{T1}, ::Type{T2}) where {T1, T2}
     s1 = sizeof(T1); s2 = sizeof(T2);
-    @assert s1 != s2
+    @assert s1 != s2 "op: $op, T1 === $T1, T2 === $T2"
     if s1 < s2
         newT = T1 <: Signed ? signed(T2) : unsigned(T2)
         f = Expr(:call, op, Expr(:call, :convert, newT, :v1), :v2)
@@ -113,7 +113,25 @@ function promote_shift_quote(op::Symbol, ::Type{T1}, ::Type{T2}) where {T1, T2}
     end
     Expr(:block, Expr(:meta, :inline), f)
 end
-for op ∈ [:(<<), :(>>), :(>>>), :(&)]
+@inline function Base.:(<<)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
+    convert(T1, convert(T2, v1) << v2)
+end
+@inline function Base.:(<<)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
+    convert(T1, convert(T2, v1) << v2)
+end
+@inline function Base.:(>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
+    convert(T1, convert(T2, v1) >> v2)
+end
+@inline function Base.:(>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
+    convert(T1, convert(T2, v1) >> v2)
+end
+@inline function Base.:(>>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
+    convert(T1, convert(T2, v1) >>> v2)
+end
+@inline function Base.:(>>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
+    convert(T2, v1 >>> convert(T1, v2))
+end
+for op ∈ [:(<<), :(>>), :(>>>), :(&), :(|)]
     @eval begin
         @generated function Base.$op(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:IntegerTypes,T2<:IntegerTypes}
             promote_shift_quote($(QuoteNode(op)), T1, T2)

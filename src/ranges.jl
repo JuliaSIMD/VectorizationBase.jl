@@ -182,6 +182,10 @@ end
 @inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >> j, StaticInt{X}() >> j)
 @inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
 
+@inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(i.i << j, StaticInt{X}() << j)
+@inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(i.i >> j, StaticInt{X}() >> j)
+@inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
+
 
 for (f,op) ∈ [
     (:scalar_less, :(<)), (:scalar_greater,:(>)), (:scalar_greaterequal,:(≥)), (:scalar_lessequal,:(≤)), (:scalar_equal,:(==)), (:scalar_notequal,:(!=))
@@ -194,7 +198,42 @@ for (f,op) ∈ [
     @eval @inline $f(i, j) = $op(i, j)
 end
 
-for f ∈ [:(<<), :(>>>), :(>>), :(÷), :(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
+for f ∈ [:(<<), :(>>>), :(>>)]
+    @eval begin
+        @inline Base.$f(i::MM{W,X,T}, v::SignedHW) where {W,X,T<:SignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T}, v::SignedHW) where {W,X,T<:UnsignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T}, v::UnsignedHW) where {W,X,T<:SignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T}, v::UnsignedHW) where {W,X,T<:UnsignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:StaticInt} = $f(Vec(i), v)
+
+        @inline Base.$f(v::SignedHW, i::MM{W,X,T}) where {W,X,T<:SignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::UnsignedHW, i::MM{W,X,T}) where {W,X,T<:SignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::SignedHW, i::MM{W,X,T}) where {W,X,T<:UnsignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::UnsignedHW, i::MM{W,X,T}) where {W,X,T<:UnsignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:StaticInt} = $f(v, Vec(i))
+
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:SignedHW} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:SignedHW} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:UnsignedHW} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:UnsignedHW} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:StaticInt,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:StaticInt} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:StaticInt,T2<:StaticInt} = $f(Vec(i), Vec(j))
+
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:SignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:SignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:UnsignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:UnsignedHW} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:StaticInt,T2<:IntegerTypes} = $f(Vec(i), v)
+
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:SignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:SignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:UnsignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:UnsignedHW} = $f(v, Vec(i))
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:StaticInt} = $f(v, Vec(i))
+    end
+end
+for f ∈ [ :(÷), :(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
     @eval begin
         @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
         @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
