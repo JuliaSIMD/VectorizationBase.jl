@@ -19,7 +19,7 @@ function integer_of_bytes(bytes)
     else
         throw("$bytes is an invalid number of bytes for integers.")
     end
-end    
+end
 function pick_integer(W, pref)
     integer_of_bytes(pick_integer_bytes(W, pref))
 end
@@ -171,16 +171,16 @@ end
 @inline Base.:(/)(vu::VecUnroll, m::MM) = vu * inv(m)
 @inline Base.:(/)(m::MM, vu::VecUnroll) = Vec(m) / vu
 
-@inline Base.:(<<)(i::MM, j::Real) = Vec(i) << j
-@inline Base.:(>>)(i::MM, j::Real) = Vec(i) >> j
-@inline Base.:(>>>)(i::MM, j::Real) = Vec(i) >>> j
-@inline Base.:(<<)(i::MM, j::Vec) = Vec(i) << j
-@inline Base.:(>>)(i::MM, j::Vec) = Vec(i) >> j
-@inline Base.:(>>>)(i::MM, j::Vec) = Vec(i) >>> j
+# @inline Base.:(<<)(i::MM, j::IntegerTypes) = Vec(i) << j
+# @inline Base.:(>>)(i::MM, j::IntegerTypes) = Vec(i) >> j
+# @inline Base.:(>>>)(i::MM, j::IntegerTypes) = Vec(i) >>> j
+# @inline Base.:(<<)(i::MM, j::Vec) = Vec(i) << j
+# @inline Base.:(>>)(i::MM, j::Vec) = Vec(i) >> j
+# @inline Base.:(>>>)(i::MM, j::Vec) = Vec(i) >>> j
 
-@inline Base.:(<<)(i::MM{W,X}, j::StaticInt) where {W,X} = MM{W}(i.i << j, StaticInt{X}() << j)
-@inline Base.:(>>)(i::MM{W,X}, j::StaticInt) where {W,X} = MM{W}(i.i >> j, StaticInt{X}() >> j)
-@inline Base.:(>>>)(i::MM{W,X}, j::StaticInt) where {W,X} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
+@inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i << j, StaticInt{X}() << j)
+@inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >> j, StaticInt{X}() >> j)
+@inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
 
 
 for (f,op) ∈ [
@@ -193,12 +193,49 @@ for (f,op) ∈ [
     @eval @inline $f(i::MM, j::MM) = $op(data(i), data(j))
     @eval @inline $f(i, j) = $op(i, j)
 end
-for op ∈ [:(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=)]
-    @eval @inline Base.$op(i::MM, j::Real) = $op(Vec(i), j)
-    @eval @inline Base.$op(i::Real, j::MM) = $op(i, Vec(j))
-    @eval @inline Base.$op(i::MM, ::StaticInt{j}) where {j} = $op(Vec(i), j)
-    @eval @inline Base.$op(::StaticInt{i}, j::MM) where {i} = $op(i, Vec(j))
-    @eval @inline Base.$op(i::MM, j::MM) = $op(Vec(i), Vec(j))
+
+for f ∈ [:(<<), :(>>>), :(>>), :(÷), :(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
+    @eval begin
+        @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+    end
+end
+for f ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
+    
+    @eval begin
+        # left floating
+        @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:FloatingTypes,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:FloatingTypes,T2<:IntegerTypes} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:FloatingTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        # right floating
+        @inline Base.$f(i::MM{W,X,T}, v::FloatingTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:FloatingTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:FloatingTypes} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:FloatingTypes} = $f(Vec(i), Vec(j))
+        # both floating
+        @inline Base.$f(i::MM{W,X,T}, v::FloatingTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:FloatingTypes,T2<:FloatingTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:FloatingTypes,T2<:FloatingTypes} = $f(v, Vec(i))
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:FloatingTypes,T2<:FloatingTypes} = $f(Vec(i), Vec(j))
+    end
+    if f === :copysign
+        @eval begin
+            @inline Base.$f(v::Float32, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+            @inline Base.$f(v::Float32, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+            @inline Base.$f(v::Float64, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+            @inline Base.$f(v::Float64, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+        end
+    else
+        @eval begin
+            @inline Base.$f(v::FloatingTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+            @inline Base.$f(v::FloatingTypes, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+        end
+    end
 end
 
 # @inline vadd(::MM{W,Zero}, v::AbstractSIMDVector{W,T}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)

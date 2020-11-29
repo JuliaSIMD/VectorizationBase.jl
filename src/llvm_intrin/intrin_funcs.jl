@@ -1,5 +1,5 @@
 
-@generated function saturated_add(x::I, y::I) where {I <: Base.BitInteger}
+@generated function saturated_add(x::I, y::I) where {I <: IntegerTypesHW}
     typ = "i$(8sizeof(I))"
     s = I <: Signed ? 's' : 'u'
     f = "@llvm.$(s)add.sat.$typ"

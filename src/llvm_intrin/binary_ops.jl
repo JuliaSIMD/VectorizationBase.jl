@@ -13,7 +13,6 @@
 # @inline Base.@pure vshr(a::UInt8, b) = llvmcall("%res = lshr i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
 
 
-
 function binary_op(op, W, @nospecialize(UNUSED::Type{T}), W2 = W) where {T}
     @assert W == W2
     ty = LLVM_TYPES[T]
@@ -101,4 +100,24 @@ for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv"
 end
 
 @inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
+
+function promote_shift_quote(op::Symbol, ::Type{T1}, ::Type{T2}) where {T1, T2}
+    s1 = sizeof(T1); s2 = sizeof(T2);
+    @assert s1 != s2
+    if s1 < s2
+        newT = T1 <: Signed ? signed(T2) : unsigned(T2)
+        f = Expr(:call, op, Expr(:call, :convert, newT, :v1), :v2)
+    else
+        newT = T2 <: Signed ? signed(T1) : unsigned(T1)
+        f = Expr(:call, op, :v1, Expr(:call, :convert, newT, :v2))
+    end
+    Expr(:block, Expr(:meta, :inline), f)
+end
+for op ∈ [:(<<), :(>>), :(>>>), :(&)]
+    @eval begin
+        @generated function Base.$op(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:IntegerTypes,T2<:IntegerTypes}
+            promote_shift_quote($(QuoteNode(op)), T1, T2)
+        end
+    end
+end
 

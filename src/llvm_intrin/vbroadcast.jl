@@ -27,8 +27,18 @@
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
     end
 end
-@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, s::T) where {W,T<:NativeTypes}
+@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, s::_T) where {W,_T<:NativeTypes}
     isone(W) && return :s
+    if _T <: Integer && sizeof(_T) * W > REGISTER_SIZE
+        T = pick_integer(W, sizeof(_T))
+        if _T <: Unsigned
+            T = unsigned(T)
+        end
+        ssym = :(convert($T, s))
+    else
+        T = _T
+        ssym = :s
+    end
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     instrs = """
@@ -38,7 +48,7 @@ end
     """
     quote
         $(Expr(:meta,:pure,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, s))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
     end
 end
 

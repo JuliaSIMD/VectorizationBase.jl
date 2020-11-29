@@ -119,9 +119,9 @@ end
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
 
-@inline Base.:(<<)(m::Mask{W}, i::Base.BitInteger) where {W} = Mask{W}(shl(m.u, i))
-@inline Base.:(>>)(m::Mask{W}, i::Base.BitInteger) where {W} = Mask{W}(shr(m.u, i))
-@inline Base.:(>>>)(m::Mask{W}, i::Base.BitInteger) where {W} = Mask{W}(shr(m.u, i))
+@inline Base.:(<<)(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(m.u, i))
+@inline Base.:(>>)(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
+@inline Base.:(>>>)(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline vany(m::Mask{$W,$U}) = m.u != $(zero(U))
@@ -275,7 +275,7 @@ Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
     call = :(llvmcall($instrs_string, Bool, Tuple{$U,$I}, data(v), i))
     Expr(:block, Expr(:meta, :inline), call)
 end
-@generated function insertelement(v::Mask{W,U}, x::T, i::I) where {W, T, U, I <: Union{Bool,Base.BitInteger}}
+@generated function insertelement(v::Mask{W,U}, x::T, i::I) where {W, T, U, I <: Union{Bool,IntegerTypesHW}}
     mtyp_input = "i$(max(8,W))"
     instrs = String["%bit = trunc i$(8sizeof(T)) %1 to i1"]
     truncate_mask!(instrs, '0', W, 0)

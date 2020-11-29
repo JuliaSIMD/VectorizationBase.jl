@@ -49,6 +49,11 @@ const FloatingTypes = Union{Float32, Float64} # Float16
 # const SUPPORTED_FLOATS = [Float32, Float64]
 # const SUPPORTED_TYPES = [Float32, Float64, Int16, Int32, Int64, Int8, UInt16, UInt32, UInt64, UInt8]
 
+const SignedHW = Union{Int8,Int16,Int32,Int64}
+const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64}
+const IntegerTypesHW = Union{SignedHW,UnsignedHW}
+const IntegerTypes = Union{StaticInt,IntegerTypesHW}
+
 struct Bit; data::Bool; end # Dummy for Ptr
 const NativeTypes = Union{Bit,Bool,HWReal}
 
@@ -176,7 +181,7 @@ Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where
 # @inline Base.getindex(v::Vec, i::Integer) = v.data[i].value
 
 # Not using getindex/setindex as names to emphasize that these are generally treated as single objects, not collections.
-@generated function extractelement(v::Vec{W,T}, i::I) where {W,I <: Base.BitInteger,T}
+@generated function extractelement(v::Vec{W,T}, i::I) where {W,I <: IntegerTypesHW,T}
     typ = LLVM_TYPES[T]
     instrs = """
         %res = extractelement <$W x $typ> %0, i$(8sizeof(I)) %1
@@ -185,7 +190,7 @@ Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where
     call = :(llvmcall($instrs, $T, Tuple{_Vec{$W,$T},$I}, data(v), i))
     Expr(:block, Expr(:meta, :inline), call)
 end
-@generated function insertelement(v::Vec{W,T}, x::T, i::I) where {W,I <: Base.BitInteger,T}
+@generated function insertelement(v::Vec{W,T}, x::T, i::I) where {W,I <: IntegerTypesHW,T}
     typ = LLVM_TYPES[T]
     instrs = """
         %res = insertelement <$W x $typ> %0, $typ %1, i$(8sizeof(I)) %2

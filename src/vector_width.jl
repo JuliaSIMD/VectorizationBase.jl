@@ -168,15 +168,6 @@ pick_vector(N, T) = Vec{pick_vector_width(N, T),T}
     end
 end
 
-for f ∈ [:(<<), :(>>>), :(>>), :(÷), :min, :max, :copysign]
-    @eval begin
-        @inline Base.$f(i::MM, v::Base.BitInteger) = $f(Vec(i), v)
-        @inline Base.$f(v::Base.BitInteger, i::MM) = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W}, v::AbstractSIMDVector{W}) where {W} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W}, i::MM{W}) where {W} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W}, j::MM{W}) where {W} = $f(Vec(i), Vec(j))
-    end
-end
 
 
 # @inline _vload(ptr::Ptr{T}, i::Integer) where {T} = vload(ptr + vmul(sizeof(T), i))
