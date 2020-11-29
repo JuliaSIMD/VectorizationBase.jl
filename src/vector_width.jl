@@ -10,6 +10,7 @@ prevpow2(W) = vshl(one(W), vsub(vsub((8sizeof(W)) % UInt, one(UInt)), leading_ze
 # prevpow2(W) = (one(W) << ((((8sizeof(W)) % UInt) - one(UInt)) - (leading_zeros(W) % UInt)))
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
 
+
 function pick_vector_width(::Type{T}) where {T<:NativeTypes}
     max(1, register_size(T) >>> intlog2(T))
 end
@@ -19,11 +20,21 @@ function pick_vector_width_shift(::Type{T}) where {T<:NativeTypes}
     W, Wshift
 end
 
+
 # For the sake of convenient mask support, we allow 8 so that the mask can be a full byte
 # max_vector_width(::Type{T}) where {T} = max(8, pick_vector_width(T))
 
 pick_vector_width(::Type{T1}, ::Type{T2}) where {T1,T2} = min(pick_vector_width(T1), pick_vector_width(T2))
 @inline pick_vector_width(::Type{T1}, ::Type{T2}, ::Type{T3}, args::Vararg{Any,K}) where {T1,T2,T3,K} = min(pick_vector_width(T1), pick_vector_width(T2, T3, args...))
+
+
+function pick_vector_width_shift_from_size(N::Int, size_T::Int)
+    Wshift_N = VectorizationBase.intlog2(2N - 1)
+    Wshift_st = VectorizationBase.intlog2(size_T)
+    Wshift = min(Wshift_N, Wshift_st)
+    W = 1 << Wshift
+    W, Wshift
+end
 
 @inline function pick_vector_width(N::Integer, args::Vararg{Any,K}) where {K}
     min(nextpow2(N), pick_vector_width(args...))
@@ -33,8 +44,13 @@ end
     W, intlog2(W)
 end
 
-@generated function pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, args::Vararg{Any,K}) where {N,T,K}
-    pick_vector_width(N, T, args...)
+@generated pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}) where {N,T} = pick_vector_width(N,T)
+@generated function pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, ::Type{T2}, args::Vararg{Any,K}) where {N,T,T2,K}
+    pvw = pick_vector_width(N, T)
+    quote
+        $(Expr(:meta,:inline))
+        min($pvw, pick_vector_width_val(T2, args...))
+    end
 end
 # pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, args::Vararg{Any,K}) where {N,T,K} = min(@show(nextpow2(N)), @show(pick_vector_width(T, args...)))
 # pick_vector_width(::Union{Val{N},StaticInt{N}}, arg, args::Vararg{Any,K}) where {N,K} = min(nextpow2(N), pick_vector_width(arg, args...))
