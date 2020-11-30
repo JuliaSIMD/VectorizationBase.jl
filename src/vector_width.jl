@@ -83,7 +83,7 @@ function _pick_vector_width(vargs...)
     max_W = REGISTER_SIZE
     for v ∈ vargs
         T = v.parameters[1]
-        if T === Bool
+        if T === Bit
             min_W = 8
         elseif !SIMD_NATIVE_INTEGERS && T <: Integer
             max_W = 1
