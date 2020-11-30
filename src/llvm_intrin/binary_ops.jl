@@ -101,6 +101,15 @@ end
 
 @inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
 
+for op ∈ [:⊻, :&, :|]
+    @eval begin
+        @inline function Base.$op(v1::AbstractSIMDVector{W}, v2::AbstractSIMDVector{W}) where {W}
+            v3, v4 = promote(v1, v2)
+            $op(v3, v4)
+        end
+    end
+end
+
 function promote_shift_quote(op::Symbol, ::Type{T1}, ::Type{T2}) where {T1, T2}
     s1 = sizeof(T1); s2 = sizeof(T2);
     @assert s1 != s2 "op: $op, T1 === $T1, T2 === $T2"

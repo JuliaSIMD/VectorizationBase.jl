@@ -144,6 +144,7 @@ end
 @inline Base.copysign(x::Float64, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
 @inline Base.copysign(v::Vec, u::VecUnroll) = VecUnroll(fmap(copysign, v, u.data))
 @inline Base.copysign(v::Vec{W,T}, x::NativeTypes) where {W,T} = copysign(v, Vec{W,T}(x))
+@inline Base.copysign(v1::Vec{W,T}, v2::Vec{W}) where {W,T} = copysign(v1, convert(Vec{W,T}, v2))
 
 
 # ternary
@@ -458,7 +459,7 @@ end
     #     end
 # end
 
-@inline ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F,K} = ifelse(m, f(a...), a[K])
+@inline ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
 
 """
 Fast approximate reciprocal.

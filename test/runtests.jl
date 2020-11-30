@@ -23,9 +23,20 @@ tovector(x) = x
 tovector(i::MM{W,X}) where {W,X} = collect(range(i.i, step = X, length = W))
 A = randn(13, 17); L = length(A); M, N = size(A);
 
+check_within_limits(x, y) = @test x ≈ y
+function check_within_limits(x::Vector{T}, y) where {T <: Integer}
+    if VectorizationBase.AVX512DQ
+        return @test x ≈ y
+    end
+    r = typemin(Int32) .≤ y .≤ typemax(Int32)
+    xs = x[r]; ys = y[r]
+    @test xs ≈ ys
+end
+
 @testset "VectorizationBase.jl" begin
     # Write your own tests here.
-    Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
+    # Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
+    Aqua.test_all(VectorizationBase)
     # @test isempty(detect_unbound_args(VectorizationBase))
     # @test isempty(detect_ambiguities(VectorizationBase))
 
@@ -385,6 +396,7 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         # end
     end
     @testset "Binary Functions" begin
+        M = VectorizationBase.AVX512DQ ? 64 : 32
         vi1 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64))),
             Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64))),
@@ -392,12 +404,12 @@ A = randn(13, 17); L = length(A); M, N = size(A);
             Vec(ntuple(_ -> Core.VecElement(rand(Int)), Val(W64)))
         ))
         vi2 = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:8sizeof(Int)-1)), Val(W64)))
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64)))
         ))
-        i = rand(1:8sizeof(Int)); j = rand(Int);
+        i = rand(1:M-1); j = rand(Int);
         m1 = VectorizationBase.VecUnroll((MM{W64}(7), MM{W64}(1), MM{W64}(13), MM{W64}(32)));
         m2 = VectorizationBase.VecUnroll((MM{W64,2}(3), MM{W64,2}(8), MM{W64,2}(39), MM{W64,2}(17)));
         xi1 = tovector(vi1); xi2 = tovector(vi2);
@@ -405,21 +417,20 @@ A = randn(13, 17); L = length(A); M, N = size(A);
         xi4 =  mapreduce(tovector, vcat, m2.data);
         for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
             # @show f
-            @test tovector(@inferred(f(vi1, vi2))) ≈ f.(xi1, xi2)
-            @test tovector(@inferred(f(j, vi2))) ≈ f.(j, xi2)
-            @test tovector(@inferred(f(vi1, i))) ≈ f.(xi1, i)
-            
-            @test tovector(@inferred(f(m1, i))) ≈ f.(xi3, i)
-            @test tovector(@inferred(f(m1, vi2))) ≈ f.(xi3, xi2)
-            @test tovector(@inferred(f(m1, m2))) ≈ f.(xi3, xi4)
-            @test tovector(@inferred(f(m1, m1))) ≈ f.(xi3, xi3)
-            @test tovector(@inferred(f(m2, i))) ≈ f.(xi4, i)
-            @test tovector(@inferred(f(m2, vi2))) ≈ f.(xi4, xi2)
-            @test tovector(@inferred(f(m2, m2))) ≈ f.(xi4, xi4)
-            @test tovector(@inferred(f(m2, m1))) ≈ f.(xi4, xi3)
+            check_within_limits(tovector(@inferred(f(vi1, vi2))), f.(xi1, xi2))
+            check_within_limits(tovector(@inferred(f(j, vi2))), f.(j, xi2))
+            check_within_limits(tovector(@inferred(f(vi1, i))), f.(xi1, i))
+            check_within_limits(tovector(@inferred(f(m1, i))), f.(xi3, i))
+            check_within_limits(tovector(@inferred(f(m1, vi2))), f.(xi3, xi2))
+            check_within_limits(tovector(@inferred(f(m1, m2))), f.(xi3, xi4))
+            check_within_limits(tovector(@inferred(f(m1, m1))), f.(xi3, xi3))
+            check_within_limits(tovector(@inferred(f(m2, i))), f.(xi4, i))
+            check_within_limits(tovector(@inferred(f(m2, vi2))), f.(xi4, xi2))
+            check_within_limits(tovector(@inferred(f(m2, m2))), f.(xi4, xi4))
+            check_within_limits(tovector(@inferred(f(m2, m1))), f.(xi4, xi3))
             if !((f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right))
-                @test tovector(@inferred(f(j, m1))) ≈ f.(j, xi3)
-                @test tovector(@inferred(f(j, m2))) ≈ f.(j, xi4)
+                check_within_limits(tovector(@inferred(f(j, m1))), f.(j, xi3))
+                check_within_limits(tovector(@inferred(f(j, m2))), f.(j, xi4))
             end
         end
         @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
