@@ -96,9 +96,9 @@ if AVX512F
         llvmcall_expr(decl64, instr64, :(_Vec{$W,UInt64}), :(Tuple{_Vec{$W,UInt64},_Vec{$W,UInt64},_Vec{$W,UInt64}}), "<$W x i64>", ["<$W x i64>", "<$W x i64>", "<$W x i64>"], arg_syms)
     end
     @generated function vpternlog(m::Vec{W,UInt32}, x::Vec{W,UInt32}, y::Vec{W,UInt32}, ::Val{L}) where {W, L}
-        @assert W ∈ (4,8,16)
+        if W ∉ (4,8,16)
             return Expr(:block, Expr(:meta, :inline), :(((~m) & x) | (m & y)))
-        #end
+        end
         bits = 32W
         decl32 = "declare <$W x i32> @llvm.x86.avx512.mask.pternlog.d.$(bits)(<$W x i32>, <$W x i32>, <$W x i32>, i32, i16)"
         instr32 = """
@@ -106,7 +106,7 @@ if AVX512F
             ret <$W x i32> %res
         """
         arg_syms = [:(data(m)), :(data(x)), :(data(y))]
-        llvmcall_expr(decl64, instr64, :(_Vec{$W,UInt32}), :(Tuple{_Vec{$W,UInt32},_Vec{$W,UInt32},_Vec{$W,UInt32}}), "<$W x i32>", ["<$W x i32>", "<$W x i32>", "<$W x i32>"], arg_syms)
+        llvmcall_expr(decl32, instr32, :(_Vec{$W,UInt32}), :(Tuple{_Vec{$W,UInt32},_Vec{$W,UInt32},_Vec{$W,UInt32}}), "<$W x i32>", ["<$W x i32>", "<$W x i32>", "<$W x i32>"], arg_syms)
     end
     # @eval @generated function setbits(x::Vec{W,T}, y::Vec{W,T}, m::Vec{W,T}) where {W,T <: Union{UInt32,UInt64}}
     #     ex = if W*sizeof(T) ∈ (16,32,64)

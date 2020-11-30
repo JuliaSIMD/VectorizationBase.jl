@@ -26,4 +26,5 @@ end
 
 @inline Base.inv(v::Vec) = vdiv(one(v), v)
 
+@inline Base.:(~)(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = v ⊻ vbroadcast(Val(W), -1 % T)
 
