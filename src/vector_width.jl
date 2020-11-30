@@ -11,7 +11,7 @@ prevpow2(W) = vshl(one(W), vsub(vsub((8sizeof(W)) % UInt, one(UInt)), leading_ze
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
 
 
-function pick_vector_width(::Type{T}) where {T<:NativeTypes}
+@generated function pick_vector_width(::Type{T}) where {T<:NativeTypes}
     max(1, register_size(T) >>> intlog2(T))
 end
 function pick_vector_width_shift(::Type{T}) where {T<:NativeTypes}
@@ -24,7 +24,7 @@ end
 # For the sake of convenient mask support, we allow 8 so that the mask can be a full byte
 # max_vector_width(::Type{T}) where {T} = max(8, pick_vector_width(T))
 
-pick_vector_width(::Type{T1}, ::Type{T2}) where {T1,T2} = min(pick_vector_width(T1), pick_vector_width(T2))
+@inline pick_vector_width(::Type{T1}, ::Type{T2}) where {T1,T2} = min(pick_vector_width(T1), pick_vector_width(T2))
 @inline pick_vector_width(::Type{T1}, ::Type{T2}, ::Type{T3}, args::Vararg{Any,K}) where {T1,T2,T3,K} = min(pick_vector_width(T1), pick_vector_width(T2, T3, args...))
 
 
@@ -55,10 +55,18 @@ end
 # pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, args::Vararg{Any,K}) where {N,T,K} = min(@show(nextpow2(N)), @show(pick_vector_width(T, args...)))
 # pick_vector_width(::Union{Val{N},StaticInt{N}}, arg, args::Vararg{Any,K}) where {N,K} = min(nextpow2(N), pick_vector_width(arg, args...))
 # pick_vector_width(::Val{N}, args::Vararg{Any,K}) where {N,K} = ((Nmax,a,W) = @show((N, args, pick_vector_width(N, args...))); W)
-pick_vector_width_val(::Type{T}) where {T} = StaticInt{pick_vector_width(T)}()
-pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T}) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
-pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = StaticInt{pick_vector_width(T1,T2,args...)}()
-pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K} = StaticInt{pick_vector_width(Val{N}(),T1,T2,args...)}()
+@inline pick_vector_width_val(::Type{T}) where {T} = StaticInt{pick_vector_width(T)}()
+@inline pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T}) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
+@inline pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = StaticInt{pick_vector_width(T1,T2,args...)}()
+@generated function pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K}
+    Wstart = pick_vector_width(N, T1, T2)
+    iszero(K) && return Expr(:call, Expr(:curly, :StaticInt, Wstart))
+    Expr(:block, Expr(:call, Expr(:curly, :StaticInt, Expr(:call, :min, Wstart, :(pick_vector_width(args...))))))
+    
+    # W = min(StaticInt{N}(), min(pick_vector_width_val(T1), pick_vector_width_val(T2, args...)))
+    # StaticInt{W}()
+    # StaticInt{pick_vector_width(Val{N}(),T1,T2,args...)}()
+end
 
 function int_type_symbol(W)
     bits = 8*(REGISTER_SIZE ÷ W)
