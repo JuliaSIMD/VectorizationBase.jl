@@ -19,7 +19,10 @@
 #         ret $vtyp %v
 #     """
 # end
+@inline vzero(::Val{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
+@inline vzero(::StaticInt{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @generated function vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T<:NativeTypes}
+    # isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
     typ = LLVM_TYPES[T]
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
@@ -88,6 +91,7 @@ end
 #     end
 # end
 @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ptr::Ptr{T}) where {W, T}
+    isone(W) && return Expr(:block, Expr(:meta, :inline), :(vload(ptr)))
     typ = LLVM_TYPES[T]
     ptyp = JuliaPointerType
     vtyp = "<$W x $typ>"

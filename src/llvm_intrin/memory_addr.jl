@@ -628,6 +628,16 @@ end
 ) where {W, A, S, NT}
     vstore!(ptr, vbroadcast(Val{W}(), v), i, m, Val{A}(), Val{S}(), Val{NT}())
 end
+@inline function vstore!(
+    ptr::Ptr, v::Base.HWReal, i::MM{1}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {A, S, NT}
+    vstore!(ptr, v, i.i, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    ptr::Ptr, v::Base.HWReal, i::MM{1}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {A, S, NT}
+    vstore!(ptr, v, i.i, m, Val{A}(), Val{S}(), Val{NT}())
+end
 
 @inline function vstore!(ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT}
     vstore!(ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
