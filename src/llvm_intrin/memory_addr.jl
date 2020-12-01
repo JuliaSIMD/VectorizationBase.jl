@@ -20,19 +20,30 @@ const SCOPE_METADATA = """
 !2 = !{!\"noaliasscope\", !1}
 !3 = !{!2}
 """
-const LOAD_SCOPE_TBAA = SCOPE_METADATA * """
-!4 = !{!"jtbaa"}
-!5 = !{!6, !6, i64 0, i64 0}
-!6 = !{!"jtbaa_arraybuf", !4, i64 0}
-"""
-const STORE_TBAA = """
-!4 = !{!"jtbaa", !5, i64 0}
-!5 = !{!"jtbaa"}
-!6 = !{!"jtbaa_data", !4, i64 0}
-!7 = !{!8, !8, i64 0}
-!8 = !{!"jtbaa_arraybuf", !6, i64 0}
-"""
+const SCOPE_FLAGS = ", !alias.scope !3";
 
+const USE_TBAA = false
+# use TBAA?
+# define: LOAD_SCOPE_TBAA, LOAD_SCOPE_TBAA_FLAGS, SCOPE_METADATA, STORE_TBAA, SCOPE_FLAGS, STORE_TBAA_FLAGS
+let 
+    LOAD_TBAA = """
+    !4 = !{!"jtbaa"}
+    !5 = !{!6, !6, i64 0, i64 0}
+    !6 = !{!"jtbaa_arraybuf", !4, i64 0}
+    """;
+    LOAD_TBAA_FLAGS = ", !tbaa !5";
+    global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_SCOPE_TBAA : SCOPE_METADATA;
+    global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? SCOPE_FLAGS * LOAD_TBAA_FLAGS : SCOPE_FLAGS
+        
+    global const STORE_TBAA = USE_TBAA ? """
+    !4 = !{!"jtbaa", !5, i64 0}
+    !5 = !{!"jtbaa"}
+    !6 = !{!"jtbaa_data", !4, i64 0}
+    !7 = !{!8, !8, i64 0}
+    !8 = !{!"jtbaa_arraybuf", !6, i64 0}
+    """ : ""
+    global const STORE_TBAA_FLAGS = USE_TBAA ? ", !tbaa !7" : ""
+end
 
 """
 An omnibus offset constructor.
@@ -277,14 +288,14 @@ function vload_quote(
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
         passthrough = mask ? "zeroinitializer" : "undef"
-        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough), !alias.scope !3, !tbaa !5")
+        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" * LOAD_SCOPE_TBAA_FLAGS)
     elseif mask
         suff = suffix(W, T)
         loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
         decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
-        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer), !alias.scope !3, !tbaa !5")
+        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" * LOAD_SCOPE_TBAA_FLAGS)
     else
-        push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment, !alias.scope !3, !tbaa !5")
+        push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" * LOAD_SCOPE_TBAA_FLAGS)
     end
     if isbit
         lret = string('i', max(8,W))
@@ -455,27 +466,27 @@ function vstore_quote(
     alignment = (align & (!grv)) ? Base.datatype_alignment(jtyp) : Base.datatype_alignment(T)
 
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
+    metadata = noalias ? SCOPE_FLAGS * STORE_TBAA_FLAGS : STORE_TBAA_FLAGS
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
     typ = LLVM_TYPES[T]
     lret = vtyp = vtype(W, typ)
-    metadata = noalias ? "!alias.scope !3, !tbaa !7" : "!tbaa !7"
     mask && truncate_mask!(instrs, '2' + dynamic_index, W, 0)
     if grv
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
-        push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m), $metadata")
+        push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" * metadata)
         # push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
     elseif mask
         suff = suffix(W, T)
         storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
         decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
-        push!(instrs, "call $storeinstr($vtyp %1, $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0), $metadata")
+        push!(instrs, "call $storeinstr($vtyp %1, $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" * metadata)
     elseif nontemporal
-        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}, $metadata")
+        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}" * metadata)
     else
-        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment, $metadata")
+        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment" * metadata)
     end
     push!(instrs, "ret void")
     ret = :Cvoid; lret = "void"
