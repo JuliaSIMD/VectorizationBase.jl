@@ -59,7 +59,7 @@ end
 @generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
     llvmcall_expr("lrint", W, Int32, (W,), (T,), "nsz arcp contract afn reassoc")
 end
-
+@inline Base.trunc(::Type{I}, v::AbstractSIMD{W,T}) where {W, I<:IntegerTypesHW, T <: NativeTypes} = convert(I, v)
 
 # """
 #    setbits(x::Unsigned, y::Unsigned, mask::Unsigned)
