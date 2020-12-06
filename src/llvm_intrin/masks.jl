@@ -378,6 +378,7 @@ for (f,cond) ∈ [(:(==), "ueq"), (:(>), "ugt"), (:(≥), "uge"), (:(<), "ult"),
     # end
 end
 
+
 # import IfElse: ifelse
 @generated function ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U<:Unsigned,T}
     typ = LLVM_TYPES[T]
@@ -436,3 +437,16 @@ end
 @inline ifelse(b::Bool, s::NativeTypes, v::V) where {V <: AbstractSIMD} = ifelse(b, convert(V, s), v)
 @inline ifelse(b::Bool, v::V, s::NativeTypes) where {V <: AbstractSIMD} = ifelse(b, v, convert(V, s))
 
+@generated function Base.convert(::Type{Bit}, v::Vec{W,Bool}) where {W,Bool}
+    instrs = String[]
+    push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
+    zext_mask!(instrs, 'm', W, '0')
+    push!(instrs, "ret i$(max(8,W)) %res.0")
+    U = mask_type(W);
+    quote
+        $(Expr(:meta,:inline))
+        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
+    end    
+end
+
+                            

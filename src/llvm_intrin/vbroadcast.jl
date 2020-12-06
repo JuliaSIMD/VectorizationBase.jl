@@ -37,6 +37,7 @@ end
         if _T <: Unsigned
             T = unsigned(T)
         end
+        # ssym = :(s % $T)
         ssym = :(convert($T, s))
     else
         T = _T

@@ -116,10 +116,6 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline vadd(::StaticInt{0}, a::LazyMulAdd{M,O,T}) where {M,O,T} = a
 # @inline vadd(a::LazyMulAdd{M,O,T}, ::StaticInt{A}) where {M,O,T<:MM,A} = LazyMulAdd(a.data, StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
 # @inline vadd(::StaticInt{A}, a::LazyMulAdd{M,O,T}) where {M,O,T,A} = LazyMulAdd(a.data, StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
-@inline vadd(a::LazyMulAdd{M,O,T}, ::MM{W,X,StaticInt{A}}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
-@inline vadd(::MM{W,X,StaticInt{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
-
-@inline vadd(a::LazyMulAdd{M,O}, b::LazyMulAdd{M,A}) where {M,O,A} = LazyMulAdd(vadd(a.data, b.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
 
 @inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, b::Integer) where {M,O,W,X,I} = MM{W,X}(vadd(vmul(StaticInt{M}(), data(a)), vadd(StaticInt{0}(), b)))
 @inline vadd(::StaticInt{N}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {N,M,O,W,X,I} = LazyMulAdd(a.data, StaticInt{M}(), StaticInt{O}()+StaticInt{N}())
@@ -128,9 +124,16 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, ::StaticInt{0}) where {M,O,W,X,I} = a
 @inline vadd(::StaticInt{0}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
 # @inline vadd(::StaticInt{M}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
-@inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:Integer} = vadd(a, convert(I, b))
-@inline vadd(b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I,N,P,J<:Integer} = vadd(a, convert(I, b)
-)
-@inline vadd(a::MM{W,X,I}, b::LazyMulAdd{N,P,J}) where {W,X,I,N,P,J<:Integer} = vadd(a, convert(I, b))
-@inline vadd(b::LazyMulAdd{N,P,J}, a::MM{W,X,I}) where {W,X,I,N,P,J<:Integer} = vadd(a, convert(I, b))
+
+@inline vadd(a::LazyMulAdd{M,O}, b::LazyMulAdd{M,A}) where {M,O,A} = LazyMulAdd(vadd(a.data, b.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
+
+@inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:IntegerTypes} = vadd(a, convert(I, b))
+@inline vadd(b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I,N,P,J<:IntegerTypes} = vadd(a, convert(I, b))
+@inline vadd(a::LazyMulAdd{M,O,MM{W,X,I}}, b::LazyMulAdd{M,A,J}) where {M,O,W,X,I,A,J<:IntegerTypes} = LazyMulAdd(vadd(a.data, b.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
+@inline vadd(b::LazyMulAdd{M,A,J}, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I,A,J<:IntegerTypes} = LazyMulAdd(vadd(a.data, b.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
+
+@inline vadd(::MM{W,X,StaticInt{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
+@inline vadd(a::LazyMulAdd{M,O,T}, ::MM{W,X,StaticInt{A}}) where {M,O,T<:Integer,A,W,X} = LazyMulAdd(MM{W,X}(a.data), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
+@inline vadd(a::MM{W,X,I}, b::LazyMulAdd{N,P,J}) where {W,X,I<:IntegerTypesHW,N,P,J<:Integer} = vadd(a, convert(I, b))
+@inline vadd(b::LazyMulAdd{N,P,J}, a::MM{W,X,I}) where {W,X,I<:IntegerTypesHW,N,P,J<:Integer} = vadd(a, convert(I, b))
 

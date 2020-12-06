@@ -639,6 +639,42 @@ end
     vstore!(ptr, v, i.i, m, Val{A}(), Val{S}(), Val{NT}())
 end
 
+
+# @inline function vstore!(ptr::Ptr{Bit}, m::Mask{W,U}, i, ::Val{A}, ::Val{S}, ::Val{NT}) where {W,U,A,S,NT}
+#     @assert W == 8sizeof(U)
+#     vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(m), i, Val{A}(), Val{S}(), Val{NT}())
+# end
+
+
+@inline function vstore!(ptr::Ptr{Bit}, v::Mask{W,U}, ::Val{A}, ::Val{S}, ::Val{NT}) where {W, U, A, S, NT}
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, U, A, S, NT}
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, U, A, S, NT}
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(f::F, ptr::Ptr{Bit}, v::Mask{W,U}, ::Val{A}, ::Val{S}, ::Val{NT}) where {W, U, A, S, NT, F<:Function}
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, U, A, S, NT, F<:Function}
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, U, A, S, NT, F<:Function}
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+end
+
+
+
 @inline function vstore!(ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT}
     vstore!(ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
 end
