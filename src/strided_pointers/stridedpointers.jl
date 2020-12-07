@@ -82,7 +82,10 @@ end
 
 
 @generated function zerotuple(::Val{N}) where {N}
-    t = Expr(:tuple); foreach(n -> push!(t.args, Expr(:call, :Zero)), 1:N)
+    t = Expr(:tuple);
+    for n in 1:N
+        push!(t.args, :(Zero()))
+    end
     Expr(:block, Expr(:meta,:inline), t)
 end
 
@@ -202,7 +205,7 @@ end
 ) where {T,I,C,B,R,X,A,S,NT}
     vstore!(pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m)
 end
-@inline function gep(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,StaticInt{0}}}, v, i::Tuple{Vararg{Any,N}}) where {T,N,C,B,R,X}
+@inline function gep(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,StaticInt{0}}}, i::Tuple{Vararg{Any,N}}) where {T,N,C,B,R,X}
     gep(pointer(ptr), tdot(ptr, i, strides(ptr), nopromote_axis_indicator(ptr)))
 end
 @inline function gep(ptr::AbstractStridedPointer{T,N,C,B,R,X,O}, i::Tuple{Vararg{Any,N}}) where {T,N,C,B,R,X,O}
