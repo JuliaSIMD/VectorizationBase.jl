@@ -13,6 +13,9 @@ struct Unroll{AU,F,N,AV,W,M,I}
 end
 @inline Unroll{AU,F,N,AV,W,M}(i::I) where {AU,F,N,AV,W,M,I} = Unroll{AU,F,N,AV,W,M,I}(i)
 
+const VectorIndexCore{W} = Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}
+const VectorIndex{W} = Union{VectorIndexCore{W},LazyMulAdd{<:Any,<:Any,<:VectorIndexCore{W}}}
+
 # const BoolVec = Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}
 
 const SCOPE_METADATA = """
@@ -346,44 +349,44 @@ end
 @generated function vload(ptr::Ptr{T}, ::Val{A}) where {T <: NativeTypes, A}
     vload_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A)
 end
-@generated function vload(ptr::Ptr{T}, i::I, ::Val{A}) where {A, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::I, ::Val{A}) where {A, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Integer, 1, 1, 1, 0, false, A)
 end
 @generated function vload(ptr::Ptr{T}, ::StaticInt{N}, ::Val{A}) where {A, N, T <: NativeTypes}
     vload_quote(T, Int, :StaticInt, 1, 1, 0, N, false, A)
 end
-@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, ::Val{A}) where {A, W, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, ::Val{A}) where {A, W, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Vec, W, 1, 1, 0, false, A)
 end
-@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, ::Val{A}) where {A, W, X, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, ::Val{A}) where {A, W, X, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Integer, W, X, 1, 0, false, A)
 end
 @generated function vload(ptr::Ptr{T}, ::MM{W,X,StaticInt{N}}, ::Val{A}) where {A, W, X, T <: NativeTypes, N}
     vload_quote(T, Int, :StaticInt, W, X, 1, N, false, A)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::Val{A}) where {A, M, O, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::Val{A}) where {A, M, O, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Integer, 1, 1, M, O, false, A)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::Val{A}) where {A, W, M, O, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::Val{A}) where {A, W, M, O, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Vec, W, 1, M, O, false, A)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Integer, W, X, M, O, false, A)
 end
 
-@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}, ::Val{A}) where {A, W, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}, ::Val{A}) where {A, W, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Vec, W, 1, 1, 0, true, A)
 end
-@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, m::Mask{W}, ::Val{A}) where {A, W, X, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, m::Mask{W}, ::Val{A}) where {A, W, X, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Integer, W, X, 1, 0, true, A)
 end
 @generated function vload(ptr::Ptr{T}, ::MM{W,X,StaticInt{N}}, m::Mask{W}, ::Val{A}) where {A, W, X, T <: NativeTypes, N}
     vload_quote(T, Int, :StaticInt, W, X, 1, N, true, A)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Vec, W, 1, M, O, true, A)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: Integer}
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
     vload_quote(T, I, :Integer, W, X, M, O, true, A)
 end
 
@@ -393,7 +396,7 @@ end
     u = vload(Base.unsafe_convert(Ptr{UInt8}, ptr), d, Val{A}())
     (u >> r) % Bool
 end
-@inline vload(ptr::Ptr{Bit}, i::Integer, ::Val{A}) where {A} = _vload_scalar(ptr, i, Val{A}())
+@inline vload(ptr::Ptr{Bit}, i::IntegerTypesHW, ::Val{A}) where {A} = _vload_scalar(ptr, i, Val{A}())
 # avoid ambiguities
 @inline vload(ptr::Ptr{Bit}, ::StaticInt{N}, ::Val{A}) where {A,N} = _vload_scalar(ptr, StaticInt{N}(), Val{A}())
 
@@ -519,7 +522,7 @@ end
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::T, i::I, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T <: NativeTypes, I <: Integer, A, S, NT}
+) where {T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, 1, 1, 1, 0, false, A, S, NT)
 end
 @generated function vstore!(
@@ -529,17 +532,17 @@ end
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Vec, W, 1, 1, 0, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::MM{W,X,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, I <: Integer, A, S, NT}
+) where {W, X, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, X, 1, 0, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::I, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, false, A, S, NT)
 end
 @generated function vstore!(
@@ -559,37 +562,37 @@ end
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::T, i::LazyMulAdd{M,O,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, 1, 1, M, O, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Vec, W, 1, M, O, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, X, M, O, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, sizeof(T), M, O, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Vec, W, 1, 1, 0, true, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::MM{W,X,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, I <: Integer, A, S, NT}
+) where {W, X, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, X, 1, 0, true, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::I, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, true, A, S, NT)
 end
 @generated function vstore!(
@@ -604,39 +607,40 @@ end
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Vec, W, 1, M, O, true, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, X, M, O, true, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: Integer, A, S, NT}
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
     vstore_quote(T, I, :Integer, W, sizeof(T), M, O, true, A, S, NT)
 end
 
+# broadcasting scalar stores
 @inline function vstore!(
-    ptr::Ptr, v::Base.HWReal, i::Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, A, S, NT}
-    vstore!(ptr, vbroadcast(Val{W}(), v), i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, T, A, S, NT}
+    vstore!(ptr, convert(Vec{W,T}, v), i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr, v::Base.HWReal, i::Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, A, S, NT}
-    vstore!(ptr, vbroadcast(Val{W}(), v), i, m, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, T, A, S, NT}
+    vstore!(ptr, convert(Vec{W,T}, v), i, m, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr, v::Base.HWReal, i::MM{1}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {A, S, NT}
-    vstore!(ptr, v, i.i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {T, A, S, NT}
+    vstore!(ptr, convert(T, v), i.i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr, v::Base.HWReal, i::MM{1}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {A, S, NT}
-    vstore!(ptr, v, i.i, m, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {T, A, S, NT}
+    vstore!(ptr, convert(T, v), i.i, m, Val{A}(), Val{S}(), Val{NT}())
 end
 
 
@@ -645,17 +649,17 @@ end
 #     vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(m), i, Val{A}(), Val{S}(), Val{NT}())
 # end
 
-
+# BitArray stores
 @inline function vstore!(ptr::Ptr{Bit}, v::Mask{W,U}, ::Val{A}, ::Val{S}, ::Val{NT}) where {W, U, A, S, NT}
     vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, ::Val{A}, ::Val{S}, ::Val{NT}
+    ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, U, A, S, NT}
     vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+    ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, U, A, S, NT}
     vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
 end
@@ -663,12 +667,12 @@ end
     vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, ::Val{A}, ::Val{S}, ::Val{NT}
+    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, U, A, S, NT, F<:Function}
     vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::Number, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, U, A, S, NT, F<:Function}
     vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
 end
@@ -679,27 +683,37 @@ end
     vstore!(ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v, i::Union{Number,Tuple,Unroll}, ::Val{A}, ::Val{S}, ::Val{NT}
+    ptr::Ptr{T}, v, i, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {T, A, S, NT}
     vstore!(ptr, convert(T, v), i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v, i::Union{Number,Tuple,Unroll}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT}
-    vstore!(ptr, convert(T, v), i, m, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W,T, A, S, NT}
+    vstore!(ptr, convert(Vec{W,T}, v), i, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    ptr::Ptr{T}, v, i, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, T, A, S, NT}
+    vstore!(ptr, convert(Vec{W,T}, v), i, m, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(f::F, ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT, F<:Function}
     vstore!(f, ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v, i::Union{Number,Tuple,Unroll}, ::Val{A}, ::Val{S}, ::Val{NT}
+    f::F, ptr::Ptr{T}, v, i, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {T, A, S, NT, F<:Function}
     vstore!(f, ptr, convert(T, v), i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v, i::Union{Number,Tuple,Unroll}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT, F<:Function}
-    vstore!(f, ptr, convert(T, v), i, m, Val{A}(), Val{S}(), Val{NT}())
+    f::F, ptr::Ptr{T}, v, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, T, A, S, NT, F<:Function}
+    vstore!(f, ptr, convert(Vec{W,T}, v), i, Val{A}(), Val{S}(), Val{NT}())
+end
+@inline function vstore!(
+    f::F, ptr::Ptr{T}, v, i, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, T, A, S, NT, F<:Function}
+    vstore!(f, ptr, convert(Vec{W,T}, v), i, m, Val{A}(), Val{S}(), Val{NT}())
 end
 
 

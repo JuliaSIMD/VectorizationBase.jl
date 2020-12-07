@@ -176,6 +176,7 @@ function mask_type(W)
         return UInt128
     end
 end
+mask_type(::Union{Val{2},StaticInt{2}}) = UInt8
 mask_type(::Union{Val{4},StaticInt{4}}) = UInt8
 mask_type(::Union{Val{8},StaticInt{8}}) = UInt8
 mask_type(::Union{Val{16},StaticInt{16}}) = UInt16
@@ -448,5 +449,6 @@ end
         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
     end    
 end
+@inline Base.convert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = convert(Bit, v)
 
                             

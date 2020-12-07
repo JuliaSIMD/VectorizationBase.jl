@@ -137,3 +137,4 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline vadd(a::MM{W,X,I}, b::LazyMulAdd{N,P,J}) where {W,X,I<:IntegerTypesHW,N,P,J<:Integer} = vadd(a, convert(I, b))
 @inline vadd(b::LazyMulAdd{N,P,J}, a::MM{W,X,I}) where {W,X,I<:IntegerTypesHW,N,P,J<:Integer} = vadd(a, convert(I, b))
 
+

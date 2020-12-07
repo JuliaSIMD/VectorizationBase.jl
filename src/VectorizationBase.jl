@@ -55,7 +55,8 @@ const IntegerTypesHW = Union{SignedHW,UnsignedHW}
 const IntegerTypes = Union{StaticInt,IntegerTypesHW}
 
 struct Bit; data::Bool; end # Dummy for Ptr
-const NativeTypes = Union{Bit,Bool,HWReal}
+const NativeTypesExceptBit = Union{Bool,HWReal}
+const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
@@ -139,7 +140,10 @@ end
 
 struct Mask{W,U<:Unsigned} <: AbstractSIMDVector{W,Bool}
     u::U
-    @inline Mask{W,U}(u::Unsigned) where {W,U} = new{W,U}(u)
+    @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
+        U2 = mask_type(Val{W}())
+        new{W,U2}(u % U2)
+    end
 end
 const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
