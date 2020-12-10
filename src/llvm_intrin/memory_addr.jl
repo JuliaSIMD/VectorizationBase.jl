@@ -371,7 +371,10 @@ end
     vload_quote(T, I, :Vec, W, 1, M, O, false, A)
 end
 @generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, W, X, M, O, false, A)
+    vload_quote(T, I, :Integer, W, X*M, M, O, false, A)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I}
+    vload_quote(T, Int, :StaticInt, W, X*M, M, O + I*M, false, A)
 end
 
 @generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}, ::Val{A}) where {A, W, T <: NativeTypes, I <: IntegerTypes}
@@ -387,7 +390,10 @@ end
     vload_quote(T, I, :Vec, W, 1, M, O, true, A)
 end
 @generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, W, X, M, O, true, A)
+    vload_quote(T, I, :Integer, W, X*M, M, O, true, A)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I}
+    vload_quote(T, Int, :StaticInt, W, X*M, M, O + I*M, true, A)
 end
 
 
@@ -573,7 +579,12 @@ end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, X, M, O, false, A, S, NT)
+    vstore_quote(T, I, :Integer, W, X*M, M, O, false, A, S, NT)
+end
+@generated function vstore!(
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, X, T <: NativeTypes, M, O, I, A, S, NT}
+    vstore_quote(T, Int, :StaticInt, W, X*M, M, O + M*I, false, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, ::Val{A}, ::Val{S}, ::Val{NT}
@@ -613,7 +624,12 @@ end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, X, M, O, true, A, S, NT)
+    vstore_quote(T, I, :Integer, W, X*M, M, O, true, A, S, NT)
+end
+@generated function vstore!(
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {W, X, T <: NativeTypes, M, O, I, A, S, NT}
+    vstore_quote(T, Int, :StaticInt, W, X*M, M, O + M*I, true, A, S, NT)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
@@ -759,6 +775,12 @@ end
 # unroll
 @inline Base.Broadcast.broadcastable(u::Unroll) = (u,)
 
+
+"""
+Returns a vector of expressions for a set of unrolled indices.
+
+
+"""
 function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
     baseind = Expr(:tuple)
     for d in 1:D

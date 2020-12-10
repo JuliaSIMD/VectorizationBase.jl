@@ -219,6 +219,7 @@ end
                 @test (Mask{W}(u1) ⊻ Mask{W}(u2)) === Mask{W}( (u1 ⊻ u2) & m )
             end
         end
+        @test convert(Bool, Mask{8}(0xec)) === Vec(false,false,true,true,false,true,true,true) === VectorizationBase.ifelse(convert(Bool, Mask{8}(0xec)), vbroadcast(Val(8),true), vbroadcast(Val(8),false))
     end
 
     # @testset "number_vectors.jl" begin
@@ -279,6 +280,7 @@ end
             iv = tovector(i); jv = tovector(j); kv = tovector(k)
             x = getindex.(Ref(B), iv, jv, kv)
             GC.@preserve B begin
+                # @show i,j,k
                 v = @inferred(vload(stridedpointer(B), (i, j, k)))
             end
             @test x == tovector(v)
@@ -308,7 +310,6 @@ end
         for AU ∈ 1:3, B ∈ [A, P, O]
             i, j, k = 2, 3, 4
             for AV ∈ 1:3
-
                 v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
                 GC.@preserve B begin
                     vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))

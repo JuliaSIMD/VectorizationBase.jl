@@ -104,8 +104,8 @@ end
 @inline Base.unsafe_trunc(::Type{I}, v::Vec{W,T}) where {W,I,T} = convert(Vec{W,I}, v)
 @inline Base.:(%)(v::Vec{W,T}, ::Type{I}) where {W,I,T} = convert(Vec{W,I}, v)
 
-@inline Base.convert(::Type{T}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) where {T <: Base.HWReal} = ifelse(v, one(T), zero(T))
-@inline Base.convert(::Type{<:AbstractSIMD{W,T}}, v::Union{Mask{W},VecUnroll{<:Any, W, Bool, <: Mask}}) where {W, T <: Base.HWReal} = ifelse(v, one(T), zero(T))
+@inline Base.convert(::Type{T}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) where {T <: NativeTypes} = ifelse(v, one(T), zero(T))
+@inline Base.convert(::Type{<:AbstractSIMD{W,T}}, v::Union{Mask{W},VecUnroll{<:Any, W, Bool, <: Mask}}) where {W, T <: NativeTypes} = ifelse(v, one(T), zero(T))
 
 @generated function Base.reinterpret(::Type{T1}, v::Vec{W2,T2}) where {W2, T1 <: NativeTypes, T2}
     W1 = W2 * sizeof(T2) ÷ sizeof(T1)
