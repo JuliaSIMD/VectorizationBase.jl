@@ -55,6 +55,7 @@ const IntegerTypesHW = Union{SignedHW,UnsignedHW}
 const IntegerTypes = Union{StaticInt,IntegerTypesHW}
 
 struct Bit; data::Bool; end # Dummy for Ptr
+const Boolean = Union{Bit,Bool}
 const NativeTypesExceptBit = Union{Bool,HWReal}
 const NativeTypes = Union{NativeTypesExceptBit, Bit}
 

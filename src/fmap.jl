@@ -157,18 +157,18 @@ for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :
         @inline $op(v1::VecUnroll{N,W,T}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data, v2.data, v3.data))
     end
 end
-@inline ifelse(v1::VecUnroll{N,W,Bool}, v2::T, v3::T) where {N,W,T<:NativeTypes} = VecUnroll(fmap(ifelse, v1.data, Vec{W,T}(v2), Vec{W,T}(v3)))
-@inline ifelse(v1::VecUnroll{N,W,Bool}, v2::T, v3::T) where {N,W,T<:Real} = VecUnroll(fmap(ifelse, v1.data, v2, v3))
+@inline ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::T, v3::T) where {N,W,T<:NativeTypes} = VecUnroll(fmap(ifelse, v1.data, Vec{W,T}(v2), Vec{W,T}(v3)))
+@inline ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::T, v3::T) where {N,W,T<:Real} = VecUnroll(fmap(ifelse, v1.data, v2, v3))
 @inline ifelse(v1::Vec{W,Bool}, v2::VecUnroll{N,W,T}, v3::Union{NativeTypes,AbstractSIMDVector,StaticInt}) where {N,W,T} = VecUnroll(fmap(ifelse, Vec{W,T}(v1), v2.data, Vec{W,T}(v3)))
 @inline ifelse(v1::Vec{W,Bool}, v2::Union{NativeTypes,AbstractSIMDVector,StaticInt}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, Vec{W,T}(v1), Vec{W,T}(v2), v3.data))
-@inline ifelse(v1::VecUnroll{N,W,Bool}, v2::VecUnroll{N,W,T}, v3::Union{NativeTypes,AbstractSIMDVector,StaticInt}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, v2.data, Vec{W,T}(v3)))
-@inline ifelse(v1::VecUnroll{N,W,Bool}, v2::Union{NativeTypes,AbstractSIMDVector,StaticInt}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, Vec{W,T}(v2), v3.data))
+@inline ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W,T}, v3::Union{NativeTypes,AbstractSIMDVector,StaticInt}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, v2.data, Vec{W,T}(v3)))
+@inline ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::Union{NativeTypes,AbstractSIMDVector,StaticInt}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, Vec{W,T}(v2), v3.data))
 @inline ifelse(v1::Vec{W,Bool}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, Vec{W,T}(v1), v2.data, v3.data))
 # ifelse(v1::VecUnroll, v2::VecUnroll, v3::Real) = throw("Size mismatch")
 # ifelse(v1::VecUnroll, v2::Real, v3::VecUnroll) = throw("Size mismatch")
 # ifelse(v1::Real, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
 # ifelse(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
-@inline ifelse(v1::VecUnroll{N,W,Bool}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, v2.data, v3.data))
+@inline ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, v2.data, v3.data))
 
 @inline Base.:(^)(v::VecUnroll, i::Integer) = VecUnroll(fmap(^, v.data, i))
 
