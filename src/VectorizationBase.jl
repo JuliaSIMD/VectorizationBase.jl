@@ -138,7 +138,7 @@ end
 end
 
 
-struct Mask{W,U<:Unsigned} <: AbstractSIMDVector{W,Bool}
+struct Mask{W,U<:Unsigned} <: AbstractSIMDVector{W,Bit}
     u::U
     @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
         U2 = mask_type(Val{W}())
