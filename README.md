@@ -2,8 +2,8 @@
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://chriselrod.github.io/VectorizationBase.jl/stable)
 [![Latest](https://img.shields.io/badge/docs-latest-blue.svg)](https://chriselrod.github.io/VectorizationBase.jl/latest)
-![CI](https://github.com/chriselrod/VectorizationBase.jl/workflows/CI/badge.svg)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/chriselrod/VectorizationBase.jl?svg=true)](https://ci.appveyor.com/project/chriselrod/VectorizationBase-jl)
+[![CI](https://github.com/chriselrod/VectorizationBase.jl/workflows/CI/badge.svg)](https://github.com/chriselrod/VectorizationBase.jl/actions?query=workflow%3ACI)
+[![CI (Julia nightly)](https://github.com/chriselrod/VectorizationBase.jl/workflows/CI%20(Julia%20nightly)/badge.svg)](https://github.com/chriselrod/VectorizationBase.jl/actions?query=workflow%3A%22CI+%28Julia+nightly%29%22)
 [![Codecov](https://codecov.io/gh/chriselrod/VectorizationBase.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/chriselrod/VectorizationBase.jl)
 
 ---
