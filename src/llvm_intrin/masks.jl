@@ -37,7 +37,7 @@ function binary_mask_op(W, U, op)
     quote
         $(Expr(:meta,:inline))
         Mask{$W}(llvmcall($instrs, $U, Tuple{$U, $U}, m1.u, m2.u))
-    end    
+    end
 end
 
 @inline Base.zero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
@@ -94,7 +94,7 @@ end
     quote
         $(Expr(:meta,:inline))
         llvmcall($instrs, $T, Tuple{_Vec{$W,$I}}, data(v))
-    end            
+    end
 end
 
 
@@ -149,6 +149,9 @@ end
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
 @inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m)
 @inline Base.:(+)(i::Integer, m::Mask) = i + count_ones(m)
+
+mask_type_symbol(::Val{W}) where {W} = mask_type(W)
+mask_type(::Val{W}) where {W} = mask_type_symbol(W)
 
 function mask_type_symbol(W)
     if W <= 8
@@ -447,8 +450,6 @@ end
     quote
         $(Expr(:meta,:inline))
         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
-    end    
+    end
 end
 @inline Base.convert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = convert(Bit, v)
-
-                            
