@@ -272,9 +272,10 @@ end
         O = OffsetArray(P, (-4, -2, -3));
 
         indices = Real[
-            2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
+            StaticInt{1}(), StaticInt{3}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))))
         ]
+        # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
         for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ (StaticInt(1),StaticInt(2)), jm ∈ (StaticInt(1),StaticInt(2)), km ∈ (StaticInt(1),StaticInt(2)), B ∈ [A, P, O]
             i = VectorizationBase.lazymul(im, _i)
             j = VectorizationBase.lazymul(jm, _j)
