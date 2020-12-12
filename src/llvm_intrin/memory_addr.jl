@@ -127,7 +127,7 @@ function offset_ptr(
         else
             indname = "indname"
             constmul = llvmconst(W, "i$(ibits) $M")
-            push!(instrs, "%$(indname) = mul nsw <$W x i$(ibits)> %$(indargname), <i$(ibits) $(constmul)>")
+            push!(instrs, "%$(indname) = mul nsw <$W x i$(ibits)> %$(indargname), $(constmul)")
         end
         push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), <$W x i$(ibits)> %$(indname)"); i += 1
         if forgep

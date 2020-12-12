@@ -18,7 +18,7 @@ function tovector(u::VectorizationBase.VecUnroll{_N,W,T}) where {_N,W,T}
     x
 end
 tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.extractelement(v,w) for w ∈ 0:W-1]
-tovector(v::VectorizationBase.LazyMulAdd) = tovector(convert(Vec, v))
+tovector(v::VectorizationBase.LazyMulAdd) = tovector(VectorizationBase._materialize(v))
 tovector(x) = x
 tovector(i::MM{W,X}) where {W,X} = collect(range(i.i, step = X, length = W))
 A = randn(13, 17); L = length(A); M, N = size(A);
@@ -265,7 +265,7 @@ end
     end
 
     @testset "Memory" begin
-        dims = (41,42,43) .* 3;
+        dims = (41,42,43) .* 6;
         # dims = (41,42,43);
         A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims);
         P = PermutedDimsArray(A, (3,1,2));
@@ -275,8 +275,11 @@ end
             2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))))
         ]
-        for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
-            # @show typeof(B), i, j, k
+        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ (StaticInt(1),StaticInt(2)), jm ∈ (StaticInt(1),StaticInt(2)), km ∈ (StaticInt(1),StaticInt(2)), B ∈ [A, P, O]
+            i = VectorizationBase.lazymul(im, _i)
+            j = VectorizationBase.lazymul(jm, _j)
+            k = VectorizationBase.lazymul(km, _k)
+            # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
             iv = tovector(i); jv = tovector(j); kv = tovector(k)
             x = getindex.(Ref(B), iv, jv, kv)
             GC.@preserve B begin
