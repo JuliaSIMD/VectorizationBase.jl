@@ -1,5 +1,4 @@
 
-
 const TOPOLOGY = Hwloc.topology_load();
 const CACHE = TOPOLOGY.children[1].children[1];
 const COUNTS = Hwloc.histmap(TOPOLOGY);
@@ -26,16 +25,14 @@ function define_cache(N)
             type = nothing
         )
     end
-    c = CACHE
-    for n ∈ 1:CACHE_LEVELS-N
-        c = first(c.children)
-    end
+    cache_name = (:L1Cache, :L2Cache, :L3Cache, :L4Cache)[N]
+    c = first(t for t in TOPOLOGY if t.type_ == cache_name && t.attr.depth == N).attr
     (
-        size = c.attr.size,
-        depth = c.attr.depth,
-        linesize = c.attr.linesize,
-        associativity = c.attr.associativity,
-        type = c.attr.type_
+        size = c.size,
+        depth = c.depth,
+        linesize = c.linesize,
+        associativity = c.associativity,
+        type = c.type_
     )
 end
 
@@ -45,7 +42,7 @@ const L₂CACHE = define_cache(2)
 const L₃CACHE = define_cache(3)
 const L₄CACHE = define_cache(4)
 """
-L₁, L₂, L₃ cache size
+L₁, L₂, L₃, L₄ cache size
 """
 const CACHE_SIZE = (
     L₁CACHE.size,
@@ -53,10 +50,4 @@ const CACHE_SIZE = (
     L₃CACHE.size,
     L₄CACHE.size
 )
-# const CACHE_NEST_COUNT = (
-#     length(CACHE.children[1].children),
-#     length(CACHE.children),
-#     length(TOPOLOGY.children[1].children)
-# )
-
 
