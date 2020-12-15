@@ -507,7 +507,7 @@ end
         @test VectorizationBase.vzero(Val(1), Int) === VectorizationBase.vzero(StaticInt(1), Int) === VectorizationBase.vzero(Int) === 0
         @test VectorizationBase.vzero(Val(1), Float32) === VectorizationBase.vzero(StaticInt(1), Float32) === VectorizationBase.vzero(Float32) === 0f0
         @test VectorizationBase.vzero(Val(1), Float64) === VectorizationBase.vzero(StaticInt(1), Float64) === VectorizationBase.vzero(Float64) === 0.0
-        @test VectorizationBase.vzero() === VectorizationBase.vzero(W64S, 0.0)
+        @test VectorizationBase.vzero() === VectorizationBase.vzero(W64S, Float64)
         @test VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(Int64)) === VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(Int32))
         @test VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(UInt64)) === VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(UInt32))
         
