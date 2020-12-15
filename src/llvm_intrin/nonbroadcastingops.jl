@@ -71,8 +71,8 @@ function scalar_maxmin(W, ::Type{T}, ismax) where {T}
         elseif T === Float32
             typ = "float"
             # basevalue = llvmconst(W, T, repr(reinterpret(UInt32, Float32(opzero))))
-        elseif T === Float16
-            typ = "half"
+        # elseif T === Float16
+            # typ = "half"
             # basevalue = llvmconst(W, T, repr(reinterpret(UInt16, Float16(opzero))))
         else
             throw("T === $T not currently supported.")

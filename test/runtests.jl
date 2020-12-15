@@ -463,6 +463,8 @@ end
         v3 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
         x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
         a = randn(); b = randn()
+        m = Mask{W64}(0xce)
+        mv = tovector(m)
         for f ∈ [
             muladd, fma,
             VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
@@ -475,24 +477,41 @@ end
             @test tovector(@inferred(f(v1, a, b))) ≈ f.(x1, a, b)
             @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
             @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
+
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, v3))) ≈ ifelse.(mv, f.(x1, x2, x3), x3)
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a))) ≈ ifelse.(mv, f.(x1, x2, a), a)
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, b))) ≈ ifelse.(mv, f.(x1, a, b), b)
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, b))) ≈ ifelse.(mv, f.(a, x2, b), b)
+            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, b, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
         end
     end
     @testset "Non-broadcasting operations" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
         v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
-        @test VectorizationBase.vsum(2.3, v1) ≈ VectorizationBase.vsum(v1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))
-        @test VectorizationBase.vsum(vu1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3))
-        @test VectorizationBase.vsum(v2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))
-        @test VectorizationBase.vsum(vu2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3))
-        @test VectorizationBase.vprod(v1) * 2.3 ≈ VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))
-        @test VectorizationBase.vprod(v2) * 3 == VectorizationBase.vprod(VectorizationBase.mulscalar(v2, 3))
-
+        @test VectorizationBase.vsum(2.3, v1) ≈ VectorizationBase.vsum(v1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3)) ≈ VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1))
+        @test VectorizationBase.vsum(vu1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3)) ≈ VectorizationBase.vsum(VectorizationBase.addscalar(2.3, vu1))
+        @test VectorizationBase.vsum(v2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3)) == VectorizationBase.vsum(VectorizationBase.addscalar(3, v2))
+        @test VectorizationBase.vsum(vu2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3)) == VectorizationBase.vsum(VectorizationBase.addscalar(3, vu2))
+        @test VectorizationBase.vprod(v1) * 2.3 ≈ VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3)) ≈ VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1))
+        @test VectorizationBase.vprod(v2) * 3 == VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2))
+        @test VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2))
+        @test 4.0 == VectorizationBase.addscalar(2.0, 2.0)
+        
         v3 = Vec(0, 1, 2, 3); vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
         v4 = Vec(0.0, 1.0, 2.0, 3.0)
+        v5 = Vec(0f0, 1f0, 2f0, 3f0, 4f0, 5f0, 6f0, 7f0)
         @test VectorizationBase.vmaximum(v3) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, 2))
+        @test VectorizationBase.vmaximum(v3 % UInt) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, 2 % UInt))
         @test VectorizationBase.vmaximum(v4) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(3.0)))
+        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(3.0))) == nextfloat(3.0)
+        @test VectorizationBase.vmaximum(v5) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(7.0))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(7.0), v5))
+        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(7f0))) == VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(7f0), v5)) == nextfloat(7f0)
+
         @test VectorizationBase.maxscalar(v3, 2) === Vec(2, 1, 2, 3)
         @test VectorizationBase.maxscalar(v3, -1) === v3
+        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)) === -1 % UInt
         @test VectorizationBase.maxscalar(v4, 1e-16) === Vec(1e-16, 1.0, 2.0, 3.0)
         @test VectorizationBase.maxscalar(v4, -1e-16) === v4
         @test VectorizationBase.vmaximum(vu3) == 3
@@ -500,7 +519,7 @@ end
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,4)) == 4
         @test VectorizationBase.vminimum(vu3) == -1
         @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,0)) == -1
-        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == -2
+        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == VectorizationBase.vminimum(VectorizationBase.minscalar(-2,vu3)) == -2
     end
     @testset "broadcasting" begin
         @test VectorizationBase.vzero(Val(1), UInt32) === VectorizationBase.vzero(StaticInt(1), UInt32) === VectorizationBase.vzero(UInt32) === zero(UInt32)
