@@ -2,6 +2,7 @@ using VectorizationBase, OffsetArrays, Aqua
 using VectorizationBase: data
 using Test
 
+const W64S = VectorizationBase.pick_vector_width_val(Float64)
 const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 const VE = Core.VecElement
@@ -45,6 +46,7 @@ end
 
     
     @test first(A) === A[1]
+    @test W64S == W64
     @testset "Struct-Wrapped Vec" begin
         @test data(zero(Vec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === data(Vec{4,Float64}(0.0))
         @test data(one(Vec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === data(Vec{4,Float64}(1.0)) === data(data(Vec{4,Float64}(1.0)))
@@ -474,6 +476,47 @@ end
             @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
             @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
         end
+    end
+    @testset "Non-broadcasting operations" begin
+        v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
+        v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
+        @test VectorizationBase.vsum(2.3, v1) ≈ VectorizationBase.vsum(v1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))
+        @test VectorizationBase.vsum(vu1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3))
+        @test VectorizationBase.vsum(v2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))
+        @test VectorizationBase.vsum(vu2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3))
+        @test VectorizationBase.vprod(v1) * 2.3 ≈ VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))
+        @test VectorizationBase.vprod(v2) * 3 == VectorizationBase.vprod(VectorizationBase.mulscalar(v2, 3))
+
+        v3 = Vec(0, 1, 2, 3); vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
+        v4 = Vec(0.0, 1.0, 2.0, 3.0)
+        @test VectorizationBase.vmaximum(v3) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, 2))
+        @test VectorizationBase.vmaximum(v4) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(3.0)))
+        @test VectorizationBase.maxscalar(v3, 2) === Vec(2, 1, 2, 3)
+        @test VectorizationBase.maxscalar(v3, -1) === v3
+        @test VectorizationBase.maxscalar(v4, 1e-16) === Vec(1e-16, 1.0, 2.0, 3.0)
+        @test VectorizationBase.maxscalar(v4, -1e-16) === v4
+        @test VectorizationBase.vmaximum(vu3) == 3
+        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,2)) == 3
+        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,4)) == 4
+        @test VectorizationBase.vminimum(vu3) == -1
+        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,0)) == -1
+        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == -2
+    end
+    @testset "broadcasting" begin
+        @test VectorizationBase.vzero(Val(1), UInt32) === VectorizationBase.vzero(StaticInt(1), UInt32) === VectorizationBase.vzero(UInt32) === zero(UInt32)
+        @test VectorizationBase.vzero(Val(1), Int) === VectorizationBase.vzero(StaticInt(1), Int) === VectorizationBase.vzero(Int) === 0
+        @test VectorizationBase.vzero(Val(1), Float32) === VectorizationBase.vzero(StaticInt(1), Float32) === VectorizationBase.vzero(Float32) === 0f0
+        @test VectorizationBase.vzero(Val(1), Float64) === VectorizationBase.vzero(StaticInt(1), Float64) === VectorizationBase.vzero(Float64) === 0.0
+        @test VectorizationBase.vzero() === VectorizationBase.vzero(W64S, 0.0)
+        @test VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(Int64)) === VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(Int32))
+        @test VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(UInt64)) === VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(UInt32))
+        
+        @test VectorizationBase.vall(VectorizationBase.vbroadcast(W64S, pointer(A)) == vbroadcast(W64S, first(A)))
+        @test VectorizationBase.vbroadcast(W64S, pointer(A,2)) === Vec{W64}(A[2]) === Vec(A[2])
+
+        @test zero(VectorizationBase.VecUnroll((VectorizationBase.vbroadcast(W64S, pointer(A)), VectorizationBase.vbroadcast(W64S, pointer(A,2))))) === VectorizationBase.VecUnroll((VectorizationBase.vzero(W64S, Float64), VectorizationBase.vzero()))
+
+        @test VectorizationBase.VecUnroll{2,W64,Float64}(first(A)) === VectorizationBase.VecUnroll{2,W64,Float64}(VectorizationBase.vbroadcast(W64S, pointer(A))) === VectorizationBase.VecUnroll((VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A))))
     end
 end
 

@@ -183,3 +183,33 @@ end
 @inline (::Type{VecUnroll{N,W,T,V}})(vu::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = vu
 @inline (::Type{VecUnroll{N,W,T,VT}})(vu::VecUnroll{N,W,S,VS})  where {N,W,T,VT<:AbstractSIMDVector{W,T},S,VS<:AbstractSIMDVector{W,S}} = VecUnroll(fmap(convert, Vec{W,T}, vu.data))
 
+
+function collapse_expr(N, op)
+    N += 1
+    t = Expr(:tuple); s = Vector{Symbol}(undef, N)
+    for n ∈ 1:N
+        s_n = s[n] = Symbol(:v_, n)
+        push!(t.args, s_n)
+    end
+    q = quote
+        $(Expr(:meta,:inline))
+        $t = data(vu)
+    end
+    while N > 1
+        for n ∈ 1:N >>> 1
+            push!(q.args, Expr(:(=), s[n], Expr(:call, op, s[n], s[n + (N >>> 1)])))
+        end
+        isodd(N) && push!(q.args, Expr(:(=), s[1], Expr(:call, op, s[1], s[N])))
+        N >>>= 1
+    end
+    q
+end
+@generated collapse_add(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vadd)
+@generated collapse_mul(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vmul)
+@generated collapse_max(vu::VecUnroll{N}) where {N} = collapse_expr(N, :max)
+@generated collapse_min(vu::VecUnroll{N}) where {N} = collapse_expr(N, :min)
+@inline vsum(vu::VecUnroll) = vsum(collapse_add(vu))
+@inline vprod(vu::VecUnroll) = vprod(collapse_mul(vu))
+@inline vmaximum(vu::VecUnroll) = vmaximum(collapse_max(vu))
+@inline vminimum(vu::VecUnroll) = vminimum(collapse_min(vu))
+

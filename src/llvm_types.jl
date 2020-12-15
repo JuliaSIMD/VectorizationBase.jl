@@ -25,7 +25,8 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
     :UInt32 => "i32",
     :UInt64 => "i64",
     :Bool => "i8",
-    :Bit => "i1"
+    :Bit => "i1",
+    :Nothing => "void"
 )
 
     

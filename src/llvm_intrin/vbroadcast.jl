@@ -94,7 +94,7 @@ end
 @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ptr::Ptr{T}) where {W, T}
     isone(W) && return Expr(:block, Expr(:meta, :inline), :(vload(ptr)))
     typ = LLVM_TYPES[T]
-    ptyp = JuliaPointerType
+    ptyp = JULIAPOINTERTYPE
     vtyp = "<$W x $typ>"
     alignment = Base.datatype_alignment(T)
     instrs = """
