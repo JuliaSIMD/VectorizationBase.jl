@@ -11,7 +11,7 @@ function Base.:(:)(I::CartesianVIndex{N}, J::CartesianVIndex{N}) where {N}
 end
 Base.@propagate_inbounds Base.getindex(I::CartesianVIndex, i) = I.I[i]
 _ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
-_ndim(::Type{<:AbstractArray{N}}) where {N} = N
+# _ndim(::Type{<:AbstractArray{N}}) where {N} = N
 @generated function CartesianVIndex(I::T) where {T <: Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex}}}}
     iexpr = Expr(:tuple)
     Tp = T.parameters
