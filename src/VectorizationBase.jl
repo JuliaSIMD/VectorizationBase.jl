@@ -121,11 +121,7 @@ function vec_quote(W, Wpow2, offset = 0)
 end
 @generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
     W = _W + 1
-    Wpow2 = if (T <: Integer && (!SIMD_NATIVE_INTEGERS))
-        nextpow2(W)
-    else
-        pick_vector_width(W, T)
-    end
+    Wpow2 = pick_vector_width(W, T)
     if W ≤ Wpow2
         vec_quote(W, Wpow2)
     else

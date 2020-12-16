@@ -46,6 +46,7 @@ O - static offset
 F - static multiplicative factor
 """
 @generated function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(vadd(i, $(O % I))))
     bytes = pick_integer_bytes(W, sizeof(I))
     bits = 8bytes
     jtypesym = Symbol(:Int, bits)
@@ -65,6 +66,7 @@ F - static multiplicative factor
     end
 end
 @generated function vrangeincr(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.FastMath.add_fast(i, $(T(O)))))
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:W-1), ", ")
@@ -80,6 +82,7 @@ end
     end
 end
 @generated function vrangemul(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(vmul(i, $(O % I))))
     bytes = pick_integer_bytes(W, sizeof(T))
     bits = 8bytes
     jtypesym = Symbol(:Int, bits)
@@ -99,6 +102,7 @@ end
     end
 end
 @generated function vrangemul(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.FastMath.mul_fast(i, $(T(O)))))
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:W-1), ", ")

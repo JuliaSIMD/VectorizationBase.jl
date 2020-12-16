@@ -1,6 +1,6 @@
 
 register_size(::Type{T}) where {T} = REGISTER_SIZE
-register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = SIMD_NATIVE_INTEGERS ? REGISTER_SIZE : sizeof(T)
+register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = SIMD_INTEGER_REGISTER_SIZE
 
 intlog2(N::I) where {I <: Integer} = (8sizeof(I) - one(I) - leading_zeros(N)) % I
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
@@ -85,8 +85,8 @@ function _pick_vector_width(vargs...)
         T = v.parameters[1]
         if T === Bit
             min_W = 8
-        elseif !SIMD_NATIVE_INTEGERS && T <: Integer
-            max_W = 1
+        elseif (SIMD_INTEGER_REGISTER_SIZE != REGISTER_SIZE) && T <: Integer # only check subtype if it matters
+            max_W = min(max_W, SIMD_INTEGER_REGISTER_SIZE ÷ sizeof(T))
         else
             max_W = min(max_W, REGISTER_SIZE ÷ sizeof(T))
         end
@@ -108,7 +108,7 @@ pick_vector_width(::Type{T}) where {T} = Int(pick_vector_width_val(T))
 pick_vector_width(N::Integer, T) = min(nextpow2(N), pick_vector_width(T))
 
 function int_type_symbol(W)
-    bits = 8*(REGISTER_SIZE ÷ W)
+    bits = 8*(SIMD_INTEGER_REGISTER_SIZE ÷ W)
     if bits ≤ 8
         :Int8
     elseif bits ≤ 16
@@ -205,7 +205,7 @@ pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
                    
 
 @generated function Base.promote_rule(::Type{MM{W,X,I}}, ::Type{T2}) where {W,X,I,T2<:NativeTypes}
-    if REGISTER_SIZE ≥ sizeof(T2) * W
+    if register_size(T2) ≥ sizeof(T2) * W
         return :(Vec{$W,$T2})
     elseif T2 <: Signed
         return :(Vec{$W,$(int_type_symbol(W))})

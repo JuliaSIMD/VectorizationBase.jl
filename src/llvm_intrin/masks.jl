@@ -176,6 +176,7 @@ function mask_type(W)
         return UInt128
     end
 end
+mask_type(::Union{Val{1},StaticInt{1}}) = UInt8#Bool
 mask_type(::Union{Val{2},StaticInt{2}}) = UInt8
 mask_type(::Union{Val{4},StaticInt{4}}) = UInt8
 mask_type(::Union{Val{8},StaticInt{8}}) = UInt8
