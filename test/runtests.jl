@@ -537,6 +537,14 @@ end
 
         @test VectorizationBase.VecUnroll{2,W64,Float64}(first(A)) === VectorizationBase.VecUnroll{2,W64,Float64}(VectorizationBase.vbroadcast(W64S, pointer(A))) === VectorizationBase.VecUnroll((VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A))))
     end
+    @testset "CartesianVIndex" begin
+        @test VectorizationBase.maybestaticfirst(CartesianIndices(A)) === VectorizationBase.CartesianVIndex(ntuple(_ -> VectorizationBase.One(), ndims(A)))
+        @test VectorizationBase.maybestaticlast(CartesianIndices(A)) === VectorizationBase.CartesianVIndex(size(A))
+        @test VectorizationBase.CartesianVIndex((StaticInt(1),2,VectorizationBase.CartesianVIndex((StaticInt(4), StaticInt(7))), CartesianIndex(12,14), StaticInt(2), 1)) === VectorizationBase.CartesianVIndex((StaticInt(1),2,StaticInt(4),StaticInt(7),12,14,StaticInt(2),1))
+        @test VectorizationBase.CartesianVIndex((StaticInt(-4), StaticInt(7))):VectorizationBase.CartesianVIndex((StaticInt(14), StaticInt(73))) === CartesianIndices((StaticInt(-4):StaticInt(14),StaticInt(7):StaticInt(73)))
+        @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) == CartesianIndices(A)
+        @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) === CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
+    end
 end
 
             # ptr_A = pointer(A)
