@@ -13,11 +13,12 @@ let llvmlib = VERSION ≥ v"1.6.0-DEV.1429" ? Libdl.dlopen(Base.libllvm_path()) 
 
     @eval const REGISTER_SIZE = $register_size
     @eval const REGISTER_COUNT = $register_count
-    @eval const SIMD_INTEGER_REGISTER_SIZE = $(avx2 ? REGISTER_SIZE : SSE4_1 ? 128 : 64)
-
     for ext ∈ features
         @eval const $(Symbol(replace(Base.Unicode.uppercase(ext[2:end]), r"\." => "_"))) = $(first(ext) == '+')
     end
+
+    @eval const SIMD_INTEGER_REGISTER_SIZE = $(avx2 ? REGISTER_SIZE : any(isequal("+sse2"), features) ? 128 : 64)
+
     Libc.free(features_cstring)
 end
 
