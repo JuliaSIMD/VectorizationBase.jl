@@ -268,7 +268,21 @@ include("static.jl")
 include("cartesianvindex.jl")
 # include("vectorizable.jl")
 # include("strideprodcsestridedpointers.jl")
-include("topology.jl")
+const TOPOLOGY = try
+    Hwloc.topology_load();
+catch e
+    @warn e
+    @warn """
+        Using Hwloc failed. Please file an issue with the above warning at: https://github.com/JuliaParallel/Hwloc.jl
+        Proceeding with generic topology assumptions. This may result in reduced performance.
+    """
+    nothing
+end
+if TOPOLOGY === nothing
+    include("topology_generic.jl")
+else
+    include("topology.jl")
+end
 @static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
     include("cpu_info_x86_llvm.jl")
 else

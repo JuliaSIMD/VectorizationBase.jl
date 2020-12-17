@@ -1,6 +1,4 @@
 
-const TOPOLOGY = Hwloc.topology_load();
-const CACHE = TOPOLOGY.children[1].children[1];
 const COUNTS = Hwloc.histmap(TOPOLOGY);
 # TODO: Makes topological assumptions that aren't right for
 # multiple nodes or with >3 or <3 levels of Cache.
