@@ -112,12 +112,33 @@ end
 #     M2,N2,W2,T2 = description(T2)
 # end
 
+@generated function simd_vec(y::T, x::Vararg{T,_W}) where {T,_W}
+    W = 1 + _W
+    Wfull = nextpow2(W)
+    ty = LLVM_TYPES[T]
+    instrs = ["%v0 = insertelement <$Wfull x $ty> zeroinitializer, $ty %0, i32 0"]
+    Tup = Expr(:curly, :Tuple, T)
+    for w ∈ 1:_W
+        push!(instrs, "%v$w = insertelement <$Wfull x $ty> %v$(w-1), $ty %$w, i32 $w")
+        push!(Tup.args, T)
+    end
+    push!(instrs, "ret <$Wfull x $ty> %v$_W")
+    llvmc = :(llvmcall($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup, y))
+    for w ∈ 1:_W
+        push!(llvmc.args, Expr(:ref, :x, w))
+    end
+    quote
+        $(Expr(:meta,:inline))
+        Vec($llvmc)
+    end
+end
+
 function vec_quote(W, Wpow2, offset = 0)
-    tup = Expr(:tuple); Wpow2 += offset
-    iszero(offset) && push!(tup.args, :(VecElement(y)))
-    foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:ref, :x, w))), max(1,offset):min(W,Wpow2)-1)
-    foreach(w -> push!(tup.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
-    Expr(:call, :Vec, tup)
+    call = Expr(:call, :simd_vec); Wpow2 += offset
+    iszero(offset) && push!(call.args, :y)
+    foreach(w -> push!(call.args, Expr(:ref, :x, w)), max(1,offset):min(W,Wpow2)-1)
+    # foreach(w -> push!(call.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
+    call
 end
 @generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
     W = _W + 1
