@@ -64,6 +64,10 @@ end
         @test Vec{1,Int}(1) === 1
 
         vu = Vec(collect(1.0:16.0)...) + 2
+        @test vu(1,1) === vu.data[1](1)
+        @test vu(2,1) === vu.data[1](2)
+        @test vu(1,2) === vu.data[2](1)
+        @test vu(2,2) === vu.data[2](2)
         if W64 == 8
             @test vu.data[1] === Vec(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
             @test vu.data[2] === Vec(11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0)
@@ -72,6 +76,7 @@ end
             @test vu.data[2] === Vec(7.0, 8.0, 9.0, 10.0)
             @test vu.data[3] === Vec(11.0, 12.0, 13.0, 14.0)
             @test vu.data[4] === Vec(15.0, 16.0, 17.0, 18.0)
+            @test Vec(1.2, 3.4, 3.4) === Vec(1.2, 3.4, 3.4, 0.0)
         elseif W64 == 2
             @test vu.data[1] === Vec(3.0, 4.0)
             @test vu.data[2] === Vec(5.0, 6.0)
@@ -267,23 +272,36 @@ end
     end
 
     @testset "Memory" begin
-        dims = (41,42,43) .* 6;
+        C = rand(40,20,10) .> 0;
+        mtest = vload(stridedpointer(C), ((MM{16})(9), 2, 3));
+        v1 = C[9:24,2,3];
+        @test tovector(mtest) == v1
+        @test [vload(stridedpointer(C), (1+w, 2+w, 3)) for w ∈ 1:W64] == getindex.(Ref(C), 1 .+ (1:W64), 2 .+ (1:W64), 3)
+        vstore!(stridedpointer(C), !mtest, ((MM{16})(17), 3, 4))
+        @test .!v1 == C[17:32,3,4] == tovector(vload(stridedpointer(C), ((MM{16})(17), 3, 4)))
+        
+        dims = (41,42,43) .* 3;
         # dims = (41,42,43);
         A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims);
+
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
-
         indices = Real[
-            StaticInt{1}(), StaticInt{3}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))),
-            VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> Core.VecElement(2i + 1), Val(W64))))
+            StaticInt{1}(), StaticInt{3}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> 2i + 1, Val(W64))...),
+            VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
         ]
         # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
-        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ (StaticInt(1),StaticInt(2)), jm ∈ (StaticInt(1),StaticInt(2)), km ∈ (StaticInt(1),StaticInt(2)), B ∈ [A, P, O]
+        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ [A, P, O]
             i = VectorizationBase.lazymul(im, _i)
             j = VectorizationBase.lazymul(jm, _j)
             k = VectorizationBase.lazymul(km, _k)
-            # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
             iv = tovector(i); jv = tovector(j); kv = tovector(k)
+            if B === C
+                off = 9 - iv[1] % 8
+                iv += off
+                i += off
+            end
+            # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
             x = getindex.(Ref(B), iv, jv, kv)
             GC.@preserve B begin
                 # @show i,j,k

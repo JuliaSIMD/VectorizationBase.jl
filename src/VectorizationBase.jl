@@ -222,6 +222,9 @@ end
     call = :(Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T},$T,$I}, data(v), x, i)))
     Expr(:block, Expr(:meta, :inline), call)
 end
+@inline (v::AbstractSIMDVector)(i::IntegerTypesHW) = extractelement(v, i - one(i))
+@inline (v::AbstractSIMDVector)(i::Integer) = extractelement(v, Int(i) - 1)
+Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = vu.data[j](i)
 
 # @inline function Vec{N,T}(v::Vec{N,T2}) where {N,T,T2}
     # @inbounds Vec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
