@@ -116,7 +116,8 @@ end
     W = 1 + _W
     Wfull = nextpow2(W)
     ty = LLVM_TYPES[T]
-    instrs = ["%v0 = insertelement <$Wfull x $ty> zeroinitializer, $ty %0, i32 0"]
+    init = W == Wfull ? "undef" : "zeroinitializer"
+    instrs = ["%v0 = insertelement <$Wfull x $ty> $init, $ty %0, i32 0"]
     Tup = Expr(:curly, :Tuple, T)
     for w ∈ 1:_W
         push!(instrs, "%v$w = insertelement <$Wfull x $ty> %v$(w-1), $ty %$w, i32 $w")
