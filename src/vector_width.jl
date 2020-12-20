@@ -225,4 +225,8 @@ end
 # @inline _vload(ptr::AbstractPointer, i) = _vload(ptr.ptr, offset(ptr, i))
 # @inline vload(ptr::AbstractPointer{T}, i::Tuple) where {T} = _vload(ptr.ptr, offset(ptr, i))
 
+@inline function Base.in(m::MM{W,X,<:Integer}, r::AbstractUnitRange) where {W,X}
+    vm = Vec(m)
+    (vm ≥ first(r)) & (vm ≤ last(r))
+end
 
