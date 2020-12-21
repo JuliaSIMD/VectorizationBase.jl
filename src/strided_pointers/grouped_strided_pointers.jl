@@ -19,7 +19,7 @@ end
 G is a tuple(tuple((A_ind,A's dim),(A_ind,A's dim)), ())
 it gives the groups.
 """
-@inline function grouped_strided_pointer(A::Tuple{Vararg{<:AbstractArray,N}}, ::Val{G}) where {N,G}
+@inline function grouped_strided_pointer(A::Tuple{Vararg{AbstractArray,N}}, ::Val{G}) where {N,G}
     grouped_strided_pointer(
         map(memory_reference, A),
         map(contiguous_axis, A),

@@ -459,7 +459,7 @@ end
     #     end
 # end
 
-@inline ifelse(f::F, m::Mask, a::Vararg{<:Any,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
+@inline ifelse(f::F, m::Mask, a::Vararg{Any,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
 
 """
 Fast approximate reciprocal.
