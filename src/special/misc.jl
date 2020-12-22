@@ -4,13 +4,16 @@
 
 @inline Base.fld(x::AbstractSIMD, y::AbstractSIMD) = div(promote(x,y)..., RoundDown)
 
-@inline function Base.div(x::AbstractSIMD{W1,T}, y::AbstractSIMD{W2,T}, ::RoundingMode{:Down}) where {W1,W2,T<:Integer}
+@inline function Base.div(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}, ::RoundingMode{:Down}) where {W,T<:Integer}
     d = div(x, y)
     d - (signbit(x ⊻ y) & (d * y != x))
 end
 
-@inline Base.mod(x::AbstractSIMD{W1,T}, y::AbstractSIMD{W2,T}) where {W1,W2,T<:Integer} =
+@inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:Integer} =
     ifelse(y == -1, zero(x), x - fld(x, y) * y)
+
+@inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:Unsigned} =
+    rem(x, y)
 
 @inline Base.mod(i::AbstractSIMD{<:Any,<:Integer}, r::AbstractUnitRange{<:Integer}) =
     mod(i-first(r), length(r)) + first(r)
@@ -25,5 +28,5 @@ for (X,L,H) in Iterators.product(fill([:Any, :Missing, :AbstractSIMD], 3)...)
     end
 end
 
-@inline Base.clamp(x::AbstractSIMD{<:Any, <:Integer}, r::AbstractUnitRange{<:Integer}) =
+@inline Base.clamp(x::AbstractSIMD{<:Any,<:Integer}, r::AbstractUnitRange{<:Integer}) =
     clamp(x, first(r), last(r))
