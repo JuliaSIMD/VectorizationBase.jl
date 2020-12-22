@@ -176,7 +176,8 @@ end
 @inline Base.:(==)(x::AbstractIrrational, v::VecUnroll{N,W,T}) where {N,W,T} = vbroadcast(Val{W}(), T(x)) == v
 
 @inline Base.convert(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(convert, T, v.data))
-@inline Base.convert(::Type{VU}, v::VU) where {VU <: VecUnroll} = v
+@inline Base.convert(::Type{U}, v::VecUnroll) where {N,W,T,U<:VecUnroll{N,W,T}} = VecUnroll(fmap(convert, T, v.data))
+@inline Base.convert(::Type{VU}, v::VU) where {N,W,T,VU <: VecUnroll{N,W,T}} = v
 @inline Base.unsafe_trunc(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(unsafe_trunc, T, v.data))
 @inline Base.:(%)(v::VecUnroll, ::Type{T}) where {T<:Real} = VecUnroll(fmap(%, v.data, T))
 
@@ -208,8 +209,12 @@ end
 @generated collapse_mul(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vmul)
 @generated collapse_max(vu::VecUnroll{N}) where {N} = collapse_expr(N, :max)
 @generated collapse_min(vu::VecUnroll{N}) where {N} = collapse_expr(N, :min)
+@generated collapse_and(vu::VecUnroll{N}) where {N} = collapse_expr(N, :&)
+@generated collapse_or(vu::VecUnroll{N}) where {N} = collapse_expr(N, :|)
 @inline vsum(vu::VecUnroll) = vsum(collapse_add(vu))
 @inline vprod(vu::VecUnroll) = vprod(collapse_mul(vu))
 @inline vmaximum(vu::VecUnroll) = vmaximum(collapse_max(vu))
 @inline vminimum(vu::VecUnroll) = vminimum(collapse_min(vu))
+@inline vall(vu::VecUnroll) = vall(collapse_and(vu))
+@inline vany(vu::VecUnroll) = vany(collapse_or(vu))
 

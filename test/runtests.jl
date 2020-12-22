@@ -493,6 +493,21 @@ end
             @test tovector(@inferred(f(vf1, a))) ≈ f.(xf1, a)
             @test tovector(@inferred(f(vf2, a))) ≈ f.(xf2, a)
         end
+
+        vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
+        @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
+        @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
+        @test VectorizationBase.vall(vi2f == vi2)
+        W32 = StaticInt(W64)*StaticInt(2)
+        vf2 = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
+            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32))
+        ))
+        vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
+        @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
+        @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
+        @test vf2 === v2f32
+        
     end
     @testset "Ternary Functions" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
@@ -543,7 +558,7 @@ end
         @test VectorizationBase.vmaximum(v3 % UInt) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, 2 % UInt))
         @test VectorizationBase.vmaximum(v4) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(3.0)))
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(3.0))) == nextfloat(3.0)
-        @test VectorizationBase.vmaximum(v5) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(7.0))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(7.0), v5))
+        @test VectorizationBase.vmaximum(v5) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(7f0))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(7f0), v5))
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(7f0))) == VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(7f0), v5)) == nextfloat(7f0)
 
         @test VectorizationBase.maxscalar(v3, 2) === Vec(2, 1, 2, 3)

@@ -209,23 +209,19 @@ end
 end
 @generated function mask(::Union{Val{W},StaticInt{W}}, l::Integer) where {W}
     M = mask_type(W)
-    if AVX512F
-        quote
+    if HAS_OPMASK_REGISTERS
+        quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
             $(Expr(:meta,:inline))
             rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
             Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
         end
     else
-        quote
+        quote # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
             $(Expr(:meta,:inline))
             rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
             rem ≥ MM{$W}(0)
         end
     end
-end
-@generated function mask_v2(::Union{Val{W},StaticInt{W}}, l::Integer) where {W}
-    M = mask_type(W)
-    
 end
 @generated mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
 @inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)

@@ -100,6 +100,9 @@ end
         Vec{W,T}(v)
     end
 end
+@inline function Base.convert(::Type{U}, v::Vec{W,S}) where {N,W,T,U<:VecUnroll{N,W,T},S}
+    VecUnroll{N}(convert(T, v))
+end
 @inline Base.convert(::Type{Vec{W,T}}, v::Vec{W,S}) where {T<:Number,S,W} = Vec{W,T}(v)
 @inline Base.unsafe_trunc(::Type{I}, v::Vec{W,T}) where {W,I,T} = convert(Vec{W,I}, v)
 @inline Base.:(%)(v::Vec{W,T}, ::Type{I}) where {W,I,T} = convert(Vec{W,I}, v)
