@@ -25,6 +25,13 @@ end
 @inline Base.:(-)(v::Vec{<:Any,<:NativeTypes}) = zero(v) - v
 
 @inline Base.inv(v::Vec) = vdiv(one(v), v)
+@inline Base.inv(v::AbstractSIMD{W,<:Integer}) where {W} = inv(float(v))
 
 @inline Base.:(~)(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = v ⊻ vbroadcast(Val(W), -1 % T)
+
+@inline Base.abs(v::AbstractSIMD{W,<:Unsigned}) where {W} = v
+@inline Base.abs(v::AbstractSIMD{W,<:Signed}) where {W} = ifelse(v > 0, v, -v)
+
+@inline Base.round(v::AbstractSIMD{W,<:Integer}) where {W} = v
+@inline Base.round(v::AbstractSIMD{W,<:Integer}, ::RoundingMode) where {W} = v
 

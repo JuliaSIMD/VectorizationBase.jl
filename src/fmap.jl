@@ -104,7 +104,7 @@ end
 for op ∈ [:(-), :abs, :floor, :ceil, :trunc, :round, :sqrt, :!, :(~), :leading_zeros, :trailing_zeros]
     @eval @inline Base.$op(v1::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data))
 end
-@inline Base.inv(v::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(vdiv, vbroadcast(Val{W}(), one(T)), v.data))
+@inline Base.inv(v::VecUnroll{N,W,T}) where {N,W,T<:Union{Float32,Float64}} = VecUnroll(fmap(vdiv, vbroadcast(Val{W}(), one(T)), v.data))
 @inline Base.reinterpret(::Type{T}, v::VecUnroll) where {T<:Number} = VecUnroll(fmap(reinterpret, T, v.data))
 for op ∈ [:(Base.:(+)),:(Base.:(-)),:(Base.:(*)),:(Base.:(/)),:(Base.:(%)),:(Base.:(<<)),:(Base.:(>>)),:(Base.:(>>>)),:(Base.:(&)),:(Base.:(|)),:(Base.:(⊻)),
           :(Base.:(÷)),:(Base.max),:(Base.min),:(Base.copysign),:(Base.:(<)),:(Base.:(≤)),:(Base.:(>)),:(Base.:(≥)),:(Base.:(==)),:(Base.:(≠)),:vadd,:vsub,:vmul]

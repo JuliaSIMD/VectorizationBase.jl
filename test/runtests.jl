@@ -420,9 +420,9 @@ end
 
     @testset "Unary Functions" begin
         v = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
+            Vec(ntuple(_ -> (randn()), Val(W64))...),
+            Vec(ntuple(_ -> (randn()), Val(W64))...),
+            Vec(ntuple(_ -> (randn()), Val(W64))...)
         ))
         x = tovector(v)
         for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
@@ -430,6 +430,16 @@ end
         end
         invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
         @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
+
+        vi = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> rand(Int), Val(W64))...),
+            Vec(ntuple(_ -> rand(Int), Val(W64))...),
+            Vec(ntuple(_ -> rand(Int), Val(W64))...)
+        ))
+        xi = tovector(vi)
+        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
+            @test tovector(@inferred(f(vi))) == map(f, xi)
+        end
         # vpos = VectorizationBase.VecUnroll((
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),

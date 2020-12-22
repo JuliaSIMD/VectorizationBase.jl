@@ -338,7 +338,9 @@ end
 # for (f,cond) ∈ [(:(==), :eq), (:(!=), :ne), (:(>), :ugt), (:(≥), :uge), (:(<), :ult), (:(≤), :ule)]
 for (f,cond) ∈ [(:(==), "eq"), (:(!=), "ne")]
     @eval @generated function Base.$f(v1::Vec{W,T1}, v2::Vec{W,T2}) where {W,T1<:Integer,T2<:Integer}
-        @assert sizeof(T1) == sizeof(T2)
+        if sizeof(T1) != sizeof(T2)
+            return Expr(:block, Expr(:meta,:inline), :((v3, v4) = promote(v1, v2)), Expr(:call, $f, :v3, :v4))
+        end
         icmp_quote(W, $cond, sizeof(T1), T1, T2)
     end
 end
