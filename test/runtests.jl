@@ -377,8 +377,25 @@ end
             xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
             @test xvs ≈ map(VectorizationBase.vsum, [v1,v2,v3,v4,v5])
         end
-
-        
+        x = Vector{Int}(undef, 100);
+        i = MM{1}(0)
+        for j ∈ 1:25
+            vstore!(pointer(x), j, (i * StaticInt(8)))
+            i += 1
+        end
+        for j ∈ 26:50
+            vstore!(pointer(x), j, (StaticInt(8) * i), Mask{1}(0xff))
+            i += 1
+        end
+        for j ∈ 51:75
+            vstore!(pointer(x), j, VectorizationBase.lazymul(i, StaticInt(8)))
+            i += 1
+        end
+        for j ∈ 76:100
+            vstore!(pointer(x), j, VectorizationBase.lazymul(StaticInt(8), i), Mask{1}(0xff))
+            i += 1
+        end
+        @test x == 1:100
     end
     
     @testset "Grouped Strided Pointers" begin

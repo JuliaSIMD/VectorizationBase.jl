@@ -13,5 +13,5 @@ const AVX512BW = false
 const AVX512DQ = false
 const AVX512CD = false
 const SIMD_INTEGER_REGISTER_SIZE = REGISTER_SIZE
-
+const HAS_OPMASK_REGISTERS = false
 

@@ -18,6 +18,7 @@ let llvmlib = VERSION ≥ v"1.6.0-DEV.1429" ? Libdl.dlopen(Base.libllvm_path()) 
     end
 
     @eval const SIMD_INTEGER_REGISTER_SIZE = $(avx2 ? REGISTER_SIZE : any(isequal("+sse2"), features) ? 16 : 8)
+    @eval const HAS_OPMASK_REGISTERS = AVX512F
 
     Libc.free(features_cstring)
 end
