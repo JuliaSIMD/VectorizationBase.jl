@@ -209,11 +209,23 @@ end
 end
 @generated function mask(::Union{Val{W},StaticInt{W}}, l::Integer) where {W}
     M = mask_type(W)
-    quote
-        $(Expr(:meta,:inline))
-        rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
-        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
+    if AVX512F
+        quote
+            $(Expr(:meta,:inline))
+            rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
+            Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
+        end
+    else
+        quote
+            $(Expr(:meta,:inline))
+            rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
+            rem ≥ MM{$W}(0)
+        end
     end
+end
+@generated function mask_v2(::Union{Val{W},StaticInt{W}}, l::Integer) where {W}
+    M = mask_type(W)
+    
 end
 @generated mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
 @inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)
