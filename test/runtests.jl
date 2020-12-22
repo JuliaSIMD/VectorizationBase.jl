@@ -425,7 +425,7 @@ end
             Vec(ntuple(_ -> (randn()), Val(W64))...)
         ))
         x = tovector(v)
-        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
+        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu]
             @test tovector(@inferred(f(v))) == map(f, x)
         end
         invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
@@ -469,7 +469,7 @@ end
         xi1 = tovector(vi1); xi2 = tovector(vi2);
         xi3 =  mapreduce(tovector, vcat, m1.data);
         xi4 =  mapreduce(tovector, vcat, m2.data);
-        for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
+        for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
             # @show f
             check_within_limits(tovector(@inferred(f(vi1, vi2))), f.(xi1, xi2))
             check_within_limits(tovector(@inferred(f(j, vi2))), f.(j, xi2))
