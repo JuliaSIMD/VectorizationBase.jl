@@ -44,7 +44,7 @@ end
     W = VectorizationBase.pick_vector_width(Float64)
     @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.AVX512DQ ? Int64 : Int32)
 
-    
+
     @test first(A) === A[1]
     @test W64S == W64
     @testset "Struct-Wrapped Vec" begin
@@ -174,7 +174,7 @@ end
         @test !VectorizationBase.vall(Mask{4}(0xfc))
         @test VectorizationBase.vall(Mask{8}(0xff))
         @test VectorizationBase.vall(Mask{4}(0xcf))
-        
+
         @test VectorizationBase.vany(Mask{8}(0xfc))
         @test VectorizationBase.vany(Mask{4}(0xfc))
         @test !VectorizationBase.vany(Mask{8}(0x00))
@@ -210,7 +210,7 @@ end
         @test (Mask{8}(0xac) ⊻ true) === Mask{8}(0x53)
         @test (false ⊻ Mask{8}(0xac)) === Mask{8}(0xac)
         @test (true ⊻ Mask{8}(0xac)) === Mask{8}(0x53)
-                
+
         @test (Mask{4}(0x05) | true) === Mask{4}(0x0f)
         @test (Mask{4}(0x05) | false) === Mask{4}(0x05)
         @test (true | Mask{4}(0x05)) === Mask{4}(0x0f)
@@ -238,7 +238,7 @@ end
     # @test VectorizationBase.size_loads(A,2, Val(8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__, :((() ->    17)()), 8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__,    17, 8)) == divrem(size(A,2), 8)
     # end
 
-    
+
     @testset "vector_width.jl" begin
         @test all(VectorizationBase.ispow2, 0:1)
         @test all(i -> !any(VectorizationBase.ispow2, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.ispow2(1 << i), 2:9)
@@ -281,7 +281,7 @@ end
         @test [vload(stridedpointer(C), (1+w, 2+w, 3)) for w ∈ 1:W64] == getindex.(Ref(C), 1 .+ (1:W64), 2 .+ (1:W64), 3)
         vstore!(stridedpointer(C), !mtest, ((MM{16})(17), 3, 4))
         @test .!v1 == C[17:32,3,4] == tovector(vload(stridedpointer(C), ((MM{16})(17), 3, 4)))
-        
+
         dims = (41,42,43) .* 3;
         # dims = (41,42,43);
         A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims);
@@ -344,7 +344,7 @@ end
                 @test v1 === vu.data[1]
                 @test v2 === vu.data[2]
                 @test v3 === vu.data[3]
-                
+
                 ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
                 x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
                 if AU == 1
@@ -363,7 +363,7 @@ end
                     kr = kr .+ length(kr)
                 end
                 x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-                
+
                 @test x1 == tovector(vu.data[1])
                 @test x2 == tovector(vu.data[2])
                 @test x3 == tovector(vu.data[3])
@@ -397,7 +397,7 @@ end
         end
         @test x == 1:100
     end
-    
+
     @testset "Grouped Strided Pointers" begin
         M, K, N = 4, 5, 6
         A = rand(M, K); B = rand(K, N); C = rand(M, N);
@@ -487,6 +487,11 @@ end
                 check_within_limits(tovector(@inferred(f(j, m2))), f.(j, xi4))
             end
         end
+        for f in [fld, mod]
+            @test vcat(tovector.(f.(vi1.data, vi2.data))...) == f.(xi1, xi2)
+            @test vcat(tovector.(f.(vi1.data, i))...) == f.(xi1, i)
+            @test vcat(tovector.(f.(i, vi2.data))...) == f.(i, xi2)
+        end
         @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
         vf1 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
@@ -517,7 +522,9 @@ end
         @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
         @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
         @test vf2 === v2f32
-        
+
+        @test tovector(@inferred(clamp(m1.data[2], 2:i))) == clamp.(tovector(m1.data[2]), 2, i)
+        @test tovector(@inferred(mod(m1.data[2], 1:i))) == mod1.(tovector(m1.data[2]), i)
     end
     @testset "Ternary Functions" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
@@ -528,7 +535,7 @@ end
         m = Mask{W64}(0xce)
         mv = tovector(m)
         for f ∈ [
-            muladd, fma,
+            muladd, fma, clamp,
             VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
             VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
         ]
@@ -560,7 +567,7 @@ end
         @test VectorizationBase.vprod(v2) * 3 == VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2))
         @test VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2))
         @test 4.0 == VectorizationBase.addscalar(2.0, 2.0)
-        
+
         v3 = Vec(0, 1, 2, 3); vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
         v4 = Vec(0.0, 1.0, 2.0, 3.0)
         v5 = Vec(0f0, 1f0, 2f0, 3f0, 4f0, 5f0, 6f0, 7f0)
@@ -591,7 +598,7 @@ end
         @test VectorizationBase.vzero() === VectorizationBase.vzero(W64S, Float64)
         @test VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(Int64)) === VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(Int32))
         @test VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(UInt64)) === VectorizationBase.vbroadcast(StaticInt(2)*W64S, one(UInt32))
-        
+
         @test VectorizationBase.vall(VectorizationBase.vbroadcast(W64S, pointer(A)) == vbroadcast(W64S, first(A)))
         @test VectorizationBase.vbroadcast(W64S, pointer(A,2)) === Vec{W64}(A[2]) === Vec(A[2])
 
