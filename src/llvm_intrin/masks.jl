@@ -403,6 +403,10 @@ end
 @inline ifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = ifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
 @inline ifelse(m::Mask{W}, s1, s2) where {W} = ((x1,x2) = promote(s1,s2); ifelse(m, x1, x2))
 
+@inline Base.Bool(m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
+@inline Base.convert(::Type{Bool}, m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
+@inline ifelse(m::Mask{1}, s1::T, s2::T) where {W,T<:NativeTypes} = ifelse(Bool(m), s1, s2)
+
 @inline Base.isnan(v::AbstractSIMD) = v != v
 
 @inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)

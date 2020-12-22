@@ -654,9 +654,9 @@ end
     vstore!(ptr, convert(T, v), i.i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, m::Mask{1}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {T, A, S, NT}
-    if m.u !== 0x00
+    if Bool(m)
         vstore!(ptr, convert(T, v), i.i, Val{A}(), Val{S}(), Val{NT}())
     end
     nothing
@@ -667,9 +667,9 @@ end
     vstore!(ptr, convert(T, v), _materialize(i).i, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::LazyMulAdd{M,O,MM{1,X,I}}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
+    ptr::Ptr{T}, v::Base.HWReal, i::LazyMulAdd{M,O,MM{1,X,I}}, m::Mask{1}, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {T, A, S, NT, M,O,X,I}
-    if m.u !== 0x00
+    if Bool(m)
         vstore!(ptr, convert(T, v), _materialize(i).i, Val{A}(), Val{S}(), Val{NT}())
     end
     nothing
