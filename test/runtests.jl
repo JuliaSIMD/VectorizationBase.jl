@@ -7,7 +7,8 @@ const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
 const VE = Core.VecElement
 randnvec(N = Val{W64}()) = Vec(ntuple(_ -> Core.VecElement(randn()), N))
-function tovector(u::VectorizationBase.VecUnroll{_N,W,T}) where {_N,W,T}
+function tovector(u::VectorizationBase.VecUnroll{_N,W,_T}) where {_N,W,_T}
+    T = _T === VectorizationBase.Bit ? Bool : _T
     N = _N + 1; i = 0
     x = Vector{T}(undef, N * W)
     for n ∈ 1:N
@@ -503,20 +504,6 @@ end
             @test tovector(@inferred(f(vf1, a))) ≈ f.(xf1, a)
             @test tovector(@inferred(f(vf2, a))) ≈ f.(xf2, a)
         end
-
-        vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
-        @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
-        @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
-        @test VectorizationBase.vall(vi2f == vi2)
-        W32 = StaticInt(W64)*StaticInt(2)
-        vf2 = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
-            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32))
-        ))
-        vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
-        @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
-        @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
-        @test vf2 === v2f32
         
     end
     @testset "Ternary Functions" begin
@@ -609,6 +596,31 @@ end
         @test VectorizationBase.CartesianVIndex((StaticInt(-4), StaticInt(7))):VectorizationBase.CartesianVIndex((StaticInt(14), StaticInt(73))) === CartesianIndices((StaticInt(-4):StaticInt(14),StaticInt(7):StaticInt(73)))
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) == CartesianIndices(A)
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) === CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
+    end
+    @testset "Promotion" begin
+        vi2 = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64)))
+        ))
+        vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
+        @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
+        @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
+        @test VectorizationBase.vall(vi2f == vi2)
+        vf2 = VectorizationBase.VecUnroll((
+            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
+            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))
+        ))
+        vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
+        @test vones32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 1f0),vbroadcast(StaticInt(W32), 1f0)))
+        @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 2f0),vbroadcast(StaticInt(W32), 2f0)))
+        @test vf2 === v2f32
+
+        vm = VectorizationBase.VecUnroll((
+            MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
+        ))
+        @test tovector(vm > vi2) == (tovector(vm) .> tovector(vi2))
     end
 end
 
