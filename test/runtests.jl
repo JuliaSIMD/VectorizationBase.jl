@@ -521,6 +521,7 @@ end
 
         @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
         @test tovector(mod(m1, 1:i)) == mod1.(tovector(m1), i)
+
     end
     @testset "Ternary Functions" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
@@ -551,6 +552,19 @@ end
             @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, b))) ≈ ifelse.(mv, f.(a, x2, b), b)
             @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, b, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
         end
+
+        vi64 = VectorizationBase.VecUnroll((
+           Vec(ntuple(_ -> rand(Int64), Val(W64))...),
+           Vec(ntuple(_ -> rand(Int64), Val(W64))...),
+           Vec(ntuple(_ -> rand(Int64), Val(W64))...)
+        ))
+        vi32 = VectorizationBase.VecUnroll((
+           Vec(ntuple(_ -> rand(Int32), Val(W64))...),
+           Vec(ntuple(_ -> rand(Int32), Val(W64))...),
+           Vec(ntuple(_ -> rand(Int32), Val(W64))...)
+        ))
+        xi64 = tovector(vi64); xi32 = tovector(vi32);
+        @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) == ifelse.(xi64 .> xi32, xi64, xi32)
     end
     @testset "Non-broadcasting operations" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
@@ -623,7 +637,7 @@ end
         vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
         @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
         @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
-        @test VectorizationBase.vall(vi2f == vi2)
+        @test @inferred(VectorizationBase.vall(vi2f == vi2))
         vf2 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))
@@ -633,10 +647,17 @@ end
         @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 2f0),vbroadcast(StaticInt(W32), 2f0)))
         @test vf2 === v2f32
 
-        vm = VectorizationBase.VecUnroll((
-            MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
-        ))
-        @test tovector(vm > vi2) == (tovector(vm) .> tovector(vi2))
+        
+        vm = if VectorizationBase.AVX512DQ
+            VectorizationBase.VecUnroll((
+                MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
+            ))
+        else
+            VectorizationBase.VecUnroll((
+                MM{W64}(rand(Int32)),MM{W64}(rand(Int32)),MM{W64}(rand(Int32)),MM{W64}(rand(Int32))
+            ))
+        end
+        @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
     end
 end
 

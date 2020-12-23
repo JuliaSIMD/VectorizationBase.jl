@@ -169,6 +169,10 @@ end
 # ifelse(v1::Real, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
 # ifelse(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = throw("Size mismatch")
 @inline ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap(ifelse, v1.data, v2.data, v3.data))
+@inline function ifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W}, v3::VecUnroll{N,W}) where {N,W}
+    v4, v5 = promote(v2, v3)
+    VecUnroll(fmap(ifelse, v1.data, v4.data, v5.data))
+end
 
 @inline Base.:(^)(v::VecUnroll, i::Integer) = VecUnroll(fmap(^, v.data, i))
 
