@@ -607,7 +607,7 @@ end
         vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
         @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
         @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
-        @test VectorizationBase.vall(vi2f == vi2)
+        @test @inferred(VectorizationBase.vall(vi2f == vi2))
         vf2 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))
@@ -617,10 +617,17 @@ end
         @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 2f0),vbroadcast(StaticInt(W32), 2f0)))
         @test vf2 === v2f32
 
-        vm = VectorizationBase.VecUnroll((
-            MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
-        ))
-        @test tovector(vm > vi2) == (tovector(vm) .> tovector(vi2))
+        
+        vm = if VectorizationBase.AVX512DQ
+            VectorizationBase.VecUnroll((
+                MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
+            ))
+        else
+            VectorizationBase.VecUnroll((
+                MM{W64}(rand(Int32)),MM{W64}(rand(Int32)),MM{W64}(rand(Int32)),MM{W64}(rand(Int32))
+            ))
+        end
+        @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
     end
 end
 
