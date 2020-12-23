@@ -476,13 +476,13 @@ end
             check_within_limits(tovector(@inferred(f(j, vi2))), f.(j, xi2))
             check_within_limits(tovector(@inferred(f(vi1, i))), f.(xi1, i))
             check_within_limits(tovector(@inferred(f(m1, i))), f.(xi3, i))
-            # check_within_limits(tovector(@inferred(f(m1, vi2))), f.(xi3, xi2))
-            # check_within_limits(tovector(@inferred(f(m1, m2))), f.(xi3, xi4))
+            check_within_limits(tovector(@inferred(f(m1, vi2))), f.(xi3, xi2))
+            check_within_limits(tovector(@inferred(f(m1, m2))), f.(xi3, xi4))
             check_within_limits(tovector(@inferred(f(m1, m1))), f.(xi3, xi3))
             check_within_limits(tovector(@inferred(f(m2, i))), f.(xi4, i))
-            # check_within_limits(tovector(@inferred(f(m2, vi2))), f.(xi4, xi2))
+            check_within_limits(tovector(@inferred(f(m2, vi2))), f.(xi4, xi2))
             check_within_limits(tovector(@inferred(f(m2, m2))), f.(xi4, xi4))
-            # check_within_limits(tovector(@inferred(f(m2, m1))), f.(xi4, xi3))
+            check_within_limits(tovector(@inferred(f(m2, m1))), f.(xi4, xi3))
             if !((f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right))
                 check_within_limits(tovector(@inferred(f(j, m1))), f.(j, xi3))
                 check_within_limits(tovector(@inferred(f(j, m2))), f.(j, xi4))
@@ -647,7 +647,7 @@ end
         @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 2f0),vbroadcast(StaticInt(W32), 2f0)))
         @test vf2 === v2f32
 
-        
+
         vm = if VectorizationBase.AVX512DQ
             VectorizationBase.VecUnroll((
                 MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
