@@ -56,7 +56,7 @@ for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(B
     @eval begin
         # @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
     # If `M` and `N` are known at compile time, there's no need to add nsw/nuw flags.
-        @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
+        @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M, N} = $f(StaticInt{M}(),StaticInt{N}())
         # @inline $f(::StaticInt{M}, x) where {M} = $ff(M, x)
         @inline $ff(::StaticInt{M}, x) where {M} = $ff(M, x)
         # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
@@ -95,20 +95,20 @@ end
 @inline vmul(::StaticInt{N}, i::MM{W,X}) where {W,X,N} = MM{W}(vmul(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
 @inline vmul(::StaticInt{1}, i::MM{W,X}) where {W,X} = i
 
-@generated staticp1(::StaticInt{N}) where {N} = StaticInt{N+1}()
-@inline staticp1(N) = vadd(N, one(N))
+@inline staticp1(::StaticInt{N}) where {N} = StaticInt{N}() + One()
+@inline staticp1(N) = vadd(N, One())
 @inline staticp1(i::Tuple{}) = tuple()
 @inline staticp1(i::Tuple{I}) where {I} = @inbounds (staticp1(i[1]),)
 @inline staticp1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticp1(i[1]), staticp1(i[2]))
 @inline staticp1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticp1(i[1]), staticp1(Base.tail(i))...)
-@generated staticm1(::StaticInt{N}) where {N} = StaticInt{N-1}()
+@inline staticm1(::StaticInt{N}) where {N} = StaticInt{N}() - One()
 @inline staticm1(N) = vsub(N, one(N))
 @inline staticm1(i::Tuple{}) = tuple()
 @inline staticm1(i::Tuple{I}) where {I} = @inbounds (staticm1(i[1]),)
 @inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticm1(i[1]), staticm1(i[2]))
 @inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticm1(i[1]), staticm1(Base.tail(i))...)
-@generated staticmul(::Type{T}, ::StaticInt{N}) where {T,N} = sizeof(T) * N
-@generated staticmul(::Type{T}, ::Val{N}) where {T,N} = sizeof(T) * N
+@inline staticmul(::Type{T}, ::StaticInt{N}) where {T,N} = static_sizeof(T) * StaticInt{N}()
+@inline staticmul(::Type{T}, ::Val{N}) where {T,N} = static_sizeof(T) * StaticInt{N}()
 @inline staticmul(::Type{T}, N) where {T} = vmul(N, sizeof(T))
 @inline staticmul(::Type{T}, i::Tuple{}) where {T} = tuple()
 @inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
