@@ -659,6 +659,12 @@ end
         end
         @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
     end
+    @testset "Lazymul" begin
+        # partially covered in memory
+        for i ∈ (-5, -1, 0, 1, 4, 8), j ∈ (-5, -1, 0, 1, 4, 8)
+            @test VectorizationBase.lazymul(StaticInt(i), StaticInt(j)) === VectorizationBase.lazymul_no_promote(StaticInt(i), StaticInt(j)) === StaticInt(i*j)
+        end
+    end
 end
 
             # ptr_A = pointer(A)
