@@ -49,7 +49,7 @@ F - static multiplicative factor
     isone(W) && return Expr(:block, Expr(:meta,:inline), :(vadd(i, $(O % I))))
     bytes = pick_integer_bytes(W, sizeof(I))
     bits = 8bytes
-    jtypesym = Symbol(:Int, bits)
+    jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
     iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
     typ = "i$(bits)"
     vtyp = vtype(W, typ)
@@ -85,7 +85,7 @@ end
     isone(W) && return Expr(:block, Expr(:meta,:inline), :(vmul(i, $(O % I))))
     bytes = pick_integer_bytes(W, sizeof(T))
     bits = 8bytes
-    jtypesym = Symbol(:Int, bits)
+    jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
     iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
     typ = "i$(bits)"
     vtyp = vtype(W, typ)
@@ -147,8 +147,10 @@ end
 @inline vsub(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(Vec(i), j)
 @inline vsub(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, Vec(j))
 # Multiplication
-@inline Base.:(*)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul(Vec(i), j)
-@inline Base.:(*)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul(i, Vec(j))
+@inline Base.:(*)(i::MM{W}, j::Mask{W}) where {W} = Vec(i) * j
+@inline Base.:(*)(i::Mask{W}, j::MM{W}) where {W} = i * Vec(j)
+@inline Base.:(*)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = Vec(i) * j
+@inline Base.:(*)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = i * Vec(j)
 @inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = vmul(Vec(i), Vec(j))
 @inline vmul(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul(Vec(i), j)
 @inline vmul(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul(i, Vec(j))
@@ -170,6 +172,10 @@ end
 @inline Base.float(i::MM{W,X}) where {W,X} = Vec(MM{W,X}(floattype(Val{W}())(i.i)))
 @inline Base.:(/)(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline Base.:(/)(j::T, i::MM) where {T<:Real} = j / float(i)
+
+@inline Base.:(/)(i::MM, j::VecUnroll{N,W,T,V}) where {N,W,T,V} = float(i) / j
+@inline Base.:(/)(j::VecUnroll{N,W,T,V}, i::MM) where {N,W,T,V} = j / float(i)
+
 @inline Base.:(/)(i::MM, j::MM) = float(i) / float(j)
 @inline Base.inv(i::MM) = inv(float(i))
 @inline Base.:(/)(vu::VecUnroll, m::MM) = vu * inv(m)
@@ -237,13 +243,23 @@ for f ∈ [:(<<), :(>>>), :(>>)]
         @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:StaticInt} = $f(v, Vec(i))
     end
 end
-for f ∈ [ :(÷), :(&), :(|), :(⊻), :(%), :(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
+for f ∈ [ :(&), :(|), :(⊻), :(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
     @eval begin
         @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
         @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
         @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), v)
         @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(v, Vec(i))
         @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+    end
+end
+for f ∈ [ :(÷), :(%) ]
+    @eval begin
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
+        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
     end
 end
 for f ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]

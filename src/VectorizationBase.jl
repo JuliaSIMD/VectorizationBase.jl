@@ -69,6 +69,8 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
+# const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
+const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
     @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:Union{NativeTypes,StaticInt}} = new{W,T}(x)
@@ -287,7 +289,51 @@ end
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = i.i
 
-@inline extractelement(i::MM{W,X}, j) where {W,X} = i.i + X * j
+@inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = i.i + (X % I) * (j % I)
+
+"""
+  pause()
+
+For use in spin-and-wait loops, like spinlocks.
+"""
+@inline pause() = ccall(:jl_cpu_pause, Cvoid, ())
+const CACHE_INCLUSIVITY = let
+    if !((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))
+         (false,false,false,false)
+    else
+        # source: https://github.com/m-j-w/CpuId.jl/blob/401b638cb5a020557bce7daaf130963fb9c915f0/src/CpuInstructions.jl#L38
+        # credit Markus J. Weber, copyright: https://github.com/m-j-w/CpuId.jl/blob/master/LICENSE.md
+        function get_cache_edx(subleaf)
+            Base.llvmcall(
+                """
+                    ; leaf = %0, subleaf = %1, %2 is some label
+                    ; call 'cpuid' with arguments loaded into registers EAX = leaf, ECX = subleaf
+                    %2 = tail call { i32, i32, i32, i32 } asm sideeffect "cpuid",
+                        "={ax},={bx},={cx},={dx},{ax},{cx},~{dirflag},~{fpsr},~{flags}"
+                        (i32 4, i32 %0) #2
+                    ; retrieve the result values and return eax and edx contents
+                    %3 = extractvalue { i32, i32, i32, i32 } %2, 0
+                    %4 = extractvalue { i32, i32, i32, i32 } %2, 3
+                    %5  = insertvalue [2 x i32] undef, i32 %3, 0
+                    %6  = insertvalue [2 x i32]   %5 , i32 %4, 1
+                    ; return the value
+                    ret [2 x i32] %6
+                """
+                # llvmcall requires actual types, rather than the usual (...) tuple
+                , Tuple{UInt32,UInt32}, Tuple{UInt32}, subleaf % UInt32
+            )
+        end
+        # eax0, edx1 = get_cache_edx(0x00000000)
+        l1_inc = false
+        eax1, edx1 = get_cache_edx(0x00000001)
+        l2_inc = ((edx1 & 0x00000002) != 0x00000000) & (eax1 & 0x1f != 0x00000000)
+        eax2, edx2 = get_cache_edx(0x00000002)
+        l3_inc = ((edx2 & 0x00000002) != 0x00000000) & (eax2 & 0x1f != 0x00000000)
+        eax3, edx3 = get_cache_edx(0x00000003)
+        l4_inc = ((edx3 & 0x00000002) != 0x00000000) & (eax3 & 0x1f != 0x00000000)
+        (l1_inc, l2_inc, l3_inc, l4_inc)
+    end
+end
 
 include("static.jl")
 include("cartesianvindex.jl")

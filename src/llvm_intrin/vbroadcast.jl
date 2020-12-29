@@ -121,7 +121,6 @@ end
 @inline Vec{W,T}(v::Vec{W,T}) where {W,T} = v
 # @inline vbroadcast(::Val{1}, s::T) where {T <: NativeTypes} = s
 # @inline vbroadcast(::Val{1}, s::Ptr{T}) where {T <: NativeTypes} = s
-@inline vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T} = zero(Vec{W,T})
 @inline Base.zero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
 @inline Base.zero(::Vec{W,T}) where {W,T} = zero(Vec{W,T})
 @inline Base.one(::Vec{W,T}) where {W,T} = vbroadcast(Val{W}(), one(T))

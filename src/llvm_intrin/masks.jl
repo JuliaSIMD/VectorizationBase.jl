@@ -412,6 +412,7 @@ end
 # @inline ifelse(m::Mask, s, v::Vec) = ((x,y) = promote(s,v); ifelse(m,x,y))
 @inline ifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = ifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
 @inline ifelse(m::Mask{W}, s1, s2) where {W} = ((x1,x2) = promote(s1,s2); ifelse(m, x1, x2))
+@inline ifelse(m::Mask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(ifelse, m, v1.data, v2.data))
 
 @inline Base.Bool(m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
 @inline Base.convert(::Type{Bool}, m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
@@ -466,4 +467,22 @@ end
 end
 @inline Base.convert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = convert(Bit, v)
 
-                            
+@inline Base.:(*)(v::AbstractSIMDVector, m::Mask) = ifelse(m, v, zero(v))
+@inline Base.:(*)(m::Mask, v::AbstractSIMDVector) = ifelse(m, v, zero(v))
+@inline Base.:(*)(m1::Mask, m2::Mask) = m1 & m2
+@inline Base.:(*)(v::AbstractSIMDVector, b::Bool) = b ? v : zero(v)
+@inline Base.:(*)(b::Bool, v::AbstractSIMDVector) = b ? v : zero(v)
+@inline Base.:(*)(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
+@inline Base.:(*)(b::Bool, v::VecUnroll{N,W,T}) where {N,W,T} = b ? v : zero(v)
+
+
+for (op,c) ∈ [(:(>), :(&)), (:(≥), :(&)), (:(<), :(|)), (:(≤), :(|))]
+    @eval begin
+        @inline function Base.$op(v1::Vec{W,I}, v2::Vec{W,U}) where {W,I<:Signed,U<:Unsigned}
+            m1 = $op(v1,  zero(I))
+            m2 = $op(v1 % U,  v2)
+            $c(m1, m2)
+        end
+    end
+end
+

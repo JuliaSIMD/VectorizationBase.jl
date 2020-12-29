@@ -172,7 +172,8 @@ pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
 # @inline Base.:(*)(i::MM{W}, ::StaticInt{j}) where {W,j} = MM{W}(i.i * j)
 # @inline Base.:(*)(::StaticInt{i}, j::MM{W}) where {W,i} = MM{W}(i * j.i)
 # @inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i * j.i)
-
+@inline Base.rem(i::MM{W,X,I}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = i
+@inline Base.rem(i::MM{W,X}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = MM{W,X}(i.i % I)
 # @inline scalar_less(i, j) = i < j
 # @inline scalar_less(i::MM, j::Integer) = i.i < j
 # @inline scalar_less(i::Integer, j::MM) = i < j.i

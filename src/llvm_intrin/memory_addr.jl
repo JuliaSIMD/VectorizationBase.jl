@@ -23,7 +23,8 @@ const SCOPE_METADATA = """
 !2 = !{!\"noaliasscope\", !1}
 !3 = !{!2}
 """
-const SCOPE_FLAGS = ", !alias.scope !3";
+const LOAD_SCOPE_FLAGS = ", !alias.scope !3";
+const STORE_SCOPE_FLAGS = ", !noalias !3";
 
 const USE_TBAA = false
 # use TBAA?
@@ -36,7 +37,7 @@ let
     """;
     LOAD_TBAA_FLAGS = ", !tbaa !5";
     global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_SCOPE_TBAA : SCOPE_METADATA;
-    global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? SCOPE_FLAGS * LOAD_TBAA_FLAGS : SCOPE_FLAGS
+    global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? LOAD_SCOPE_FLAGS * LOAD_TBAA_FLAGS : LOAD_SCOPE_FLAGS
         
     global const STORE_TBAA = USE_TBAA ? """
     !4 = !{!"jtbaa", !5, i64 0}
@@ -475,7 +476,7 @@ function vstore_quote(
     alignment = (align & (!grv)) ? Base.datatype_alignment(jtyp) : Base.datatype_alignment(T)
 
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
-    metadata = noalias ? SCOPE_FLAGS * STORE_TBAA_FLAGS : STORE_TBAA_FLAGS
+    metadata = noalias ? STORE_SCOPE_FLAGS * STORE_TBAA_FLAGS : STORE_TBAA_FLAGS
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
     typ = LLVM_TYPES[T]

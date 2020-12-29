@@ -42,6 +42,10 @@ else
     @inline Base.max(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = ifelse(v1 > v2, v1, v2)
     @inline Base.min(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = ifelse(v1 < v2, v1, v2)
 end
+@inline Base.max(s::NativeTypes, v::Vec{W}) where {W} = max(vbroadcast(Val{W}(), s), v)
+@inline Base.max(v::Vec{W}, s::NativeTypes) where {W} = max(v, vbroadcast(Val{W}(), s))
+@inline Base.min(s::NativeTypes, v::Vec{W}) where {W} = min(vbroadcast(Val{W}(), s), v)
+@inline Base.min(v::Vec{W}, s::NativeTypes) where {W} = min(v, vbroadcast(Val{W}(), s))
 # for T ∈ [Float32, Float64]
 #     W = 2
 #     while W * sizeof(T) ≤ REGISTER_SIZE
@@ -140,12 +144,13 @@ end
 
 @inline Base.copysign(x::Float32, v::Vec{W}) where {W} = copysign(vbroadcast(Val{W}(), x), v)
 @inline Base.copysign(x::Float64, v::Vec{W}) where {W} = copysign(vbroadcast(Val{W}(), x), v)
-@inline Base.copysign(x::Float32, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
-@inline Base.copysign(x::Float64, v::VecUnroll{N,W}) where {N,W} = copysign(vbroadcast(Val{W}(), x), v)
+@inline Base.copysign(x::Float32, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = copysign(vbroadcast(Val{W}(), x), v)
+@inline Base.copysign(x::Float64, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = copysign(vbroadcast(Val{W}(), x), v)
 @inline Base.copysign(v::Vec, u::VecUnroll) = VecUnroll(fmap(copysign, v, u.data))
 @inline Base.copysign(v::Vec{W,T}, x::NativeTypes) where {W,T} = copysign(v, Vec{W,T}(x))
 @inline Base.copysign(v1::Vec{W,T}, v2::Vec{W}) where {W,T} = copysign(v1, convert(Vec{W,T}, v2))
-
+@inline Base.copysign(v1::Vec{W,T}, ::Vec{W,<:Unsigned}) where {W,T} = abs(v1)
+@inline Base.copysign(s::IntegerTypesHW, v::Vec{W}) where {W} = copysign(vbroadcast(Val{W}(), s), v)
 
 # ternary
 for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
@@ -256,10 +261,34 @@ for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
         llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3))
     end
 end
-funnel_shift_left(a, b, c) = (a << c) | (b >>> (8sizeof(b) - c))
-funnel_shift_right(a, b, c) = (a >>> c) | (b << (8sizeof(b) - c))
-@inline rotate_left(a, b) = funnel_shift_left(a, a, b)
-@inline rotate_right(a, b) = funnel_shift_right(a, a, b)
+@inline function funnel_shift_left(a::T, b::T, c::T) where {T}
+    _T = eltype(a)
+    S = 8sizeof(_T) % _T
+    (a << c) | (b >>> (S - c))
+end
+@inline function funnel_shift_right(a::T, b::T, c::T) where {T}
+    _T = eltype(a)
+    S = 8sizeof(_T) % _T
+    (a >>> c) | (b << (S - c))
+end
+@inline function funnel_shift_left(_a, _b, _c)
+    a, b, c = promote(_a, _b, _c)
+    funnel_shift_left(a, b, c)
+end
+@inline function funnel_shift_right(_a, _b, _c)
+    a, b, c = promote(_a, _b, _c)
+    funnel_shift_right(a, b, c)
+end
+@inline rotate_left(a::T, b::T) where {T} = funnel_shift_left(a, a, b)
+@inline rotate_right(a::T, b::T) where {T} = funnel_shift_right(a, a, b)
+@inline function rotate_left(_a, _b)
+    a, b = promote_div(_a, _b)
+    funnel_shift_left(a, a, b)
+end
+@inline function rotate_right(_a, _b)
+    a, b = promote_div(_a, _b)
+    funnel_shift_right(a, a, b)
+end
 
 # for T ∈ [UInt8,UInt16,UInt32,UInt64]
 #     bytes = sizeof(T)

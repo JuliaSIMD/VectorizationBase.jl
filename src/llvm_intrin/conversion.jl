@@ -41,6 +41,9 @@ end
     end
 end
 
+@inline Base.signed(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % signed(T)
+@inline Base.unsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
+
 @inline Base.float(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
 @generated function Base.float(v::Vec{W,I}) where {W, I <: Integer}
     ex = if 8W ≤ REGISTER_SIZE
@@ -104,8 +107,11 @@ end
     VecUnroll{N}(convert(T, v))
 end
 @inline Base.convert(::Type{Vec{W,T}}, v::Vec{W,S}) where {T<:Number,S,W} = Vec{W,T}(v)
+@inline Base.convert(::Type{Vec{W,T}}, v::Vec{W,T}) where {T<:Number,W} = v
 @inline Base.unsafe_trunc(::Type{I}, v::Vec{W,T}) where {W,I,T} = convert(Vec{W,I}, v)
-@inline Base.:(%)(v::Vec{W,T}, ::Type{I}) where {W,I,T} = convert(Vec{W,I}, v)
+@inline Base.:(%)(v::AbstractSIMDVector{W,T}, ::Type{I}) where {W,I,T} = convert(Vec{W,I}, v)
+@inline Base.:(%)(v::AbstractSIMDVector{W,T}, ::Type{V}) where {W,I,T,V<:AbstractSIMD{W,I}} = convert(V, v)
+@inline Base.:(%)(r::Integer, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = vbroadcast(Val{W}(), r % I)
 
 @inline Base.convert(::Type{T}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) where {T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
 @inline Base.convert(::Type{<:AbstractSIMD{W,T}}, v::Union{Mask{W},VecUnroll{<:Any, W, Bool, <: Mask}}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
