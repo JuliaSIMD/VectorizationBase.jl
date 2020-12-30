@@ -825,8 +825,9 @@ function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M:
     # TODO: Consider doing some alignment checks before accepting user's `align`?
     alignval = Expr(:call, Expr(:curly, :Val, align))
     for n in 1:N
-        l = Expr(:call, :vload, :gptr, inds[n], alignval)
+        l = Expr(:call, :vload, :gptr, inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
+        push!(l.args, alignval)
         M >>= 1
         push!(t.args, l)
     end
@@ -858,8 +859,9 @@ function vstore_unroll_quote(
     noaliasval = Expr(:call, Expr(:curly, :Val, noalias))
     nontemporalval = Expr(:call, Expr(:curly, :Val, nontemporal))
     for n in 1:N
-        l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n), inds[n], alignval, noaliasval, nontemporalval)
+        l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n), inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
+        push!(l.args, alignval, noaliasval, nontemporalval)
         M >>= 1
         push!(q.args, l)
     end
