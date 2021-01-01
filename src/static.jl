@@ -8,48 +8,19 @@
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :StaticInt, sizeof(T))))
 end
 
-# @inline static_last(::Type{T}) where {T} = static(known_last(T))
-# @inline static_first(::Type{T}) where {T} = static(known_first(T))
-# @inline static_length(::Type{T}) where {T} = static(known_length(T))
-
 @inline maybestaticfirst(a) = static_first(a)
 @inline maybestaticlast(a) = static_last(a)
 @inline maybestaticlength(a) = static_length(a)
-
-# @inline _maybestaticfirst(a, ::Nothing) = first(a)
-# @inline _maybestaticfirst(::Any, L) = StaticInt{L}()
-# @inline maybestaticfirst(a::T) where {T} = _maybestaticfirst(a, known_first(T))
-
-# @inline _maybestaticlast(a, ::Nothing) = last(a)
-# @inline _maybestaticlast(::Any, L) = StaticInt{L}()
-# @inline maybestaticlast(a::T) where {T} = _maybestaticlast(a, known_last(T))
-
-
-
-# @inline _maybestaticlength(a, L::Int, U::Int) = StaticInt{U-L}()
-# @inline _maybestaticlength(a, ::Any, ::Any) = length(a)
-# @inline _maybestaticlength(a, ::Nothing) = _maybestaticlength(a, known_first(a), known_last(a))
-# @inline _maybestaticlength(::Any, L::Int) = StaticInt{L}()
-# @inline maybestaticlength(a::T) where {T} = _maybestaticlength(a, known_length(T))
+@inline maybestaticlength(a::UnitRange{T}) where {T} = last(a) - first(a) + oneunit(T)
 
 @inline maybestaticrange(r::Base.OneTo{T}) where {T} = ArrayInterface.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
 @inline maybestaticrange(r::UnitRange) = r
-# @inline maybestaticrange(r::AbstractStaticIntUnitRange) = r
 @inline maybestaticrange(r) = maybestaticfirst(r):maybestaticlast(r)
-# @inline maybestaticaxis(A::AbstractArray, ::Val{I}) where {I} = maybestaticfirstindex(A, Val{I}()):maybestaticsize(A, Val{I}())
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = StaticInt{N}() # should we assert that i == 1?
-@inline maybestaticlength(::NTuple{N}) where {N} = StaticInt{N}()
 @inline maybestaticsize(::LinearAlgebra.Adjoint{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticsize(::LinearAlgebra.Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
-@inline maybestaticlength(B::LinearAlgebra.Adjoint) = maybestaticlength(parent(B))
-@inline maybestaticlength(B::LinearAlgebra.Transpose) = maybestaticlength(parent(B))
 @inline maybestaticsize(A, ::Val{N}) where {N} = ArrayInterface.size(A)[N]
-# @inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
-# @inline maybestaticsize(B::LinearAlgebra.Adjoint{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
-# @inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{1}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{2}())
-# @inline maybestaticsize(B::LinearAlgebra.Transpose{T,A}, ::Val{2}) where {T,A<:AbstractMatrix{T}} = maybestaticsize(parent(B), Val{1}())
-
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.
 for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(Base.:<<),:vshl), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)]

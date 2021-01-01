@@ -47,7 +47,9 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
         @generated $_ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W1, T, W2)
         @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op($op, W1, T, W2)
         Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
-        @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
+        @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
+        @inline $ff(v1::Unsigned, v2::Signed) = $ff(v1, unsigned(v2))
+        @inline $ff(v1::Signed, v2::Unsigned) = $ff(unsigned(v1), v2)
     end
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]
