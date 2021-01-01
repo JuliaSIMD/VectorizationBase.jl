@@ -153,11 +153,13 @@ end
 @inline Base.copysign(s::IntegerTypesHW, v::Vec{W}) where {W} = copysign(vbroadcast(Val{W}(), s), v)
 
 # ternary
-for (op,f) ∈ [("fma",:fma),("fmuladd",:muladd)]
-    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+for (op,f) ∈ [("fma",:vfmadd_strict),("fmuladd",:vfmadd)]
+    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: FloatingTypes}
         llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3), $(f === :fma ? nothing : "nsz arcp contract afn reassoc"))
     end
 end
+@inline Base.fma(a::Vec, b::Vec, c::Vec) = vfmadd_strict(a,b,c)
+@inline Base.muladd(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,T<:FloatingTypes} = vfmadd(a,b,c)
 # floating vector, integer scalar
 # @generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")
@@ -310,10 +312,11 @@ end
 #     end
 # end
 
+# vfmadd -> muladd -> promotes arguments to hit definitions from VectorizationBase
 @inline vfmadd(a, b, c) = muladd(a, b, c)
-@inline vfnmadd(a, b, c) = muladd(-a, b, c)
-@inline vfmsub(a, b, c) = muladd(a, b, -c)
-@inline vfnmsub(a, b, c) = -muladd(a, b, c)
+@inline vfnmadd(a, b, c) = vfmadd(-a, b, c)
+@inline vfmsub(a, b, c) = vfmadd(a, b, -c)
+@inline vfnmsub(a, b, c) = -vfmadd(a, b, c)
 
 @inline vfmadd231(a, b, c) = vfmadd(a, b, c)
 @inline vfnmadd231(a, b, c) = vfnmadd(a, b, c)
