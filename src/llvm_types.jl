@@ -13,6 +13,20 @@ const LLVM_TYPES = IdDict{Type{<:NativeTypes},String}(
     Bool => "i8",
     Bit => "i1"
 )
+const JULIA_TYPES = IdDict{Type{<:NativeTypes},Symbol}(
+    Float32 => :Float32,
+    Float64 => :Float64,
+    Int8 => :Int8,
+    Int16 => :Int16,
+    Int32 => :Int32,
+    Int64 => :Int64,
+    UInt8 => :UInt8,
+    UInt16 => :UInt16,
+    UInt32 => :UInt32,
+    UInt64 => :UInt64,
+    Bool => :Bool,
+    Bit => :Bit
+)
 const LLVM_TYPES_SYM = IdDict{Symbol,String}(
     :Float32 => "float",
     :Float64 => "double",
@@ -28,6 +42,45 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
     :Bit => "i1",
     :Nothing => "void"
 )
+const TYPE_LOOKUP = IdDict{Symbol,Type{<:NativeTypes}}(
+    :Float32 => Float32,
+    :Float64 => Float64,
+    :Int8 => Int8,
+    :Int16 => Int16,
+    :Int32 => Int32,
+    :Int64 => Int64,
+    :UInt8 => UInt8,
+    :UInt16 => UInt16,
+    :UInt32 => UInt32,
+    :UInt64 => UInt64,
+    :Bool => Bool,
+    :Bit => Bit
+)
+const JULIA_TYPE_SIZE = IdDict{Symbol,Int}(
+    :Float32 => 4,
+    :Float64 => 8,
+    :Int8 => 1,
+    :Int16 => 2,
+    :Int32 => 4,
+    :Int64 => 8,
+    :UInt8 => 1,
+    :UInt16 => 2,
+    :UInt32 => 4,
+    :UInt64 => 8,
+    :Bool => 1,
+    :Bit => 1
+)
+
+
+function _get_alignment(W::Int, sym::Symbol)::Int
+    sym === :Bit && return 1
+    T = TYPE_LOOKUP[sym]
+    if W > 1
+        Base.datatype_alignment(_Vec{W,T})
+    else
+        Base.datatype_alignment(T)
+    end
+end
 
     
 const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
@@ -36,19 +89,22 @@ vtype(W, typ) = isone(abs(W)) ? typ : "<$W x $typ>"
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])
 julia_type(W, T) = isone(abs(W)) ? T : _Vec{W,T}
 
+ptr_suffix(T) = "p0" * suffix(T)
+ptr_suffix(W, T) = suffix(W, ptr_suffix(T))
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
 suffix(W::Int, T) = suffix(W, suffix(T))
 suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
-function suffix(@nospecialize(T))
-    if T === Float32 || T === Float64
-        t = 'f'
-    elseif T === Bool
-        return "i1"
+suffix_jlsym(W::Int, s::Symbol) = suffix(W, suffix(T))
+function suffix(T::Symbol)::String
+    if T === :Float64
+        "f64"
+    elseif T === :Float32
+        "f32"
     else
-        t = 'i'
+        string('i', 8JULIA_TYPE_SIZE[T])
     end
-    string(t, 8sizeof(T))
 end
+suffix(@nospecialize(T))::String = suffix(JULIA_TYPES[T])
 
 # Type-dependent LLVM constants
 function llvmconst(T, val)

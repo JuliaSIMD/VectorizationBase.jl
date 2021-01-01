@@ -9,7 +9,8 @@ function _precompile_()
         for I ∈ (Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64)
             precompile(vload_quote, (Type{T}, Type{I}, Symbol, Int, Int, Int, Int, Bool, Bool))
         end
-        # precompile(vfmadd, (Vec{4, T}, Vec{4, T}, Vec{4, T}))  # doesn't "take" (too bad, this is expensive)
+        W = pick_vector_width(T)
+        precompile(vfmadd, (Vec{W, T}, Vec{W, T}, Vec{W, T}))  # doesn't "take" (too bad, this is expensive)
     end
     U = NativeTypes
     while isa(U, Union)

@@ -501,7 +501,7 @@ end
             I3 = promote_type(I1,I2); 
             for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini]
             # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
-                @show f, I1, I2
+                # @show f, I1, I2
                 check_within_limits(tovector(@inferred(f(vi1, vi2))),  trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3));
                 check_within_limits(tovector(@inferred(f(j, vi2))), trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)), I3));
                 check_within_limits(tovector(@inferred(f(vi1, i))), trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)), I3));

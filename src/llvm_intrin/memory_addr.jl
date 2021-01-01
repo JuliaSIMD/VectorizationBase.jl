@@ -65,21 +65,26 @@ For this last issue, an alternate workaround would be to wrap a `Vec` of 32-bit 
 internal llvmcall functions, but I haven't really explored this optimization.
 """
 function offset_ptr(
-    ::Type{T}, ind_type::Symbol, indargname, ibits::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
+    ::Type{T}, ind_type::Symbol, indargname, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool
 ) where {T}
+    T_sym = JULIA_TYPES[T]
+    offset_ptr(T_sym, sizeof_T, ind_type, indargname, ibits, W, X, M, O, forgep)
+end
+function offset_ptr(
+    T_sym::Symbol, ind_type::Symbol, indargname, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool
+)
+    sizeof_T = JULIA_TYPE_SIZE[T_sym]
     i = 0
-    isbit = T === Bit
     Morig = M
+    isbit = T_sym === :Bit
     if isbit
-        sizeof_T = 1
         typ = "i1"
         vtyp = isone(W) ? typ : "<$W x i1>"
         M = max(1, M >> 3)
         O >>= 3
         @assert ((isone(X) | iszero(X)) && (ind_type !== :Vec)) "indexing BitArrays with a vector not currently supported."
     else
-        sizeof_T = sizeof(T)
-        typ = LLVM_TYPES[T]
+        typ = LLVM_TYPES_SYM[T_sym]
         vtyp = vtype(W, typ) # vtyp is dest type
     end
     instrs = String[]
@@ -204,36 +209,45 @@ end
 gep_returns_vector(W::Int, X::Int, M::Int, ind_type::Symbol) = (!isone(W) && ((ind_type === :Vec) || !(isone(X) | iszero(X))))
 #::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
 function gep_quote(
-    ::Type{T}, ind_type::Symbol, ::Type{I}, W::Int = 1, X::Int = sizeof(T), M::Int = 1, O::Int = 0, forgep::Bool = false
+    ::Type{T}, ind_type::Symbol, ::Type{I}, W::Int, X::Int, M::Int, O::Int, forgep::Bool
 ) where {T, I}
+    T_sym = JULIA_TYPES[T]
+    I_sym = JULIA_TYPES[I]
+    gep_quote(T_sym, ind_type, I_sym, W, X, M, O, forgep)
+end
+function gep_quote(
+    T_sym::Symbol, ind_type::Symbol, I_sym::Symbol, W::Int, X::Int, M::Int, O::Int, forgep::Bool
+)
+    sizeof_T = JULIA_TYPE_SIZE[T_sym]
+    sizeof_I = JULIA_TYPE_SIZE[I_sym]
     if W > 1 && ind_type !== :Vec
-        X, Xr = divrem(X, sizeof(T))
+        X, Xr = divrem(X, sizeof_T)
         @assert iszero(Xr)
     end
     if iszero(O) && (iszero(X) | isone(X)) && (iszero(M) || ind_type === :StaticInt)
         return Expr(:block, Expr(:meta, :inline), :ptr)
     end
-    ibits = 8sizeof(I)
+    ibits = 8sizeof_I
     # ::Type{T}, ind_type::Symbol, indargname = '1', ibytes::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
-    instrs, i = offset_ptr(T, ind_type, '1', ibits, W, X, M, O, true)
-    ret = Expr(:curly, :Ptr, T)
+    instrs, i = offset_ptr(T_sym, ind_type, '1', ibits, W, X, M, O, true)
+    ret = Expr(:curly, :Ptr, T_sym)
     lret = JULIAPOINTERTYPE
     if gep_returns_vector(W, X, M, ind_type)
         ret = Expr(:curly, :_Vec, W, ret)
         lret = "<$W x $lret>"
     end
 
-    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T))
+    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
     largs = String[JULIAPOINTERTYPE]
     arg_syms = Union{Symbol,Expr}[:ptr]
     
     if !(iszero(M) || ind_type === :StaticInt)
         push!(arg_syms, Expr(:call, :data, :i))
         if ind_type === :Integer
-            push!(args.args, I)
+            push!(args.args, I_sym)
             push!(largs, "i$(ibits)")
         else
-            push!(args.args, Expr(:curly, :_Vec, W, I))
+            push!(args.args, Expr(:curly, :_Vec, W, I_sym))
             push!(largs, "<$W x i$(ibits)>")
         end
     end
@@ -258,29 +272,48 @@ end
 end
 @inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
 
+
 function vload_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool = false
 ) where {T <: NativeTypes, I <: Integer}
-    ibits = 8sizeof(I)
+    T_sym = JULIA_TYPES[T]
+    I_sym = JULIA_TYPES[I]
+    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align)
+end
+function vload_quote(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool = false
+)
+    isbit = T_sym === :Bit
+    if !isbit && W > 1
+        return vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, :(_Vec{$W,$T_sym}))
+    end
+    jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
+    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, jtyp)
+end
+function vload_quote(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, ret
+)
+    sizeof_T = JULIA_TYPE_SIZE[T_sym]
+    sizeof_I = JULIA_TYPE_SIZE[I_sym]
+    ibits = 8sizeof_I
     if W > 1 && ind_type !== :Vec
-        X, Xr = divrem(X, sizeof(T))
+        X, Xr = divrem(X, sizeof_T)
         @assert iszero(Xr)
     end
-    instrs, i = offset_ptr(T, ind_type, '1', ibits, W, X, M, O, false)
+    instrs, i = offset_ptr(T_sym, ind_type, '1', ibits, W, X, M, O, false)
     grv = gep_returns_vector(W, X, M, ind_type)
     # considers booleans to only occupy 1 bit in memory, so they must be handled specially
-    isbit = T === Bit
+    isbit = T_sym === :Bit
     if isbit
         # @assert !grv "gather's not are supported with `BitArray`s."
         mask = false # TODO: not this?
-        jtyp = isone(W) ? Bool : mask_type(W)
         # typ = "i$W"
+        alignment = (align & (!grv)) ? cld(W,8) : 1
         typ = "i1"
     else
-        jtyp = isone(W) ? T : _Vec{W,T}
-        typ = LLVM_TYPES[T]
-    end
-    alignment = (align & (!grv)) ? Base.datatype_alignment(jtyp) : Base.datatype_alignment(T)
+        alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
+        typ = LLVM_TYPES_SYM[T_sym]
+    end    
         
     decl = LOAD_SCOPE_TBAA
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
@@ -288,13 +321,13 @@ function vload_quote(
     vtyp = vtype(W, typ)
     mask && truncate_mask!(instrs, '1' + dynamic_index, W, 0)
     if grv
-        loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T) * '.' * suffix(W, Ptr{T})
+        loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
         passthrough = mask ? "zeroinitializer" : "undef"
         push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" * LOAD_SCOPE_TBAA_FLAGS)
     elseif mask
-        suff = suffix(W, T)
+        suff = suffix(W, T_sym)
         loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
         decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
         push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" * LOAD_SCOPE_TBAA_FLAGS)
@@ -318,17 +351,16 @@ function vload_quote(
         lret = vtyp
         push!(instrs, "ret $vtyp %res")
     end
-    ret = jtyp
-    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T))
+    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
     largs = String[JULIAPOINTERTYPE]
     arg_syms = Union{Symbol,Expr}[:ptr]
     if dynamic_index
         push!(arg_syms, :(data(i)))
         if ind_type === :Integer
-            push!(args.args, I)
+            push!(args.args, I_sym)
             push!(largs, "i$(ibits)")
         else
-            push!(args.args, :(_Vec{$W,$I}))
+            push!(args.args, :(_Vec{$W,$I_sym}))
             push!(largs, "<$W x i$(ibits)>")
         end
     end
@@ -462,34 +494,51 @@ end
 function vstore_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool
 ) where {T <: NativeTypes, I <: Integer}
-    ibits = 8sizeof(I)
+    T_sym = JULIA_TYPES[T]
+    I_sym = JULIA_TYPES[I]
+    vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal)
+end
+function vstore_quote(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool
+)
+    if W > 1
+        vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, :(_Vec{$W,$T_sym}))
+    else
+        vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, T_sym)
+    end
+end
+function vstore_quote(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, jtyp
+)
+    sizeof_T = JULIA_TYPE_SIZE[T_sym]
+    sizeof_I = JULIA_TYPE_SIZE[I_sym]
+    ibits = 8sizeof_I
     if W > 1 && ind_type !== :Vec
-        X, Xr = divrem(X, sizeof(T))
+        X, Xr = divrem(X, sizeof_T)
         @assert iszero(Xr)
     end
-    instrs, i = offset_ptr(T, ind_type, '2', ibits, W, X, M, O, false)
+    instrs, i = offset_ptr(T_sym, ind_type, '2', ibits, W, X, M, O, false)
     
     grv = gep_returns_vector(W, X, M, ind_type)
-    jtyp = isone(W) ? T : _Vec{W,T}
 
     align != nontemporal # should I do this?
-    alignment = (align & (!grv)) ? Base.datatype_alignment(jtyp) : Base.datatype_alignment(T)
+    alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
 
     decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
     metadata = noalias ? STORE_SCOPE_FLAGS * STORE_TBAA_FLAGS : STORE_TBAA_FLAGS
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
-    typ = LLVM_TYPES[T]
+    typ = LLVM_TYPES_SYM[T_sym]
     lret = vtyp = vtype(W, typ)
     mask && truncate_mask!(instrs, '2' + dynamic_index, W, 0)
     if grv
-        storeinstr = "void @llvm.masked.scatter." * suffix(W, T) * '.' * suffix(W, Ptr{T})
+        storeinstr = "void @llvm.masked.scatter." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
         push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" * metadata)
         # push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
     elseif mask
-        suff = suffix(W, T)
+        suff = suffix(W, T_sym)
         storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
         decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
         push!(instrs, "call $storeinstr($vtyp %1, $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" * metadata)
@@ -500,16 +549,21 @@ function vstore_quote(
     end
     push!(instrs, "ret void")
     ret = :Cvoid; lret = "void"
-    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T), isone(W) ? T : Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, T)))
+    ptrtyp = Expr(:curly, :Ptr, T_sym)
+    args = if W > 1
+        Expr(:curly, :Tuple, ptrtyp, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, T_sym)))
+    else
+        Expr(:curly, :Tuple, ptrtyp, T_sym)
+    end
     largs = String[JULIAPOINTERTYPE, vtyp]
     arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
     if dynamic_index
         push!(arg_syms, :(data(i)))
         if ind_type === :Integer
-            push!(args.args, I)
+            push!(args.args, I_sym)
             push!(largs, "i$(ibits)")
         else
-            push!(args.args, :(_Vec{$W,$I}))
+            push!(args.args, :(_Vec{$W,$I_sym}))
             push!(largs, "<$W x i$(ibits)>")
         end
     end
