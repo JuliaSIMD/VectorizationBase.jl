@@ -36,7 +36,7 @@ let
     !6 = !{!"jtbaa_arraybuf", !4, i64 0}
     """;
     LOAD_TBAA_FLAGS = ", !tbaa !5";
-    global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_SCOPE_TBAA : SCOPE_METADATA;
+    global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_TBAA : SCOPE_METADATA;
     global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? LOAD_SCOPE_FLAGS * LOAD_TBAA_FLAGS : LOAD_SCOPE_FLAGS
         
     global const STORE_TBAA = USE_TBAA ? """
