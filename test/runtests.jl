@@ -312,12 +312,12 @@ end
 
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
-        indices = Real[
+        indices = (
             StaticInt{1}(), StaticInt{3}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> 2i + 1, Val(W64))...),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
-        ]
+        )
         # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
-        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ [A, P, O]
+        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ (A, P, O)
             i = VectorizationBase.lazymul(im, _i)
             j = VectorizationBase.lazymul(jm, _j)
             k = VectorizationBase.lazymul(km, _k)
@@ -357,7 +357,7 @@ end
                 end
             end
         end
-        for AU ∈ 1:3, B ∈ [A, P, O]
+        for AU ∈ 1:3, B ∈ (A, P, O)
             i, j, k = 2, 3, 4
             for AV ∈ 1:3
                 v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
