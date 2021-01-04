@@ -6,7 +6,12 @@ using ArrayInterface: StaticInt, Zero, One, contiguous_axis, contiguous_axis_ind
     known_length, known_first, known_last, strides, offsets,
     static_first, static_last, static_length
 import IfElse: ifelse
-# using LinearAlgebra: Adjoint, 
+
+using Preferences
+
+include("preferences.jl")
+
+# using LinearAlgebra: Adjoint,
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
