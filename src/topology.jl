@@ -11,7 +11,7 @@ const CACHE_COUNT = (
 )
 const NUM_CORES = COUNTS[:Core]
 
-const CACHE_LEVELS = something(findfirst(isequal(0), CACHE_COUNT) - 1, length(CACHE_COUNT) + 1)
+const CACHE_LEVELS = something(findfirst(isequal(0), CACHE_COUNT), length(CACHE_COUNT) + 1) - 1
 
 function define_cache(N)
     if N > CACHE_LEVELS
