@@ -324,14 +324,18 @@ const CACHE_INCLUSIVITY = let
             )
         end
         # eax0, edx1 = get_cache_edx(0x00000000)
-        l1_inc = false
-        eax1, edx1 = get_cache_edx(0x00000001)
-        l2_inc = ((edx1 & 0x00000002) != 0x00000000) & (eax1 & 0x1f != 0x00000000)
-        eax2, edx2 = get_cache_edx(0x00000002)
-        l3_inc = ((edx2 & 0x00000002) != 0x00000000) & (eax2 & 0x1f != 0x00000000)
-        eax3, edx3 = get_cache_edx(0x00000003)
-        l4_inc = ((edx3 & 0x00000002) != 0x00000000) & (eax3 & 0x1f != 0x00000000)
-        (l1_inc, l2_inc, l3_inc, l4_inc)
+        t = (false,false,false,false)
+        i = zero(UInt32)
+        j = 0
+        while (j < 4)
+            eax, edx = get_cache_edx(i)
+            i += one(UInt32)
+            iszero(eax & 0x1f) && break
+            iszero(eax & 0x01) && continue
+            ci = ((edx & 0x00000002) != 0x00000000) & (eax & 0x1f != 0x00000000)
+            t = Base.setindex(t, ci, (j += 1))
+        end
+        t
     end
 end
 
