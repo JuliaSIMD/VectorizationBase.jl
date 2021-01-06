@@ -5,7 +5,7 @@
 @inline _ifmalo(v1, v2, v3) = __ifmalo(v1, v2, v3)
 function ifmahi_quote(W)
     mask = W > 1 ? llvmconst(W, "i64 4503599627370495") : "4503599627370495"
-    shift = W > 1 ? llvmconst(W, "i64 52") : "52"
+    shift = W > 1 ? llvmconst(W, "i128 52") : "52"
     t64 = W > 1 ? "<$W x i64>" : "i64"
     t128 = W > 1 ? "<$W x i128>" : "i128"
     instrs = """
@@ -20,10 +20,9 @@ function ifmahi_quote(W)
         ret $t64 %res
     """
     jt = W > 1 ? :(_Vec{$W,UInt64}) : :UInt64
-    quote
-        $(Expr(:meta,:inline))
-        llvmcall($instrs, $jt, Tuple{$jt,$jt,$jt}, data(v1), data(v2), data(v3))
-    end
+    call = :(llvmcall($instrs, $jt, Tuple{$jt,$jt,$jt}, data(v1), data(v2), data(v3)))
+    W > 1 && (call = Expr(:call, :Vec, call))
+    Expr(:block, Expr(:meta,:inline), call)
 end
 @generated _ifmahi(v1::UInt64, v2::UInt64, v3::UInt64) = ifmahi_quote(1)
 @generated __ifmahi(v1::Vec{W,UInt64}, v2::Vec{W,UInt64}, v3::Vec{W,UInt64}) where {W} = ifmahi_quote(W)
