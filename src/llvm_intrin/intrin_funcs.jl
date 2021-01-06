@@ -438,61 +438,6 @@ if FMA
         end
     end
 end
-    # for T ∈ [Float32,Float64]
-    #     W = 16 ÷ sizeof(T)
-    #     local suffix = T == Float32 ? "ps" : "pd"
-    #     typ = LLVM_TYPES[T]
-    #     while W <= VectorizationBase.REGISTER_SIZE ÷ sizeof(T)
-    #         vfmadd_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
-    #             ret <$W x $(typ)> %res"""
-    #         vfnmadd_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
-    #             ret <$W x $(typ)> %res"""
-    #         vfmsub_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
-    #             ret <$W x $(typ)> %res"""
-    #         vfnmsub_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1", "=v,0,v,v"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0)
-    #             ret <$W x $(typ)> %res"""
-    #         @eval begin
-    #             @inline function vfmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                 Vec(llvmcall($vfmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-    #             end
-    #             @inline function vfnmadd231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                 Vec(llvmcall($vfnmadd_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-    #             end
-    #             @inline function vfmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                 Vec(llvmcall($vfmsub_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-    #             end
-    #             @inline function vfnmsub231(a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                 Vec(llvmcall($vfnmsub_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
-    #             end
-    #         end
-    #         if VectorizationBase.AVX512BW && W ≥ 8
-    #             vfmaddmask_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-    #                 ret <$W x $(typ)> %res"""
-    #             vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-    #                 ret <$W x $(typ)> %res"""
-    #             vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-    #                 ret <$W x $(typ)> %res"""
-    #             vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
-    #                 ret <$W x $(typ)> %res"""
-    #             U = VectorizationBase.mask_type(W)
-    #             @eval begin
-    #                 @inline function ifelse(::typeof(vfmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                     Vec(llvmcall($vfmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-    #                 end
-    #                 @inline function ifelse(::typeof(vfnmadd231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                     Vec(llvmcall($vfnmaddmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-    #                 end
-    #                 @inline function ifelse(::typeof(vfmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                     Vec(llvmcall($vfmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-    #                 end
-    #                 @inline function ifelse(::typeof(vfnmsub231), m::Mask{$W,$U}, a::Vec{$W,$T}, b::Vec{$W,$T}, c::Vec{$W,$T})
-    #                     Vec(llvmcall($vfnmsubmask_str, Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
-    #                 end
-    #             end
-    #         end
-    #         W += W
-    #     end
-# end
 
 @inline ifelse(f::F, m::Mask, a::Vararg{Any,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
 
@@ -534,4 +479,5 @@ Useful for special funcion implementations.
     end
     Expr(:block, Expr(:meta, :inline), :(inv(v)))
 end
+
 

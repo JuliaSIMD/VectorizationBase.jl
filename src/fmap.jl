@@ -208,7 +208,7 @@ for op ∈ [:rotate_left,:rotate_right,:funnel_shift_left,:funnel_shift_right]
     end
 end
 
-for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :vfmadd231, :vfnmadd231, :vfmsub231, :vfnmsub231]
+for op ∈ [:(Base.muladd), :(Base.fma), :vfmadd, :vfnmadd, :vfmsub, :vfnmsub, :vfmadd231, :vfnmadd231, :vfmsub231, :vfnmsub231, :ifmahi, :ifmalo]
     @eval begin
         @inline $op(v1::VecUnroll{N,W,T}, v2::Real, v3::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, Vec{W,T}(v2), Vec{W,T}(v3)))
         @inline $op(v1::Real, v2::VecUnroll{N,W,T}, v3::Real) where {N,W,T} = VecUnroll(fmap($op, Vec{W,T}(v1), v2.data, Vec{W,T}(v3)))

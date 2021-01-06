@@ -611,6 +611,25 @@ end
         ))
         xi64 = tovector(vi64); xi32 = tovector(vi32);
         @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) == ifelse.(xi64 .> xi32, xi64, xi32)
+        vu64_1 = VectorizationBase.VecUnroll((
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...)
+        ))
+        vu64_2 = VectorizationBase.VecUnroll((
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...)
+        ))
+        vu64_3 = VectorizationBase.VecUnroll((
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
+           Vec(ntuple(_ -> rand(UInt64), Val(W64))...)
+        ))
+        xu1 = tovector(vu64_1); xu2 = tovector(vu64_2); xu3 = tovector(vu64_3);
+        for f ∈ [clamp, muladd, VectorizationBase.ifmalo, VectorizationBase.ifmahi, VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub]
+            @test tovector(@inferred(f(vu64_1,vu64_2,vu64_3))) == f.(xu1, xu2, xu3)
+        end
     end
     @testset "Non-broadcasting operations" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
