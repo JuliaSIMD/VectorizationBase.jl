@@ -63,8 +63,10 @@ end
 # @generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("lrint", W, Int32, (W,), (T,), "")
 # end
-@inline Base.round(::Type{I}, v::Vec{W,T}) where {W,I,T<:Union{Float32,Float64}} = convert(I, round(v))
 @inline Base.trunc(::Type{I}, v::AbstractSIMD{W,T}) where {W, I<:IntegerTypesHW, T <: NativeTypes} = convert(I, v)
+for f ∈ [:round, :floor, :ceil]
+    @eval @inline Base.$f(::Type{I}, v::AbstractSIMD{W,T}) where {W,I<:IntegerTypesHW,T <: NativeTypes} = convert(I, $f(v))
+end
 
 # """
 #    setbits(x::Unsigned, y::Unsigned, mask::Unsigned)

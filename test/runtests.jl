@@ -452,6 +452,10 @@ end
         for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu]
             @test tovector(@inferred(f(v))) == map(f, x)
         end
+        for f ∈ [floor, ceil, trunc, round]
+            @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
+            @test tovector(@inferred(f(Int64, v))) == map(y -> f(Int64,y), x)
+        end
         invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
         @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
 
