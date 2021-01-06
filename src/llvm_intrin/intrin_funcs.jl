@@ -57,12 +57,13 @@ for (op,f) ∈ [("sqrt",:sqrt),("fabs",:abs),("floor",:floor),("ceil",:ceil),("t
 end
 
 
-@generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    llvmcall_expr("lrint", W, Int64, (W,), (T,), "nsz arcp contract afn reassoc")
-end
-@generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    llvmcall_expr("lrint", W, Int32, (W,), (T,), "nsz arcp contract afn reassoc")
-end
+# @generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+#     llvmcall_expr("lrint", W, Int64, (W,), (T,), "")
+# end
+# @generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+#     llvmcall_expr("lrint", W, Int32, (W,), (T,), "")
+# end
+@inline Base.round(::Type{I}, v::Vec{W,T}) where {W,I,T<:Union{Float32,Float64}} = convert(I, round(v))
 @inline Base.trunc(::Type{I}, v::AbstractSIMD{W,T}) where {W, I<:IntegerTypesHW, T <: NativeTypes} = convert(I, v)
 
 # """
@@ -500,7 +501,7 @@ Guaranteed accurate to at least 2^-14 ≈ 6.103515625e-5.
 
 Useful for special funcion implementations.
 """
-@inline inv_approx(x) = Base.FastMath.inv_fast(x)
+@inline inv_approx(x) = inv(x)
 @inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, v.data))
 @generated function inv_approx(v::Vec{W,T}) where {W, T <: Union{Float32, Float64}}
     ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)) || return Expr(:block, Expr(:meta, :inline), :(inv(v)))
