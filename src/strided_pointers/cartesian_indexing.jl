@@ -6,10 +6,10 @@
 @inline tdot(::Type{T}, a::Tuple{A}, b::Tuple{B,Vararg}, ::Tuple{Val{true},Vararg}) where {T,A,B} = lazymul_no_promote(T, first(a), first(b))
 
 @inline function tdot(::Type{T}, a::Tuple{A1,A2,Vararg}, b::Tuple{B1,B2,Vararg}, c::Tuple{Val{false},Vararg}) where {T,A1,A2,B1,B2}
-    vadd(lazymul(first(a), first(b)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c)))
+    vadd_fast(lazymul(first(a), first(b)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c)))
 end
 @inline function tdot(::Type{T}, a::Tuple{A1,A2,Vararg}, b::Tuple{B1,B2,Vararg}, c::Tuple{Val{true},Vararg}) where {T,A1,A2,B1,B2}
-    vadd(lazymul_no_promote(T,first(a), first(b)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c)))
+    vadd_fast(lazymul_no_promote(T,first(a), first(b)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c)))
 end
 
 @inline function tdot(::Type{T}, a::Tuple{A}, b::Tuple{B,Vararg}, c::Tuple{C,Vararg}, ::Tuple{Val{false},Vararg}) where {T,A,B,C}
@@ -21,13 +21,13 @@ end
 end
 
 @inline function tdot(::Type{T}, a::Tuple{A1,A2,Vararg}, b::Tuple{B1,B2,Vararg}, c::Tuple{C1,C2,Vararg}, d::Tuple{Val{false},Vararg}) where {T,A1,A2,B1,B2,C1,C2}
-    vadd(lazymul(first(a), first(b), first(c)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c), Base.tail(d)))
+    vadd_fast(lazymul(first(a), first(b), first(c)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c), Base.tail(d)))
 end
 # @inline function tdot(::Type{T}, a::Tuple{A1,A2,Vararg}, b::Tuple{B1,B2,Vararg}, c::Tuple{C1,C2,Vararg}, d::Tuple{Val{true},Vararg}) where {T,A1,A2,B1,B2,C1,C2}
-#     vadd(lazymul_no_promote(T,first(a), first(b)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c), Base.tail(d)))
+#     vadd_fast(lazymul_no_promote(T,first(a), first(b)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c), Base.tail(d)))
 # end
 @inline function tdot(::Type{T}, a::Tuple{A1,A2,Vararg}, b::Tuple{B1,B2,Vararg}, c::Tuple{C1,C2,Vararg}, d::Tuple{Val{true},Vararg}) where {T,A1,A2,B1,B2,C1,C2}
-    vadd(lazymul_no_promote(T,first(a), first(b), first(c)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c), Base.tail(d)))
+    vadd_fast(lazymul_no_promote(T,first(a), first(b), first(c)), tdot(T,Base.tail(a), Base.tail(b), Base.tail(c), Base.tail(d)))
 end
 
 

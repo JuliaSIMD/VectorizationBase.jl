@@ -1,4 +1,6 @@
 
+fast_flags(fast::Bool) = fast ? "nsz arcp contract afn reassoc" : "nsz contract"
+
 const LLVM_TYPES = IdDict{Type{<:NativeTypes},String}(
     Float32 => "float",
     Float64 => "double",

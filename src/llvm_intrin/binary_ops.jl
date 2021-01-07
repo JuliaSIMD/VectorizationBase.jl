@@ -13,8 +13,7 @@
 # @inline Base.@pure vshr(a::UInt8, b) = llvmcall("%res = lshr i8 %0, %1\nret i8 %res", UInt8, Tuple{UInt8,UInt8}, a, b % UInt8)
 
 
-function binary_op(op, W, @nospecialize(UNUSED::Type{T}), W2 = W) where {T}
-    @assert W == W2
+function binary_op(op, W, @nospecialize(T))
     ty = LLVM_TYPES[T]
     if isone(W)
         V = T
@@ -41,143 +40,60 @@ end
 # Integer
 # vop = Symbol('v', op)
 for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
-    ff = Symbol('v', op); _ff = Symbol(:_, ff)
+    ff = Symbol('v', op); ff_fast = Symbol(ff, :_fast)
+    _ff = Symbol('_', ff)
+    _ff_fast = Symbol('_', ff_fast)
     @eval begin
-        @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
-        @generated $_ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W1, T, W2)
-        @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op($op, W1, T, W2)
-        Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
-        @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
-        @inline $ff(v1::Unsigned, v2::Signed) = $ff(v1, unsigned(v2))
-        @inline $ff(v1::Signed, v2::Unsigned) = $ff(unsigned(v1), v2)
+        @generated $ff_fast(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
+        @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op, W, T)
+        
+        @generated $_ff_fast(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
+        Base.@pure @inline $ff_fast(v1::T, v2::T) where {T} = $_ff_fast(v1, v2)
+        @inline $ff(x::T,y::T) where {T<:IntegerTypesHW} = $f(x,y)
     end
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]
     ff = Symbol('v', op); _ff = Symbol(:_, ff)
     @eval begin
-        @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W1, T, W2)
-        @inline function Base.$f(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1 <: Signed,T2<:IntegerTypes}
-            T3 = signed(promote_type(T1,T2))
-            Base.$f(v1 % T3, v2 % T3)
-        end
-        @inline function Base.$f(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1 <: Unsigned,T2<:IntegerTypes}
-            T3 = unsigned(promote_type(T1,T2))
-            Base.$f(v1 % T3, v2 % T3)
-        end
-        @inline function Base.$f(v1::AbstractSIMDVector{W,T1}, v2::T2) where {W,T1 <: Signed,T2<:IntegerTypes}
-            T3 = signed(promote_type(T1,T2))
-            Base.$f(v1 % T3, vbroadcast(Val{W}(), v2 % T3))
-        end
-        @inline function Base.$f(v1::AbstractSIMDVector{W,T1}, v2::T2) where {W,T1 <: Unsigned,T2<:IntegerTypes}
-            T3 = unsigned(promote_type(T1,T2))
-            Base.$f(v1 % T3, vbroadcast(Val{W}(), v2 % T3))
-        end
-        @inline function Base.$f(v1::T1, v2::AbstractSIMDVector{W,T2}) where {W,T1 <: Signed,T2<:IntegerTypes}
-            T3 = signed(promote_type(T1,T2))
-            Base.$f(vbroadcast(Val{W}(), v1 % T3), v2 % T3)
-        end
-        @inline function Base.$f(v1::T1, v2::AbstractSIMDVector{W,T2}) where {W,T1 <: Unsigned,T2<:IntegerTypes}
-            T3 = unsigned(promote_type(T1,T2))
-            Base.$f(vbroadcast(Val{W}(), v1 % T3), v2 % T3)
-        end
+        @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
         @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
-        @inline $_ff(v1::AbstractSIMD, v2::AbstractSIMD) = Base.$f(v1, v2)
-        Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
-        # @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
-        @inline $ff(v1, v2) = ((v3, v4) = promote_div(v1, v2); $ff(v3, v4))
+        Base.@pure @inline $ff(v1::T, v2::T) where {T<:IntegerTypesHW} = $_ff(v1, v2)
     end
 end
-@inline vcld(x, y) = vadd(vdiv(vsub(x,one(x)), y), one(x))
+@inline vcld(x, y) = vadd(vdiv(vsub(x, one(x)), y), one(x))
 @inline function vdivrem(x, y)
     d = vdiv(x, y)
     r = vsub(x, vmul(d, y))
     d, r
 end
-for (op,f,s) ∈ [("ashr",:>>,0x01),("lshr",:>>,0x02),("lshr",:>>>,0x03),("and",:&,0x03),("or",:|,0x03),("xor",:⊻,0x03)]
-    _ff = Symbol(:_, 'v', op)
-    fdef = Expr(:where, :(Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T})), :W1, :W2)
-    ffdef = Expr(:where, :($_ff(v1::T, v2::T)))
-    if iszero(s & 0x01)
-        push!(fdef.args, :(T <: Unsigned))
-        push!(ffdef.args, :(T <: Unsigned))
-    elseif iszero(s & 0x02)
-        push!(fdef.args, :(T <: Signed))
-        push!(ffdef.args, :(T <: Signed))
-    else
-        push!(fdef.args, :T)
-        push!(ffdef.args, :T)
-    end
-    @eval @generated $fdef = binary_op($op, W1, T, W2)
-    @eval @generated $ffdef = binary_op($op, 1, T)
-    if op === "ashr" # replace first iteration with <<
-        f = :(<<)
-    end
+for (op,sub) ∈ [
+    ("ashr",:SignedHW),
+    ("lshr",:UnsignedHW),
+    ("lshr",:IntegerTypesHW),
+    ("and",:IntegerTypesHW),
+    ("or",:IntegerTypesHW),
+    ("xor",:IntegerTypesHW)
+]
+    ff = sub === :UnsignedHW ? :vashr : Symbol('v', op)
     @eval begin
-        @inline Base.$f(v::Vec, i::Integer) = ((x, y) = promote_div(v, i); $f(x, y))
-        @inline Base.$f(i::Integer, v::Vec) = ((x, y) = promote_div(i, v); $f(x, y))
+        @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:$sub}  = binary_op($op, W, T)
+        @generated $ff(v1::T, v2::T) where {T<:$sub}  = binary_op($op, 1, T)
     end
 end
-for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
-    ff = Symbol('v', op); _ff = Symbol(:_, ff)
-    @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
-    @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
-end
+# for (op,f) ∈ [("lshr",:>>),("ashr",:>>),("and",:&),("or",:|),("xor",:⊻)]
+#     ff = Symbol('v', op); _ff = Symbol(:_, ff)
+#     @eval Base.@pure @inline $ff(v1::T, v2::T) where {T} = $_ff(v1, v2)
+#     @eval @inline $ff(v1, v2) = ((v3, v4) = promote(v1, v2); $ff(v3, v4))
+# end
 
-for (op,f,ff) ∈ [("fadd",:+,:vadd),("fsub",:-,:vsub),("fmul",:*,:vmul),("fdiv",:/,:vdiv),("frem",:%,:vrem)]
+for (op,f) ∈ [("fadd",:vadd),("fsub",:vsub),("fmul",:vmul),("fdiv",:vfdiv),("frem",:vrem)]
+    ff = Symbol(f, :_fast)
     @eval begin
-        @generated Base.$f(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($(op * " nsz arcp contract afn reassoc"), W1, T, W2)
-        @generated $ff(v1::Vec{W1,T}, v2::Vec{W2,T}) where {W1,W2,T<:Union{Float32,Float64}} = binary_op($op, W1, T, W2)
-        @inline $ff(a::T, b::T) where {T <: Union{Float32,Float64}} = $f(a, b)
+        @generated  $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($(op * ' ' * fast_flags(false)), W, T)
+        @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($(op * ' ' * fast_flags( true)), W, T)
     end
 end
 
-@inline Base.:(/)(a::Vec{W,<:Integer}, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
-@inline Base.:(/)(a::NativeTypes, b::Vec{W,<:Integer}) where {W} = float(a) / float(b)
-@inline Base.:(/)(a::Vec{W,<:Integer}, b::NativeTypes) where {W} = float(a) / float(b)
+@inline vfdiv(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} = float(a) / float(b)
 
-for op ∈ [:⊻, :&, :|]
-    @eval begin
-        @inline function Base.$op(v1::AbstractSIMDVector{W}, v2::AbstractSIMDVector{W}) where {W}
-            v3, v4 = promote(v1, v2)
-            $op(v3, v4)
-        end
-    end
-end
-
-function promote_shift_quote(op::Symbol, ::Type{T1}, ::Type{T2}) where {T1, T2}
-    s1 = sizeof(T1); s2 = sizeof(T2);
-    if s1 ≤ s2
-        newT = T1 <: Signed ? signed(T2) : unsigned(T2)
-        f = Expr(:call, op, Expr(:call, :convert, newT, :v1), :v2)
-    else
-        newT = T2 <: Signed ? signed(T1) : unsigned(T1)
-        f = Expr(:call, op, :v1, Expr(:call, :convert, newT, :v2))
-    end
-    Expr(:block, Expr(:meta, :inline), f)
-end
-@inline function Base.:(<<)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
-    convert(T1, convert(T2, v1) << v2)
-end
-@inline function Base.:(<<)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
-    convert(T1, convert(T2, v1) << v2)
-end
-@inline function Base.:(>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
-    v1 >> (v2 % T1)
-end
-@inline function Base.:(>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
-    v1 >> (v2 % T1)
-end
-@inline function Base.:(>>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
-    convert(T1, convert(T2, v1) >>> v2)
-end
-@inline function Base.:(>>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
-    convert(T2, v1 >>> convert(T1, v2))
-end
-for op ∈ [:(<<), :(>>), :(>>>)]
-    @eval begin
-        @generated function Base.$op(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:IntegerTypes,T2<:IntegerTypes}
-            promote_shift_quote($(QuoteNode(op)), T1, T2)
-        end
-    end
-end
 

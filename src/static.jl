@@ -23,7 +23,10 @@ end
 @inline maybestaticsize(A, ::Val{N}) where {N} = ArrayInterface.size(A)[N]
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.
-for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(Base.:<<),:vshl), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)]
+for (f,ff) ∈ [
+    (:(Base.:+),:vadd_fast), (:(Base.:-),:vsub_fast), (:(Base.:*),:vmul_fast),
+    (:(Base.:<<),:vshl), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)
+]
     @eval begin
         # @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
     # If `M` and `N` are known at compile time, there's no need to add nsw/nuw flags.
@@ -34,57 +37,57 @@ for (f,ff) ∈ [(:(Base.:+),:vadd), (:(Base.:-),:vsub), (:(Base.:*),:vmul), (:(B
         @inline $ff(x, ::StaticInt{M}) where {M} = $ff(x, M)
     end
 end
-for f ∈ [:vadd, :vsub, :vmul]
+for f ∈ [:vadd_fast, :vsub_fast, :vmul_fast]
     @eval @inline $f(::StaticInt{M}, n::Number) where {M} = $f(M, n)
     @eval @inline $f(m::Number, ::StaticInt{N}) where {N} = $f(m, N)
 end
 
-@inline vsub(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
-# @inline vsub(::Zero, ::StaticInt{N}) where {N} = StaticInt{-N}()
-@inline vsub(::Zero, ::Zero) = Zero()
-@inline vsub(a::Number, ::Zero) = a
-@inline vsub(a, ::Zero) = a
+@inline vsub_fast(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
+# @inline vsub_fast(::Zero, ::StaticInt{N}) where {N} = StaticInt{-N}()
+@inline vsub_fast(::Zero, ::Zero) = Zero()
+@inline vsub_fast(a::Number, ::Zero) = a
+@inline vsub_fast(a, ::Zero) = a
 
-@inline vadd(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
-@inline vadd(::Zero, ::StaticInt{N}) where {N} = StaticInt{N}()
-@inline vadd(::Zero, ::Zero) = Zero()
-@inline vadd(a::Number, ::Zero) = a
-@inline vadd(::Zero, a::Number) = a
+@inline vadd_fast(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
+@inline vadd_fast(::Zero, ::StaticInt{N}) where {N} = StaticInt{N}()
+@inline vadd_fast(::Zero, ::Zero) = Zero()
+@inline vadd_fast(a::Number, ::Zero) = a
+@inline vadd_fast(::Zero, a::Number) = a
 
-@inline vmul(::StaticInt{N}, ::Zero) where {N} = Zero()
-@inline vmul(::Zero, ::StaticInt{N}) where {N} = Zero()
-@inline vmul(::Zero, ::Zero) = Zero()
-@inline vmul(::StaticInt{N}, ::One) where {N} = StaticInt{N}()
-@inline vmul(::One, ::StaticInt{N}) where {N} = StaticInt{N}()
-@inline vmul(::One, ::One) = One()
-@inline vmul(a::Number, ::One) = a
-@inline vmul(::One, a::Number) = a
-@inline vmul(::Zero, ::One) = Zero()
-@inline vmul(::One, ::Zero) = Zero()
-@inline vmul(i::MM{W,X}, ::StaticInt{N}) where {W,X,N} = MM{W}(vmul(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
-@inline vmul(i::MM{W,X}, ::StaticInt{1}) where {W,X} = i
-@inline vmul(::StaticInt{N}, i::MM{W,X}) where {W,X,N} = MM{W}(vmul(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
-@inline vmul(::StaticInt{1}, i::MM{W,X}) where {W,X} = i
+@inline vmul_fast(::StaticInt{N}, ::Zero) where {N} = Zero()
+@inline vmul_fast(::Zero, ::StaticInt{N}) where {N} = Zero()
+@inline vmul_fast(::Zero, ::Zero) = Zero()
+@inline vmul_fast(::StaticInt{N}, ::One) where {N} = StaticInt{N}()
+@inline vmul_fast(::One, ::StaticInt{N}) where {N} = StaticInt{N}()
+@inline vmul_fast(::One, ::One) = One()
+@inline vmul_fast(a::Number, ::One) = a
+@inline vmul_fast(::One, a::Number) = a
+@inline vmul_fast(::Zero, ::One) = Zero()
+@inline vmul_fast(::One, ::Zero) = Zero()
+@inline vmul_fast(i::MM{W,X}, ::StaticInt{N}) where {W,X,N} = MM{W}(vmul_fast(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
+@inline vmul_fast(i::MM{W,X}, ::StaticInt{1}) where {W,X} = i
+@inline vmul_fast(::StaticInt{N}, i::MM{W,X}) where {W,X,N} = MM{W}(vmul_fast(data(i), StaticInt{N}()), StaticInt{X}() * StaticInt{N}())
+@inline vmul_fast(::StaticInt{1}, i::MM{W,X}) where {W,X} = i
 
 @inline staticp1(::StaticInt{N}) where {N} = StaticInt{N}() + One()
-@inline staticp1(N) = vadd(N, One())
+@inline staticp1(N) = vadd_fast(N, One())
 @inline staticp1(i::Tuple{}) = tuple()
 @inline staticp1(i::Tuple{I}) where {I} = @inbounds (staticp1(i[1]),)
 @inline staticp1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticp1(i[1]), staticp1(i[2]))
 @inline staticp1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticp1(i[1]), staticp1(Base.tail(i))...)
 @inline staticm1(::StaticInt{N}) where {N} = StaticInt{N}() - One()
-@inline staticm1(N) = vsub(N, one(N))
+@inline staticm1(N) = vsub_fast(N, one(N))
 @inline staticm1(i::Tuple{}) = tuple()
 @inline staticm1(i::Tuple{I}) where {I} = @inbounds (staticm1(i[1]),)
 @inline staticm1(i::Tuple{I1,I2}) where {I1,I2} = @inbounds (staticm1(i[1]), staticm1(i[2]))
 @inline staticm1(i::Tuple{I1,I2,I3,Vararg}) where {I1,I2,I3} = @inbounds (staticm1(i[1]), staticm1(Base.tail(i))...)
 @inline staticmul(::Type{T}, ::StaticInt{N}) where {T,N} = static_sizeof(T) * StaticInt{N}()
 @inline staticmul(::Type{T}, ::Val{N}) where {T,N} = static_sizeof(T) * StaticInt{N}()
-@inline staticmul(::Type{T}, N) where {T} = vmul(N, sizeof(T))
+@inline staticmul(::Type{T}, N) where {T} = vmul_fast(N, sizeof(T))
 @inline staticmul(::Type{T}, i::Tuple{}) where {T} = tuple()
-@inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul(i[1], sizeof(T)),)
-@inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul(sizeof(T), i[1]), vmul(sizeof(T), i[2]))
-@inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
+@inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul_fast(i[1], sizeof(T)),)
+@inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul_fast(sizeof(T), i[1]), vmul_fast(sizeof(T), i[2]))
+@inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul_fast(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
 for T ∈ [:VecUnroll, :Mask, :MM]
     @eval begin
         @inline Base.:(+)(x::$T, ::Zero) = x
@@ -99,12 +102,12 @@ end
 @inline Base.:(+)(m::Mask{W}, ::StaticInt{N}) where {N,W} = m + vbroadcast(Val{W}(), N)
 @inline Base.:(+)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) + m
 # @inline Base.:(*)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) * m
-@inline vadd(x::VecUnroll, ::Zero) = x
-@inline vadd(::Zero, x::VecUnroll) = x
-@inline vsub(x::VecUnroll, ::Zero) = x
-@inline vmul(x::VecUnroll, ::One) = x
-@inline vmul(::One, x::VecUnroll) = x
-@inline vmul(::VecUnroll, ::Zero) = Zero()
-@inline vmul(::Zero, ::VecUnroll) = Zero()
+@inline vadd_fast(x::VecUnroll, ::Zero) = x
+@inline vadd_fast(::Zero, x::VecUnroll) = x
+@inline vsub_fast(x::VecUnroll, ::Zero) = x
+@inline vmul_fast(x::VecUnroll, ::One) = x
+@inline vmul_fast(::One, x::VecUnroll) = x
+@inline vmul_fast(::VecUnroll, ::Zero) = Zero()
+@inline vmul_fast(::Zero, ::VecUnroll) = Zero()
 
 
