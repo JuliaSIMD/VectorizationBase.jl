@@ -13,8 +13,8 @@ end
 
 @inline vsub(v::Vec{<:Any,<:NativeTypes}) = zero(v) - v
 
-@inline vinv(v::Vec) = vfdiv(one(v), v)
-@inline vinv(v::AbstractSIMD{W,<:Integer}) where {W} = inv(float(v))
+@inline vinv(v::AbstractSIMD{W,<:FloatingTypes}) where {W} = vfdiv(one(v), v)
+@inline vinv(v::AbstractSIMD{W,<:IntegerTypesHW}) where {W} = inv(float(v))
 
 @inline vabs(v::AbstractSIMD{W,<:Unsigned}) where {W} = v
 @inline vabs(v::AbstractSIMD{W,<:Signed}) where {W} = ifelse(v > 0, v, -v)

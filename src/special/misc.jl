@@ -1,5 +1,5 @@
-@inline Base.:^(v::AbstractSIMD{W,T}, i::Integer) where {W,T} = Base.power_by_squaring(v, i)
-@inline Base.:^(v::AbstractSIMD{W,T}, i::Integer) where {W,T<:Union{Float32,Float64}} = Base.power_by_squaring(v, i)
+@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = Base.power_by_squaring(v, i)
+@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = Base.power_by_squaring(v, i)
 @inline relu(x) = (y = zero(x); ifelse(x > y, x, y))
 
 @inline Base.fld(x::AbstractSIMD, y::AbstractSIMD) = div(promote_div(x,y)..., RoundDown)
@@ -17,11 +17,19 @@ end
 @inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:Unsigned} =
     rem(x, y)
 
-@inline function Base.mod(x::AbstractSIMD{W,T1}, y::Union{T2,AbstractSIMD{W,T2}}) where {W,T1<:Signed,T2<:Unsigned}
+@inline function Base.mod(x::AbstractSIMD{W,T1}, y::T2) where {W,T1<:SignedHW,T2<:UnsignedHW}
     _x, _y = promote_div(x, y)
     unsigned(mod(_x, _y))
 end
-@inline function Base.mod(x::AbstractSIMD{W,T1}, y::Union{T2,AbstractSIMD{W,T2}}) where {W,T1<:Unsigned,T2<:Signed}
+@inline function Base.mod(x::AbstractSIMD{W,T1}, y::T2) where {W,T1<:UnsignedHW,T2<:SignedHW}
+    _x, _y = promote_div(x, y)
+    signed(mod(_x, _y))
+end
+@inline function Base.mod(x::AbstractSIMD{W,T1}, y::AbstractSIMD{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
+    _x, _y = promote_div(x, y)
+    unsigned(mod(_x, _y))
+end
+@inline function Base.mod(x::AbstractSIMD{W,T1}, y::AbstractSIMD{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
     _x, _y = promote_div(x, y)
     signed(mod(_x, _y))
 end

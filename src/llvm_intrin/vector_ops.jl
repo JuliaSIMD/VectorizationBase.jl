@@ -38,4 +38,16 @@ end
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$L,$T}}, data(v)))
     end
 end
+@generated function vresize(::Union{StaticInt{W},Val{W}}, v::T) where {W,T<:NativeTypes}
+    typ = LLVM_TYPES[T]
+    vtyp = vtype(W, typ)
+    instrs = """
+        %ie = insertelement $vtyp undef, $typ %0, i32 0
+        ret $vtyp %ie
+    """
+    quote
+        $(Expr(:meta, :inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, v))
+    end
+end
 

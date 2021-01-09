@@ -40,23 +40,16 @@ function binary_mask_op(W, U, op)
     end    
 end
 
-@inline Base.zero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
 
 @inline data(m::Mask) = m.u
-@generated function Base.:(&)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
-    binary_mask_op(W, U, "and")
-end
-@generated function Base.:(|)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
-    binary_mask_op(W, U, "or")
-end
-@generated function Base.:(⊻)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
-    binary_mask_op(W, U, "xor")
-end
-@generated function Base.:(==)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
-    binary_mask_op(W, U, "icmp eq")
-end
-@generated function Base.:(!=)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
-    binary_mask_op(W, U, "icmp ne")
+for (f,op) ∈ [
+    (:vand,"and"), (:vor,"or"), (:vxor,"xor"), (:veq,"icmp eq"), (:vne,"icmp ne")
+]
+    @eval begin
+        @generated function $f(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
+            binary_mask_op(W, U, $op)
+        end
+    end
 end
 
 @generated function splitint(i::S, ::Type{T}) where {S <: Base.BitInteger, T <: Union{Bool,Base.BitInteger}}
@@ -108,7 +101,7 @@ function vadd_expr(W,U)
     ret <$W x i8> %res""")
     Expr(:block, Expr(:meta, :inline), :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u))))
 end
-@generated Base.:(+)(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
+@generated vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
 
 @inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
 @inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
@@ -119,9 +112,9 @@ end
 @inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
 @inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
 
-@inline Base.:(<<)(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(m.u, i))
-@inline Base.:(>>)(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
-@inline Base.:(>>>)(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
+@inline vshl(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(m.u, i))
+@inline vashr(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
+@inline vlshr(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline vany(m::Mask{$W,$U}) = m.u != $(zero(U))
@@ -130,7 +123,7 @@ end
 @inline vany(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) !== zero(m.u)
 @inline vall(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) === (max_mask(Val{W}()).u)
 
-@generated function Base.:(!)(m::Mask{W,U}) where {W,U}
+@generated function vnot(m::Mask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"
     mtyp_trunc = "i$(W)"
     instrs = String[]
@@ -144,11 +137,11 @@ end
         Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U}, m.u))
     end
 end
-@inline Base.:(~)(m::Mask) = !m
+# @inline Base.:(~)(m::Mask) = !m
 
 @inline Base.count_ones(m::Mask) = count_ones(m.u)
-@inline Base.:(+)(m::Mask, i::Integer) = i + count_ones(m)
-@inline Base.:(+)(i::Integer, m::Mask) = i + count_ones(m)
+@inline vadd(m::Mask, i::Integer) = i + count_ones(m)
+@inline vadd(i::Integer, m::Mask) = i + count_ones(m)
 
 function mask_type_symbol(W)
     if W <= 8
@@ -192,9 +185,11 @@ end
     mask_type_symbol(W)
     # mask_type_symbol(pick_vector_width(T))
 end
-@generated function Base.zero(::Type{<:Mask{W}}) where {W}
+@generated function vzero(::Type{<:Mask{W}}) where {W}
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), Expr(:call, :zero, mask_type_symbol(W))))
 end
+@inline vzero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
+@inline Base.zero(::Type{M}) where {W,M <: Mask{W}} = vzero(M)
 
 @generated function max_mask(::Union{Val{W},StaticInt{W}}) where {W}
     U = mask_type(W)
@@ -259,7 +254,7 @@ end
 end
 @inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(data(v))
 
-@generated function Base.:(%)(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Integer}
+@generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Integer}
     bits = 8sizeof(I)
     instrs = String[]
     truncate_mask!(instrs, '0', W, 0)
@@ -336,63 +331,67 @@ end
     # cmp_quote(W, cond, sizeof(I), I)
 # end
 # for (f,cond) ∈ [(:(==), :eq), (:(!=), :ne), (:(>), :ugt), (:(≥), :uge), (:(<), :ult), (:(≤), :ule)]
-for (f,cond) ∈ [(:(==), "eq"), (:(!=), "ne")]
-    @eval @generated function Base.$f(v1::Vec{W,T1}, v2::Vec{W,T2}) where {W,T1<:Integer,T2<:Integer}
+for (f,cond) ∈ [(:veq, "eq"), (:vne, "ne")]
+    @eval @generated function $f(v1::Vec{W,T1}, v2::Vec{W,T2}) where {W,T1<:Integer,T2<:Integer}
         if sizeof(T1) != sizeof(T2)
             return Expr(:block, Expr(:meta,:inline), :((v3, v4) = promote(v1, v2)), Expr(:call, $f, :v3, :v4))
         end
         icmp_quote(W, $cond, sizeof(T1), T1, T2)
     end
 end
-for (f,cond) ∈ [(:(>), "ugt"), (:(≥), "uge"), (:(<), "ult"), (:(≤), "ule")]
-    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Unsigned}
+for (f,cond) ∈ [(:vgt, "ugt"), (:vge, "uge"), (:vlt, "ult"), (:vle, "ule")]
+    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Unsigned}
         icmp_quote(W, $cond, sizeof(T), T)
     end
-    # bytes = 1
-    # while bytes ≤ 8
-    #     T = Symbol(:UInt, 8bytes)
-    #     W = 2
-    #     while W * bytes ≤ REGISTER_SIZE
-    #         @eval @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(icmp_quote(W, cond, bytes, T))
-    #         W += W
-    #     end
-    #     bytes += bytes
-    # end
-    # @eval @inline Base.$f(v1::Vec{W,I}, v2::Vec{W,I}) where {W, I <: Signed} = compare(Val{$(QuoteNode(cond))}(), v1, v2)
 end
-for (f,cond) ∈ [(:(>), "sgt"), (:(≥), "sge"), (:(<), "slt"), (:(≤), "sle")]
-    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Signed}
+for (f,cond) ∈ [(:vgt, "sgt"), (:vge, "sge"), (:vlt, "slt"), (:vle, "sle")]
+    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Signed}
         icmp_quote(W, $cond, sizeof(T), T)
     end
-    # bytes = 1
-    # while bytes ≤ 8
-    #     T = Symbol(:Int, 8bytes)
-    #     W = 2
-    #     while W * bytes ≤ REGISTER_SIZE
-    #         @eval @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(cmp_quote(W, cond, bytes, T))
-    #         W += W
-    #     end
-    #     bytes += bytes
-    # end
 end
 
 # for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"), (:(≤), "ole"), (:(≠), "one")]
-for (f,cond) ∈ [(:(==), "ueq"), (:(>), "ugt"), (:(≥), "uge"), (:(<), "ult"), (:(≤), "ule"), (:(≠), "une")]
-    @eval @generated function Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+for (f,cond) ∈ [(:veq, "ueq"), (:vgt, "ugt"), (:vge, "uge"), (:vlt, "ult"), (:vle, "ule"), (:vne, "une")]
+    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         fcmp_quote(W, $cond, T)
     end
-    # for (T,bytes) ∈ [(:Float32,4), (:Float64,8)]
-    #     W = 2
-    #     while W * bytes ≤ REGISTER_SIZE
-    #         @eval @inline Base.$f(v1::Vec{$W,$T}, v2::Vec{$W,$T}) = $(fcmp_quote(W, cond, T))
-    #         W += W
-    #     end
-    # end
 end
 
+@inline function vgt(v1::AbstractSIMDVector{W,S}, v2::AbstractSIMDVector{W,U}) where {W,S<:SignedHW,U<:UnsignedHW}
+    (v1 > zero(S)) & (vconvert(U, v1) > v2)
+end
+@inline function vgt(v1::AbstractSIMDVector{W,U}, v2::AbstractSIMDVector{W,S}) where {W,S<:SignedHW,U<:UnsignedHW}
+    (v2 < zero(S)) | (vconvert(S, v1) > v2)
+end
 
-# import IfElse: ifelse
-@generated function ifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U<:Unsigned,T}
+@inline function vge(v1::AbstractSIMDVector{W,S}, v2::AbstractSIMDVector{W,U}) where {W,S<:SignedHW,U<:UnsignedHW}
+    (v1 ≥ zero(S)) & (vconvert(U, v1) ≥ v2)
+end
+@inline function vge(v1::AbstractSIMDVector{W,U}, v2::AbstractSIMDVector{W,S}) where {W,S<:SignedHW,U<:UnsignedHW}
+    (v2 < zero(S)) | (vconvert(S, v1) ≥ v2)
+end
+
+@inline vlt(v1::AbstractSIMDVector{W,S}, v2::AbstractSIMDVector{W,U}) where {W,S<:SignedHW,U<:UnsignedHW} = vgt(v2, v1)
+@inline vlt(v1::AbstractSIMDVector{W,U}, v2::AbstractSIMDVector{W,S}) where {W,S<:SignedHW,U<:UnsignedHW} = vgt(v2, v1)
+@inline vle(v1::AbstractSIMDVector{W,S}, v2::AbstractSIMDVector{W,U}) where {W,S<:SignedHW,U<:UnsignedHW} = vge(v2, v1)
+@inline vle(v1::AbstractSIMDVector{W,U}, v2::AbstractSIMDVector{W,S}) where {W,S<:SignedHW,U<:UnsignedHW} = vge(v2, v1)
+for op ∈ [:vgt,:vge,:vlt,:vle]
+    @eval begin
+        function $op(v1::V1, v2::V2) where {V1<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}, V2<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}}
+            V3 = promote_type(V1, V2)
+            $op(itosize(v1, V3), itosize(v2, V3))
+        end
+        function $op(v1, v2)
+            v3, v4 = promote(v1, v2)
+            $op(v3, v4)
+        end
+    end
+end
+for op ∈ [:veq, :vne]
+    @eval @inline $op(a,b) = ((c,d) = promote(a,b); $op(c,d))
+end
+
+@generated function vifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     selty = vtype(W, "i1")
@@ -408,25 +407,23 @@ end
         Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
-# @inline ifelse(m::Mask, v::Vec, s) = ((x,y) = promote(v,s); ifelse(m,x,y))
-# @inline ifelse(m::Mask, s, v::Vec) = ((x,y) = promote(s,v); ifelse(m,x,y))
-@inline ifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = ifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
-@inline ifelse(m::Mask{W}, s1, s2) where {W} = ((x1,x2) = promote(s1,s2); ifelse(m, x1, x2))
-@inline ifelse(m::Mask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(ifelse, m, v1.data, v2.data))
+
+@inline vifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
+@inline vifelse(m::Mask{W,U}, s1, s2) where {W,U} = ((x1,x2) = promote(s1,s2); vifelse(m, x1, x2))
+@inline vifelse(m::Mask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(vifelse, m, v1.data, v2.data))
 
 @inline Base.Bool(m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
-@inline Base.convert(::Type{Bool}, m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
-@inline ifelse(m::Mask{1}, s1::T, s2::T) where {T<:NativeTypes} = ifelse(Bool(m), s1, s2)
+@inline vconvert(::Type{Bool}, m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
+@inline vifelse(m::Mask{1}, s1::T, s2::T) where {T<:NativeTypes} = Base.ifelse(Bool(m), s1, s2)
 
 @inline Base.isnan(v::AbstractSIMD) = v != v
-
 @inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)
 
-@inline Base.flipsign(x::AbstractSIMD, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
+@inline Base.flipsign(x::AbstractSIMD, y::AbstractSIMD) = vifelse(y > zero(y), x, -x)
 for T ∈ [:Float32, :Float64]
     @eval begin
-        @inline Base.flipsign(x::AbstractSIMD, y::$T) = ifelse(y > zero(y), x, -x)
-        @inline Base.flipsign(x::$T, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
+        @inline Base.flipsign(x::AbstractSIMD, y::$T) = vifelse(y > zero(y), x, -x)
+        @inline Base.flipsign(x::$T, y::AbstractSIMD) = vifelse(y > zero(y), x, -x)
     end
 end
 @inline Base.flipsign(x::AbstractSIMD, y::Real) = ifelse(y > zero(y), x, -x)
@@ -435,7 +432,7 @@ end
 @inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) != zero(T)
 
 
-@generated function ifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
+@generated function vifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     selty = vtype(W, "i1")
@@ -444,17 +441,16 @@ end
         f *= " nsz arcp contract reassoc"
     end
     instrs = String["%mask.0 = trunc <$W x i8> %0 to <$W x i1>"]
-    # truncate_mask!(instrs, '0', W, 0)
     push!(instrs, "%res = $f $selty %mask.0, $vtyp %1, $vtyp %2\nret $vtyp %res")
     quote
         $(Expr(:meta,:inline))
         Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
-@inline ifelse(b::Bool, s::NativeTypes, v::V) where {V <: AbstractSIMD} = ifelse(b, convert(V, s), v)
-@inline ifelse(b::Bool, v::V, s::NativeTypes) where {V <: AbstractSIMD} = ifelse(b, v, convert(V, s))
+@inline vifelse(b::Bool, s::NativeTypes, v::V) where {V <: AbstractSIMD} = vifelse(b, convert(V, s), v)
+@inline vifelse(b::Bool, v::V, s::NativeTypes) where {V <: AbstractSIMD} = vifelse(b, v, convert(V, s))
 
-@generated function Base.convert(::Type{Bit}, v::Vec{W,Bool}) where {W,Bool}
+@generated function vconvert(::Type{Bit}, v::Vec{W,Bool}) where {W,Bool}
     instrs = String[]
     push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
     zext_mask!(instrs, 'm', W, '0')
@@ -465,24 +461,15 @@ end
         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
     end    
 end
-@inline Base.convert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = convert(Bit, v)
+@inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Bit, v)
 
-@inline Base.:(*)(v::AbstractSIMDVector, m::Mask) = ifelse(m, v, zero(v))
-@inline Base.:(*)(m::Mask, v::AbstractSIMDVector) = ifelse(m, v, zero(v))
-@inline Base.:(*)(m1::Mask, m2::Mask) = m1 & m2
-@inline Base.:(*)(v::AbstractSIMDVector, b::Bool) = b ? v : zero(v)
-@inline Base.:(*)(b::Bool, v::AbstractSIMDVector) = b ? v : zero(v)
-@inline Base.:(*)(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
-@inline Base.:(*)(b::Bool, v::VecUnroll{N,W,T}) where {N,W,T} = b ? v : zero(v)
+@inline vmul(v::AbstractSIMDVector, m::Mask) = vifelse(m, v, zero(v))
+@inline vmul(m::Mask, v::AbstractSIMDVector) = vifelse(m, v, zero(v))
+@inline vmul(m1::Mask, m2::Mask) = m1 & m2
+@inline vmul(v::AbstractSIMDVector, b::Bool) = b ? v : zero(v)
+@inline vmul(b::Bool, v::AbstractSIMDVector) = b ? v : zero(v)
+@inline vmul(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
+@inline vmul(b::Bool, v::VecUnroll{N,W,T}) where {N,W,T} = b ? v : zero(v)
 
 
-for (op,c) ∈ [(:(>), :(&)), (:(≥), :(&)), (:(<), :(|)), (:(≤), :(|))]
-    @eval begin
-        @inline function Base.$op(v1::Vec{W,I}, v2::Vec{W,U}) where {W,I<:Signed,U<:Unsigned}
-            m1 = $op(v1,  zero(I))
-            m2 = $op(v1 % U,  v2)
-            $c(m1, m2)
-        end
-    end
-end
 

@@ -68,6 +68,7 @@ end
 @inline vconvert(::Type{Vec{W,T}}, s::T) where {W, T <: Integer} = vbroadcast(Val{W}(), s)
 @inline vconvert(::Type{Vec{W,T}}, s::NativeTypes) where {W, T} = vbroadcast(Val{W}(), convert(T, s))
 @inline vconvert(::Type{Vec{W,T}}, s::IntegerTypesHW) where {W, T <: IntegerTypesHW} = vbroadcast(Val{W}(), s % T)
+@inline vconvert(::Type{Vec{W,T}}, s::T) where {W, T <: IntegerTypesHW} = vbroadcast(Val{W}(), s)
 @generated function vconvert(::Type{T}, v::Vec{W,S}) where {T<:Number,S,W}
     if S <: T
         Expr(:block, Expr(:meta,:inline), :v)
@@ -78,8 +79,12 @@ end
 @inline function vconvert(::Type{U}, v::Vec{W,S}) where {N,W,T,U<:VecUnroll{N,W,T},S}
     VecUnroll{N}(vconvert(T, v))
 end
+@inline function vconvert(::Type{U}, v::S) where {N,W,T,V,U<:VecUnroll{N,W,T,V},S<:NativeTypes}
+    VecUnroll{N}(vconvert(V, v))
+end
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,S}) where {T<:Number,S,W} = Vec{W,T}(v)
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {T<:Number,W} = v
+@inline vconvert(::Type{T}, v::T) where {T} = v
 
 @inline vconvert(::Type{T}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) where {T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
 @inline vconvert(::Type{<:AbstractSIMD{W,T}}, v::Union{Mask{W},VecUnroll{<:Any, W, Bool, <: Mask}}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
@@ -98,8 +103,8 @@ end
 
 
 
-@inline Base.unsafe_trunc(::Type{I}, v::Vec{W,T}) where {W,I,T} = vconvert(Vec{W,I}, v)
-@inline Base.:(%)(v::AbstractSIMDVector{W,T}, ::Type{I}) where {W,I,T} = vconvert(Vec{W,I}, v)
-@inline Base.:(%)(v::AbstractSIMDVector{W,T}, ::Type{V}) where {W,I,T,V<:AbstractSIMD{W,I}} = vconvert(V, v)
-@inline Base.:(%)(r::Integer, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = vbroadcast(Val{W}(), r % I)
+@inline vunsafe_trunc(::Type{I}, v::Vec{W,T}) where {W,I,T} = vconvert(Vec{W,I}, v)
+@inline vrem(v::AbstractSIMDVector{W,T}, ::Type{I}) where {W,I,T} = vconvert(Vec{W,I}, v)
+@inline vrem(v::AbstractSIMDVector{W,T}, ::Type{V}) where {W,I,T,V<:AbstractSIMD{W,I}} = vconvert(V, v)
+@inline vrem(r::IntegerTypesHW, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = convert(V, r % I)
 

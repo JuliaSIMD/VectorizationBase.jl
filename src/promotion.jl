@@ -36,6 +36,10 @@ end
     T = promote_type(T1, T2)
     unsigned(x % T), unsigned(y % T)
 end
+itosize(i::Union{I,AbstractSIMD{<:Any,I}}, ::Type{J}) where {I,J} = signorunsign(i % J, issigned(I))
+signorunsign(i, ::Val{true}) = signed(i)
+signorunsign(i, ::Val{false}) = unsigned(i)
+
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{T2}) where {M,N,W,T1,T2<:NativeTypes} = VecTile{M,N,W,promote_rule(T1,T2)}
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{Vec{W,T2}}) where {M,N,W,T1,T2} = VecTile{M,N,W,promote_rule(T1,T2)}
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{VecUnroll{M,W,T2}}) where {M,N,W,T1,T2} = VecTile{M,N,W,promote_rule(T1,T2)}

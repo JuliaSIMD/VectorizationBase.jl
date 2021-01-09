@@ -49,7 +49,7 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
         
         @generated $_ff_fast(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
         Base.@pure @inline $ff_fast(v1::T, v2::T) where {T} = $_ff_fast(v1, v2)
-        @inline $ff(x::T,y::T) where {T<:IntegerTypesHW} = $f(x,y)
+        @inline $ff(x::T,y::T) where {T<:IntegerTypesHW} = $_ff_fast(x,y)
     end
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]
@@ -96,4 +96,12 @@ end
 
 @inline vfdiv(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} = float(a) / float(b)
 
+for f ∈ [:vadd,:vadd_fast,:vsub,:vsub_fast,:vmul,:vmul_fast]
+    @eval begin
+        @inline function $f(a, b)
+            c, d = promote(a, b)
+            $f(c, d)
+        end
+    end
+end
 

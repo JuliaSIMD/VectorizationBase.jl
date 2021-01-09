@@ -7,13 +7,8 @@ intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 ispow2(x::Integer) = (x & (x - 1)) == zero(x)
 nextpow2(W) = vshl(one(W), vsub_fast(8sizeof(W), leading_zeros(vsub_fast(W, one(W)))))
 prevpow2(W) = vshl(one(W), vsub_fast(vsub_fast((8sizeof(W)) % UInt, one(UInt)), leading_zeros(W) % UInt))
-# prevpow2(W) = (one(W) << ((((8sizeof(W)) % UInt) - one(UInt)) - (leading_zeros(W) % UInt)))
 prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
 
-
-# @generated function pick_vector_width(::Type{T}) where {T<:NativeTypes}
-#     max(1, register_size(T) >>> intlog2(T))
-# end
 function pick_vector_width_shift(::Type{T}) where {T<:NativeTypes}
     # W = pick_vector_width(T)
     Wshift = intlog2(register_size(T)) - intlog2(T)
@@ -27,15 +22,6 @@ function pick_vector_width_shift(N::Integer, ::Type{T}) where {T<:NativeTypes}
     W, Wshift
 end
 
-
-# For the sake of convenient mask support, we allow 8 so that the mask can be a full byte
-# max_vector_width(::Type{T}) where {T} = max(8, pick_vector_width(T))
-
-# @inline pick_vector_width(::Type{T1}, ::Type{T2}) where {T1,T2} = min(pick_vector_width(T1), pick_vector_width(T2))
-# @inline pick_vector_width(::Type{T1}, ::Type{T2}, ::Type{T3}, args::Vararg{Any,K}) where {T1,T2,T3,K} = min(pick_vector_width(T1), pick_vector_width(T2, T3, args...))
-
-   
-
 function pick_vector_width_shift_from_size(N::Int, size_T::Int)
     Wshift_N = VectorizationBase.intlog2(2N - 1)
     Wshift_st = intlog2(REGISTER_SIZE) - VectorizationBase.intlog2(size_T)
@@ -43,40 +29,6 @@ function pick_vector_width_shift_from_size(N::Int, size_T::Int)
     W = 1 << Wshift
     W, Wshift
 end
-
-# @inline function pick_vector_width(N::Integer, args::Vararg{Any,K}) where {K}
-#     min(nextpow2(N), pick_vector_width(args...))
-# end
-# @inline function pick_vector_width_shift(N::Integer, args::Vararg{Any,K}) where {K}
-#     W = pick_vector_width(N, args...)
-#     W, intlog2(W)
-# end
-
-# @generated pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}) where {N,T} = pick_vector_width(N,T)
-# @generated function pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, ::Type{T2}, args::Vararg{Any,K}) where {N,T,T2,K}
-#     pvw = pick_vector_width(N, T)
-#     quote
-#         $(Expr(:meta,:inline))
-#         min($pvw, pick_vector_width_val(T2, args...))
-#     end
-# end
-# pick_vector_width(::Union{Val{N},StaticInt{N}}, ::Type{T}, args::Vararg{Any,K}) where {N,T,K} = min(@show(nextpow2(N)), @show(pick_vector_width(T, args...)))
-# pick_vector_width(::Union{Val{N},StaticInt{N}}, arg, args::Vararg{Any,K}) where {N,K} = min(nextpow2(N), pick_vector_width(arg, args...))
-# pick_vector_width(::Val{N}, args::Vararg{Any,K}) where {N,K} = ((Nmax,a,W) = @show((N, args, pick_vector_width(N, args...))); W)
-# @inline pick_vector_width_val(::Type{T}) where {T} = StaticInt{pick_vector_width(T)}()
-# @inline pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T}) where {N,T} = StaticInt{pick_vector_width(Val(N), T)}()
-# @inline pick_vector_width_val(::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,K} = StaticInt{pick_vector_width(T1,T2,args...)}()
-# @generated function pick_vector_width_val(::Union{Val{N},StaticInt{N}}, ::Type{T1}, ::Type{T2}, args::Vararg{Any,K}) where {T1,T2,N,K}
-#     Wstart = pick_vector_width(N, T1, T2)
-#     iszero(K) && return Expr(:call, Expr(:curly, :StaticInt, Wstart))
-#     Expr(:block, Expr(:call, Expr(:curly, :StaticInt, Expr(:call, :min, Wstart, :(pick_vector_width(args...))))))
-    
-#     # W = min(StaticInt{N}(), min(pick_vector_width_val(T1), pick_vector_width_val(T2, args...)))
-#     # StaticInt{W}()
-#     # StaticInt{pick_vector_width(Val{N}(),T1,T2,args...)}()
-# end
-
-
 
 function _pick_vector_width(vargs...)
     min_W = 1
@@ -128,7 +80,6 @@ pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
 
 @inline MM(::Union{Val{W},StaticInt{W}}) where {W} = MM{W}(0)
 @inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
-# @inline MM{W}(a::LazyMul) where {W} = MM{W}(data(a))
 @inline gep(ptr::Ptr, i::MM) = gep(ptr, i.i)
 
 @inline staticm1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vsub_fast(i.i, one(I)))
@@ -139,70 +90,25 @@ pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
 @inline vadd_fast(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_fast(i, j.i))
 @inline vadd_fast(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 @inline vadd_fast(::StaticInt{0}, j::MM{W,X}) where {W,X} = j
-# @inline vadd_fast(i::MM{W,X}, j::MM{W,S}) where {W,X,S} = MM{W}(vadd_fast(i.i, j.i), StaticInt{X}() + StaticInt{S}())
 @inline vsub_fast(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub_fast(i.i, j))
 @inline vsub_fast(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(i.i, j))
 @inline vsub_fast(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
-# @inline vmul_no_promote(i, j) = vmul(i,j)
-# @inline vmul_no_promote(i, j::MM{W,X}) where {W,X} = MM{W,X}(vmul(i, j.i))
-# @inline vmuladdnp(a, b, c) = vadd_fast(vmul(a,b), c)
-# @inline vmuladdnp(a, b::MM{W,X}, c) where {W,X} = vadd_fast(MM{W,X}(vmul(a,b.i)), c)
-# @inline vmuladdnp(a, b::MM{W,X}, c::MM{W,X}) where {W,X} = vadd_fast(vmul(a,b), c)
-# @inline vmuladdnp(a, b::MM{W,X}, c::Vec) where {W,X} = vadd_fast(vmul(a,b), c)
-# @inline vmuladdnp(a, b::MM{W,X}, c::_Vec) where {W,X} = vadd_fast(vmul(a,b), c)
 
-@inline Base.:(+)(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd_fast(i.i, j))
-@inline Base.:(+)(i::Integer, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_fast(i, j.i))
-@inline Base.:(+)(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd_fast(i.i, j))
-@inline Base.:(+)(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_fast(i, j.i))
-# @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i + j.i)
-@inline Base.:(-)(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub_fast(i.i, j))
-# @inline Base.:(-)(i::Integer, j::MM{W}) where {W} = MM{W}(i - j.i)
-@inline Base.:(-)(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(i.i, j))
-# @inline Base.:(-)(i::MM, ::StaticInt{0}) = i
-@inline Base.:(-)(i::MM) = i * StaticInt{-1}()
-# @inline Base.:(+)(i::MM, ::StaticInt{0}) = i
-# @inline Base.:(+)(::StaticInt{0}, i::MM) = i
-@inline Base.:(*)(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(i.i * StaticInt{M}(), StaticInt{X}() * StaticInt{M}())
-@inline Base.:(*)(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(i.i * StaticInt{M}(), StaticInt{X}() * StaticInt{M}())
-# @inline Base.:(-)(::StaticInt{i}, j::MM{W}) where {W,i} = MM{W}(i - j.i)
-# @inline Base.:(-)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i - j.i)
-# @inline Base.:(*)(i::MM{W}, j) where {W} = MM{W}(i.i * j)
-# @inline Base.:(*)(i, j::MM{W}) where {W} = MM{W}(i * j.i)
-# @inline Base.:(*)(i::MM{W}, ::StaticInt{j}) where {W,j} = MM{W}(i.i * j)
-# @inline Base.:(*)(::StaticInt{i}, j::MM{W}) where {W,i} = MM{W}(i * j.i)
-# @inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = MM{W}(i.i * j.i)
-@inline Base.rem(i::MM{W,X,I}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = i
-@inline Base.rem(i::MM{W,X}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = MM{W,X}(i.i % I)
-# @inline scalar_less(i, j) = i < j
-# @inline scalar_less(i::MM, j::Integer) = i.i < j
-# @inline scalar_less(i::Integer, j::MM) = i < j.i
-# @inline scalar_less(i::MM, ::StaticInt{j}) where {j} = i.i < j
-# @inline scalar_less(::StaticInt{i}, j::MM) where {i} = i < j.i
-# @inline scalar_less(i::MM, j::MM) = i.i < j.i
-# @inline scalar_greater(i, j) = i > j
-# @inline scalar_greater(i::MM, j::Integer) = i.i > j
-# @inline scalar_greater(i::Integer, j::MM) = i > j.i
-# @inline scalar_greater(i::MM, ::StaticInt{j}) where {j} = i.i > j
-# @inline scalar_greater(::StaticInt{i}, j::MM) where {i} = i > j.i
-# @inline scalar_greater(i::MM, j::MM) = i.i > j.i
-# @inline scalar_equal(i, j) = i == j
-# @inline scalar_equal(i::MM, j::Integer) = i.i == j
-# @inline scalar_equal(i::Integer, j::MM) = i == j.i
-# @inline scalar_equal(i::MM, ::StaticInt{j}) where {j} = i.i == j
-# @inline scalar_equal(::StaticInt{i}, j::MM) where {i} = i == j.i
-# @inline scalar_equal(i::MM, j::MM) = i.i == j.i
-# @inline scalar_notequal(i, j) = i != j
-# @inline scalar_notequal(i::MM, j::Integer) = i.i != j
-# @inline scalar_notequal(i::Integer, j::MM) = i != j.i
-# @inline scalar_notequal(i::MM, ::StaticInt{j}) where {j} = i.i != j
-# @inline scalar_notequal(::StaticInt{i}, j::MM) where {i} = i != j.i
-# @inline scalar_notequal(i::MM, j::MM) = i.i != j.i
-
-@inline Base.:(==)(::AbstractIrrational, ::MM{W,<:Integer}) where {W} = zero(Mask{W})
-@inline Base.:(==)(x::AbstractIrrational, i::MM{W}) where {W} = x == Vec(i)
-@inline Base.:(==)(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
-@inline Base.:(==)(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
+@inline vadd(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd_fast(i.i, j))
+@inline vadd(i::Integer, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_fast(i, j.i))
+@inline vadd(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd_fast(i.i, j))
+@inline vadd(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_fast(i, j.i))
+@inline vsub(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub_fast(i.i, j))
+@inline vsub(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(i.i, j))
+@inline vsub(i::MM) = i * StaticInt{-1}()
+@inline vmul(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(i.i * StaticInt{M}(), StaticInt{X}() * StaticInt{M}())
+@inline vmul(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(i.i * StaticInt{M}(), StaticInt{X}() * StaticInt{M}())
+@inline vrem(i::MM{W,X,I}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = i
+@inline vrem(i::MM{W,X}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = MM{W,X}(i.i % I)
+@inline veq(::AbstractIrrational, ::MM{W,<:Integer}) where {W} = zero(Mask{W})
+@inline veq(x::AbstractIrrational, i::MM{W}) where {W} = x == Vec(i)
+@inline veq(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
+@inline veq(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
                    
 
 @generated function Base.promote_rule(::Type{MM{W,X,I}}, ::Type{T2}) where {W,X,I,T2<:NativeTypes}
@@ -216,15 +122,6 @@ pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
         return :(Vec{$W,$T2})
     end
 end
-
-
-
-# @inline _vload(ptr::Ptr{T}, i::Integer) where {T} = vload(ptr + vmul(sizeof(T), i))
-# @inline _vload(ptr::Ptr, v::Vec{<:Any,<:Integer}) = vload(ptr, v.data)
-# @inline _vload(ptr::Ptr, v::Vec{<:Any,<:Integer}) = vload(ptr, v)
-# @inline _vload(ptr::Ptr{T}, i::MM{W}) where {W,T} = vload(Val{W}(), ptr + vmul(sizeof(T), i.i))
-# @inline _vload(ptr::AbstractPointer, i) = _vload(ptr.ptr, offset(ptr, i))
-# @inline vload(ptr::AbstractPointer{T}, i::Tuple) where {T} = _vload(ptr.ptr, offset(ptr, i))
 
 @inline function Base.in(m::MM{W,X,<:Integer}, r::AbstractUnitRange) where {W,X}
     vm = Vec(m)

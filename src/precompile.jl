@@ -8,9 +8,8 @@ function _precompile_()
     function precompile_nt(@nospecialize(T))
         for I ∈ (Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64)
             precompile(vload_quote, (Type{T}, Type{I}, Symbol, Int, Int, Int, Int, Bool, Bool))
+            precompile(vload_quote, (Type{T}, Type{I}, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool))
         end
-        W = pick_vector_width(T)
-        precompile(vfmadd, (Vec{W, T}, Vec{W, T}, Vec{W, T}))  # doesn't "take" (too bad, this is expensive)
     end
     U = NativeTypes
     while isa(U, Union)
@@ -19,5 +18,14 @@ function _precompile_()
     end
     precompile_nt(U)
     precompile(_pick_vector_width, (Type, Vararg{Type,100}))
-    precompile(>=, (Int, MM{4, 1, Int}))
+    for T ∈ (Float32, Float64)
+        W = pick_vector_width(T)
+        precompile(>=, (Int, MM{W, 1, Int}))
+        for op ∈ (+, -, *)
+            precompile(op, (Vec{W, T}, Vec{W, T}))
+        end
+        for op ∈ (VectorizationBase.vfmadd, VectorizationBase.vfmadd_fast)
+            precompile(op, (Vec{W, T}, Vec{W, T}, Vec{W, T}))
+        end
+    end
 end

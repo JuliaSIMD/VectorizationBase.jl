@@ -1,6 +1,6 @@
 module VectorizationBase
 
-import ArrayInterface, LinearAlgebra, Libdl, Hwloc
+import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse
 using ArrayInterface: StaticInt, Zero, One, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
     Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
     known_length, known_first, known_last, strides, offsets,
@@ -66,8 +66,16 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 # end
 # Base.@pure StaticInt(N) = StaticInt{N}()
 
-abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
-abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
+# abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
+# abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
+
+abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
+struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real
+    data::Tuple{V,Vararg{V,N}}
+    @inline VecUnroll(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
+end
+const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
+
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}
@@ -85,10 +93,6 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
     #     # @assert ispow2(W) && (W ≤ max(pick_vector_width(W, T), 8))
     #     new{W,T}(x)
     # end
-end
-struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: AbstractSIMD{W,T}
-    data::Tuple{V,Vararg{V,N}}
-    @inline VecUnroll(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
 end
 
 @inline Base.copy(v::AbstractSIMDVector) = v
@@ -159,7 +163,7 @@ end
 end
 
 
-struct Mask{W,U<:Unsigned} <: AbstractSIMDVector{W,Bit}
+struct Mask{W,U<:UnsignedHW} <: AbstractSIMDVector{W,Bit}
     u::U
     @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
         U2 = mask_type(Val{W}())
