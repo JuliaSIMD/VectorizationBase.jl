@@ -26,4 +26,16 @@ end
         Vec(llvmcall($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}}, data(v1)))
     end
 end
+@generated function vresize(::Union{StaticInt{W},Val{W}}, v::Vec{L,T}) where {W,L,T}
+    typ = LLVM_TYPES[T]
+    mask = '<' * join(map(x->string("i32 ", x ≥ L ? L : x), 0:W-1), ", ") * '>'
+    instrs = """
+        %res = shufflevector <$L x $typ> %0, <$L x $typ> undef, <$W x i32> $mask
+        ret <$W x $typ> %res
+    """
+    quote
+        $(Expr(:meta, :inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$L,$T}}, data(v)))
+    end
+end
 

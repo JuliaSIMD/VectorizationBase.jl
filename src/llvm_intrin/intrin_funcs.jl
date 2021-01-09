@@ -204,14 +204,6 @@ end
 @inline Base.muladd(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,T<:FloatingTypes} = vmuladd(a,b,c)
 
 # vfmadd -> muladd -> promotes arguments to hit definitions from VectorizationBase
-@inline function vfmadd(a, b, c)
-    x, y, z = promote(a, b, c)
-    vfmadd(x, y, z)
-end
-@inline function vfmadd_fast(a, b, c)
-    x, y, z = promote(a, b, c)
-    vfmadd(x, y, z)
-end
 const vfmadd = FMA_FAST ? vfma : vmuladd
 @inline vfnmadd(a, b, c) = vfmadd(-a, b, c)
 @inline vfmsub(a, b, c) = vfmadd(a, b, -c)
@@ -502,7 +494,8 @@ Useful for special funcion implementations.
 """
 @inline inv_approx(x) = inv(x)
 @inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, v.data))
-@generated function inv_approx(v::Vec{W,T}) where {W, T <: Union{Float32, Float64}}
+
+function inv_approx_expr(W, T) where {W,T}
     ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)) || return Expr(:block, Expr(:meta, :inline), :(inv(v)))
     bits = 8sizeof(T) * W
     if (AVX512F && (bits === 512)) || (AVX512VL && (bits ∈ (128, 256)))
@@ -528,8 +521,14 @@ Useful for special funcion implementations.
             call = llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), "<4 x float>", ["<4 x float>"], argexpr, true)
             return Expr(:block, Expr(:meta, :inline), :(convert(Float64, $call)))
         end
+    elseif W == 2
+        return Expr(:block, Expr(:meta,:inline), :(vresize(Val{2}(), inv_approx(vresize(Val{4}(), v)))))
     end
     Expr(:block, Expr(:meta, :inline), :(inv(v)))
+end
+
+@generated function inv_approx(v::Vec{W,T}) where {W, T <: Union{Float32, Float64}}
+    inv_approx_expr(W, T)
 end
 
 """
