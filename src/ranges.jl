@@ -5,7 +5,7 @@ function pick_integer_bytes(W, preferred)
     if !AVX512DQ
         preferred = min(4, preferred)
     end
-    max(1,min(preferred, prevpow2(REGISTER_SIZE ÷ W)))
+    max(1,min(preferred, prevpow2(SIMD_INTEGER_REGISTER_SIZE ÷ W)))
 end
 function integer_of_bytes(bytes)
     if bytes == 8
