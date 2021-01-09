@@ -45,12 +45,19 @@ end
 @inline vsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % signed(T)
 @inline vunsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
 
-@inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
+# @inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
 @generated function vfloat(v::Vec{W,I}) where {W, I <: Integer}
-    ex = if 8W ≤ REGISTER_SIZE
-        :(Vec{$W,Float64}(v))
+    arg = if AVX512DQ || (2W*sizeof(I) ≤ REGISTER_SIZE)
+        :v
     else
-        :(Vec{$W,Float32}(v))
+        _J = integer_of_bytes(pick_integer_bytes(W, sizeof(I), SIMD_INTEGER_REGISTER_SIZE >>> 1))
+        J = I <: Signed ? _J : unsgined(_J)
+        :(v % $J)
+    end
+    ex = if 8W ≤ REGISTER_SIZE
+        :(Vec{$W,Float64}($arg))
+    else
+        :(Vec{$W,Float32}($arg))
     end
     Expr(:block, Expr(:meta, :inline), ex)
 end

@@ -4,6 +4,7 @@ const FASTDICT = Dict{Symbol,Expr}([
     :(-) => :(Base.FastMath.sub_fast),
     :(*) => :(Base.FastMath.mul_fast),
     :(/) => :(Base.FastMath.div_fast),
+    :(÷) => :(VectorizationBase.vdiv_fast), # VectorizationBase.vdiv == integer, VectorizationBase.vfdiv == float
     :(%) => :(Base.FastMath.rem_fast),
     :abs2 => :(Base.FastMath.abs2_fast),
     :inv => :(Base.FastMath.inv_fast),

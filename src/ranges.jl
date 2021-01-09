@@ -1,11 +1,9 @@
 
 
-function pick_integer_bytes(W, preferred)
+function pick_integer_bytes(W, preferred, simd_integer_register_size = SIMD_INTEGER_REGISTER_SIZE)
     # SIMD quadword integer support requires AVX512DQ
-    if !AVX512DQ
-        preferred = min(4, preferred)
-    end
-    max(1,min(preferred, prevpow2(SIMD_INTEGER_REGISTER_SIZE ÷ W)))
+    # preferred = AVX512DQ ? preferred :  min(4, preferred)
+    max(1,min(preferred, prevpow2(simd_integer_register_size ÷ W)))
 end
 function integer_of_bytes(bytes)
     if bytes == 8
@@ -24,6 +22,8 @@ function pick_integer(W, pref)
     integer_of_bytes(pick_integer_bytes(W, pref))
 end
 @generated pick_integer(::Val{W}) where {W} = pick_integer(W, sizeof(Int))
+pick_integer(::Val{W}, ::Type{T}) where {W, T} = signorunsign(pick_integer(Val{W}()), issigned(T))
+
 
 @generated function vrange(::Val{W}, ::Type{T}, ::Val{O}, ::Val{F}) where {W,T,O,F}
     if T <: Integer
@@ -164,7 +164,7 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @generated function floattype(::Val{W}) where {W}
     (REGISTER_SIZE ÷ W) ≥ 8 ? :Float64 : :Float32
 end
-@inline Base.float(i::MM{W,X}) where {W,X} = Vec(MM{W,X}(floattype(Val{W}())(i.i)))
+@inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(i.i % pick_integer(Val{W}(),I))))
 @inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline vfdiv(j::T, i::MM) where {T<:Real} = j / float(i)
 
