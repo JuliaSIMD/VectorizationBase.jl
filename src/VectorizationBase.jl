@@ -343,6 +343,8 @@ const CACHE_INCLUSIVITY = let
     end
 end
 
+notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
+
 include("static.jl")
 include("cartesianvindex.jl")
 # include("vectorizable.jl")
