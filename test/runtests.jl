@@ -2,6 +2,9 @@ using VectorizationBase, OffsetArrays, Aqua
 using VectorizationBase: data
 using Test
 
+import InteractiveUtils
+InteractiveUtils.versioninfo(stdout; verbose=true)
+
 const W64S = VectorizationBase.pick_vector_width_val(Float64)
 const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
 const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
