@@ -88,7 +88,7 @@ for op ∈ [:vgt,:vge,:vlt,:vle,:veq,:vne,:vmax,:vmax_fast,:vmin,:vmin_fast]
     end
 end
 
-for op ∈ [:vrem, :vshl, :vashr, :vlshr, :vdiv, :vfdiv]
+for op ∈ [:vrem, :vshl, :vashr, :vlshr, :vdiv, :vfdiv, :vrem_fast, :vfdiv_fast]
     @eval begin
         @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
         # # @inline $op(v1::VecUnroll{N,W,T}, v2::Real) where {N,W,T} = VecUnroll(fmap($op, v1.data, vbroadcast(Val{W}(), T, v2)))

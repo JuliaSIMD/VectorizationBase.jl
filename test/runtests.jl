@@ -69,7 +69,7 @@ end
     # @test isempty(detect_ambiguities(VectorizationBase))
 
     W = VectorizationBase.pick_vector_width(Float64)
-    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.AVX512DQ ? Int64 : Int32)
+    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.REGISTER_SIZE == VectorizationBase.SIMD_INTEGER_REGISTER_SIZE ? Int64 : Int32)
 
 
     @test first(A) === A[1]
@@ -452,7 +452,10 @@ end
             Vec(ntuple(_ -> (randn()), Val(W64))...)
         ))
         x = tovector(v)
-        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu]
+        for f ∈ [
+            -, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu, abs2,
+            Base.FastMath.abs2_fast, Base.FastMath.inv_fast, Base.FastMath.sub_fast
+        ]
             @test tovector(@inferred(f(v))) == map(f, x)
         end
         for f ∈ [floor, ceil, trunc, round]
@@ -462,13 +465,14 @@ end
         invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
         @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
 
+        int = VectorizationBase.AVX512DQ ? Int : Int32
         vi = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> rand(Int), Val(W64))...),
-            Vec(ntuple(_ -> rand(Int), Val(W64))...),
-            Vec(ntuple(_ -> rand(Int), Val(W64))...)
-        ))
+            Vec(ntuple(_ -> rand(int), Val(W64))...),
+            Vec(ntuple(_ -> rand(int), Val(W64))...),
+            Vec(ntuple(_ -> rand(int), Val(W64))...)
+        )) % Int
         xi = tovector(vi)
-        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
+        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, Base.FastMath.inv_fast]
             @test tovector(@inferred(f(vi))) == map(f, xi)
         end
         # vpos = VectorizationBase.VecUnroll((
@@ -510,6 +514,9 @@ end
             for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini]
             # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
                 # @show f, I1, I2
+                # if (!VectorizationBase.AVX512DQ) && (f === /) && sizeof(I1) === sizeof(I2) === 8
+                #     continue
+                # end
                 check_within_limits(tovector(@inferred(f(vi1, vi2))),  trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3));
                 check_within_limits(tovector(@inferred(f(j, vi2))), trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)), I3));
                 check_within_limits(tovector(@inferred(f(vi1, i))), trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)), I3));
@@ -535,7 +542,7 @@ end
         vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
         xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
         a = randn();
-        for f ∈ [+, -, *, /, %, max, min, copysign]
+        for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast]
             # @show f
             @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
             @test tovector(@inferred(f(a, vf1))) ≈ f.(a, xf1)
@@ -582,8 +589,9 @@ end
         m = Mask{W64}(0xce)
         mv = tovector(m)
         for f ∈ [
-            muladd, fma, clamp,
+            muladd, fma, fma, clamp, VectorizationBase.vmuladd_fast, VectorizationBase.vfma_fast,
             VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
+            VectorizationBase.vfmadd_fast, VectorizationBase.vfnmadd_fast, VectorizationBase.vfmsub_fast, VectorizationBase.vfnmsub_fast,
             VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
         ]
             @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
