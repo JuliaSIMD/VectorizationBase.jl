@@ -11,7 +11,8 @@ end
 @generated vsub(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, T, false)
 @generated vsub_fast(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, T, true)
 
-@inline vsub(v::Vec{<:Any,<:NativeTypes}) = zero(v) - v
+@inline vsub(v::Vec{<:Any,<:NativeTypes}) = vsub(zero(v), v)
+@inline vsub_fast(v::Vec{<:Any,<:NativeTypes}) = vsub_fast(zero(v), v)
 
 @inline vinv(v::AbstractSIMD{W,<:FloatingTypes}) where {W} = vfdiv(one(v), v)
 @inline vinv(v::AbstractSIMD{W,<:IntegerTypesHW}) where {W} = inv(float(v))

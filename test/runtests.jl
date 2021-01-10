@@ -515,6 +515,7 @@ include("testsetup.jl")
                 end
             end
             @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
+            @test @inferred(VectorizationBase.vall(@inferred(1 - MM{W64}(1)) == (1 - Vec(ntuple(identity, Val(W64))...)) ))
         end
         vf1 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),

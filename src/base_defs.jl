@@ -113,7 +113,7 @@ for (op, f) ∈ [
 ]
     @eval begin
         @inline $op(m::MM, j::NativeTypes) = $f(m, j)
-        @inline $op(j::NativeTypes, m::MM) = $f(m, j)
+        @inline $op(j::NativeTypes, m::MM) = $f(j, m)
         @inline $op(m::MM, ::StaticInt{N}) where {N} = $f(m, StaticInt{N}())
         @inline $op(::StaticInt{N}, m::MM) where {N} = $f(StaticInt{N}(), m)
     end

@@ -257,8 +257,8 @@ for (op,f) ∈ [
         llvmcall_expr($op, -1, T, (1, W), (T, T), "nsz arcp contract afn reassoc")
     end
 end
-vsum(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.add_fast(s, vsum(v))
-vprod(s::T, v::Vec{W,T}) where {W,T} = Base.FastMath.mul_fast(s, vprod(v))
+@inline vsum(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.add_fast(s, vsum(v))
+@inline vprod(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.mul_fast(s, vprod(v))
 for (op,f) ∈ [
     ("experimental.vector.reduce.fmax",:vmaximum),
     ("experimental.vector.reduce.fmin",:vminimum)
