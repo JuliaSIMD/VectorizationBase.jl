@@ -240,9 +240,9 @@ const vfmadd = FMA_FAST ? vfma : vmuladd
 @inline vfmsub(a, b, c) = vfmadd(a, b, -c)
 @inline vfnmsub(a, b, c) = -vfmadd(a, b, c)
 const vfmadd_fast = FMA_FAST ? vfma_fast : vmuladd_fast
-@inline vfnmadd_fast(a, b, c) = vfmadd_fast(-a, b, c)
-@inline vfmsub_fast(a, b, c) = vfmadd_fast(a, b, -c)
-@inline vfnmsub_fast(a, b, c) = -vfmadd_fast(a, b, c)
+@inline vfnmadd_fast(a, b, c) = vfmadd_fast(Base.FastMath.sub_fast(a), b, c)
+@inline vfmsub_fast(a, b, c) = vfmadd_fast(a, b, Base.FastMath.sub_fast(c))
+@inline vfnmsub_fast(a, b, c) = Base.FastMath.sub_fast(vfmadd_fast(a, b, c))
 # floating vector, integer scalar
 # @generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")

@@ -432,7 +432,6 @@ include("testsetup.jl")
                     end
                 end
             end
-            end
             for f ∈ [floor, ceil, trunc, round]
                 @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
                 @test tovector(@inferred(f(Int64, v))) == map(y -> f(Int64,y), x)
@@ -560,36 +559,50 @@ include("testsetup.jl")
         @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
     end
     @time @testset "Ternary Functions" begin
-        v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        v2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        v3 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
-        a = randn(); b = randn()
-        m = Mask{W64}(0xce)
-        mv = tovector(m)
-        for f ∈ [
-            muladd, fma, fma, clamp, VectorizationBase.vmuladd_fast, VectorizationBase.vfma_fast,
-            VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
-            VectorizationBase.vfmadd_fast, VectorizationBase.vfnmadd_fast, VectorizationBase.vfmsub_fast, VectorizationBase.vfnmsub_fast,
-            VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
-        ]
-            @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
-            @test tovector(@inferred(f(v1, v2, a))) ≈ f.(x1, x2, a)
-            @test tovector(@inferred(f(v1, a, v3))) ≈ f.(x1, a, x3)
-            @test tovector(@inferred(f(a, v2, v3))) ≈ f.(a, x2, x3)
-            @test tovector(@inferred(f(v1, a, b))) ≈ f.(x1, a, b)
-            @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
-            @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
+        for T ∈ (Float32, Float64)
+            v1, v2, v3, m = let W = VectorizationBase.pick_vector_width_val(T)
+                v1 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> randn(T), W)...),
+                    Vec(ntuple(_ -> randn(T), W)...)
+                ))
+                v2 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> randn(T), W)...),
+                    Vec(ntuple(_ -> randn(T), W)...)
+                ))
+                v3 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> randn(T), W)...),
+                    Vec(ntuple(_ -> randn(T), W)...)
+                ))
+                _W = VectorizationBase.pick_vector_width(T)
+                m = VectorizationBase.VecUnroll((Mask{_W}(rand(UInt16)),Mask{_W}(rand(UInt16))))
+                v1, v2, v3, m
+            end
+            x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
+            a = randn(); b = randn()
+            mv = tovector(m)
+            for f ∈ [
+                muladd, fma, clamp, VectorizationBase.vmuladd_fast, VectorizationBase.vfma_fast,
+                VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
+                VectorizationBase.vfmadd_fast, VectorizationBase.vfnmadd_fast, VectorizationBase.vfmsub_fast, VectorizationBase.vfnmsub_fast,
+                VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
+            ]
+                @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
+                @test tovector(@inferred(f(v1, v2, a))) ≈ f.(x1, x2, a)
+                @test tovector(@inferred(f(v1, a, v3))) ≈ f.(x1, a, x3)
+                @test tovector(@inferred(f(a, v2, v3))) ≈ f.(a, x2, x3)
+                @test tovector(@inferred(f(v1, a, b))) ≈ f.(x1, a, b)
+                @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
+                @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
 
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, v3))) ≈ ifelse.(mv, f.(x1, x2, x3), x3)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a))) ≈ ifelse.(mv, f.(x1, x2, a), a)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, b))) ≈ ifelse.(mv, f.(x1, a, b), b)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, b))) ≈ ifelse.(mv, f.(a, x2, b), b)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, b, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, v3))) ≈ ifelse.(mv, f.(x1, x2, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a))) ≈ ifelse.(mv, f.(x1, x2, a), a)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, b))) ≈ ifelse.(mv, f.(x1, a, b), b)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, b))) ≈ ifelse.(mv, f.(a, x2, b), b)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, b, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
+            end
         end
-
         vi64 = VectorizationBase.VecUnroll((
            Vec(ntuple(_ -> rand(Int64), Val(W64))...),
            Vec(ntuple(_ -> rand(Int64), Val(W64))...),

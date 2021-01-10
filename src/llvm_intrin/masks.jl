@@ -420,6 +420,8 @@ end
 @inline Base.Bool(m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
 @inline vconvert(::Type{Bool}, m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
 @inline vifelse(m::Mask{1}, s1::T, s2::T) where {T<:NativeTypes} = Base.ifelse(Bool(m), s1, s2)
+@inline vifelse(f::F, m::AbstractSIMD{W,B}, a::Vararg{NativeTypesV,K}) where {F<:Function,K,W,B<:Union{Bool,Bit}} = vifelse(m, f(a...), a[K])
+@inline vifelse(f::F, m::Bool, a::Vararg{NativeTypesV,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
 
 @inline Base.isnan(v::AbstractSIMD) = v != v
 @inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)

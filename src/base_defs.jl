@@ -206,7 +206,8 @@ for (op, f, promotef) ∈ [
         end        
     end
 end
-@inline IfElse.ifelse(f::F, m::Mask, a::Vararg{NativeTypesV,K}) where {F<:Function,K} = vifelse(m, f(a...), a[K])
+@inline IfElse.ifelse(f::Function, m::AbstractSIMD{W,B}, args::Vararg{NativeTypesV,K}) where {W,K,B<:Union{Bool,Bit}} = vifelse(f, m, args...)
+@inline IfElse.ifelse(f::Function, m::Bool, args::Vararg{NativeTypesV,K}) where {W,K} = vifelse(f, m, args...)
 for (f) ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast]
     @eval begin
         @inline function $f(a, b, c)
