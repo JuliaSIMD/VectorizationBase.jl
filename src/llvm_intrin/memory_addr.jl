@@ -947,7 +947,7 @@ function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     @assert N*Wsplit == W
     q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(im = _materialize(i)))
     if mask
-        let U = unsigned(integer_of_bytes(cld(Wsplit, 8)))
+        let U = mask_type_symbol(Wsplit)
             push!(q.args, :(mt = data(vconvert(VecUnroll{$Nm1,$Wsplit,Bit,Mask{$Wsplit,$U}}, m))))
         end
     end

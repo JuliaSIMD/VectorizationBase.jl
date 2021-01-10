@@ -6,6 +6,15 @@ Base.@pure function _ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1
 end
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: Integer, T2 <: Integer,W} = _ff_promote_rule(T1,T2,Val{W}())
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: FloatingTypes, T2<:FloatingTypes,W} = _ff_promote_rule(T1,T2,Val{W}())
+@generated function ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: IntegerTypes, T2 <: FloatingTypes,W}
+    T_canon = promote_type(T1,T2)
+    (sizeof(T_canon) * W ≤ REGISTER_SIZE) && return T_canon
+    @assert sizeof(T1) * W ≤ REGISTER_SIZE
+    @assert sizeof(T1) == 4
+    Float32
+    # N, r = 4W ÷ REGISTER_SIZE
+    # @assert iszero(r)
+end
 
 Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:AbstractSIMDVector{W,T1}} = Vec{W,ff_promote_rule(T1,T2,Val{W}())}
 @generated function Base.promote_rule(::Type{V1}, ::Type{V2}) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2}}
@@ -14,10 +23,15 @@ Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:Abstract
         return :(Vec{$W,$T})
     end
     if T === Float64 || T === Float32
+        N, r1 = (sizeof(T) * W) ÷ REGISTER_SIZE
+        Wnew, r2 = divrem(W, N)
+        @assert iszero(r)
+        
+        return :(VecUnroll{$(N-1),$Wnew,$T,Vec{$Wnew,$T}})
         # Should we demote `Float64` -> `Float32`?
         # return :(Vec{$W,$T})
         # don't demote to smaller than `Float32`
-        return :(Vec{$W,Float32})
+        # return :(Vec{$W,Float32})
     end
     I = pick_integer(W, sizeof(Int))
     SorU = T <: Unsigned ? unsigned(I) : I
@@ -30,7 +44,7 @@ end
     N = Nm1 + 1
     @assert N * Wsplit == W
     V3 = if V2 <: Mask
-        Mask{Wsplit,unsigned(integer_of_bytes(cld(Wsplit,8)))}
+        Mask{Wsplit,mask_type(Wsplit)}
     else
         Vec{Wsplit,T2}
     end

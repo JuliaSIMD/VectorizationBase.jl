@@ -419,6 +419,7 @@ end
     end
 end
 
+@inline vifelse(m::Vec{W,Bool}, s1::T, s2::T) where {W,T<:NativeTypes} = vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
 @inline vifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
 @inline vifelse(m::Mask{W,U}, s1, s2) where {W,U} = ((x1,x2) = promote(s1,s2); vifelse(m, x1, x2))
 @inline vifelse(m::Mask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(vifelse, m, v1.data, v2.data))
@@ -467,9 +468,10 @@ end
 @generated function vifelse(m::Mask{W}, vu1::VecUnroll{Nm1,Wsplit}, vu2::VecUnroll{Nm1,Wsplit}) where {W,Wsplit,Nm1}
     N = Nm1 + 1
     @assert N * Wsplit == W
+    U = mask_type_symbol(Wsplit)
     quote
         $(Expr(:meta,:inline))
-        vifelse(vconvert(VecUnroll{$Nm1,$Wsplit,Bit}, m), vu1, vu2)
+        vifelse(vconvert(VecUnroll{$Nm1,$Wsplit,Bit,Mask{$Wsplit,$U}}, m), vu1, vu2)
     end
 end
 

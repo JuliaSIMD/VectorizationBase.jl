@@ -74,9 +74,13 @@ end
 @inline vconvert(::Type{MM{W,X,T}}, i::MM{W,X}) where {W,X,T} = MM{W,X}(T(i.i))
 
 @inline function vconvert(::Type{V}, v::Mask{W}) where {W, T <: Union{Base.HWReal,Bool}, V <: AbstractSIMDVector{W,T}}
-    ifelse(v, one(T), zero(T))
+    vifelse(v, one(T), zero(T))
 end
 @inline vconvert(::Type{V}, v::Mask{W}) where {W, V <: AbstractSIMDVector{W,Bit}} = v
+@inline function vconvert(::Type{V}, v::Vec{W,Bool}) where {W, T <: Base.HWReal, V <: AbstractSIMDVector{W,T}}
+    vifelse(v, one(T), zero(T))
+end
+@inline vconvert(::Type{V}, v::Vec{W,Bool}) where {W, V <: AbstractSIMDVector{W,Bool}} = v
 
 
 
@@ -117,7 +121,7 @@ end
 # @inline vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::VecUnroll{N, W, Bit}) where {N, W} = v
 # @inline vconvert(::Type{<:AbstractSIMD{W,T}}, v::VecUnroll{<:Any, W, Bool, <: Mask}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
 
-@generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::Vec{L}) where {N, W, T, V, L}
+@generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::AbstractSIMDVector{L}) where {N, W, T, V, L}
     if W == L # _vconvert will dispatch to one of the two above
         return Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, v)))
     end

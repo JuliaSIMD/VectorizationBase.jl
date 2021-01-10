@@ -137,6 +137,18 @@ end
 #     end
 # end
 @inline vbroadcast(::Union{Val{W},StaticInt{W}}, v::AbstractSIMDVector{W}) where {W} = v
+
+@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, v::V) where {W,L,T,V<:AbstractSIMDVector{L,T}}
+    N, r = divrem(L, W)
+    @assert iszero(r)
+    V = if T === Bit
+        :(Mask{$W,$(mask_type_symbol(W))})
+    else
+        :(Vec{$W,$T})
+    end
+    Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$(N-1),$W,$T,$V}, v)))
+end
+
 @inline Vec{W,T}(v::Vec{W,T}) where {W,T} = v
 # @inline vbroadcast(::Val{1}, s::T) where {T <: NativeTypes} = s
 # @inline vbroadcast(::Val{1}, s::Ptr{T}) where {T <: NativeTypes} = s
