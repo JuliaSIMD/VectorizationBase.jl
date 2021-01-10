@@ -741,6 +741,9 @@ include("testsetup.jl")
         for i ∈ (-5, -1, 0, 1, 4, 8), j ∈ (-5, -1, 0, 1, 4, 8)
             @test VectorizationBase.lazymul(StaticInt(i), StaticInt(j)) === VectorizationBase.lazymul_no_promote(StaticInt(i), StaticInt(j)) === StaticInt(i*j)
         end
+        fi = VectorizationBase.LazyMulAdd{8,0}(MM{8}(StaticInt(16)))
+        si = VectorizationBase.LazyMulAdd{2}(240)
+        @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
 end
 
