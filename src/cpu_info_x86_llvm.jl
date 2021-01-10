@@ -14,9 +14,10 @@ let llvmlib = VERSION ≥ v"1.6.0-DEV.1429" ? Libdl.dlopen(Base.libllvm_path()) 
     @eval const REGISTER_SIZE = $register_size
     @eval const REGISTER_COUNT = $register_count
     for ext ∈ features
+        ext = ext == "+avx512dq" ? "-avx512dq" : ext
         @eval const $(Symbol(replace(Base.Unicode.uppercase(ext[2:end]), r"\." => "_"))) = $(first(ext) == '+')
     end
-
+    
     @eval const SIMD_INTEGER_REGISTER_SIZE = $(avx2 ? REGISTER_SIZE : any(isequal("+sse2"), features) ? 16 : 8)
     @eval const HAS_OPMASK_REGISTERS = AVX512F
 

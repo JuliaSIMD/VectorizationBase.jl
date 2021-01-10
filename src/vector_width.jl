@@ -30,21 +30,45 @@ function pick_vector_width_shift_from_size(N::Int, size_T::Int)
     W, Wshift
 end
 
-function _pick_vector_width(vargs...)
+__pick_vector_width(min_W, max_W) = (min_W, max_W)
+function __pick_vector_width(min_W::Int, max_W::Int, @nospecialize(_T))::Tuple{Int,Int}
+    # function __pick_vector_width(min_W::Int, max_W::Int, _T)::Tuple{Int,Int}
+    T = _T.parameters[1]
+    if T === Bit
+        min_W = 8
+    elseif (SIMD_INTEGER_REGISTER_SIZE != REGISTER_SIZE) && T <: Integer # only check subtype if it matters
+        max_W = min(max_W, SIMD_INTEGER_REGISTER_SIZE ÷ sizeof(T))
+    else
+        max_W = min(max_W, REGISTER_SIZE ÷ sizeof(T))
+    end
+    min_W, max_W
+end
+function __pick_vector_width(min_W::Int, max_W::Int, @nospecialize(T1), @nospecialize(T2), args...)::Tuple{Int,Int}
+    min_W, max_W = __pick_vector_width(min_W, max_W, T1)
+    __pick_vector_width(min_W, max_W, T2, args...)
+end
+function _pick_vector_width(vargs...)::Int
     min_W = 1
     max_W = REGISTER_SIZE
-    for v ∈ vargs
-        T = v.parameters[1]
-        if T === Bit
-            min_W = 8
-        elseif (SIMD_INTEGER_REGISTER_SIZE != REGISTER_SIZE) && T <: Integer # only check subtype if it matters
-            max_W = min(max_W, SIMD_INTEGER_REGISTER_SIZE ÷ sizeof(T))
-        else
-            max_W = min(max_W, REGISTER_SIZE ÷ sizeof(T))
-        end
-    end
-    W = max(min_W, max_W)
+    min_W, max_W = __pick_vector_width(min_W, max_W, vargs...)
+    max(min_W, max_W)
 end
+
+# function _pick_vector_width(vargs...)
+#     min_W = 1
+#     max_W = REGISTER_SIZE
+#     for v ∈ vargs
+#         T = v.parameters[1]
+#         if T === Bit
+#             min_W = 8
+#         elseif (SIMD_INTEGER_REGISTER_SIZE != REGISTER_SIZE) && T <: Integer # only check subtype if it matters
+#             max_W = min(max_W, SIMD_INTEGER_REGISTER_SIZE ÷ sizeof(T))
+#         else
+#             max_W = min(max_W, REGISTER_SIZE ÷ sizeof(T))
+#         end
+#     end
+#     W = max(min_W, max_W)
+# end
 @generated function pick_vector_width_val(vargs...)
     W = _pick_vector_width(vargs...)
     Expr(:call, Expr(:curly, :StaticInt, W))

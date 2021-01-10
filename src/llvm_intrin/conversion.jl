@@ -45,6 +45,16 @@ end
 @inline vsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % signed(T)
 @inline vunsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
 
+@generated function vfloat(v::Vec{W,I}) where {W, I <: Integer}
+    ex = if 8W ≤ REGISTER_SIZE
+        :(Vec{$W,Float64}(v))
+    else
+        :(Vec{$W,Float32}(v))
+    end
+    Expr(:block, Expr(:meta, :inline), ex)
+end
+@inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
+@inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, vu.data))
 # @inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
 @static if AVX512DQ
     const vfloat_fast = vfloat
@@ -67,16 +77,6 @@ else
         Expr(:block, Expr(:meta, :inline), ex)
     end
 end
-@generated function vfloat(v::Vec{W,I}) where {W, I <: Integer}
-    ex = if 8W ≤ REGISTER_SIZE
-        :(Vec{$W,Float64}(v))
-    else
-        :(Vec{$W,Float32}(v))
-    end
-    Expr(:block, Expr(:meta, :inline), ex)
-end
-@inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
-@inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, vu.data))
 
 @generated function Vec{W,Float32}(v::Vec{W,Float64}) where {W}
     convert_func("fptrunc", Float32, W, Float64, W)

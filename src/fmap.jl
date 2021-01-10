@@ -50,7 +50,7 @@ fmap(f::F, x::Tuple, y::Tuple) where {F} = throw("Dimension mismatch.")
     push!(q.args, t); q
 end
 
-for op ∈ [:vsub, :vabs, :vfloor, :vceil, :vtrunc, :vround, :vsqrt, :vnot, :vleading_zeros, :vtrailing_zeros]
+for op ∈ [:vsub, :vabs, :vfloor, :vceil, :vtrunc, :vround, :vsqrt, :vnot, :vleading_zeros, :vtrailing_zeros, :vsub_fast]
     @eval @inline $op(v1::VecUnroll{N,W,T}) where {N,W,T} = VecUnroll(fmap($op, v1.data))
 end
 # @inline vinv(v::VecUnroll{N,W,T}) where {N,W,T<:Union{Float32,Float64}} = VecUnroll(fmap(vinv, v.data))
