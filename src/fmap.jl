@@ -127,9 +127,6 @@ end
 @inline veq(v::VecUnroll{N,W,T}, x::AbstractIrrational) where {N,W,T} = v == vbroadcast(Val{W}(), T(x))
 @inline veq(x::AbstractIrrational, v::VecUnroll{N,W,T}) where {N,W,T} = vbroadcast(Val{W}(), T(x)) == v
 
-@inline vconvert(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(vconvert, T, v.data))
-@inline vconvert(::Type{U}, v::VecUnroll) where {N,W,T,U<:VecUnroll{N,W,T}} = VecUnroll(fmap(vconvert, T, v.data))
-@inline vconvert(::Type{VU}, v::VU) where {N,W,T,VU <: VecUnroll{N,W,T}} = v
 @inline vunsafe_trunc(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(vunsafe_trunc, T, v.data))
 @inline vrem(v::VecUnroll, ::Type{T}) where {T<:Real} = VecUnroll(fmap(vrem, v.data, T))
 @inline vrem(v::VecUnroll{N,W}, ::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V} = VecUnroll(fmap(vrem, v.data, V))

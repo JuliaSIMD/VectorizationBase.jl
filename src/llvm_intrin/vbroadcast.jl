@@ -151,7 +151,7 @@ end
 # @inline sveczero(::Type{T}) where {T} = Svec(vzero(pick_vector_width_val(T)))
 # @inline sveczero() = Svec(vzero(pick_vector_width_val(Float64)))
 
-@inline Vec{W,T}(s::Integer) where {W,T<:Integer} = vbroadcast(Val{W}(), s % T)
+# @inline Vec{W,T}(s::Integer) where {W,T<:Integer} = vbroadcast(Val{W}(), s % T)
 @inline Vec{W,T}(s::Real) where {W,T} = vbroadcast(Val{W}(), T(s))
 @inline Vec{W}(s::T) where {W,T<:NativeTypes} = vbroadcast(Val{W}(), s)
 @inline Vec(s::T) where {T<:NativeTypes} = vbroadcast(pick_vector_width_val(T), s)

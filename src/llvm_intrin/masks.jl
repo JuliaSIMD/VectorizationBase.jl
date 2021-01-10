@@ -473,19 +473,6 @@ end
     end
 end
 
-@generated function vconvert(::Type{Bit}, v::Vec{W,Bool}) where {W,Bool}
-    instrs = String[]
-    push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
-    zext_mask!(instrs, 'm', W, '0')
-    push!(instrs, "ret i$(max(8,W)) %res.0")
-    U = mask_type_symbol(W);
-    quote
-        $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
-    end    
-end
-@inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Bit, v)
-
 @inline vmul(v::AbstractSIMDVector, m::Mask) = vifelse(m, v, zero(v))
 @inline vmul(m::Mask, v::AbstractSIMDVector) = vifelse(m, v, zero(v))
 @inline vmul(m1::Mask, m2::Mask) = m1 & m2

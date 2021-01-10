@@ -383,7 +383,7 @@ function vload_quote(
         quote
             $(Expr(:meta,:inline))
             v = $(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true))
-            vconvert(VecUnroll{$(d-1), $Wnew, $T, Vec{$Wnew, $T}}, v)
+            vconvert(VecUnroll{$(d-1), $Wnew, $T_sym, Vec{$Wnew, $T_sym}}, v)
         end
     end
 end
@@ -947,7 +947,9 @@ function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     @assert N*Wsplit == W
     q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(im = _materialize(i)))
     if mask
-        push!(q.args, :(mt = data(vconvert(VecUnroll{$Nm1,$Wsplit,Bit}, m))))
+        let U = unsigned(integer_of_bytes(cld(Wsplit, 8)))
+            push!(q.args, :(mt = data(vconvert(VecUnroll{$Nm1,$Wsplit,Bit,Mask{$Wsplit,$U}}, m))))
+        end
     end
     j = 0
     for n ∈ 1:N

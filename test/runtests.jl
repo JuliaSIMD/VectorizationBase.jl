@@ -748,6 +748,34 @@ include("testsetup.jl")
             ))
         end
         @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
+
+        m = Mask{2W64}(rand(UInt));
+        v64f = Vec(ntuple(_ -> randn(), Val{2W64}())...)
+        v32i = Vec(ntuple(_ -> rand(Int32), Val{2W64}())...)
+        mtv = tovector(m); v64ftv = tovector(v64f); v32itv = tovector(v32i);
+        vum = @inferred(muladd(v64f, v32i, m))
+        @test vum isa VectorizationBase.VecUnroll
+        @test tovector(vum) ≈ muladd.(v64ftv, v32itv, mtv)
+
+        vum = @inferred(muladd(v64f, m, v32i))
+        @test vum isa VectorizationBase.VecUnroll
+        @test tovector(vum) ≈ muladd.(v64ftv, mtv, v32itv)
+
+        vum = @inferred(muladd(v32i, v64f, m))
+        @test vum isa VectorizationBase.VecUnroll
+        @test tovector(vum) ≈ muladd.(v32itv, v64ftv, mtv)
+
+        vum = @inferred(muladd(v32i, m, v64f))
+        @test vum isa VectorizationBase.VecUnroll
+        @test tovector(vum) ≈ muladd.(v32itv, mtv, v64ftv)
+
+        vum = @inferred(muladd(m, v64f, v32i))
+        @test vum isa VectorizationBase.VecUnroll
+        @test tovector(vum) ≈ muladd.(mtv, v64ftv, v32itv)
+
+        vum = @inferred(muladd(m, v32i, v64f))
+        @test vum isa VectorizationBase.VecUnroll
+        @test tovector(vum) ≈ muladd.(mtv, v32itv, v64ftv)
     end
     @time @testset "Lazymul" begin
         # partially covered in memory
