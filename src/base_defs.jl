@@ -30,6 +30,7 @@ for (op,f) ∈ [
     (:(Base.floor),:vfloor),
     (:(Base.ceil),:vceil),
     (:(Base.trunc),:vtrunc),
+    (:(Base.unsafe_trunc),:vtrunc),
     (:(Base.signed),:vsigned),
     (:(Base.unsigned),:vunsigned),
     (:(Base.float),:vfloat),
@@ -128,7 +129,7 @@ for (op,c) ∈ [(:(>), :(&)), (:(≥), :(&)), (:(<), :(|)), (:(≤), :(|))]
     end
 end
 for (f,vf) ∈ [
-    (:convert,:vconvert),(:reinterpret,:vreinterpret),(:trunc,:vtrunc),(:round,:vround),(:floor,:vfloor),(:ceil,:vceil)
+    (:convert,:vconvert),(:reinterpret,:vreinterpret),(:trunc,:vtrunc),(:unsafe_trunc,:vtrunc),(:round,:vround),(:floor,:vfloor),(:ceil,:vceil)
 ]
     @eval begin
         @inline Base.$f(::Type{T}, x::NativeTypes) where {T <: AbstractSIMD} = $vf(T, x)
@@ -207,7 +208,7 @@ for (op, f, promotef) ∈ [
     end
 end
 @inline IfElse.ifelse(f::Function, m::AbstractSIMD{W,B}, args::Vararg{NativeTypesV,K}) where {W,K,B<:Union{Bool,Bit}} = vifelse(f, m, args...)
-@inline IfElse.ifelse(f::Function, m::Bool, args::Vararg{NativeTypesV,K}) where {W,K} = vifelse(f, m, args...)
+@inline IfElse.ifelse(f::Function, m::Bool, args::Vararg{NativeTypesV,K}) where {K} = vifelse(f, m, args...)
 for (f) ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast]
     @eval begin
         @inline function $f(a, b, c)
@@ -223,6 +224,6 @@ for (vf,f) ∈ [
     (:vnot,:(~)),
 ]
     @eval begin
-        @inline Base.$f(m::Mask) = $vf(m)
+        @inline Base.$f(m::AbstractSIMD{<:Any,<:Union{Bool,Bit}}) = $vf(m)
     end
 end

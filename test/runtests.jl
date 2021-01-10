@@ -401,7 +401,7 @@ include("testsetup.jl")
                 -, abs, inv, floor, ceil, trunc, round, VectorizationBase.relu, abs2,
                 Base.FastMath.abs2_fast, Base.FastMath.sub_fast
             ]
-                @show f, T
+                # @show T, f
                 @test tovector(@inferred(f(v))) == map(f, x)
             end
             # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
@@ -578,7 +578,8 @@ include("testsetup.jl")
                 v1, v2, v3, m
             end
             x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
-            a = randn(); b = randn()
+            a = randn(T); b = randn(T)
+            a64 = Float64(a); b64 = Float64(b); # test promotion
             mv = tovector(m)
             for f ∈ [
                 muladd, fma, clamp, VectorizationBase.vmuladd_fast, VectorizationBase.vfma_fast,
@@ -587,20 +588,20 @@ include("testsetup.jl")
                 VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
             ]
                 @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
-                @test tovector(@inferred(f(v1, v2, a))) ≈ f.(x1, x2, a)
-                @test tovector(@inferred(f(v1, a, v3))) ≈ f.(x1, a, x3)
-                @test tovector(@inferred(f(a, v2, v3))) ≈ f.(a, x2, x3)
-                @test tovector(@inferred(f(v1, a, b))) ≈ f.(x1, a, b)
-                @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
-                @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
+                @test tovector(@inferred(f(v1, v2, a64))) ≈ f.(x1, x2, a)
+                @test tovector(@inferred(f(v1, a64, v3))) ≈ f.(x1, a, x3)
+                @test tovector(@inferred(f(a64, v2, v3))) ≈ f.(a, x2, x3)
+                @test tovector(@inferred(f(v1, a64, b64))) ≈ f.(x1, a, b)
+                @test tovector(@inferred(f(a64, v2, b64))) ≈ f.(a, x2, b)
+                @test tovector(@inferred(f(a64, b64, v3))) ≈ f.(a, b, x3)
 
                 @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, v3))) ≈ ifelse.(mv, f.(x1, x2, x3), x3)
-                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a))) ≈ ifelse.(mv, f.(x1, x2, a), a)
-                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
-                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
-                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, b))) ≈ ifelse.(mv, f.(x1, a, b), b)
-                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, b))) ≈ ifelse.(mv, f.(a, x2, b), b)
-                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, b, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a64))) ≈ ifelse.(mv, f.(x1, x2, a), a)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a64, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a64, b64))) ≈ ifelse.(mv, f.(x1, a, b), b)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, b64))) ≈ ifelse.(mv, f.(a, x2, b), b)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, b64, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
             end
         end
         vi64 = VectorizationBase.VecUnroll((
