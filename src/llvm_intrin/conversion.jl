@@ -24,14 +24,14 @@ function identity_func(W, T1, T2)
     end
 end
 
-@generated function Vec{W,F}(v::Vec{W,T}) where {W,F<:Union{Float32,Float64},T<:Integer}
+@generated function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:Union{Float32,Float64},T<:IntegerTypesHW}
     convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
 end
 
-@generated function Vec{W,T}(v::Vec{W,F}) where {W,F<:Union{Float32,Float64},T<:Integer}
+@generated function vconvert(::Type{Vec{W,T}}, v::Vec{W,F}) where {W,F<:Union{Float32,Float64},T<:IntegerTypesHW}
     convert_func(T <: Signed ? "fptosi" : "fptoui", T, W, F)
 end
-@generated function Vec{W,T1}(v::Vec{W,T2}) where {W,T1<:Integer,T2<:Integer}
+@generated function vconvert(::Type{Vec{W,T1}}, v::Vec{W,T2}) where {W,T1<:IntegerTypesHW,T2<:IntegerTypesHW}
     sz1 = sizeof(T1)::Int; sz2 = sizeof(T2)::Int
     if sz1 < sz2
         convert_func("trunc", T1, W, T2)
@@ -41,15 +41,92 @@ end
         convert_func(((T1 <: Signed) && (T2 <: Signed)) ? "sext" : "zext", T1, W, T2)
     end
 end
+@inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T<:IntegerTypesHW} = v
+@inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
+@inline vconvert(::Type{Vec{W,T}}, s::NativeTypes) where {W,T} = vbroadcast(Val{W}(), T(s))
+@inline vconvert(::Type{Vec{W,T}}, s::IntegerTypesHW) where {W,T<:IntegerTypesHW} = vbroadcast(Val{W}(), s % T)
+
+@inline vconvert(::Type{T}, v::AbstractSIMD{W,T}) where {T<:NativeTypes,W} = v
+@inline vconvert(::Type{T}, v::AbstractSIMD{W,S}) where {T<:NativeTypes,S,W} = vconvert(Vec{W,T}, v)
+
+@inline function vconvert(::Type{VecUnroll{N,W,T,V}}, s::NativeTypes) where {N,W,T,V}
+    VecUnroll{N}(vconvert(V, s))
+end
+@inline function vconvert(::Type{VecUnroll{N,W,T,V}}, v::AbstractSIMDVector{W}) where {N,W,T,V}
+    VecUnroll{N}(vconvert(V, v))
+end
+@inline function vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N,W}) where {N,W,T,V}
+    VecUnroll(fmap(vconvert, V, v.data))
+end
+@inline vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = v
+
+
+@inline vconvert(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(vconvert, T, v.data))
+@inline vconvert(::Type{U}, v::VecUnroll) where {N,W,T,U<:VecUnroll{N,W,T}} = VecUnroll(fmap(vconvert, T, v.data))
+@inline vconvert(::Type{VU}, v::VU) where {N,W,T,VU <: VecUnroll{N,W,T}} = v
+
+
+@inline vconvert(::Type{T}, v::T) where {T} = v
+
+@inline vconvert(::Type{T}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) where {T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
+@inline vconvert(::Type{Bit}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) = v
+# @inline vconvert(::typeof{T}, v::T)
+
+@inline vconvert(::Type{<:AbstractSIMDVector{W,T}}, v::Mask{W}) where {W,T} = ifelse(v, one(T), zero(T))
+@inline vconvert(::Type{<:AbstractSIMDVector{W,Bit}}, v::Mask{W}) where {W} = v
+
+@inline _vconvert(::Type{<:AbstractSIMD{W,T}}, v::Mask{W}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
+@inline _vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::Mask{W}) where {W} = v
+@generated function vconvert(::Type{U}, m::Mask{L}) where {N, W, T, U <: VecUnroll{N, W, T}, L}
+    if W == L # _vconvert will dispatch to one of the two above
+        return Expr(:block, Expr(:meta,:inline), :(_vconvert($U, m)))
+    end
+    @assert (N+1)*W == L
+    t = Expr(:tuple, :(Mask{$W}(u)))
+    s = 0
+    for n ∈ 1:N
+        push!(t.args, :(Mask{$W}(u >>> $(s += W))))
+    end
+    # This `vconvert` will dispatch to one of the following two `vconvert` methods
+    Expr(:block, Expr(:meta,:inline), :(u = data(m)), :(vconvert($U, VecUnroll($t))))
+end
+@inline vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::VecUnroll{N, W, Bit}) where {N, W} = v
+@inline vconvert(::Type{<:AbstractSIMD{W,T}}, v::VecUnroll{<:Any, W, Bool, <: Mask}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
+
+@generated function vconvert(::Type{U}, v::Vec{L}) where {N, W, T, U <: VecUnroll{N, W, T}, L}
+    if W == L # _vconvert will dispatch to one of the two above
+        return Expr(:block, Expr(:meta,:inline), :(_vconvert($U, m)))
+    end
+    
+    d, r1 = divrem(W * sizeof_T, REGISTER_SIZE)
+    Wnew, r2 = divrem(W, d)
+    @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
+    t = Expr(:tuple);
+    j = 0
+    for i ∈ 1:d
+        val = Expr(:tuple)
+        for w ∈ 1:Wnew
+            push!(val.args, j)
+            j += 1
+        end
+        push!(t.args, :(shufflevector(v, Val{$val}())))
+    end
+    Expr(:block, Expr(:meta,:inline), :(vconvert($U, VecUnroll($t))))
+end
+
+
+@inline Vec{W,T}(v::Vec{W,S}) where {W,T,S} = vconvert(Vec{W,T}, v)
+@inline Vec{W,T}(v::S) where {S<:NativeTypes} = vconvert(Vec{W,T}, v)
+
 
 @inline vsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % signed(T)
 @inline vunsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
 
 @generated function vfloat(v::Vec{W,I}) where {W, I <: Integer}
     ex = if 8W ≤ REGISTER_SIZE
-        :(Vec{$W,Float64}(v))
+        :(vconvert(Vec{$W,Float64}, v))
     else
-        :(Vec{$W,Float32}(v))
+        :(vconvert(Vec{$W,Float32}, v))
     end
     Expr(:block, Expr(:meta, :inline), ex)
 end
@@ -85,31 +162,6 @@ end
     convert_func("fpext", Float64, W, Float32, W)
 end
 
-@inline vconvert(::Type{Vec{W,T}}, s::T) where {W, T <: NativeTypes} = vbroadcast(Val{W}(), s)
-@inline vconvert(::Type{Vec{W,T}}, s::T) where {W, T <: Integer} = vbroadcast(Val{W}(), s)
-@inline vconvert(::Type{Vec{W,T}}, s::NativeTypes) where {W, T} = vbroadcast(Val{W}(), convert(T, s))
-@inline vconvert(::Type{Vec{W,T}}, s::IntegerTypesHW) where {W, T <: IntegerTypesHW} = vbroadcast(Val{W}(), s % T)
-@inline vconvert(::Type{Vec{W,T}}, s::T) where {W, T <: IntegerTypesHW} = vbroadcast(Val{W}(), s)
-@generated function vconvert(::Type{T}, v::Vec{W,S}) where {T<:Number,S,W}
-    if S <: T
-        Expr(:block, Expr(:meta,:inline), :v)
-    else
-        Expr(:block, Expr(:meta,:inline), :(Vec{$W,$T}(v)))
-    end
-end
-@inline function vconvert(::Type{U}, v::Vec{W,S}) where {N,W,T,U<:VecUnroll{N,W,T},S}
-    VecUnroll{N}(vconvert(T, v))
-end
-@inline function vconvert(::Type{U}, v::S) where {N,W,T,V,U<:VecUnroll{N,W,T,V},S<:NativeTypes}
-    VecUnroll{N}(vconvert(V, v))
-end
-@inline vconvert(::Type{Vec{W,T}}, v::Vec{W,S}) where {T<:Number,S,W} = Vec{W,T}(v)
-@inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {T<:Number,W} = v
-@inline vconvert(::Type{T}, v::T) where {T} = v
-
-@inline vconvert(::Type{T}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) where {T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
-@inline vconvert(::Type{Bit}, v::Union{Mask,VecUnroll{<:Any, <:Any, Bool, <: Mask}}) = v
-# @inline vconvert(::typeof{T}, v::T)
 
 @generated function vreinterpret(::Type{T1}, v::Vec{W2,T2}) where {W2, T1 <: NativeTypes, T2}
     W1 = W2 * sizeof(T2) ÷ sizeof(T1)
@@ -126,25 +178,6 @@ end
 @inline vrem(r::IntegerTypesHW, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = convert(V, r % I)
 
 
-@inline vconvert(::Type{<:AbstractSIMDVector{W,T}}, v::Mask{W}) where {W,T} = ifelse(v, one(T), zero(T))
-@inline vconvert(::Type{<:AbstractSIMDVector{W,Bit}}, v::Mask{W}) where {W} = v
 
-@inline _vconvert(::Type{<:AbstractSIMD{W,T}}, v::Mask{W}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
-@inline _vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::Mask{W}) where {W} = v
-@generated function vconvert(::Type{U}, m::Mask{L}) where {N, W, T, U <: VecUnroll{N, W, T}, L}
-    if W == L # _vconvert will dispatch to one of the two above
-        return Expr(:block, Expr(:meta,:inline), :(_vconvert($U, m)))
-    end
-    @assert (N+1)*W == L
-    t = Expr(:tuple, :(Mask{$W}(u)))
-    s = 0
-    for n ∈ 1:N
-        push!(t.args, :(Mask{$W}(u >>> $(s += W))))
-    end
-    # This `vconvert` will dispatch to one of the following two `vconvert` methods
-    Expr(:block, Expr(:meta,:inline), :(u = data(m)), :(vconvert($U, VecUnroll($t))))
-end
-@inline vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::VecUnroll{N, W, Bit}) where {N, W} = v
-@inline vconvert(::Type{<:AbstractSIMD{W,T}}, v::VecUnroll{<:Any, W, Bool, <: Mask}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
 
 

@@ -380,18 +380,11 @@ function vload_quote(
         d, r1 = divrem(W * sizeof_T, REGISTER_SIZE)
         Wnew, r2 = divrem(W, d)
         @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
-        call = llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)
-        t = Expr(:tuple);
-        j = 0
-        for i ∈ 1:d
-            val = Expr(:tuple)
-            for w ∈ 1:Wnew
-                push!(val.args, j)
-                j += 1
-            end
-            push!(t.args, :(shufflevector(v, Val{$val}())))
+        quote
+            $(Expr(:meta,:inline))
+            v = $(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true))
+            vconvert(VecUnroll{$(d-1), $Wnew, $T, Vec{$Wnew, $T}}, v)
         end
-        Expr(:block, Expr(:meta,:inline), Expr(:(=), :v, call), Expr(:call, :VecUnroll, t))
     end
 end
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
