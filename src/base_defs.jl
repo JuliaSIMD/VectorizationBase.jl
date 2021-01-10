@@ -24,6 +24,7 @@ for (op,f) ∈ [
     (:(Base.FastMath.sub_fast), :vsub_fast),
     # (:(Base.FastMath.abs2_fast),:vabs2_fast),
     (:(Base.inv),:vinv),
+    (:(Base.FastMath.inv_fast),:vinv_fast),
     (:(Base.abs),:vabs),
     (:(Base.round),:vround),
     (:(Base.floor),:vfloor),
