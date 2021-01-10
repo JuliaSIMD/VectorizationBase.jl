@@ -401,6 +401,7 @@ include("testsetup.jl")
                 -, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu, abs2,
                 Base.FastMath.abs2_fast, Base.FastMath.sub_fast
             ]
+                @show f, T
                 @test tovector(@inferred(f(v))) == map(f, x)
             end
             # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
