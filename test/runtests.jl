@@ -398,7 +398,7 @@ include("testsetup.jl")
             end
             x = tovector(v)
             for f ∈ [
-                -, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu, abs2,
+                -, abs, inv, floor, ceil, trunc, round, VectorizationBase.relu, abs2,
                 Base.FastMath.abs2_fast, Base.FastMath.sub_fast
             ]
                 @show f, T
@@ -421,8 +421,17 @@ include("testsetup.jl")
             # summarystats(f64t)
             # summarystats(f32t)
             # for now, I'll use `4eps(T)` if the systems don't have AVX512, but should check to set a stricter bound.
+            # also put `sqrt ∘ abs` in here
             let rtol = eps(T) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte 
                 @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = rtol)
+                let f = sqrt ∘ abs
+                    if T === Float32
+                        @test isapprox(tovector(@inferred(f(v))), map(f, x), rtol = rtol)
+                    elseif T === Float64 # exact with `Float64`
+                        @test tovector(@inferred(f(v))) == map(f, x)
+                    end
+                end
+            end
             end
             for f ∈ [floor, ceil, trunc, round]
                 @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
