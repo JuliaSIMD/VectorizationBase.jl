@@ -58,4 +58,8 @@ function mini(a::T1,b::T2) where {T1<:Base.BitInteger,T2<:Base.BitInteger}
     end
     T(a < b ? a : b)
 end
+maxi_fast(a,b) = Base.FastMath.max_fast(a,b)
+mini_fast(a,b) = Base.FastMath.min_fast(a,b)
+maxi_fast(a::Base.BitInteger, b::Base.BitInteger) = maxi(a, b)
+mini_fast(a::Base.BitInteger, b::Base.BitInteger) = mini(a, b)
 

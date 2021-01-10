@@ -489,7 +489,10 @@ include("testsetup.jl")
             xi4 =  mapreduce(tovector, vcat, m2.data);
             I3 = promote_type(I1,I2); 
             # I4 = sizeof(I1) < sizeof(I2) ? I1 : (sizeof(I1) > sizeof(I2) ? I2 : I3)
-            for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini]
+            for f ∈ [
+                +, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod,
+                VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini, maxi_fast, mini_fast
+            ]
             # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
                 # @show f, I1, I2
                 # if (!VectorizationBase.AVX512DQ) && (f === /) && sizeof(I1) === sizeof(I2) === 8

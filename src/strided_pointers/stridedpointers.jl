@@ -89,11 +89,10 @@ end
     Expr(:block, Expr(:meta,:inline), t)
 end
 
-@generated function zero_offsets(sptr::StridedPointer{T,N,C,B,R,X}) where {T,N,C,B,R,X}
-    o = Expr(:tuple); foreach(n -> push!(o.args, :(StaticInt{0}())), 1:N)
-    O = Expr(:curly, :Tuple); foreach(n -> push!(O.args, :(StaticInt{0})), 1:N)
-    Expr(:block, Expr(:meta, :inline), :(StridedPointer{$T,$N,$C,$B,$R,$X,$O}(sptr.p, sptr.strd, $o)))
+@inline function zero_offsets(sptr::StridedPointer{T,N,C,B,R}) where {T,N,C,B,R}
+    StridedPointer{T,N,C,B,R}(sptr.p, sptr.strd, zerotuple(Val{N}()))
 end
+@inline zstridedpointer(A) = zero_offsets(stridedpointer(A))
 
 @inline function Base.similar(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
     StridedPointer{T,N,C,B,R,X,O}(ptr, sptr.strd, sptr.offsets)

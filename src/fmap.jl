@@ -70,7 +70,7 @@ for op ∈ [:vadd,:vsub,:vmul,:vand,:vor,:vxor,:vlt,:vle,:vgt,:vge,:veq,:vne,:va
         @inline $op(::StaticInt{0}, v1::VecUnroll{N,W,T,V}) where {N,W,T,V} = VecUnroll(fmap($op, Zero(), v1.data))
     end
 end
-for op ∈ [:vmax,:vmax_fast,:vmin,:vmin_,:vcopysign]
+for op ∈ [:vmax,:vmax_fast,:vmin,:vmin_fast,:vcopysign]
     @eval begin
         @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
     end
@@ -122,6 +122,7 @@ end
     v4, v5 = promote(v2, v3)
     VecUnroll(fmap(vifelse, v1.data, v4.data, v5.data))
 end
+
 
 @inline veq(v::VecUnroll{N,W,T}, x::AbstractIrrational) where {N,W,T} = v == vbroadcast(Val{W}(), T(x))
 @inline veq(x::AbstractIrrational, v::VecUnroll{N,W,T}) where {N,W,T} = vbroadcast(Val{W}(), T(x)) == v

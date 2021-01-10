@@ -50,6 +50,12 @@ for (f,op) ∈ [
         end
     end
 end
+for f ∈ [:vand, :vor, :vxor] # ignore irrelevant bits, so just bitcast to `Bool`
+    @eval @inline $f(a::Vec{W,Bool}, b::Vec{W,Bool}) where {W} = vreinterpret(Bool, $f(vreinterpret(UInt8, a), vreinterpret(UInt8, b)))
+end
+for f ∈ [:vne, :veq] # Here we truncate.
+    @eval @inline $f(a::Vec{W,Bool}, b::Vec{W,Bool}) where {W} = convert(Bool, $f(convert(Bit, a), convert(Bit, b)))
+end
 
 @generated function splitint(i::S, ::Type{T}) where {S <: Base.BitInteger, T <: Union{Bool,Base.BitInteger}}
     sizeof_S = sizeof(S)
