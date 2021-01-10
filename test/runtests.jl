@@ -401,7 +401,6 @@ include("testsetup.jl")
                 -, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu, abs2,
                 Base.FastMath.abs2_fast, Base.FastMath.sub_fast
             ]
-                
                 @test tovector(@inferred(f(v))) == map(f, x)
             end
             # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
@@ -420,9 +419,9 @@ include("testsetup.jl")
             # f64t = map(_ -> randapprox(Float64), 1:1_000_000);
             # summarystats(f64t)
             # summarystats(f32t)
-            # for now, I'll use `4eps(T)` if the systems don't have AVX512 to play it safe.
+            # for now, I'll use `4eps(T)` if the systems don't have AVX512, but should check to set a stricter bound.
             let rtol = eps(T) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte 
-                @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = eps(T))
+                @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = rtol)
             end
             for f ∈ [floor, ceil, trunc, round]
                 @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
@@ -439,8 +438,11 @@ include("testsetup.jl")
             Vec(ntuple(_ -> rand(int), Val(W64))...)
         )) % Int
         xi = tovector(vi)
-        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, Base.FastMath.inv_fast]
+        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
             @test tovector(@inferred(f(vi))) == map(f, xi)
+        end
+        let rtol = eps(Float64) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte 
+            @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(vi))), map(Base.FastMath.inv_fast, xi), rtol = rtol)
         end
         # vpos = VectorizationBase.VecUnroll((
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
