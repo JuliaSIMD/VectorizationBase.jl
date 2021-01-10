@@ -81,8 +81,8 @@ const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
     data::NTuple{W,Core.VecElement{T}}
-    @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:Union{NativeTypes,StaticInt}} = new{W,T}(x)
-    @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T<:Union{NativeTypes,StaticInt}}
+    @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:NativeTypes} = new{W,T}(x)
+    @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T<:NativeTypes}
         W = _W + 1
         # @assert W === pick_vector_width(W, T)# || W === 8
         Expr(:block, Expr(:meta,:inline), Expr(:call, Expr(:curly, :Vec, W, T), :x))

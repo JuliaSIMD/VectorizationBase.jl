@@ -141,4 +141,19 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline vadd_fast(a::MM{W,X,I}, b::LazyMulAdd{N,P,J}) where {W,X,I<:IntegerTypesHW,N,P,J<:Integer} = vadd_fast(a, _materialize(b))
 @inline vadd_fast(b::LazyMulAdd{N,P,J}, a::MM{W,X,I}) where {W,X,I<:IntegerTypesHW,N,P,J<:Integer} = vadd_fast(a, _materialize(b))
 
+@generated function vadd_fast(a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:IntegerTypes}
+    d, r = divrem(M, N)
+    if iszero(r)
+        quote
+            $(Expr(:meta,:inline))
+            VectorizationBase.LazyMulAdd{$N,$(I*M)}(MM{$W,$d}(b.data))
+        end
+    else
+        quote
+            $(Expr(:meta,:inline))
+            vadd_fast(a, _materialize(b))
+        end
+    end
+end
+@inline vadd_fast(b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}) where {M,O,W,X,I,N,P,J<:IntegerTypes} = vadd_fast(a, b)
 
