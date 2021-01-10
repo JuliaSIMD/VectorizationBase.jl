@@ -452,8 +452,10 @@ end
         Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
-@inline vifelse(b::Bool, s::NativeTypes, v::V) where {V <: AbstractSIMD} = vifelse(b, convert(V, s), v)
-@inline vifelse(b::Bool, v::V, s::NativeTypes) where {V <: AbstractSIMD} = vifelse(b, v, convert(V, s))
+@inline vifelse(b::Bool, w, x) = ((y,z) = promote(w,x); vifelse(b, y, z))
+@inline vifelse(b::Bool, w::T, x::T) where {T<:Union{NativeTypes,AbstractSIMDVector}} = Core.ifelse(b, w, x)
+@inline vifelse(b::Bool, w::T, x::T) where {T<:VecUnroll} = VecUnroll(fmap(Core.ifelse, b, w.data, x.data))
+
 
 @generated function vconvert(::Type{Bit}, v::Vec{W,Bool}) where {W,Bool}
     instrs = String[]

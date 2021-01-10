@@ -78,7 +78,7 @@ end
         @test data(zero(Vec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === data(Vec{4,Float64}(0.0))
         @test data(one(Vec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === data(Vec{4,Float64}(1.0)) === data(data(Vec{4,Float64}(1.0)))
         v = Vec((VE(1.0),VE(2.0),VE(3.0),VE(4.0)))
-        @test v === Vec{4,Float64}(1, 2, 3, 4) === conj(v) === v'
+        @test v === Vec{4,Float64}(1, 2, 3, 4) === conj(v) === v' === Vec{4,Float64}(v)
         @test length(v) == 4 == first(size(v))
         @test eltype(v) == Float64
         for i in 1:4
@@ -623,6 +623,9 @@ end
         ))
         xi64 = tovector(vi64); xi32 = tovector(vi32);
         @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) == ifelse.(xi64 .> xi32, xi64, xi32)
+        @test tovector(@inferred(VectorizationBase.ifelse(vi64 < vi32, vi64, vi32))) == ifelse.(xi64 .< xi32, xi64, xi32)
+        @test tovector(@inferred(VectorizationBase.ifelse(true, vi64, vi32))) == ifelse.(true, xi64, xi32)
+        @test tovector(@inferred(VectorizationBase.ifelse(false, vi64, vi32))) == ifelse.(false, xi64, xi32)
         vu64_1 = VectorizationBase.VecUnroll((
            Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
            Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
