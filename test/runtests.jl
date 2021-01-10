@@ -365,6 +365,19 @@ include("testsetup.jl")
             i += 1
         end
         @test x == 1:100
+
+        xf64 = rand(100);
+        vxtu = @inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)));
+        @test vxtu isa VectorizationBase.VecUnroll
+        vxtutv = tovector(vxtu);
+        vxtutvmult = 3.5 .* vxtutv;
+        @inferred(vstore!(stridedpointer(xf64), 3.5 * vxtu, (MM{4W64}(1),)));
+        @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == vxtutvmult
+        mbig = MM{4W64}(rand(UInt32)); # TODO: update if any arches support >512 bit vectors
+        mbigtv = tovector(mbig)
+        @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),), mbig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
+        @inferred(vstore!(stridedpointer(xf64), -11 * vxtu, (MM{4W64}(1),), mbigtv));
+        @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == ifelse.(mbigtv, -11 .* vxtutv, vxtutvmult)
     end
 
     @time @testset "Grouped Strided Pointers" begin
