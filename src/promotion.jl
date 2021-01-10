@@ -13,12 +13,28 @@ Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:Abstract
     if pick_vector_width(T) ≥ W
         return :(Vec{$W,$T})
     end
-    if T === Float64 || T === Float32 # don't demote to smaller than `Float32`
+    if T === Float64 || T === Float32
+        # Should we demote `Float64` -> `Float32`?
+        # return :(Vec{$W,$T})
+        # don't demote to smaller than `Float32`
         return :(Vec{$W,Float32})
     end
     I = pick_integer(W, sizeof(Int))
     SorU = T <: Unsigned ? unsigned(I) : I
     :(Vec{$W,$SorU})
+end
+
+@generated function Base.promote_rule(
+    ::Type{<:VecUnroll{Nm1,Wsplit,T,V1}}, ::Type{V2}
+) where {Nm1,Wsplit,T,T2,V1,W,V2<:AbstractSIMDVector{W,T2}}
+    N = Nm1 + 1
+    @assert N * Wsplit == W
+    V3 = if V2 <: Mask
+        Mask{Wsplit,unsigned(integer_of_bytes(cld(Wsplit,8)))}
+    else
+        Vec{Wsplit,T2}
+    end
+    _assemble_vec_unroll(Val{Nm1}(), promote_type(V1,V3))
 end
 
 _assemble_vec_unroll(::Val{N}, ::Type{V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}

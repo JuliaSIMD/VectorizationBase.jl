@@ -154,16 +154,16 @@ end
 @inline function Base.:(<<)(v1::AbstractSIMD{W,T1}, v2::AbstractSIMD{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
     convert(T1, vshl(convert(T2, v1), v2))
 end
-@inline function Base.:(>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
+@inline function Base.:(>>)(v1::AbstractSIMD{W,T1}, v2::AbstractSIMD{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
     vashr(v1, (v2 % T1))
 end
-@inline function Base.:(>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
+@inline function Base.:(>>)(v1::AbstractSIMD{W,T1}, v2::AbstractSIMD{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
     vashr(v1, (v2 % T1))
 end
-@inline function Base.:(>>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
+@inline function Base.:(>>>)(v1::AbstractSIMD{W,T1}, v2::AbstractSIMD{W,T2}) where {W,T1<:SignedHW,T2<:UnsignedHW}
     convert(T1, vlshr(convert(T2, v1), v2))
 end
-@inline function Base.:(>>>)(v1::AbstractSIMDVector{W,T1}, v2::AbstractSIMDVector{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
+@inline function Base.:(>>>)(v1::AbstractSIMD{W,T1}, v2::AbstractSIMD{W,T2}) where {W,T1<:UnsignedHW,T2<:SignedHW}
     convert(T2, vlshr(v1, convert(T1, v2)))
 end
 

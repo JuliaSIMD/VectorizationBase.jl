@@ -51,3 +51,13 @@ end
     end
 end
 
+@generated function shufflevector(i::MM{W,X}, ::Val{I}) where {W,X,I}
+    allincr = true
+    L = length(I)
+    for l ∈ 2:L
+        allincr &= (I[l] == I[l-1] + 1)
+    end
+    allincr || return Expr(:block, Expr(:meta,:inline), :(shufflevector(Vec(i), Val{$I}())))
+    Expr(:block, Expr(:meta,:inline), :(MM{$L,$X}( extractelement(i, $(first(I))) )))
+end
+

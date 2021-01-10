@@ -16,6 +16,7 @@ end
 
 
 @inline _materialize(a::LazyMulAdd{M,O,I}) where {M,O,I} = vadd_fast(vmul_fast(StaticInt{M}(), a.data), StaticInt{O}())
+@inline _materialize(x) = x
 @inline Base.convert(::Type{T}, a::LazyMulAdd{M,O,I}) where {M,O,I,T<:Number} = convert(T, _materialize(a))
 
 Base.promote_rule(::Type{LazyMulAdd{M,O,I}}, ::Type{T}) where {M,O,I<:Number,T} = promote_type(I, T)

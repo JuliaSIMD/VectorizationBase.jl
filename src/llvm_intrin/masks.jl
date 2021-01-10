@@ -464,6 +464,14 @@ end
 @inline vifelse(b::Bool, w::T, x::T) where {T<:Union{NativeTypes,AbstractSIMDVector}} = Core.ifelse(b, w, x)
 @inline vifelse(b::Bool, w::T, x::T) where {T<:VecUnroll} = VecUnroll(fmap(Core.ifelse, b, w.data, x.data))
 
+@generated function vifelse(m::Mask{W}, vu1::VecUnroll{Nm1,Wsplit}, vu2::VecUnroll{Nm1,Wsplit}) where {W,Wsplit,Nm1}
+    N = Nm1 + 1
+    @assert N * Wsplit == W
+    quote
+        $(Expr(:meta,:inline))
+        vifelse(vconvert(VecUnroll{$Nm1,$Wsplit,Bit}, m), vu1, vu2)
+    end
+end
 
 @generated function vconvert(::Type{Bit}, v::Vec{W,Bool}) where {W,Bool}
     instrs = String[]

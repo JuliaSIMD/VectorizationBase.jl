@@ -372,10 +372,26 @@ function vload_quote(
     if isbit && W > 1
         quote
             $(Expr(:meta,:inline))
-            Mask{$W}($(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)))
+            Mask{$W}($(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)))
         end
-    else
+    elseif W * sizeof_T ≤ REGISTER_SIZE
         llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
+    else
+        d, r1 = divrem(W * sizeof_T, REGISTER_SIZE)
+        Wnew, r2 = divrem(W, d)
+        @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
+        call = llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)
+        t = Expr(:tuple);
+        j = 0
+        for i ∈ 1:d
+            val = Expr(:tuple)
+            for w ∈ 1:Wnew
+                push!(val.args, j)
+                j += 1
+            end
+            push!(t.args, :(shufflevector(v, Val{$val}())))
+        end
+        Expr(:block, Expr(:meta,:inline), Expr(:(=), :v, call), Expr(:call, :VecUnroll, t))
     end
 end
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
@@ -932,6 +948,39 @@ end
 ) where {AU,F,N,AV,W,M,I,T,D,Nm1,S,A,NT}
     @assert Nm1+1 == N
     vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A, S, NT)
+end
+function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
+    N = Nm1 + 1
+    @assert N*Wsplit == W
+    q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(im = _materialize(i)))
+    if mask
+        push!(q.args, :(mt = data(vconvert(VecUnroll{$Nm1,$Wsplit,Bit}, m))))
+    end
+    j = 0
+    for n ∈ 1:N
+        shufflemask = Expr(:tuple)
+        for w ∈ 1:Wsplit
+            push!(shufflemask.args, j)
+            j += 1
+        end
+        ex = :(vstore!(ptr, vt[$n], shufflevector(im, Val{$shufflemask}())))
+        mask && push!(ex.args, Expr(:ref, :mt, n))
+        push!(ex.args, :(Val{$A}()))
+        push!(ex.args, :(Val{$S}()))
+        push!(ex.args, :(Val{$NT}()))
+        push!(q.args, ex)
+    end
+    q
+end
+@generated function vstore!(
+    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {T,Nm1,Wsplit,W,A,S,NT}
+    vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, false)
+end
+@generated function vstore!(
+    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {T,Nm1,Wsplit,W,A,S,NT}
+    vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, true)
 end
 
 # @inline vstore!(::typeof(identity), ptr, v, u) = vstore!(ptr, v, u)

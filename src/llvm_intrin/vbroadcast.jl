@@ -23,6 +23,16 @@
 @inline vzero(::StaticInt{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @generated function vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T<:NativeTypes}
     # isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
+    if W * sizeof(T) > REGISTER_SIZE
+        d, r1 = divrem(sizeof(T) * W, REGISTER_SIZE)
+        Wnew, r2 = divrem(W, d)
+        @assert (iszero(r1) & iszero(r2)) "If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."
+        t = Expr(:tuple)
+        for i ∈ 1:d
+            push!(t.args, :v)
+        end
+        return Expr(:block, Expr(:meta,:inline), :(v = vzero(StaticInt{$Wnew}(), $T)), :(VecUnroll($t)))
+    end
     typ = LLVM_TYPES[T]
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
@@ -39,6 +49,15 @@ end
         end
         # ssym = :(s % $T)
         ssym = :(convert($T, s))
+    elseif sizeof(_T) * W > REGISTER_SIZE
+        d, r1 = divrem(sizeof(_T) * W, REGISTER_SIZE)
+        Wnew, r2 = divrem(W, d)
+        @assert (iszero(r1) & iszero(r2)) "If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."
+        t = Expr(:tuple)
+        for i ∈ 1:d
+            push!(t.args, :v)
+        end
+        return Expr(:block, Expr(:meta,:inline), :(v = vbroadcast(StaticInt{$Wnew}(), s)), :(VecUnroll($t)))
     else
         T = _T
         ssym = :s
