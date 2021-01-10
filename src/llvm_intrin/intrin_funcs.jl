@@ -77,10 +77,6 @@ else
     @inline vmax(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vifelse(v1 > v2, v1, v2)
     @inline vmin(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vifelse(v1 < v2, v1, v2)
 end
-# @inline vmax(s::NativeTypes, v::Vec{W}) where {W} = max(vbroadcast(Val{W}(), s), v)
-# @inline vmax(v::Vec{W}, s::NativeTypes) where {W} = max(v, vbroadcast(Val{W}(), s))
-# @inline vmin(s::NativeTypes, v::Vec{W}) where {W} = min(vbroadcast(Val{W}(), s), v)
-# @inline vmin(v::Vec{W}, s::NativeTypes) where {W} = min(v, vbroadcast(Val{W}(), s))
 
 # floating point
 for (op,f) ∈ [("sqrt",:vsqrt),("fabs",:vabs),("floor",:vfloor),("ceil",:vceil),("trunc",:vtrunc),("nearbyint",:vround)
@@ -237,10 +233,6 @@ for f ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast]
         vadd(vmul(v1, v2), v3)
     end
 end
-# @inline vfma(a::IntegerTypes, b::IntegerTypes, c::IntegerTypes) = vadd(vmul(a,b),c)
-# @inline vmuladd(a::IntegerTypes, b::IntegerTypes, c::IntegerTypes) = vadd(vmul(a,b),c)
-# @inline vfma_fast(a::IntegerTypes, b::IntegerTypes, c::IntegerTypes) = vadd_fast(vmul_fast(a,b),c)
-# @inline vmuladd_fast(a::IntegerTypes, b::IntegerTypes, c::IntegerTypes) = vadd_fast(vmul_fast(a,b),c)
 
 # vfmadd -> muladd -> promotes arguments to hit definitions from VectorizationBase
 const vfmadd = FMA_FAST ? vfma : vmuladd
@@ -384,27 +376,6 @@ end
     a, b = promote_div(_a, _b)
     funnel_shift_right(a, a, b)
 end
-
-# for T ∈ [UInt8,UInt16,UInt32,UInt64]
-#     bytes = sizeof(T)
-#     W = 2
-#     while W * bytes ≤ REGISTER_SIZE
-
-#         for (op,f) ∈ [("ctpop", :count_ones)]
-#             @eval @inline Base.$f(v1::Vec{$W,$T}) = $(llvmcall_expr(op, W, T, (W,), (T,)))
-#         end
-        
-#         for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
-#                       ]
-#             @eval @inline function $f(v1::Vec{$W,$T}, v2::Vec{$W,$T})
-#                 $(llvmcall_expr(op, W, T, (W for _ in 1:3), (T for _ in 1:3)))
-#             end
-#         end
-
-#         W += W
-#     end
-# end
-
 
 @inline vfmadd231(a, b, c) = vfmadd(a, b, c)
 @inline vfnmadd231(a, b, c) = vfnmadd(a, b, c)
