@@ -399,9 +399,30 @@ include("testsetup.jl")
             x = tovector(v)
             for f ∈ [
                 -, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu, abs2,
-                Base.FastMath.abs2_fast, Base.FastMath.inv_fast, Base.FastMath.sub_fast
+                Base.FastMath.abs2_fast, Base.FastMath.sub_fast
             ]
+                
                 @test tovector(@inferred(f(v))) == map(f, x)
+            end
+            # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
+            # function relapprox(x::AbstractVector{T},y) where {T}
+            #     t = max(norm(x),norm(y)) * eps(T)
+            #     n = norm(x .- y)
+            #     n / t
+            # end
+            # function randapprox(::Type{T}) where {T}
+            #     x = Vec(ntuple(_ -> 10randn(T), VectorizationBase.pick_vector_width_val(T))...)
+            #     via = @fastmath inv(x)
+            #     vir = inv(x)
+            #     relapprox(tovector(via), tovector(vir))
+            # end
+            # f32t = map(_ -> randapprox(Float32), 1:1_000_000);
+            # f64t = map(_ -> randapprox(Float64), 1:1_000_000);
+            # summarystats(f64t)
+            # summarystats(f32t)
+            # for now, I'll use `4eps(T)` if the systems don't have AVX512 to play it safe.
+            let rtol = eps(T) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte 
+                @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = eps(T))
             end
             for f ∈ [floor, ceil, trunc, round]
                 @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
