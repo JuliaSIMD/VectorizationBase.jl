@@ -57,4 +57,7 @@ Requires `VectorizationBase.AVX512IFMA` to be fast.
 """
 @inline ifmahi(v1, v2, v3) = ((a,b,c) = promote(v1 % UInt64, v2 % UInt64, v3 % UInt64); _ifmahi(a, b, c))
 
+if AVX512IFMA 
+    @inline vfmadd_fast(a::Vec{W,UInt64},b::Vec{W,UInt64},c::Vec{W,UInt64}) where {W} = ifmalo(a, b, c)
+end
 

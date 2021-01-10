@@ -87,7 +87,7 @@ function precalc_quote_from_descript(descript, contig, X)
                 anydynamicprecals = true
                 pstride_i = Symbol(:pstride_, i)
                 push!(pstrideextracts.args, Expr(:(=), pstride_i, Expr(:ref, :pstride, i)))
-                foreach(u -> push!(t.args, Expr(:call, :vmul, u, pstride_i)), 3:2:uf)
+                foreach(u -> push!(t.args, Expr(:call, :vmul_fast, u, pstride_i)), 3:2:uf)
             else
                 foreach(u -> push!(t.args, u * Xᵢ), 3:2:uf)
             end

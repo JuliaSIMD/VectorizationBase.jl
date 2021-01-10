@@ -1,11 +1,9 @@
 
 
-function pick_integer_bytes(W, preferred)
+function pick_integer_bytes(W, preferred, simd_integer_register_size = SIMD_INTEGER_REGISTER_SIZE)
     # SIMD quadword integer support requires AVX512DQ
-    if !AVX512DQ
-        preferred = min(4, preferred)
-    end
-    max(1,min(preferred, prevpow2(REGISTER_SIZE ÷ W)))
+    # preferred = AVX512DQ ? preferred :  min(4, preferred)
+    max(1,min(preferred, prevpow2(simd_integer_register_size ÷ W)))
 end
 function integer_of_bytes(bytes)
     if bytes == 8
@@ -23,7 +21,9 @@ end
 function pick_integer(W, pref)
     integer_of_bytes(pick_integer_bytes(W, pref))
 end
-pick_integer(::Val{W}) where {W} = pick_integer(W, sizeof(Int))
+@generated pick_integer(::Val{W}) where {W} = pick_integer(W, sizeof(Int))
+pick_integer(::Val{W}, ::Type{T}) where {W, T} = signorunsign(pick_integer(Val{W}()), issigned(T))
+
 
 @generated function vrange(::Val{W}, ::Type{T}, ::Val{O}, ::Val{F}) where {W,T,O,F}
     if T <: Integer
@@ -46,7 +46,7 @@ O - static offset
 F - static multiplicative factor
 """
 @generated function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
-    isone(W) && return Expr(:block, Expr(:meta,:inline), :(vadd(i, $(O % I))))
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(vadd_fast(i, $(O % I))))
     bytes = pick_integer_bytes(W, sizeof(I))
     bits = 8bytes
     jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
@@ -123,70 +123,57 @@ end
 @inline Vec(i::MM{W,X,StaticInt{N}}) where {W,X,N} = vrange(Val{W}(), Int, Val{N}(), Val{X}())
 @inline Vec(i::MM{1}) = data(i)
 @inline Vec(i::MM{1,<:Any,StaticInt{N}}) where {N} = N
-@inline Base.convert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
-@inline Base.convert(::Type{T}, i::MM{W,X}) where {W,X,T<:NativeTypes} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
+@inline vconvert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
+@inline vconvert(::Type{T}, i::MM{W,X}) where {W,X,T<:NativeTypes} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
 
 # Addition
-# @inline Base.:(+)(i::MM{W}, j::MM{W}) where {W} = vadd(vrange(i), vrange(j))
-# @inline Base.:(+)(i::MM{W,X}, j::MM{W,Y}) where {W} = vrange(vrangeincr(Val{W}(), data(i) + data(j), Val{0}(), StaticInt{X}() + StaticInt{Y}()))
-@inline Base.:(+)(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
-@inline Base.:(+)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
-@inline Base.:(+)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
+@inline vadd_fast(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd_fast(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
+@inline vadd_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd_fast(Vec(i), j)
+@inline vadd_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd_fast(i, Vec(j))
+@inline vadd(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = vadd_fast(i, j)
+@inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd_fast(i, j)
+@inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd_fast(i, j)
 
-# @inline vadd(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd(i.i, j))
-# @inline vadd(j::Integer, i::MM{W,X}) where {W,X} = MM{W,X}(vadd(i.i, j))
-@inline vadd(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
-@inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd(Vec(i), j)
-@inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd(i, Vec(j))
 # Subtraction
-@inline Base.:(-)(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), StaticInt{X}() - StaticInt{Y}())
-# @inline Base.:(-)(i::MM{W,X}, j::MM{W,X}) where {W,X} = vsub(data(i), data(j))
-@inline Base.:(-)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(Vec(i), j)
-@inline Base.:(-)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, Vec(j))
-@inline vsub(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
-@inline vsub(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(Vec(i), j)
-@inline vsub(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, Vec(j))
+@inline vsub(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub_fast(data(i), data(j)), StaticInt{X}() - StaticInt{Y}())
+@inline vsub(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub_fast(Vec(i), j)
+@inline vsub(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub_fast(i, Vec(j))
+@inline vsub_fast(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = vsub(i, j)
+@inline vsub_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(i, j)
+@inline vsub_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, j)
 # Multiplication
-@inline Base.:(*)(i::MM{W}, j::Mask{W}) where {W} = Vec(i) * j
-@inline Base.:(*)(i::Mask{W}, j::MM{W}) where {W} = i * Vec(j)
-@inline Base.:(*)(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = Vec(i) * j
-@inline Base.:(*)(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = i * Vec(j)
-@inline Base.:(*)(i::MM{W}, j::MM{W}) where {W} = vmul(Vec(i), Vec(j))
-@inline vmul(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul(Vec(i), j)
-@inline vmul(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul(i, Vec(j))
-@inline vmul(i::MM{W}, j::MM{W}) where {W} = vmul(Vec(i), Vec(j))
-@inline vmul(i::MM, j::Integer) = vmul(Vec(i), j)
-@inline vmul(j::Integer, i::MM) = vmul(j, Vec(i))
+@inline vmul(i::MM{W}, j::Mask{W}) where {W} = Vec(i) * j
+@inline vmul(i::Mask{W}, j::MM{W}) where {W} = i * Vec(j)
+@inline vmul(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = Vec(i) * j
+@inline vmul(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = i * Vec(j)
+@inline vmul(i::MM{W}, j::MM{W}) where {W} = vmul_fast(Vec(i), Vec(j))
+@inline vmul_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul_fast(Vec(i), j)
+@inline vmul_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul_fast(i, Vec(j))
+@inline vmul_fast(i::MM{W}, j::MM{W}) where {W} = vmul_fast(Vec(i), Vec(j))
+@inline vmul_fast(i::MM, j::Integer) = vmul_fast(Vec(i), j)
+@inline vmul_fast(j::Integer, i::MM) = vmul_fast(j, Vec(i))
 
 # Multiplication without promotion
-@inline vmul_no_promote(a, b) = vmul(a, b)
-@inline vmul_no_promote(a::MM{W}, b) where {W} = MM{W}(vmul(a.i, b))
-@inline vmul_no_promote(a, b::MM{W}) where {W} = MM{W}(vmul(a, b.i))
-@inline vmul_no_promote(a::MM{W}, b::MM{W}) where {W} = vmul(a, b) # must promote
+@inline vmul_no_promote(a, b) = vmul_fast(a, b)
+@inline vmul_no_promote(a::MM{W}, b) where {W} = MM{W}(vmul_fast(a.i, b))
+@inline vmul_no_promote(a, b::MM{W}) where {W} = MM{W}(vmul_fast(a, b.i))
+@inline vmul_no_promote(a::MM{W}, b::MM{W}) where {W} = vmul_fast(a, b) # must promote
 vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 
 # Division
 @generated function floattype(::Val{W}) where {W}
     (REGISTER_SIZE ÷ W) ≥ 8 ? :Float64 : :Float32
 end
-@inline Base.float(i::MM{W,X}) where {W,X} = Vec(MM{W,X}(floattype(Val{W}())(i.i)))
-@inline Base.:(/)(i::MM, j::T) where {T<:Real} = float(i) / j
-@inline Base.:(/)(j::T, i::MM) where {T<:Real} = j / float(i)
+@inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(i.i % pick_integer(Val{W}(),I))))
+@inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
+@inline vfdiv(j::T, i::MM) where {T<:Real} = j / float(i)
 
-@inline Base.:(/)(i::MM, j::VecUnroll{N,W,T,V}) where {N,W,T,V} = float(i) / j
-@inline Base.:(/)(j::VecUnroll{N,W,T,V}, i::MM) where {N,W,T,V} = j / float(i)
+@inline vfdiv(i::MM, j::VecUnroll{N,W,T,V}) where {N,W,T,V} = float(i) / j
+@inline vfdiv(j::VecUnroll{N,W,T,V}, i::MM) where {N,W,T,V} = j / float(i)
 
-@inline Base.:(/)(i::MM, j::MM) = float(i) / float(j)
-@inline Base.inv(i::MM) = inv(float(i))
-@inline Base.:(/)(vu::VecUnroll, m::MM) = vu * inv(m)
-@inline Base.:(/)(m::MM, vu::VecUnroll) = Vec(m) / vu
-
-# @inline Base.:(<<)(i::MM, j::IntegerTypes) = Vec(i) << j
-# @inline Base.:(>>)(i::MM, j::IntegerTypes) = Vec(i) >> j
-# @inline Base.:(>>>)(i::MM, j::IntegerTypes) = Vec(i) >>> j
-# @inline Base.:(<<)(i::MM, j::Vec) = Vec(i) << j
-# @inline Base.:(>>)(i::MM, j::Vec) = Vec(i) >> j
-# @inline Base.:(>>>)(i::MM, j::Vec) = Vec(i) >>> j
+@inline vfdiv(i::MM, j::MM) = float(i) / float(j)
+@inline vfdiv(vu::VecUnroll, m::MM) = vu * inv(m)
+@inline vfdiv(m::MM, vu::VecUnroll) = Vec(m) / vu
 
 @inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i << j, StaticInt{X}() << j)
 @inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >> j, StaticInt{X}() >> j)
@@ -208,103 +195,96 @@ for (f,op) ∈ [
     @eval @inline $f(i, j) = $op(i, j)
 end
 
-for f ∈ [:(<<), :(>>>), :(>>)]
+for f ∈ [:vshl, :vashr, :vlshr]
     @eval begin
-        @inline Base.$f(i::MM{W,X,T}, v::SignedHW) where {W,X,T<:SignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T}, v::SignedHW) where {W,X,T<:UnsignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T}, v::UnsignedHW) where {W,X,T<:SignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T}, v::UnsignedHW) where {W,X,T<:UnsignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:StaticInt} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T}, v::SignedHW) where {W,X,T<:SignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T}, v::SignedHW) where {W,X,T<:UnsignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T}, v::UnsignedHW) where {W,X,T<:SignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T}, v::UnsignedHW) where {W,X,T<:UnsignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T}, v::IntegerTypesHW) where {W,X,T<:StaticInt} = $f(Vec(i), v)
 
-        @inline Base.$f(v::SignedHW, i::MM{W,X,T}) where {W,X,T<:SignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::UnsignedHW, i::MM{W,X,T}) where {W,X,T<:SignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::SignedHW, i::MM{W,X,T}) where {W,X,T<:UnsignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::UnsignedHW, i::MM{W,X,T}) where {W,X,T<:UnsignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:StaticInt} = $f(v, Vec(i))
+        @inline $f(v::SignedHW, i::MM{W,X,T}) where {W,X,T<:SignedHW} = $f(v, Vec(i))
+        @inline $f(v::UnsignedHW, i::MM{W,X,T}) where {W,X,T<:SignedHW} = $f(v, Vec(i))
+        @inline $f(v::SignedHW, i::MM{W,X,T}) where {W,X,T<:UnsignedHW} = $f(v, Vec(i))
+        @inline $f(v::UnsignedHW, i::MM{W,X,T}) where {W,X,T<:UnsignedHW} = $f(v, Vec(i))
+        @inline $f(v::IntegerTypesHW, i::MM{W,X,T}) where {W,X,T<:StaticInt} = $f(v, Vec(i))
 
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:SignedHW} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:SignedHW} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:UnsignedHW} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:UnsignedHW} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:StaticInt,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:StaticInt} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:StaticInt,T2<:StaticInt} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:SignedHW} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:SignedHW} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:UnsignedHW} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:UnsignedHW} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:StaticInt,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:StaticInt} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:StaticInt,T2<:StaticInt} = $f(Vec(i), Vec(j))
 
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:SignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:SignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:UnsignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:UnsignedHW} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:StaticInt,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:SignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:SignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:UnsignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:UnsignedHW} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:StaticInt,T2<:IntegerTypes} = $f(Vec(i), v)
 
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:SignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:SignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:UnsignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:UnsignedHW} = $f(v, Vec(i))
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:StaticInt} = $f(v, Vec(i))
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:SignedHW} = $f(v, Vec(i))
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:SignedHW} = $f(v, Vec(i))
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:UnsignedHW} = $f(v, Vec(i))
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:UnsignedHW} = $f(v, Vec(i))
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:StaticInt} = $f(v, Vec(i))
     end
 end
-for f ∈ [ :(&), :(|), :(⊻), :(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
+# for f ∈ [:vand, :vor, :vxor, :vlt, :vle, :vgt, :vge, :veq, :vne, :vmin, :vmax, :vcopysign]
+for f ∈ [:vand, :vor, :vxor, :veq, :vne, :vmin, :vmin_fast, :vmax, :vmax_fast, :vcopysign]
     @eval begin
-        @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:IntegerTypes} = $f(v, Vec(i))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
     end
 end
-for f ∈ [ :(÷), :(%) ]
+for f ∈ [ :vdiv, :vrem ]
     @eval begin
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
     end
 end
-for f ∈ [:(<), :(>), :(≥), :(≤), :(==), :(!=), :min, :max, :copysign]
-    
+for f ∈ [:vlt, :vle, :vgt, :vge, :veq, :vne, :vmin, :vmax, :vcopysign]
     @eval begin
         # left floating
-        @inline Base.$f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:FloatingTypes,T2<:IntegerTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:FloatingTypes,T2<:IntegerTypes} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:FloatingTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:FloatingTypes,T2<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:FloatingTypes,T2<:IntegerTypes} = $f(v, Vec(i))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:FloatingTypes,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
         # right floating
-        @inline Base.$f(i::MM{W,X,T}, v::FloatingTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:FloatingTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:FloatingTypes} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:FloatingTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X,T}, v::FloatingTypes) where {W,X,T<:IntegerTypes} = $f(Vec(i), v)
+        @inline $f(v::IntegerTypes, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:IntegerTypes,T2<:FloatingTypes} = $f(Vec(i), v)
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:IntegerTypes,T2<:FloatingTypes} = $f(v, Vec(i))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:IntegerTypes,T2<:FloatingTypes} = $f(Vec(i), Vec(j))
         # both floating
-        @inline Base.$f(i::MM{W,X,T}, v::FloatingTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)
-        @inline Base.$f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:FloatingTypes,T2<:FloatingTypes} = $f(Vec(i), v)
-        @inline Base.$f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:FloatingTypes,T2<:FloatingTypes} = $f(v, Vec(i))
-        @inline Base.$f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:FloatingTypes,T2<:FloatingTypes} = $f(Vec(i), Vec(j))
+        @inline $f(i::MM{W,X,T}, v::FloatingTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)
+        @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:FloatingTypes,T2<:FloatingTypes} = $f(Vec(i), v)
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:FloatingTypes,T2<:FloatingTypes} = $f(v, Vec(i))
+        @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:FloatingTypes,T2<:FloatingTypes} = $f(Vec(i), Vec(j))
     end
     if f === :copysign
         @eval begin
-            @inline Base.$f(v::Float32, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
-            @inline Base.$f(v::Float32, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
-            @inline Base.$f(v::Float64, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
-            @inline Base.$f(v::Float64, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+            @inline $f(v::Float32, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+            @inline $f(v::Float32, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+            @inline $f(v::Float64, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+            @inline $f(v::Float64, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
         end
     else
         @eval begin
-            @inline Base.$f(v::FloatingTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
-            @inline Base.$f(v::FloatingTypes, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
+            @inline $f(v::FloatingTypes, i::MM{W,X,T}) where {W,X,T<:IntegerTypes} = $f(v, Vec(i))
+            @inline $f(v::FloatingTypes, i::MM{W,X,T}) where {W,X,T<:FloatingTypes} = $f(v, Vec(i))
         end
     end
 end
 
-# @inline vadd(::MM{W,Zero}, v::AbstractSIMDVector{W,T}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)
-# @inline vadd(v::AbstractSIMDVector{W,T}, ::MM{W,Zero}) where {W,T} = vadd(vrange(Val{W}(), T, Val{0}(), Val{1}()), v)
+@inline vadd_fast(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
 @inline vadd(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
-# @inline vadd(a::MM, ::Zero) = a
-# @inline vadd(::Zero, a::MM) = a
-# @inline Base.:(+)(a::MM, ::Zero) = a
-# @inline Base.:(+)(::Zero, a::MM) = a
-# # @inline vmul(::MM{W,Zero}, i) where {W} = svrangemul(Val{W}(), i, Val{0}())
-# @inline vmul(i, ::MM{W,Zero}) where {W} = svrangemul(Val{W}(), i, Val{0}())
 
 

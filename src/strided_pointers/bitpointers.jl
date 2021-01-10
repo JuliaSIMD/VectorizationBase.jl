@@ -117,15 +117,15 @@ end
     end
 end
 
-@inline vload(ptr::AbstractStridedBitPointer, i::Tuple) = bitload(ptr, offset(ptr, vadd(i, ptr.offsets)))
+@inline vload(ptr::AbstractStridedBitPointer, i::Tuple) = bitload(ptr, offset(ptr, vadd_fast(i, ptr.offsets)))
 @inline vload(ptr::AbstractStridedBitPointer, i::Tuple, ::Mask) = vload(ptr, i)
 # @inline function vload(bptr::PackedStridedBitPointer{1}, (i,j)::Tuple{MM{W},<:Any}) where {W}
-#     j = vadd(j, bptr.offsets[2])
+#     j = vadd_fast(j, bptr.offsets[2])
 #     s = bptr.strides[1]
-#     # shift = vmul(s, j) & (W - 1)
+#     # shift = vmul_fast(s, j) & (W - 1)
 #     U = mask_type(Val{W}())
 #     UW = widen(U)
-#     indbits = vadd(vadd(i.i, bptr.offsets[1]), vmul(j,s))
+#     indbits = vadd_fast(vadd_fast(i.i, bptr.offsets[1]), vmul_fast(j,s))
 #     ptr, ind = ptr_index(bptr, MM{W}(indbits))
 #     u = vload(Base.unsafe_convert(Ptr{UW}, gepbyte(ptr, ind)))
 #     shift = indbits & 7
@@ -134,7 +134,7 @@ end
 # end
 
 # @inline getind(a::PackedStridedBitPointer{0}) = a.offsets[1]
-# @inline getind(a::PackedStridedBitPointer{1}) = vadd(a.offsets[1], vmul(a.offsets[2],a.strides[1]))
+# @inline getind(a::PackedStridedBitPointer{1}) = vadd_fast(a.offsets[1], vmul_fast(a.offsets[2],a.strides[1]))
 # @inline Base.:(≥)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≥ getind(b)
 # @inline Base.:(≤)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) ≤ getind(b)
 # @inline Base.:(>)(a::PackedStridedBitPointer, b::PackedStridedBitPointer) = getind(a) > getind(b)
@@ -163,12 +163,12 @@ end
 # @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Vec{W,Bool}, i::Tuple{MM{W},<:Integer}) where {W} = vstore!(bptr, tomask(v), i)
 # @inline vnoaliasstore!(bptr::PackedStridedBitPointer{1}, v::Vec{W,Bool}, i::Tuple{MM{W},<:Integer}, ::AbstractMask) where {W} = vstore!(bptr, tomask(v), i)
 
-@inline vstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
-@inline vstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
-@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)))
-@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd(i, ptr.offsets)), tomask(u))
-@inline vstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
-@inline vstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
-@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)))
-@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd(i, ptr.offsets)), tomask(u))
+@inline vstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd_fast(i, ptr.offsets)))
+@inline vstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd_fast(i, ptr.offsets)), tomask(u))
+@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple) = bitstore!(ptr, v, offset(ptr, vadd_fast(i, ptr.offsets)))
+@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Mask, i::Tuple, u::AbstractMask) = bitstore!(ptr, v, offset(ptr, vadd_fast(i, ptr.offsets)), tomask(u))
+@inline vstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd_fast(i, ptr.offsets)))
+@inline vstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd_fast(i, ptr.offsets)), tomask(u))
+@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple) = bitstore!(ptr, tomask(v), offset(ptr, vadd_fast(i, ptr.offsets)))
+@inline vnoaliasstore!(ptr::AbstractStridedBitPointer, v::Vec{<:Any,Bool}, i::Tuple, u::AbstractMask) = bitstore!(ptr, tomask(v), offset(ptr, vadd_fast(i, ptr.offsets)), tomask(u))
 

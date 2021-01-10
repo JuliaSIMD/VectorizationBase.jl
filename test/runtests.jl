@@ -1,81 +1,26 @@
-using VectorizationBase, OffsetArrays, Aqua
-using VectorizationBase: data
-using Test
+import InteractiveUtils
+InteractiveUtils.versioninfo(stdout; verbose=true)
 
-const W64S = VectorizationBase.pick_vector_width_val(Float64)
-const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
-const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
-const VE = Core.VecElement
-randnvec(N = Val{W64}()) = Vec(ntuple(_ -> Core.VecElement(randn()), N))
-function tovector(u::VectorizationBase.VecUnroll{_N,W,_T}) where {_N,W,_T}
-    T = _T === VectorizationBase.Bit ? Bool : _T
-    N = _N + 1; i = 0
-    x = Vector{T}(undef, N * W)
-    for n ∈ 1:N
-        v = u.data[n]
-        for w ∈ 0:W-1
-            x[(i += 1)] = VectorizationBase.extractelement(v, w)
-        end
-    end
-    x
-end
-tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.extractelement(v,w) for w ∈ 0:W-1]
-tovector(v::VectorizationBase.LazyMulAdd) = tovector(VectorizationBase._materialize(v))
-tovector(x) = x
-tovector(i::MM{W,X}) where {W,X} = collect(range(i.i, step = X, length = W))
-tovector(i::MM{W,X,I}) where {W,X,I<:Union{Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64}} = collect(range(i.i, step = I(X), length = I(W)))
-A = randn(13, 17); L = length(A); M, N = size(A);
+include("testsetup.jl")
 
-trunc_int(x::Integer, ::Type{T}) where {T} = x % T
-trunc_int(x, ::Type{T}) where {T} = x
-size_trunc_int(x::Signed, ::Type{T}) where {T} = signed(x % T)
-size_trunc_int(x::Unsigned, ::Type{T}) where {T} = unsigned(x % T)
-size_trunc_int(x, ::Type{T}) where {T} = x
-
-check_within_limits(x, y) = @test x ≈ y
-function check_within_limits(x::Vector{T}, y) where {T <: Integer}
-    if VectorizationBase.AVX512DQ
-        return @test x ≈ y
-    end
-    r = typemin(Int32) .≤ y .≤ typemax(Int32)
-    xs = x[r]; ys = y[r]
-    @test xs ≈ ys
-end
-
-maxi(a,b) = max(a,b)
-mini(a,b) = min(a,b)
-function maxi(a::T1,b::T2) where {T1<:Base.BitInteger,T2<:Base.BitInteger}
-    T = promote_type(T1,T2)
-    T(a > b ? a : b)
-end
-function mini(a::T1,b::T2) where {T1<:Base.BitInteger,T2<:Base.BitInteger}
-    _T = promote_type(T1,T2)
-    T = if T1 <: Signed || T2 <: Signed
-        signed(_T)
-    else
-        _T
-    end
-    T(a < b ? a : b)
-end
-
-@testset "VectorizationBase.jl" begin
+@time @testset "VectorizationBase.jl" begin
     # Write your own tests here.
     # Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
-    Aqua.test_all(VectorizationBase)
+    @time Aqua.test_all(VectorizationBase)
     # @test isempty(detect_unbound_args(VectorizationBase))
     # @test isempty(detect_ambiguities(VectorizationBase))
 
     W = VectorizationBase.pick_vector_width(Float64)
-    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.AVX512DQ ? Int64 : Int32)
+    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.REGISTER_SIZE == VectorizationBase.SIMD_INTEGER_REGISTER_SIZE ? Int64 : Int32)
 
 
     @test first(A) === A[1]
     @test W64S == W64
-    @testset "Struct-Wrapped Vec" begin
+    @time @testset "Struct-Wrapped Vec" begin
         @test data(zero(Vec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === data(Vec{4,Float64}(0.0))
         @test data(one(Vec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === data(Vec{4,Float64}(1.0)) === data(data(Vec{4,Float64}(1.0)))
         v = Vec((VE(1.0),VE(2.0),VE(3.0),VE(4.0)))
-        @test v === Vec{4,Float64}(1, 2, 3, 4) === conj(v) === v'
+        @test v === Vec{4,Float64}(1, 2, 3, 4) === conj(v) === v' === Vec{4,Float64}(v)
         @test length(v) == 4 == first(size(v))
         @test eltype(v) == Float64
         for i in 1:4
@@ -114,7 +59,7 @@ end
 
     end
 
-    @testset "alignment.jl" begin
+    @time @testset "alignment.jl" begin
 
         @test all(i -> VectorizationBase.align(i) == VectorizationBase.REGISTER_SIZE, 1:VectorizationBase.REGISTER_SIZE)
         @test all(i -> VectorizationBase.align(i) == 2VectorizationBase.REGISTER_SIZE, 1+VectorizationBase.REGISTER_SIZE:2VectorizationBase.REGISTER_SIZE)
@@ -151,7 +96,7 @@ end
         @test UInt(VectorizationBase.align(ptr, 1 << 12)) % (1 << 12) == 0
     end
 
-    @testset "masks.jl" begin
+    @time @testset "masks.jl" begin
         # @test Mask{8,UInt8}(0x0f) === @inferred Mask(0x0f)
         # @test Mask{16,UInt16}(0x0f0f) === @inferred Mask(0x0f0f)
         @test Mask{8,UInt8}(0xff) === mask(Val(8), 0)
@@ -263,7 +208,7 @@ end
     # end
 
 
-    @testset "vector_width.jl" begin
+    @time @testset "vector_width.jl" begin
         @test all(VectorizationBase.ispow2, 0:1)
         @test all(i -> !any(VectorizationBase.ispow2, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.ispow2(1 << i), 2:9)
         @test all(i ->  VectorizationBase.intlog2(1 << i) == i, 0:(Int == Int64 ? 53 : 30))
@@ -297,7 +242,7 @@ end
 
     end
 
-    @testset "Memory" begin
+    @time @testset "Memory" begin
         C = rand(40,20,10) .> 0;
         mtest = vload(stridedpointer(C), ((MM{16})(9), 2, 3));
         v1 = C[9:24,2,3];
@@ -313,7 +258,7 @@ end
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
         indices = (
-            StaticInt{1}(), StaticInt{3}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> 2i + 1, Val(W64))...),
+            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> 2i + 1, Val(W64))...),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
         )
         # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
@@ -422,7 +367,7 @@ end
         @test x == 1:100
     end
 
-    @testset "Grouped Strided Pointers" begin
+    @time @testset "Grouped Strided Pointers" begin
         M, K, N = 4, 5, 6
         A = rand(M, K); B = rand(K, N); C = rand(M, N);
         fs = [identity, adjoint]
@@ -442,31 +387,71 @@ end
         end
     end
 
-    @testset "Unary Functions" begin
-        v = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> (randn()), Val(W64))...),
-            Vec(ntuple(_ -> (randn()), Val(W64))...),
-            Vec(ntuple(_ -> (randn()), Val(W64))...)
-        ))
-        x = tovector(v)
-        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, VectorizationBase.relu]
-            @test tovector(@inferred(f(v))) == map(f, x)
+    @time @testset "Unary Functions" begin
+        for T ∈ (Float32,Float64)
+            v = let W = VectorizationBase.pick_vector_width_val(T)
+                VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> (randn(T)), W)...),
+                    Vec(ntuple(_ -> (randn(T)), W)...),
+                    Vec(ntuple(_ -> (randn(T)), W)...)
+                ))
+            end
+            x = tovector(v)
+            for f ∈ [
+                -, abs, inv, floor, ceil, trunc, round, VectorizationBase.relu, abs2,
+                Base.FastMath.abs2_fast, Base.FastMath.sub_fast
+            ]
+                # @show T, f
+                @test tovector(@inferred(f(v))) == map(f, x)
+            end
+            # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
+            # function relapprox(x::AbstractVector{T},y) where {T}
+            #     t = max(norm(x),norm(y)) * eps(T)
+            #     n = norm(x .- y)
+            #     n / t
+            # end
+            # function randapprox(::Type{T}) where {T}
+            #     x = Vec(ntuple(_ -> 10randn(T), VectorizationBase.pick_vector_width_val(T))...)
+            #     via = @fastmath inv(x)
+            #     vir = inv(x)
+            #     relapprox(tovector(via), tovector(vir))
+            # end
+            # f32t = map(_ -> randapprox(Float32), 1:1_000_000);
+            # f64t = map(_ -> randapprox(Float64), 1:1_000_000);
+            # summarystats(f64t)
+            # summarystats(f32t)
+            # for now, I'll use `4eps(T)` if the systems don't have AVX512, but should check to set a stricter bound.
+            # also put `sqrt ∘ abs` in here
+            let rtol = eps(T) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte 
+                @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = rtol)
+                let f = sqrt ∘ abs
+                    if T === Float32
+                        @test isapprox(tovector(@inferred(f(v))), map(f, x), rtol = rtol)
+                    elseif T === Float64 # exact with `Float64`
+                        @test tovector(@inferred(f(v))) == map(f, x)
+                    end
+                end
+            end
+            for f ∈ [floor, ceil, trunc, round]
+                @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
+                @test tovector(@inferred(f(Int64, v))) == map(y -> f(Int64,y), x)
+            end
+            invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
+            @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
         end
-        for f ∈ [floor, ceil, trunc, round]
-            @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
-            @test tovector(@inferred(f(Int64, v))) == map(y -> f(Int64,y), x)
-        end
-        invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
-        @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
 
+        int = VectorizationBase.AVX512DQ ? Int : Int32
         vi = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> rand(Int), Val(W64))...),
-            Vec(ntuple(_ -> rand(Int), Val(W64))...),
-            Vec(ntuple(_ -> rand(Int), Val(W64))...)
-        ))
+            Vec(ntuple(_ -> rand(int), Val(W64))...),
+            Vec(ntuple(_ -> rand(int), Val(W64))...),
+            Vec(ntuple(_ -> rand(int), Val(W64))...)
+        )) % Int
         xi = tovector(vi)
         for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
             @test tovector(@inferred(f(vi))) == map(f, xi)
+        end
+        let rtol = eps(Float64) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte 
+            @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(vi))), map(Base.FastMath.inv_fast, xi), rtol = rtol)
         end
         # vpos = VectorizationBase.VecUnroll((
         #     Vec(ntuple(_ -> Core.VecElement(rand()), Val(W64))),
@@ -477,7 +462,7 @@ end
         #     @test tovector(f(vpos)) == map(f, tovector(vpos))
         # end
     end
-    @testset "Binary Functions" begin
+    @time @testset "Binary Functions" begin
         # TODO: finish getting these tests to pass
         # for I1 ∈ (Int32,Int64,UInt32,UInt64), I2 ∈ (Int32,Int64,UInt32,UInt64)
         for I1 ∈ (Int32,Int64), I2 ∈ (Int32,Int64,UInt32)
@@ -503,9 +488,16 @@ end
             xi3 =  mapreduce(tovector, vcat, m1.data);
             xi4 =  mapreduce(tovector, vcat, m2.data);
             I3 = promote_type(I1,I2); 
-            for f ∈ [+, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini]
+            # I4 = sizeof(I1) < sizeof(I2) ? I1 : (sizeof(I1) > sizeof(I2) ? I2 : I3)
+            for f ∈ [
+                +, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod,
+                VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini, maxi_fast, mini_fast
+            ]
             # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
                 # @show f, I1, I2
+                # if (!VectorizationBase.AVX512DQ) && (f === /) && sizeof(I1) === sizeof(I2) === 8
+                #     continue
+                # end
                 check_within_limits(tovector(@inferred(f(vi1, vi2))),  trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3));
                 check_within_limits(tovector(@inferred(f(j, vi2))), trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)), I3));
                 check_within_limits(tovector(@inferred(f(vi1, i))), trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)), I3));
@@ -519,10 +511,11 @@ end
                 check_within_limits(tovector(@inferred(f(m2, m1))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi3, I3)), I3));
                 if !((f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right))
                     check_within_limits(tovector(@inferred(f(j, m1))), trunc_int.(f.(j, xi3), I1));
-                    check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi4, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I1), size_trunc_int.(xi4, I1)), I1));
                 end
             end
             @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
+            @test @inferred(VectorizationBase.vall(@inferred(1 - MM{W64}(1)) == (1 - Vec(ntuple(identity, Val(W64))...)) ))
         end
         vf1 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
@@ -531,7 +524,7 @@ end
         vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
         xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
         a = randn();
-        for f ∈ [+, -, *, /, %, max, min, copysign]
+        for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast]
             # @show f
             @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
             @test tovector(@inferred(f(a, vf1))) ≈ f.(a, xf1)
@@ -569,36 +562,52 @@ end
         @test VectorizationBase.vcld.(1:30, 1:30') == cld.(1:30, 1:30')
         @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
     end
-    @testset "Ternary Functions" begin
-        v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        v2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        v3 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
-        a = randn(); b = randn()
-        m = Mask{W64}(0xce)
-        mv = tovector(m)
-        for f ∈ [
-            muladd, fma, clamp,
-            VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
-            VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
-        ]
-            @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
-            @test tovector(@inferred(f(v1, v2, a))) ≈ f.(x1, x2, a)
-            @test tovector(@inferred(f(v1, a, v3))) ≈ f.(x1, a, x3)
-            @test tovector(@inferred(f(a, v2, v3))) ≈ f.(a, x2, x3)
-            @test tovector(@inferred(f(v1, a, b))) ≈ f.(x1, a, b)
-            @test tovector(@inferred(f(a, v2, b))) ≈ f.(a, x2, b)
-            @test tovector(@inferred(f(a, b, v3))) ≈ f.(a, b, x3)
+    @time @testset "Ternary Functions" begin
+        for T ∈ (Float32, Float64)
+            v1, v2, v3, m = let W = VectorizationBase.pick_vector_width_val(T)
+                v1 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> randn(T), W)...),
+                    Vec(ntuple(_ -> randn(T), W)...)
+                ))
+                v2 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> randn(T), W)...),
+                    Vec(ntuple(_ -> randn(T), W)...)
+                ))
+                v3 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> randn(T), W)...),
+                    Vec(ntuple(_ -> randn(T), W)...)
+                ))
+                _W = VectorizationBase.pick_vector_width(T)
+                m = VectorizationBase.VecUnroll((Mask{_W}(rand(UInt16)),Mask{_W}(rand(UInt16))))
+                v1, v2, v3, m
+            end
+            x1 = tovector(v1); x2 = tovector(v2); x3 = tovector(v3);
+            a = randn(T); b = randn(T)
+            a64 = Float64(a); b64 = Float64(b); # test promotion
+            mv = tovector(m)
+            for f ∈ [
+                muladd, fma, clamp, VectorizationBase.vmuladd_fast, VectorizationBase.vfma_fast,
+                VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub,
+                VectorizationBase.vfmadd_fast, VectorizationBase.vfnmadd_fast, VectorizationBase.vfmsub_fast, VectorizationBase.vfnmsub_fast,
+                VectorizationBase.vfmadd231, VectorizationBase.vfnmadd231, VectorizationBase.vfmsub231, VectorizationBase.vfnmsub231
+            ]
+                @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
+                @test tovector(@inferred(f(v1, v2, a64))) ≈ f.(x1, x2, a)
+                @test tovector(@inferred(f(v1, a64, v3))) ≈ f.(x1, a, x3)
+                @test tovector(@inferred(f(a64, v2, v3))) ≈ f.(a, x2, x3)
+                @test tovector(@inferred(f(v1, a64, b64))) ≈ f.(x1, a, b)
+                @test tovector(@inferred(f(a64, v2, b64))) ≈ f.(a, x2, b)
+                @test tovector(@inferred(f(a64, b64, v3))) ≈ f.(a, b, x3)
 
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, v3))) ≈ ifelse.(mv, f.(x1, x2, x3), x3)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a))) ≈ ifelse.(mv, f.(x1, x2, a), a)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a, b))) ≈ ifelse.(mv, f.(x1, a, b), b)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, v2, b))) ≈ ifelse.(mv, f.(a, x2, b), b)
-            @test tovector(@inferred(VectorizationBase.ifelse(f, m, a, b, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, v3))) ≈ ifelse.(mv, f.(x1, x2, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, v2, a64))) ≈ ifelse.(mv, f.(x1, x2, a), a)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a64, v3))) ≈ ifelse.(mv, f.(x1, a, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, v3))) ≈ ifelse.(mv, f.(a, x2, x3), x3)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a64, b64))) ≈ ifelse.(mv, f.(x1, a, b), b)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, b64))) ≈ ifelse.(mv, f.(a, x2, b), b)
+                @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, b64, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
+            end
         end
-
         vi64 = VectorizationBase.VecUnroll((
            Vec(ntuple(_ -> rand(Int64), Val(W64))...),
            Vec(ntuple(_ -> rand(Int64), Val(W64))...),
@@ -611,6 +620,9 @@ end
         ))
         xi64 = tovector(vi64); xi32 = tovector(vi32);
         @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) == ifelse.(xi64 .> xi32, xi64, xi32)
+        @test tovector(@inferred(VectorizationBase.ifelse(vi64 < vi32, vi64, vi32))) == ifelse.(xi64 .< xi32, xi64, xi32)
+        @test tovector(@inferred(VectorizationBase.ifelse(true, vi64, vi32))) == ifelse.(true, xi64, xi32)
+        @test tovector(@inferred(VectorizationBase.ifelse(false, vi64, vi32))) == ifelse.(false, xi64, xi32)
         vu64_1 = VectorizationBase.VecUnroll((
            Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
            Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
@@ -631,7 +643,7 @@ end
             @test tovector(@inferred(f(vu64_1,vu64_2,vu64_3))) == f.(xu1, xu2, xu3)
         end
     end
-    @testset "Non-broadcasting operations" begin
+    @time @testset "Non-broadcasting operations" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
         v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
         @test VectorizationBase.vsum(2.3, v1) ≈ VectorizationBase.vsum(v1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3)) ≈ VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1))
@@ -665,7 +677,7 @@ end
         @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,0)) == -1
         @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == VectorizationBase.vminimum(VectorizationBase.minscalar(-2,vu3)) == -2
     end
-    @testset "broadcasting" begin
+    @time @testset "broadcasting" begin
         @test VectorizationBase.vzero(Val(1), UInt32) === VectorizationBase.vzero(StaticInt(1), UInt32) === VectorizationBase.vzero(UInt32) === zero(UInt32)
         @test VectorizationBase.vzero(Val(1), Int) === VectorizationBase.vzero(StaticInt(1), Int) === VectorizationBase.vzero(Int) === 0
         @test VectorizationBase.vzero(Val(1), Float32) === VectorizationBase.vzero(StaticInt(1), Float32) === VectorizationBase.vzero(Float32) === 0f0
@@ -681,7 +693,7 @@ end
 
         @test VectorizationBase.VecUnroll{2,W64,Float64}(first(A)) === VectorizationBase.VecUnroll{2,W64,Float64}(VectorizationBase.vbroadcast(W64S, pointer(A))) === VectorizationBase.VecUnroll((VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A)))) === VectorizationBase.VecUnroll{2}(VectorizationBase.vbroadcast(W64S, pointer(A)))
     end
-    @testset "CartesianVIndex" begin
+    @time @testset "CartesianVIndex" begin
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)) === VectorizationBase.CartesianVIndex(ntuple(_ -> VectorizationBase.One(), ndims(A)))
         @test VectorizationBase.maybestaticlast(CartesianIndices(A)) === VectorizationBase.CartesianVIndex(size(A))
         @test VectorizationBase.CartesianVIndex((StaticInt(1),2,VectorizationBase.CartesianVIndex((StaticInt(4), StaticInt(7))), CartesianIndex(12,14), StaticInt(2), 1)) === VectorizationBase.CartesianVIndex((StaticInt(1),2,StaticInt(4),StaticInt(7),12,14,StaticInt(2),1))
@@ -692,7 +704,7 @@ end
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) == CartesianIndices(A)
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) === CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
     end
-    @testset "Promotion" begin
+    @time @testset "Promotion" begin
         vi2 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
             Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
@@ -724,7 +736,7 @@ end
         end
         @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
     end
-    @testset "Lazymul" begin
+    @time @testset "Lazymul" begin
         # partially covered in memory
         for i ∈ (-5, -1, 0, 1, 4, 8), j ∈ (-5, -1, 0, 1, 4, 8)
             @test VectorizationBase.lazymul(StaticInt(i), StaticInt(j)) === VectorizationBase.lazymul_no_promote(StaticInt(i), StaticInt(j)) === StaticInt(i*j)
