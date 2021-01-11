@@ -275,7 +275,7 @@ include("testsetup.jl")
             # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
             x = getindex.(Ref(B), iv, jv, kv)
             GC.@preserve B begin
-                # @show i,j,k
+                # @show i,j,k, typeof(B)
                 v = @inferred(vload(stridedpointer(B), (i, j, k)))
             end
             @test x == tovector(v)

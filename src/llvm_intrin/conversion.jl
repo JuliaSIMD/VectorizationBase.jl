@@ -103,32 +103,22 @@ end
 
 # @inline vconvert(::Type{T}, v::T) where {T} = v
 
-# @inline _vconvert(::Type{<:AbstractSIMD{W,T}}, v::Mask{W}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
-# @inline _vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::Mask{W}) where {W} = v
-@generated function vconvert(::Type{VecUnroll{N,W,T,V}}, m::Mask{L}) where {N, W, T, V, L}
-    if W == L # _vconvert will dispatch to one of the two above
-        return Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, m)))
-    end
-    @assert (N+1)*W == L
+
+@generated function splitvectortotuple(::Val{N}, ::Val{W}, v::Mask{L}) where {N,W,L}
+    @assert N*W == L "Can't split a vector of length $L into $N pieces of length $W."
     t = Expr(:tuple, :(Mask{$W}(u)))
     s = 0
-    for n ∈ 1:N
+    for n ∈ 2:N
         push!(t.args, :(Mask{$W}(u >>> $(s += W))))
     end
     # This `vconvert` will dispatch to one of the following two `vconvert` methods
-    Expr(:block, Expr(:meta,:inline), :(u = data(m)), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll($t))))
+    Expr(:block, Expr(:meta,:inline), :(u = data(v)), t)
 end
-# @inline vconvert(::Type{<:AbstractSIMD{W,Bit}}, v::VecUnroll{N, W, Bit}) where {N, W} = v
-# @inline vconvert(::Type{<:AbstractSIMD{W,T}}, v::VecUnroll{<:Any, W, Bool, <: Mask}) where {W, T <: Union{Base.HWReal,Bool}} = ifelse(v, one(T), zero(T))
-
-@generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::AbstractSIMDVector{L}) where {N, W, T, V, L}
-    if W == L # _vconvert will dispatch to one of the two above
-        return Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, v)))
-    end
-    @assert ((N + 1)*W == L) "Can't split a vector of length $L into $(N+1) pieces of length $W."
+@generated function splitvectortotuple(::Val{N}, ::Val{W}, v::AbstractSIMDVector{L}) where {N,W,L}
+    @assert N*W == L "Can't split a vector of length $L into $N pieces of length $W."
     t = Expr(:tuple);
     j = 0
-    for i ∈ 0:N
+    for i ∈ 1:N
         val = Expr(:tuple)
         for w ∈ 1:W
             push!(val.args, j)
@@ -136,7 +126,23 @@ end
         end
         push!(t.args, :(shufflevector(v, Val{$val}())))
     end
-    Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll($t))))
+    Expr(:block, Expr(:meta,:inline), t)
+end
+@generated function splitvectortotuple(::Val{N}, ::Val{W}, v::LazyMulAdd{M,O}) where {N,W,M,O}
+    # LazyMulAdd{M,O}(splitvectortotuple(Val{N}(), Val{W}(), v.data))
+    t = Expr(:tuple)
+    for n ∈ 1:N
+        push!(t.args, :(LazyMulAdd{$M,$O}(splitdata[$n])))
+    end
+    Expr(:block, Expr(:meta,:inline), :(splitdata = splitvectortotuple(Val{$N}(), Val{$W}(), v.data)), t)
+end
+
+@generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::AbstractSIMDVector{L}) where {N, W, T, V, L}
+    if W == L # _vconvert will dispatch to one of the two above
+        Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, v)))
+    else
+        Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll(splitvectortotuple(Val{$(N+1)}(), Val{$W}(), v)))))
+    end
 end
 
 @inline Vec{W,T}(v::Vec{W,S}) where {W,T,S} = vconvert(Vec{W,T}, v)

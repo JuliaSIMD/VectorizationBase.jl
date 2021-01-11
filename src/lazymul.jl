@@ -12,7 +12,7 @@ end
 @inline LazyMulAdd(data::T, ::StaticInt{M}) where {M,T} = LazyMulAdd{M,0,T}(data)
 @inline LazyMulAdd(data::T, ::StaticInt{M}, ::StaticInt{O}) where {M,O,T} = LazyMulAdd{M,O,T}(data)
 
-@inline data(lm::LazyMulAdd) = data(lm.data) # for use with indexing
+@inline data(lm::LazyMulAdd) = data(lm.data) # calls data on inner for use with indexing (normally `data` only goes through one layer)
 
 
 @inline _materialize(a::LazyMulAdd{M,O,I}) where {M,O,I} = vadd_fast(vmul_fast(StaticInt{M}(), a.data), StaticInt{O}())

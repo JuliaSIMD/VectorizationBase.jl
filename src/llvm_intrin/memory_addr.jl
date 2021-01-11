@@ -290,10 +290,33 @@ function vload_quote(
     jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
     vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, jtyp)
 end
+function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool)
+    D, r1 = divrem(W * sizeof_T, REGISTER_SIZE)
+    Wnew, r2 = divrem(W, D)
+    @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
+    q = Expr(:block,Expr(:meta,:inline))
+    # ind_type = :StaticInt, :Integer, :Vec
+    push!(q.args, :(isplit = splitvectortotuple(Val{$D}(), Val{$Wnew}(), i)))
+    mask && push!(q.args, :(msplit = splitvectortotuple(Val{$D}(), Val{$Wnew}(), m)))
+    t = Expr(:tuple)
+    alignval = Expr(:call, Expr(:curly, :Val, align))
+    for d ∈ 1:D
+        call = Expr(:call, :vload, :ptr)
+        push!(call.args, Expr(:ref, :isplit, d))
+        mask && push!(call.args, Expr(:ref, :msplit, d))
+        push!(call.args, alignval)
+        push!(t.args, call)
+    end
+    push!(q.args, :(VecUnroll($t)))
+    q
+end
 function vload_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, ret
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
+    if W * sizeof_T > REGISTER_SIZE
+        return vload_split_quote(W, sizeof_T, mask, align)
+    end
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
     ibits = 8sizeof_I
     if W > 1 && ind_type !== :Vec
@@ -374,17 +397,8 @@ function vload_quote(
             $(Expr(:meta,:inline))
             Mask{$W}($(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)))
         end
-    elseif W * sizeof_T ≤ REGISTER_SIZE
-        llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
     else
-        d, r1 = divrem(W * sizeof_T, REGISTER_SIZE)
-        Wnew, r2 = divrem(W, d)
-        @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
-        quote
-            $(Expr(:meta,:inline))
-            v = $(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true))
-            vconvert(VecUnroll{$(d-1), $Wnew, $T_sym, Vec{$Wnew, $T_sym}}, v)
-        end
+        llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
     end
 end
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
@@ -952,6 +966,9 @@ function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
         end
     end
     j = 0
+    alignval = Expr(:call, Expr(:curly, :Val, A))
+    aliasval = Expr(:call, Expr(:curly, :Val, S))
+    notmpval = Expr(:call, Expr(:curly, :Val, NT))
     for n ∈ 1:N
         shufflemask = Expr(:tuple)
         for w ∈ 1:Wsplit
@@ -960,9 +977,9 @@ function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
         end
         ex = :(vstore!(ptr, vt[$n], shufflevector(im, Val{$shufflemask}())))
         mask && push!(ex.args, Expr(:ref, :mt, n))
-        push!(ex.args, :(Val{$A}()))
-        push!(ex.args, :(Val{$S}()))
-        push!(ex.args, :(Val{$NT}()))
+        push!(ex.args, alignval)
+        push!(ex.args, aliasval)
+        push!(ex.args, notmpval)
         push!(q.args, ex)
     end
     q
@@ -1103,25 +1120,37 @@ end
     horizonal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S)
 end
 
-
-
 function lazymulunroll_load_quote(M,O,N,mask,align)
     t = Expr(:tuple)
     alignval = Expr(:call, Expr(:curly, :Val, align))
     for n in 1:N+1
-        call = if mask
-            Expr(:call, :vload, :ptr, :(LazyMulAdd{$M,$O}(u[$n])), m, alignval)
+        ind = if (M != 1) | (O != 0)
+            :(LazyMulAdd{$M,$O}(u[$n]))
         else
-            Expr(:call, :vload, :ptr, :(LazyMulAdd{$M,$O}(u[$n])), alignval)
+            Expr(:ref, :u, n)
+        end
+        call = if mask
+            Expr(:call, :vload, :ptr, ind, Expr(:ref, :mt, n), alignval)
+        else
+            Expr(:call, :vload, :ptr, ind, alignval)
         end
         push!(t.args, call)
     end
-    Expr(:block, Expr(:meta, :inline), :(u = um.data.data), Expr(:call, :VecUnroll, t))
+    q = Expr(:block, Expr(:meta, :inline), :(u = data(um)))
+    mask && push!(q.args, :(mt = data(m)))
+    push!(q.args, Expr(:call, :VecUnroll, t))
+    q
+end
+@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, ::Val{A}) where {T,N,W,I,V,A}
+    lazymulunroll_load_quote(1,0,N,false,A)
+end
+@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::Val{A}) where {T,N,W,I,V,A,U}
+    lazymulunroll_load_quote(1,0,N,true,A)
 end
 @generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, ::Val{A}) where {T,M,O,N,W,I,V,A}
     lazymulunroll_load_quote(M,O,N,false,A)
 end
-@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask{W}, ::Val{A}) where {T,M,O,N,W,I,V,A}
+@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::Val{A}) where {T,M,O,N,W,I,V,A,U}
     lazymulunroll_load_quote(M,O,N,true,A)
 end
 function lazymulunroll_store_quote(M,O,N,mask,align,noalias,nontemporal)
