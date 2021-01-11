@@ -118,8 +118,19 @@ end
 #     M2,N2,W2,T2 = description(T2)
 # end
 
-@generated function simd_vec(y::T, x::Vararg{T,_W}) where {T,_W}
+function demoteint(T, W)
+    Wpick = pick_vector_width(T)
+    (W > Wpick) && (T <: Integer) && (sizeof(T) == 8)# && (!AVX512DQ) 
+end
+
+@inline _demoteint(::Type{T}) where {T} = T
+@inline _demoteint(::Type{Int64}) = Int32
+@inline _demoteint(::Type{UInt64}) = UInt32
+
+@generated function simd_vec(y::_T, x::Vararg{_T,_W}) where {_T,_W}
     W = 1 + _W
+    T = demoteint(_T, W) ? _demoteint(_T) : _T
+    trunc = T !== _T
     Wfull = nextpow2(W)
     ty = LLVM_TYPES[T]
     init = W == Wfull ? "undef" : "zeroinitializer"
@@ -130,17 +141,19 @@ end
         push!(Tup.args, T)
     end
     push!(instrs, "ret <$Wfull x $ty> %v$_W")
-    llvmc = :(llvmcall($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup, y))
+    llvmc = :(llvmcall($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup))
+    trunc ? push!(llvmc.args, :(y % $T)) : push!(llvmc.args, :y)
     for w ∈ 1:_W
-        push!(llvmc.args, Expr(:ref, :x, w))
+        ref = Expr(:ref, :x, w)
+        trunc && (ref = Expr(:call, :%, ref, T))
+        push!(llvmc.args, ref)
     end
     quote
         $(Expr(:meta,:inline))
         Vec($llvmc)
     end
 end
-
-function vec_quote(W, Wpow2, offset = 0)
+function vec_quote(W, Wpow2, offset::Int = 0)
     call = Expr(:call, :simd_vec); Wpow2 += offset
     iszero(offset) && push!(call.args, :y)
     foreach(w -> push!(call.args, Expr(:ref, :x, w)), max(1,offset):min(W,Wpow2)-1)
@@ -150,6 +163,7 @@ end
 @generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
     W = _W + 1
     Wpow2 = pick_vector_width(W, T)
+    Wpow2 += Wpow2 * demoteint(T, W)
     if W ≤ Wpow2
         vec_quote(W, Wpow2)
     else
@@ -301,47 +315,6 @@ end
 For use in spin-and-wait loops, like spinlocks.
 """
 @inline pause() = ccall(:jl_cpu_pause, Cvoid, ())
-const CACHE_INCLUSIVITY = let
-    if !((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))
-         (false,false,false,false)
-    else
-        # source: https://github.com/m-j-w/CpuId.jl/blob/401b638cb5a020557bce7daaf130963fb9c915f0/src/CpuInstructions.jl#L38
-        # credit Markus J. Weber, copyright: https://github.com/m-j-w/CpuId.jl/blob/master/LICENSE.md
-        function get_cache_edx(subleaf)
-            Base.llvmcall(
-                """
-                    ; leaf = %0, subleaf = %1, %2 is some label
-                    ; call 'cpuid' with arguments loaded into registers EAX = leaf, ECX = subleaf
-                    %2 = tail call { i32, i32, i32, i32 } asm sideeffect "cpuid",
-                        "={ax},={bx},={cx},={dx},{ax},{cx},~{dirflag},~{fpsr},~{flags}"
-                        (i32 4, i32 %0) #2
-                    ; retrieve the result values and return eax and edx contents
-                    %3 = extractvalue { i32, i32, i32, i32 } %2, 0
-                    %4 = extractvalue { i32, i32, i32, i32 } %2, 3
-                    %5  = insertvalue [2 x i32] undef, i32 %3, 0
-                    %6  = insertvalue [2 x i32]   %5 , i32 %4, 1
-                    ; return the value
-                    ret [2 x i32] %6
-                """
-                # llvmcall requires actual types, rather than the usual (...) tuple
-                , Tuple{UInt32,UInt32}, Tuple{UInt32}, subleaf % UInt32
-            )
-        end
-        # eax0, edx1 = get_cache_edx(0x00000000)
-        t = (false,false,false,false)
-        i = zero(UInt32)
-        j = 0
-        while (j < 4)
-            eax, edx = get_cache_edx(i)
-            i += one(UInt32)
-            iszero(eax & 0x1f) && break
-            iszero(eax & 0x01) && continue
-            ci = ((edx & 0x00000002) != 0x00000000) & (eax & 0x1f != 0x00000000)
-            t = Base.setindex(t, ci, (j += 1))
-        end
-        t
-    end
-end
 
 notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
 
@@ -369,6 +342,7 @@ end
 else
     include("cpu_info_generic.jl")
 end
+include("cache_inclusivity.jl")
 include("vector_width.jl")
 include("llvm_types.jl")
 include("lazymul.jl")
@@ -393,7 +367,6 @@ include("promotion.jl")
 include("ranges.jl")
 include("alignment.jl")
 include("special/misc.jl")
-
 
 # function reduce_to_onevec_quote(Nm1)
 #     N = Nm1 + 1

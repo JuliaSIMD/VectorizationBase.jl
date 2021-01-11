@@ -8,14 +8,14 @@ end
 function integer_of_bytes(bytes)
     if bytes == 8
         Int64
-    elseif bytes == 4
+    else#if bytes == 4
         Int32
-    elseif bytes == 2
-        Int16
-    elseif bytes == 1
-        Int8
-    else
-        throw("$bytes is an invalid number of bytes for integers.")
+    # elseif bytes == 2
+    #     Int16
+    # elseif bytes == 1
+    #     Int8
+    # else
+    #     throw("$bytes is an invalid number of bytes for integers.")
     end
 end
 function pick_integer(W, pref)

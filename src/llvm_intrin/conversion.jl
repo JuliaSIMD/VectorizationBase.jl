@@ -86,6 +86,9 @@ end
 
 ### `vconvert(::Type{<:NativeTypes}, x)` methods. These forward to `vconvert(::Type{Vec{W,T}}, x)`
 @inline vconvert(::Type{T}, s::T) where {T<:NativeTypes} = s
+@inline vconvert(::Type{T}, s::T) where {T<:IntegerTypesHW} = s
+@inline vconvert(::Type{T}, s::NativeTypes) where {T<:NativeTypes} = s
+@inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:IntegerTypesHW} = s % T
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,T}) where {T<:NativeTypes,W} = v
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,S}) where {T<:NativeTypes,S,W} = vconvert(Vec{W,T}, v)
 
@@ -104,7 +107,7 @@ end
 # @inline vconvert(::Type{T}, v::T) where {T} = v
 
 
-@generated function splitvectortotuple(::Val{N}, ::Val{W}, v::Mask{L}) where {N,W,L}
+@generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::Mask{L}) where {N,W,L}
     @assert N*W == L "Can't split a vector of length $L into $N pieces of length $W."
     t = Expr(:tuple, :(Mask{$W}(u)))
     s = 0
@@ -114,7 +117,7 @@ end
     # This `vconvert` will dispatch to one of the following two `vconvert` methods
     Expr(:block, Expr(:meta,:inline), :(u = data(v)), t)
 end
-@generated function splitvectortotuple(::Val{N}, ::Val{W}, v::AbstractSIMDVector{L}) where {N,W,L}
+@generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::AbstractSIMDVector{L}) where {N,W,L}
     @assert N*W == L "Can't split a vector of length $L into $N pieces of length $W."
     t = Expr(:tuple);
     j = 0
@@ -128,20 +131,20 @@ end
     end
     Expr(:block, Expr(:meta,:inline), t)
 end
-@generated function splitvectortotuple(::Val{N}, ::Val{W}, v::LazyMulAdd{M,O}) where {N,W,M,O}
-    # LazyMulAdd{M,O}(splitvectortotuple(Val{N}(), Val{W}(), v.data))
+@generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::LazyMulAdd{M,O}) where {N,W,M,O}
+    # LazyMulAdd{M,O}(splitvectortotuple(StaticInt{N}(), StaticInt{W}(), v.data))
     t = Expr(:tuple)
     for n ∈ 1:N
         push!(t.args, :(LazyMulAdd{$M,$O}(splitdata[$n])))
     end
-    Expr(:block, Expr(:meta,:inline), :(splitdata = splitvectortotuple(Val{$N}(), Val{$W}(), v.data)), t)
+    Expr(:block, Expr(:meta,:inline), :(splitdata = splitvectortotuple(StaticInt{$N}(), StaticInt{$W}(), v.data)), t)
 end
 
 @generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::AbstractSIMDVector{L}) where {N, W, T, V, L}
     if W == L # _vconvert will dispatch to one of the two above
         Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, v)))
     else
-        Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll(splitvectortotuple(Val{$(N+1)}(), Val{$W}(), v)))))
+        Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll(splitvectortotuple(StaticInt{$(N+1)}(), StaticInt{$W}(), v)))))
     end
 end
 

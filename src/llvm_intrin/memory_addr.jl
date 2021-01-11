@@ -296,8 +296,8 @@ function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool)
     @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
     q = Expr(:block,Expr(:meta,:inline))
     # ind_type = :StaticInt, :Integer, :Vec
-    push!(q.args, :(isplit = splitvectortotuple(Val{$D}(), Val{$Wnew}(), i)))
-    mask && push!(q.args, :(msplit = splitvectortotuple(Val{$D}(), Val{$Wnew}(), m)))
+    push!(q.args, :(isplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), i)))
+    mask && push!(q.args, :(msplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), m)))
     t = Expr(:tuple)
     alignval = Expr(:call, Expr(:curly, :Val, align))
     for d ∈ 1:D
@@ -1147,11 +1147,17 @@ end
 @generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::Val{A}) where {T,N,W,I,V,A,U}
     lazymulunroll_load_quote(1,0,N,true,A)
 end
+@inline function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask, ::Val{A}) where {T,N,W,I,V,A}
+    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), Val{A}())
+end
 @generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, ::Val{A}) where {T,M,O,N,W,I,V,A}
     lazymulunroll_load_quote(M,O,N,false,A)
 end
 @generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::Val{A}) where {T,M,O,N,W,I,V,A,U}
     lazymulunroll_load_quote(M,O,N,true,A)
+end
+@inline function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask, ::Val{A}) where {T,M,O,N,W,I,V,A}
+    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), Val{A}())
 end
 function lazymulunroll_store_quote(M,O,N,mask,align,noalias,nontemporal)
     q = Expr(:block, Expr(:meta, :inline), :(u = um.data.data), :(v = vm.data.data))
