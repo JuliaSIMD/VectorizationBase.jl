@@ -80,7 +80,7 @@ end
 @inline function vconvert(::Type{V}, v::Vec{W,Bool}) where {W, T <: Base.HWReal, V <: AbstractSIMDVector{W,T}}
     vifelse(v, one(T), zero(T))
 end
-@inline vconvert(::Type{V}, v::Vec{W,Bool}) where {W, V <: AbstractSIMDVector{W,Bool}} = v
+
 
 
 
