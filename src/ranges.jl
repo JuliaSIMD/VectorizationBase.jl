@@ -1,25 +1,25 @@
 
 
-function pick_integer_bytes(W, preferred, simd_integer_register_size = SIMD_INTEGER_REGISTER_SIZE)
+function pick_integer_bytes(W::Int, preferred::Int, minbytes::Int = min(preferred,4), simd_integer_register_size::Int = SIMD_INTEGER_REGISTER_SIZE)
     # SIMD quadword integer support requires AVX512DQ
     # preferred = AVX512DQ ? preferred :  min(4, preferred)
-    max(1,min(preferred, prevpow2(simd_integer_register_size ÷ W)))
+    max(minbytes,min(preferred, prevpow2(simd_integer_register_size ÷ W)))
 end
-function integer_of_bytes(bytes)
+function integer_of_bytes(bytes::Int)
     if bytes == 8
         Int64
-    else#if bytes == 4
+    elseif bytes == 4
         Int32
-    # elseif bytes == 2
-    #     Int16
-    # elseif bytes == 1
-    #     Int8
-    # else
-    #     throw("$bytes is an invalid number of bytes for integers.")
+    elseif bytes == 2
+        Int16
+    elseif bytes == 1
+        Int8
+    else
+        throw("$bytes is an invalid number of bytes for integers.")
     end
 end
-function pick_integer(W, pref)
-    integer_of_bytes(pick_integer_bytes(W, pref))
+function pick_integer(W::Int, pref::Int, minbytes::Int = min(pref,4))
+    integer_of_bytes(pick_integer_bytes(W, pref, minbytes))
 end
 @generated pick_integer(::Val{W}) where {W} = pick_integer(W, sizeof(Int))
 pick_integer(::Val{W}, ::Type{T}) where {W, T} = signorunsign(pick_integer(Val{W}()), issigned(T))

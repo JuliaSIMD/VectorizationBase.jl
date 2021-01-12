@@ -172,17 +172,20 @@ else
     @inline vfloat_fast(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
     @inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, vu.data))
     @generated function vfloat_fast(v::Vec{W,I}) where {W, I <: Integer}
-        arg = if AVX512DQ || (2W*sizeof(I) ≤ REGISTER_SIZE)
+        arg = if AVX512DQ || (2W*sizeof(I) ≤ REGISTER_SIZE) || sizeof(I) ≤ 4
             :v
+        elseif I <: Signed
+            :(v % Int32)
         else
-            _J = integer_of_bytes(pick_integer_bytes(W, sizeof(I), SIMD_INTEGER_REGISTER_SIZE >>> 1))
-            J = I <: Signed ? _J : unsigned(_J)
-            :(v % $J)
+            :(v % UInt32)
+            # _J = integer_of_bytes(pick_integer_bytes(W, sizeof(I), 4, SIMD_INTEGER_REGISTER_SIZE >>> 1))
+            # J = I <: Signed ? _J : unsigned(_J)
+            # :(v % $J)
         end
         ex = if 8W ≤ REGISTER_SIZE
-            :(Vec{$W,Float64}(v))
+            :(Vec{$W,Float64}($arg))
         else
-            :(Vec{$W,Float32}(v))
+            :(Vec{$W,Float32}($arg))
         end
         Expr(:block, Expr(:meta, :inline), ex)
     end

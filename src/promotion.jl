@@ -33,9 +33,15 @@ Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:Abstract
         # don't demote to smaller than `Float32`
         # return :(Vec{$W,Float32})
     end
-    I = pick_integer(W, sizeof(Int))
-    SorU = T <: Unsigned ? unsigned(I) : I
-    :(Vec{$W,$SorU})
+    # They're both of integers
+    V1MM = V1 <: MM
+    V2MM = V2 <: MM
+    if V1MM ⊻ V2MM
+        V1MM ? :(Vec{$W,$T2}) : :(Vec{$W,$T1})
+    else
+        I = pick_integer(W, sizeof(Int), 4 - 3V1MM) # 
+        T <: Unsigned ? :(Vec{$W,$(unsigned(I))}) : :(Vec{$W,$I})
+    end
 end
 
 @generated function Base.promote_rule(
