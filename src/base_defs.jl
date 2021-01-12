@@ -7,7 +7,7 @@ const FASTDICT = Dict{Symbol,Expr}([
     :(÷) => :(VectorizationBase.vdiv_fast), # VectorizationBase.vdiv == integer, VectorizationBase.vfdiv == float
     :(%) => :(Base.FastMath.rem_fast),
     :abs2 => :(Base.FastMath.abs2_fast),
-    :inv => :(Base.FastMath.inv_fast),
+    # :inv => :(Base.FastMath.inv_fast), # this is slower in most benchmarks
     :hypot => :(Base.FastMath.hypot_fast),
     :max => :(Base.FastMath.max_fast),
     :min => :(Base.FastMath.min_fast),
