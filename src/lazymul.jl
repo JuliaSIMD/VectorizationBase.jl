@@ -47,6 +47,8 @@ Base.promote_rule(::Type{LazyMulAdd{M,O,Vec{W,I}}}, ::Type{T}) where {M,O,W,I,T}
 @inline lazymul_no_promote(::Type{T}, a, b) where {T} = lazymul_no_promote(a, b)
 # @inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::StaticInt) where {W,X,T} = MM{W}(vmul_fast(a.i, b), mulsizeof(T, StaticInt{X}()))
 @inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::StaticInt{M}) where {M,W,X,T} = LazyMulAdd{M}(a)
+@inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::StaticInt{0}) where {W,X,T} = Zero()
+@inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::StaticInt{1}) where {W,X,T} = a
 @inline lazymul_no_promote(::Type{T}, a::MM{W,X}, b::Integer) where {W,X,T} = MM{W}(vmul_fast(a.i, b), mulsizeof(T, StaticInt{X}()))
 @inline lazymul_no_promote(::Type{T}, b::StaticInt, a::MM{W,X}) where {W,X,T} = MM{W}(vmul_fast(b, a.i), mulsizeof(T, StaticInt{X}()))
 @inline lazymul_no_promote(::Type{T}, b::Integer, a::MM{W,X}) where {W,X,T} = MM{W}(vmul_fast(b, a.i), mulsizeof(T, StaticInt{X}()))

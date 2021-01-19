@@ -994,6 +994,39 @@ end
 ) where {T,Nm1,Wsplit,W,A,S,NT}
     vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, true)
 end
+function vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
+    N = Nm1 + 1
+    @assert N*Wsplit == W
+    @assert W == 8
+    # q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(im = _materialize(i)), :(u = 0x00))
+    q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(u = 0x00))
+    j = 0
+    while true
+        push!(q.args, :(u |= data($(Expr(:ref, :vt, (N-j))))))
+        j += 1
+        j == N && break
+        push!(q.args, :(u <<= $Wsplit))
+    end
+    alignval = Expr(:call, Expr(:curly, :Val, A))
+    aliasval = Expr(:call, Expr(:curly, :Val, S))
+    notmpval = Expr(:call, Expr(:curly, :Val, NT))
+    call = Expr(:call, :vstore!, :(reinterpret(Ptr{UInt8}, ptr)), :u, :(i.i >> 3))
+    mask && push!(call.args, :m)
+    push!(call.args, alignval, aliasval, notmpval)
+    push!(q.args, call)
+    q
+end
+@generated function vstore!(
+    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {Nm1,Wsplit,W,A,S,NT}
+    # 1 + 1
+    vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, false)
+end
+@generated function vstore!(
+    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
+) where {Nm1,Wsplit,W,A,S,NT}
+    vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, true)
+end
 
 # @inline vstore!(::typeof(identity), ptr, v, u) = vstore!(ptr, v, u)
 # @inline vstore!(::typeof(identity), ptr, v, u, m) = vstore!(ptr, v, u, m)

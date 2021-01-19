@@ -198,6 +198,14 @@ include("testsetup.jl")
         @test convert(Bool, Mask{8}(0xec)) === Vec(false,false,true,true,false,true,true,true) === VectorizationBase.ifelse(convert(Bool, Mask{8}(0xec)), vbroadcast(Val(8),true), vbroadcast(Val(8),false))
 
         @test (MM{8}(2) ∈ 3:8) === Mask{8}(0x7e)
+
+        fbitvector = falses(20);
+        mu = VectorizationBase.VecUnroll((Mask{4}(0x0f),Mask{4}(0x0f)))
+        GC.@preserve fbitvector begin
+            vstore!(stridedpointer(fbitvector), mu, (VectorizationBase.MM(StaticInt{8}(), 1),))
+        end
+        @test all(fbitvector[1:8])
+        @test !any(fbitvector[9:end])
     end
 
     # @testset "number_vectors.jl" begin
