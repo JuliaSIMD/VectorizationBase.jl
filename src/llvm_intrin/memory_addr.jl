@@ -1011,7 +1011,7 @@ function vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     aliasval = Expr(:call, Expr(:curly, :Val, S))
     notmpval = Expr(:call, Expr(:curly, :Val, NT))
     call = Expr(:call, :vstore!, :(reinterpret(Ptr{UInt8}, ptr)), :u, :(i.i >> 3))
-    mask && push!(call.args, :m)
+    # mask && push!(call.args, :m)
     push!(call.args, alignval, aliasval, notmpval)
     push!(q.args, call)
     q

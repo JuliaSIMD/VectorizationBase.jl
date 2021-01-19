@@ -199,13 +199,21 @@ include("testsetup.jl")
 
         @test (MM{8}(2) ∈ 3:8) === Mask{8}(0x7e)
 
-        fbitvector = falses(20);
+        fbitvector1 = falses(20);
+        fbitvector2 = falses(20);
         mu = VectorizationBase.VecUnroll((Mask{4}(0x0f),Mask{4}(0x0f)))
         GC.@preserve fbitvector begin
-            vstore!(stridedpointer(fbitvector), mu, (VectorizationBase.MM(StaticInt{8}(), 1),))
+            vstore!(stridedpointer(fbitvector1), mu, (VectorizationBase.MM(StaticInt{8}(), 1),))
+            vstore!(stridedpointer(fbitvector2), mu, Mask{8}(0x7e), (VectorizationBase.MM(StaticInt{8}(), 1),))
         end
-        @test all(fbitvector[1:8])
-        @test !any(fbitvector[9:end])
+        @test all(fbitvector1[1:8])
+        @test !any(fbitvector1[9:end])
+        # masks are currently ignored for `BitArray`s
+        @test all(fbitvector2[1:8])
+        @test !any(fbitvector2[9:end])
+        # @test fbitvector2[1]
+        # @test all(fbitvector2[2:7])
+        # @test !any(fbitvector1[8:end])
     end
 
     # @testset "number_vectors.jl" begin
