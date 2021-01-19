@@ -204,7 +204,7 @@ include("testsetup.jl")
         mu = VectorizationBase.VecUnroll((Mask{4}(0x0f),Mask{4}(0x0f)))
         GC.@preserve fbitvector begin
             vstore!(stridedpointer(fbitvector1), mu, (VectorizationBase.MM(StaticInt{8}(), 1),))
-            vstore!(stridedpointer(fbitvector2), mu, Mask{8}(0x7e), (VectorizationBase.MM(StaticInt{8}(), 1),))
+            vstore!(stridedpointer(fbitvector2), mu, (VectorizationBase.MM(StaticInt{8}(), 1),), Mask{8}(0x7e))
         end
         @test all(fbitvector1[1:8])
         @test !any(fbitvector1[9:end])
