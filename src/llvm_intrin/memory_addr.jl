@@ -768,7 +768,9 @@ end
 @inline function vstore!(
     ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, U, A, S, NT}
-    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+    ishift = data(i) >> 3
+    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, Val{A}()), data(v))
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), u, ishift, Val{A}(), Val{S}(), Val{NT}())
 end
 @inline function vstore!(f::F, ptr::Ptr{Bit}, v::Mask{W,U}, ::Val{A}, ::Val{S}, ::Val{NT}) where {W, U, A, S, NT, F<:Function}
     vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
@@ -781,7 +783,9 @@ end
 @inline function vstore!(
     f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
 ) where {W, U, A, S, NT, F<:Function}
-    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+    ishift = data(i) >> 3
+    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, Val{A}()), data(v))
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), u, ishift, Val{A}(), Val{S}(), Val{NT}())
 end
 
 
@@ -1010,8 +1014,8 @@ function vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     alignval = Expr(:call, Expr(:curly, :Val, A))
     aliasval = Expr(:call, Expr(:curly, :Val, S))
     notmpval = Expr(:call, Expr(:curly, :Val, NT))
+    mask && push!(q.args, :(u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{$(mask_type_symbol(W))}, ptr), (i.i >> 3), Val{$A}()), u)))
     call = Expr(:call, :vstore!, :(reinterpret(Ptr{UInt8}, ptr)), :u, :(i.i >> 3))
-    # mask && push!(call.args, :m)
     push!(call.args, alignval, aliasval, notmpval)
     push!(q.args, call)
     q

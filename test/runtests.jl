@@ -208,12 +208,9 @@ include("testsetup.jl")
         end
         @test all(fbitvector1[1:8])
         @test !any(fbitvector1[9:end])
-        # masks are currently ignored for `BitArray`s
-        @test all(fbitvector2[1:8])
-        @test !any(fbitvector2[9:end])
-        # @test fbitvector2[1]
-        # @test all(fbitvector2[2:7])
-        # @test !any(fbitvector1[8:end])
+        @test !fbitvector2[1]
+        @test all(fbitvector2[2:7])
+        @test !any(fbitvector2[8:end])
     end
 
     # @testset "number_vectors.jl" begin
