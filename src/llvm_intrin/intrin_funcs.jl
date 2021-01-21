@@ -230,6 +230,10 @@ end
 @inline vmuladd(a::NativeTypes, b::NativeTypes, c::NativeTypes) = muladd(a,b,c)
 @inline vfma_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) = fma(a,b,c)
 @inline vmuladd_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) = muladd(a,b,c)
+@inline vfma(a, b, c) = fma(a,b,c)
+@inline vmuladd(a, b, c) = muladd(a,b,c)
+@inline vfma_fast(a, b, c) = fma(a,b,c)
+@inline vmuladd_fast(a, b, c) = muladd(a,b,c)
 for f ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast]
     @eval @inline function $f(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}, v3::AbstractSIMD{W,T}) where {W,T <: IntegerTypesHW}
         vadd(vmul(v1, v2), v3)

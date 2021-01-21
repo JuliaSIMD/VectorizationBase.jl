@@ -211,7 +211,7 @@ end
 @inline IfElse.ifelse(f::Function, m::Bool, args::Vararg{NativeTypesV,K}) where {K} = vifelse(f, m, args...)
 for (f) ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast]
     @eval begin
-        @inline function $f(a, b, c)
+        @inline function $f(a::NativeTypesV, b::NativeTypesV, c::NativeTypesV)
             x, y, z = promote(a, b, c)
             $f(x, y, z)
         end
