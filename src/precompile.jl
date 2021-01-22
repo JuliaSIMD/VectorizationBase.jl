@@ -18,17 +18,19 @@ function _precompile_()
     end
     precompile_nt(U)
     precompile(_pick_vector_width, (Type, Vararg{Type,100}))
-    for T ∈ (Float32, Float64)
-        W = pick_vector_width(T)
-        precompile(>=, (Int, MM{W, 1, Int}))
-        for op ∈ (-, Base.FastMath.sub_fast)
-            precompile(op, (Vec{W, T}, ))
-        end
-        for op ∈ (+, -, *, Base.FastMath.add_fast, Base.FastMath.sub_fast, Base.FastMath.mul_fast)
-            precompile(op, (Vec{W, T}, Vec{W, T}))
-        end
-        for op ∈ (VectorizationBase.vfmadd, VectorizationBase.vfmadd_fast)
-            precompile(op, (Vec{W, T}, Vec{W, T}, Vec{W, T}))
+    if VERSION ≥ v"1.7.0-DEV.346"
+        for T ∈ (Float32, Float64)
+            W = pick_vector_width(T)
+            precompile(>=, (Int, MM{W, 1, Int}))
+            for op ∈ (-, Base.FastMath.sub_fast)
+                precompile(op, (Vec{W, T}, ))
+            end
+            for op ∈ (+, -, *, Base.FastMath.add_fast, Base.FastMath.sub_fast, Base.FastMath.mul_fast)
+                precompile(op, (Vec{W, T}, Vec{W, T}))
+            end
+            for op ∈ (VectorizationBase.vfmadd, VectorizationBase.vfmadd_fast)
+                precompile(op, (Vec{W, T}, Vec{W, T}, Vec{W, T}))
+            end
         end
     end
 end

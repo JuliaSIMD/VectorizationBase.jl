@@ -71,7 +71,7 @@ end
 if Base.libllvm_version ≥ v"12"
     for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed),("umax",:max,:Unsigned),("umin",:min,:Unsigned)]
         vf = Symbol(:v,f)
-        @eval @generated $vf(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = llvmcall_expr($op, W, T, (W, W), (T, T))
+        @eval @generated $vf(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, (W, W), (TS, TS)))
     end
 else
     @inline vmax(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vifelse(v1 > v2, v1, v2)
@@ -84,7 +84,7 @@ end
 for (op,f) ∈ [("sqrt",:vsqrt),("fabs",:vabs),("floor",:vfloor),("ceil",:vceil),("trunc",:vtrunc),("nearbyint",:vround)
               ]
     # @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
-    @eval @generated $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "fast")
+    @eval @generated $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = (TS = T === Float32 ? :Float32 : :Float64; build_llvmcall_expr($op, W, TS, (W,), (TS,), "fast"))
 end
 @inline vsqrt(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} = vsqrt(float(v))
 
@@ -176,7 +176,8 @@ for (op,f,fast) ∈ [
     ("copysign",:vcopysign,true)
 ]
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, W, T, (W for _ in 1:2), (T for _ in 1:2), $(fast_flags(fast)))
+        TS = T === Float32 ? :Float32 : :Float64
+        build_llvmcall_expr($op, W, TS, (W, W), (TS, TS), $(fast_flags(fast)))
     end
 end
 @inline _signbit(v::Vec{W, I}) where {W, I<:Signed} = v & Vec{W,I}(typemin(I))
@@ -220,7 +221,9 @@ for (op,f,fast) ∈ [
     ("fmuladd",:vmuladd,false),("fmuladd",:vmuladd_fast,true)
 ]
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: FloatingTypes}
-        llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3), $(fast_flags(fast)))
+        TS = T === Float32 ? :Float32 : :Float64
+        # TS = JULIA_TYPES[T]
+        build_llvmcall_expr($op, W, TS, (W, W, W), (TS, TS, TS), $(fast_flags(fast)))
     end
 end
 # @inline Base.fma(a::Vec, b::Vec, c::Vec) = vfma(a,b,c)
@@ -258,7 +261,9 @@ for (op,f) ∈ [
     ("experimental.vector.reduce.v2.fmul",:vprod)
 ]
     @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, -1, T, (1, W), (T, T), "nsz arcp contract afn reassoc")
+        # TS = JULIA_TYPES[T]
+        TS = T === Float32 ? :Float32 : :Float64
+        build_llvmcall_expr($op, -1, TS, (1, W), (TS, TS), "nsz arcp contract afn reassoc")
     end
 end
 @inline vsum(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.add_fast(s, vsum(v))
@@ -268,7 +273,9 @@ for (op,f) ∈ [
     ("experimental.vector.reduce.fmin",:vminimum)
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        llvmcall_expr($op, -1, T, (W,), (T,), "nsz arcp contract afn reassoc")
+        # TS = JULIA_TYPES[T]
+        TS = T === Float32 ? :Float32 : :Float64
+        build_llvmcall_expr($op, -1, TS, (W,), (TS,), "nsz arcp contract afn reassoc")
     end
 end
 for (op,f,S) ∈ [
@@ -283,7 +290,8 @@ for (op,f,S) ∈ [
     ("experimental.vector.reduce.umin",:vminimum,:Unsigned)
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: $S}
-        llvmcall_expr($op, -1, T, (W,), (T,))
+        TS = JULIA_TYPES[T]
+        build_llvmcall_expr($op, -1, TS, (W,), (TS,))
     end
 end
 
@@ -343,13 +351,14 @@ end
 
 
 for (op,f) ∈ [("ctpop", :vcount_ones)]
-    @eval @generated $f(v1::Vec{W,T}) where {W,T} = llvmcall_expr($op, W, T, (W,), (T,))
+    @eval @generated $f(v1::Vec{W,T}) where {W,T} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, (W,), (TS,)))
 end
 
 for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
               ]
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W,T}
-        llvmcall_expr($op, W, T, (W for _ in 1:3), (T for _ in 1:3))
+        TS = JULIA_TYPES[T]
+        build_llvmcall_expr($op, W, TS, (W,W,W), (TS,TS,TS))
     end
 end
 @inline function funnel_shift_left(a::T, b::T, c::T) where {T}
