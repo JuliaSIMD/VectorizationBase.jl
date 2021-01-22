@@ -175,9 +175,11 @@ for (op,f,fast) ∈ [
     ("maxnum",:vmax,false),("maxnum",:vmax_fast,true),
     ("copysign",:vcopysign,true)
 ]
+    ff = fast_flags(fast)
+    fast && (ff *= " nnan")
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         TS = T === Float32 ? :Float32 : :Float64
-        build_llvmcall_expr($op, W, TS, (W, W), (TS, TS), $(fast_flags(fast)))
+        build_llvmcall_expr($op, W, TS, (W, W), (TS, TS), $ff)
     end
 end
 @inline _signbit(v::Vec{W, I}) where {W, I<:Signed} = v & Vec{W,I}(typemin(I))
