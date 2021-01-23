@@ -76,8 +76,8 @@ end
 ) where {T<:NativeTypes,C,B,R,N,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
-@inline Base.strides(ptr::AbstractStridedPointer) = ptr.strd
-@inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = ptr.offsets
+@inline Base.strides(ptr::AbstractStridedPointer) = Base.getfield(ptr, :strd)
+@inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = Base.getfield(ptr, :offsets)
 @inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(Contiguous{C}(), Val{N}())
 
 
@@ -102,7 +102,7 @@ end
     StridedPointer{T,N,C,B,R,X}(ptr, sptr.strd, zerotuple(Val{N}()))
 end
 
-@inline Base.pointer(ptr::StridedPointer) = ptr.p
+@inline Base.pointer(ptr::StridedPointer) = Base.getfield(ptr, :p)
 Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = pointer(ptr)
 # Shouldn't need to special case Array
 # function stridedpointer(A::Array{T,N}) where {T,N}

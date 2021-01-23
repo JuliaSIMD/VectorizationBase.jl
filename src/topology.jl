@@ -10,6 +10,7 @@ const CACHE_COUNT = (
     COUNTS[:L4Cache]
 )
 const NUM_CORES = COUNTS[:Core]
+const SYS_CPU_THREADS = Sys.CPU_THREADS
 
 const CACHE_LEVELS = something(findfirst(isequal(0), CACHE_COUNT), length(CACHE_COUNT) + 1) - 1
 
