@@ -10,7 +10,7 @@ include("testsetup.jl")
     # @test isempty(detect_unbound_args(VectorizationBase))
     # @test isempty(detect_ambiguities(VectorizationBase))
 
-    W = VectorizationBase.pick_vector_width(Float64)
+    W = @inferred(VectorizationBase.pick_vector_width(Float64))
     @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.register_size() == VectorizationBase.simd_integer_register_size() ? Int64 : Int32)
 
 
@@ -135,7 +135,7 @@ include("testsetup.jl")
         end
         @test all(w -> bitstring(VectorizationBase.mask(Val( 8), w)) == reduce(*, ( 8 - i < w ? "1" : "0" for i in 1:8 )), 1:8 )
         @test all(w -> bitstring(VectorizationBase.mask(Val(16), w)) == reduce(*, (16 - i < w ? "1" : "0" for i in 1:16)), 1:16)
-        @test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(VectorizationBase.pick_vector_width_val(Float64), w), 1:W64)
+        @test all(w -> VectorizationBase.mask(Float64, w) === VectorizationBase.mask(@inferred(VectorizationBase.pick_vector_width_val(Float64)), w), 1:W64)
 
         @test VectorizationBase.vbroadcast(Val(8), true) === Vec(true, true, true, true, true, true, true, true)
 
@@ -223,11 +223,11 @@ include("testsetup.jl")
 
     @time @testset "vector_width.jl" begin
         for T ∈ (Float32,Float64)
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.register_size()
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.register_size() == VectorizationBase.dynamic_register_size()
         end
         for T ∈ (Int8,Int16,Int32,Int64)
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.simd_integer_register_size()
-            @test @inferred(VectorizationBase.pick_vector_width(unsigned(T))) * sizeof(unsigned(T)) == VectorizationBase.simd_integer_register_size()
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.simd_integer_register_size() == VectorizationBase.dynamic_integer_register_size()
+            @test @inferred(VectorizationBase.pick_vector_width(unsigned(T))) * sizeof(unsigned(T)) == VectorizationBase.simd_integer_register_size() == VectorizationBase.dynamic_integer_register_size()
         end
 
         
@@ -599,7 +599,7 @@ include("testsetup.jl")
     end
     @time @testset "Ternary Functions" begin
         for T ∈ (Float32, Float64)
-            v1, v2, v3, m = let W = VectorizationBase.pick_vector_width_val(T)
+            v1, v2, v3, m = let W = @inferred(VectorizationBase.pick_vector_width_val(T))
                 v1 = VectorizationBase.VecUnroll((
                     Vec(ntuple(_ -> randn(T), W)...),
                     Vec(ntuple(_ -> randn(T), W)...)
@@ -612,7 +612,7 @@ include("testsetup.jl")
                     Vec(ntuple(_ -> randn(T), W)...),
                     Vec(ntuple(_ -> randn(T), W)...)
                 ))
-                _W = VectorizationBase.pick_vector_width(T)
+                _W = @inferred(VectorizationBase.pick_vector_width(T))
                 m = VectorizationBase.VecUnroll((Mask{_W}(rand(UInt16)),Mask{_W}(rand(UInt16))))
                 v1, v2, v3, m
             end
@@ -702,24 +702,24 @@ include("testsetup.jl")
     @time @testset "Non-broadcasting operations" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
         v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
-        @test VectorizationBase.vsum(2.3, v1) ≈ VectorizationBase.vsum(v1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3)) ≈ VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1))
-        @test VectorizationBase.vsum(vu1) + 2.3 ≈ VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3)) ≈ VectorizationBase.vsum(VectorizationBase.addscalar(2.3, vu1))
-        @test VectorizationBase.vsum(v2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3)) == VectorizationBase.vsum(VectorizationBase.addscalar(3, v2))
-        @test VectorizationBase.vsum(vu2) + 3 == VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3)) == VectorizationBase.vsum(VectorizationBase.addscalar(3, vu2))
-        @test VectorizationBase.vprod(v1) * 2.3 ≈ VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3)) ≈ VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1))
-        @test VectorizationBase.vprod(v2) * 3 == VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2))
-        @test VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2))
-        @test 4.0 == VectorizationBase.addscalar(2.0, 2.0)
+        @test @inferred(VectorizationBase.vsum(2.3, v1)) ≈ @inferred(VectorizationBase.vsum(v1)) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1)))
+        @test @inferred(VectorizationBase.vsum(vu1)) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, vu1)))
+        @test @inferred(VectorizationBase.vsum(v2)) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))) == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, v2)))
+        @test @inferred(VectorizationBase.vsum(vu2)) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3))) == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, vu2)))
+        @test @inferred(VectorizationBase.vprod(v1)) * 2.3 ≈ @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))) ≈ @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1)))
+        @test @inferred(VectorizationBase.vprod(v2)) * 3 == @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2)))
+        @test @inferred(VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2)))
+        @test 4.0 == @inferred(VectorizationBase.addscalar(2.0, 2.0))
 
         v3 = Vec(0, 1, 2, 3); vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
         v4 = Vec(0.0, 1.0, 2.0, 3.0)
         v5 = Vec(0f0, 1f0, 2f0, 3f0, 4f0, 5f0, 6f0, 7f0)
-        @test VectorizationBase.vmaximum(v3) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, 2))
-        @test VectorizationBase.vmaximum(v3 % UInt) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, 2 % UInt))
-        @test VectorizationBase.vmaximum(v4) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(3.0)))
-        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(3.0))) == nextfloat(3.0)
-        @test VectorizationBase.vmaximum(v5) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(7f0))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(7f0), v5))
-        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(7f0))) == VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(7f0), v5)) == nextfloat(7f0)
+        @test @inferred(VectorizationBase.vmaximum(v3)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, 2)))
+        @test @inferred(VectorizationBase.vmaximum(v3 % UInt)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, 2 % UInt)))
+        @test @inferred(VectorizationBase.vmaximum(v4)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(3.0))))
+        @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(3.0)))) == nextfloat(3.0)
+        @test @inferred(VectorizationBase.vmaximum(v5)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(7f0)))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(7f0), v5))
+        @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(7f0)))) == @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(7f0), v5))) == nextfloat(7f0)
 
         @test VectorizationBase.maxscalar(v3, 2) === Vec(2, 1, 2, 3)
         @test VectorizationBase.maxscalar(v3, -1) === v3
@@ -767,7 +767,7 @@ include("testsetup.jl")
             Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
             Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64)))
         ))
-        vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
+        vones, vi2f, vtwos = @inferred(promote(1.0, vi2, 2f0)); # promotes a binary function, right? Even when used with three args?
         @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
         @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
         @test @inferred(VectorizationBase.vall(vi2f == vi2))
@@ -775,7 +775,7 @@ include("testsetup.jl")
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))
         ))
-        vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
+        vones32, v2f32, vtwos32 = @inferred(promote(1.0, vf2, 2f0)); # promotes a binary function, right? Even when used with three args?
         @test vones32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 1f0),vbroadcast(StaticInt(W32), 1f0)))
         @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 2f0),vbroadcast(StaticInt(W32), 2f0)))
         @test vf2 === v2f32
@@ -830,9 +830,9 @@ include("testsetup.jl")
         @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
     @time @testset "Arch Functions" begin
-        @test VectorizationBase.dynamic_register_size() == VectorizationBase.register_size() == VectorizationBase.sregister_size()
-        @test VectorizationBase.dynamic_integer_register_size() == VectorizationBase.simd_integer_register_size() == VectorizationBase.ssimd_integer_register_size()
-        @test VectorizationBase.dynamic_register_count() == VectorizationBase.register_count() == VectorizationBase.sregister_count()
+        @test VectorizationBase.dynamic_register_size() == @inferred(VectorizationBase.register_size()) == @inferred(VectorizationBase.sregister_size())
+        @test VectorizationBase.dynamic_integer_register_size() == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.ssimd_integer_register_size())
+        @test VectorizationBase.dynamic_register_count() == @inferred(VectorizationBase.register_count()) == @inferred(VectorizationBase.sregister_count())
         @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
         @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
         
