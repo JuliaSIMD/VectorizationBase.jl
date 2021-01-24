@@ -65,13 +65,13 @@ For this last issue, an alternate workaround would be to wrap a `Vec` of 32-bit 
 internal llvmcall functions, but I haven't really explored this optimization.
 """
 function offset_ptr(
-    ::Type{T}, ind_type::Symbol, indargname, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool
+    ::Type{T}, ind_type::Symbol, indargname::Char, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool
 ) where {T}
     T_sym = JULIA_TYPES[T]
     offset_ptr(T_sym, sizeof_T, ind_type, indargname, ibits, W, X, M, O, forgep)
 end
 function offset_ptr(
-    T_sym::Symbol, ind_type::Symbol, indargname, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool
+    T_sym::Symbol, ind_type::Symbol, indargname::Char, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     i = 0
@@ -184,7 +184,7 @@ function offset_ptr(
     end
     # ind_type === :Integer || ind_type === :StaticInt
     if !(isone(X) | iszero(X)) # vec
-        vibytes = min(4, REGISTER_SIZE ÷ W)
+        vibytes = min(4, dynamic_register_size() ÷ W)
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
         if typ !== index_gep_typ
@@ -291,7 +291,7 @@ function vload_quote(
     vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, jtyp)
 end
 function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool)
-    D, r1 = divrem(W * sizeof_T, REGISTER_SIZE)
+    D, r1 = divrem(W * sizeof_T, dynamic_register_size())
     Wnew, r2 = divrem(W, D)
     @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
     q = Expr(:block,Expr(:meta,:inline))
@@ -311,10 +311,10 @@ function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool)
     q
 end
 function vload_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, ret
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, ret::Union{Symbol,Expr}
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
-    if W * sizeof_T > REGISTER_SIZE
+    if W * sizeof_T > dynamic_register_size()
         return vload_split_quote(W, sizeof_T, mask, align)
     end
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
@@ -531,7 +531,8 @@ function vstore_quote(
     end
 end
 function vstore_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, jtyp
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
+    mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, jtyp::Union{Symbol,Expr}
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     sizeof_I = JULIA_TYPE_SIZE[I_sym]

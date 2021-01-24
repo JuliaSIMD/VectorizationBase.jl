@@ -1,6 +1,6 @@
 
-register_size(::Type{T}) where {T} = REGISTER_SIZE
-register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = SIMD_INTEGER_REGISTER_SIZE
+register_size(::Type{T}) where {T} = register_size()
+register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = simd_integer_register_size()
 
 intlog2(N::I) where {I <: Integer} = (8sizeof(I) - one(I) - leading_zeros(N)) % I
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
@@ -22,9 +22,9 @@ function pick_vector_width_shift(N::Integer, ::Type{T}) where {T<:NativeTypes}
     W, Wshift
 end
 
-function pick_vector_width_shift_from_size(N::Int, size_T::Int)
+function pick_vector_width_shift_from_size(N::Int, size_T::Int)::Tuple{Int,Int}
     Wshift_N = VectorizationBase.intlog2(2N - 1)
-    Wshift_st = intlog2(REGISTER_SIZE) - VectorizationBase.intlog2(size_T)
+    Wshift_st = intlog2(register_size()) - VectorizationBase.intlog2(size_T)
     Wshift = min(Wshift_N, Wshift_st)
     W = 1 << Wshift
     W, Wshift
@@ -36,10 +36,10 @@ function __pick_vector_width(min_W::Int, max_W::Int, @nospecialize(_T))::Tuple{I
     T = _T.parameters[1]
     if T === Bit
         min_W = 8
-    elseif (SIMD_INTEGER_REGISTER_SIZE != REGISTER_SIZE) && T <: Integer # only check subtype if it matters
-        max_W = min(max_W, SIMD_INTEGER_REGISTER_SIZE ÷ sizeof(T))
+    elseif (simd_integer_register_size() != register_size()) && T <: Integer # only check subtype if it matters
+        max_W = min(max_W, simd_integer_register_size() ÷ sizeof(T))
     else
-        max_W = min(max_W, REGISTER_SIZE ÷ sizeof(T))
+        max_W = min(max_W, register_size() ÷ sizeof(T))
     end
     min_W, max_W
 end
@@ -49,22 +49,22 @@ function __pick_vector_width(min_W::Int, max_W::Int, @nospecialize(T1), @nospeci
 end
 function _pick_vector_width(vargs...)::Int
     min_W = 1
-    max_W = REGISTER_SIZE
+    max_W = register_size()
     min_W, max_W = __pick_vector_width(min_W, max_W, vargs...)
     max(min_W, max_W)
 end
 
 # function _pick_vector_width(vargs...)
 #     min_W = 1
-#     max_W = REGISTER_SIZE
+#     max_W = register_size()
 #     for v ∈ vargs
 #         T = v.parameters[1]
 #         if T === Bit
 #             min_W = 8
-#         elseif (SIMD_INTEGER_REGISTER_SIZE != REGISTER_SIZE) && T <: Integer # only check subtype if it matters
-#             max_W = min(max_W, SIMD_INTEGER_REGISTER_SIZE ÷ sizeof(T))
+#         elseif (simd_integer_register_size() != register_size()) && T <: Integer # only check subtype if it matters
+#             max_W = min(max_W, simd_integer_register_size() ÷ sizeof(T))
 #         else
-#             max_W = min(max_W, REGISTER_SIZE ÷ sizeof(T))
+#             max_W = min(max_W, register_size() ÷ sizeof(T))
 #         end
 #     end
 #     W = max(min_W, max_W)
@@ -78,13 +78,13 @@ adjust_W(N, W) = min(nextpow2(N), W)
     W = adjust_W(N, _pick_vector_width(vargs...))
     Expr(:call, Expr(:curly, :StaticInt, W))
 end
-pick_vector_width(::Union{StaticInt{N},Val{N}}, args...) where {N} = Int(pick_vector_width_val(StaticInt{N}(), args...))
+pick_vector_width(::Union{StaticInt{N},Val{N}}, args...) where {N} = Int(pick_vector_width_val(StaticInt{N}(), args...))::Int
 
-pick_vector_width(::Type{T}) where {T} = Int(pick_vector_width_val(T))
-pick_vector_width(N::Integer, T) = min(nextpow2(N), pick_vector_width(T))
+pick_vector_width(::Type{T}) where {T} = Int(pick_vector_width_val(T))::Int
+pick_vector_width(N::Integer, T)::Int = min(nextpow2(N), pick_vector_width(T))
 
 function int_type_symbol(W)
-    bits = 8*(SIMD_INTEGER_REGISTER_SIZE ÷ W)
+    bits = 8*(simd_integer_register_size() ÷ W)
     if bits ≤ 8
         :Int8
     elseif bits ≤ 16

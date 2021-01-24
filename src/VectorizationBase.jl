@@ -13,7 +13,7 @@ import IfElse: ifelse
 ## Until SIMDPirates stops importing it
 # isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
 
-export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, vbroadcast, mask
+export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub
 
 # using Base: llvmcall
 using Base: llvmcall, VecElement, HWReal
@@ -120,7 +120,7 @@ end
 
 function demoteint(T, W)
     Wpick = pick_vector_width(T)
-    (W > Wpick) && (T <: Integer) && (sizeof(T) == 8)# && (!AVX512DQ) 
+    (W > Wpick) && (T <: Integer) && (sizeof(T) == 8)
 end
 
 @inline _demoteint(::Type{T}) where {T} = T
@@ -320,28 +320,8 @@ notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
 
 include("static.jl")
 include("cartesianvindex.jl")
-# include("vectorizable.jl")
-# include("strideprodcsestridedpointers.jl")
-const TOPOLOGY = try
-    Hwloc.topology_load();
-catch e
-    @warn e
-    @warn """
-        Using Hwloc failed. Please file an issue with the above warning at: https://github.com/JuliaParallel/Hwloc.jl
-        Proceeding with generic topology assumptions. This may result in reduced performance.
-    """
-    nothing
-end
-if TOPOLOGY === nothing
-    include("topology_generic.jl")
-else
-    include("topology.jl")
-end
-@static if Sys.ARCH === :x86_64 || Sys.ARCH === :i686
-    include("cpu_info_x86_llvm.jl")
-else
-    include("cpu_info_generic.jl")
-end
+include("topology.jl")
+include("cpu_info.jl")
 include("cache_inclusivity.jl")
 include("vector_width.jl")
 include("llvm_types.jl")
@@ -369,6 +349,7 @@ include("ranges.jl")
 include("alignment.jl")
 include("special/misc.jl")
 
+const TOPOLOGY = Topology()
 # function reduce_to_onevec_quote(Nm1)
 #     N = Nm1 + 1
 #     q = Expr(:block, Expr(:meta,:inline))
@@ -402,6 +383,18 @@ include("special/misc.jl")
 include("precompile.jl")
 _precompile_()
 
+function __init__()
+    set_features!()
+    try
+        TOPOLOGY.topology = Hwloc.topology_load();
+    catch e
+        @warn e
+        @warn """
+            Using Hwloc failed. Please file an issue with the above warning at: https://github.com/JuliaParallel/Hwloc.jl
+            Proceeding with generic topology assumptions. This may result in reduced performance.
+        """
+    end
+end
 
 
 end # module

@@ -210,7 +210,7 @@ end
 end
 @generated function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
     M = mask_type(W)
-    if HAS_OPMASK_REGISTERS
+    if has_opmask_registers()
         quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
             $(Expr(:meta,:inline))
             rem = valrem(Val{$W}(), vsub((l % $M), one($M)))

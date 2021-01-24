@@ -156,7 +156,7 @@ end
 @inline vunsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
 
 @generated function vfloat(v::Vec{W,I}) where {W, I <: Integer}
-    ex = if 8W ≤ REGISTER_SIZE
+    ex = if 8W ≤ register_size()
         :(vconvert(Vec{$W,Float64}, v))
     else
         :(vconvert(Vec{$W,Float32}, v))
@@ -166,29 +166,27 @@ end
 @inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
 @inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, vu.data))
 # @inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
-@static if AVX512DQ
-    const vfloat_fast = vfloat
-else
-    @inline vfloat_fast(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
-    @inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, vu.data))
-    @generated function vfloat_fast(v::Vec{W,I}) where {W, I <: Integer}
-        arg = if AVX512DQ || (2W*sizeof(I) ≤ REGISTER_SIZE) || sizeof(I) ≤ 4
-            :v
-        elseif I <: Signed
-            :(v % Int32)
-        else
-            :(v % UInt32)
-            # _J = integer_of_bytes(pick_integer_bytes(W, sizeof(I), 4, SIMD_INTEGER_REGISTER_SIZE >>> 1))
-            # J = I <: Signed ? _J : unsigned(_J)
-            # :(v % $J)
-        end
-        ex = if 8W ≤ REGISTER_SIZE
-            :(Vec{$W,Float64}($arg))
-        else
-            :(Vec{$W,Float32}($arg))
-        end
-        Expr(:block, Expr(:meta, :inline), ex)
+
+
+@inline vfloat_fast(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
+@inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, vu.data))
+@generated function vfloat_fast(v::Vec{W,I}) where {W, I <: Integer}
+    if has_feature("x86_64_avx512dq")
+        return Expr(:block, Expr(:meta, :inline), :(vfloat(v)))
     end
+    arg = if (2W*sizeof(I) ≤ register_size()) || sizeof(I) ≤ 4
+        :v
+    elseif I <: Signed
+        :(v % Int32)
+    else
+        :(v % UInt32)
+    end
+    ex = if 8W ≤ register_size()
+        :(Vec{$W,Float64}($arg))
+    else
+        :(Vec{$W,Float32}($arg))
+    end
+    Expr(:block, Expr(:meta, :inline), ex)
 end
 
 

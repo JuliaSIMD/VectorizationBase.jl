@@ -4,8 +4,8 @@ using VectorizationBase: data
 using Test
 
 const W64S = VectorizationBase.pick_vector_width_val(Float64)
-const W64 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float64)
-const W32 = VectorizationBase.REGISTER_SIZE ÷ sizeof(Float32)
+const W64 = VectorizationBase.register_size() ÷ sizeof(Float64)
+const W32 = VectorizationBase.register_size() ÷ sizeof(Float32)
 const VE = Core.VecElement
 randnvec(N = Val{W64}()) = Vec(ntuple(_ -> Core.VecElement(randn()), N))
 function tovector(u::VectorizationBase.VecUnroll{_N,W,_T}) where {_N,W,_T}
@@ -35,7 +35,7 @@ size_trunc_int(x, ::Type{T}) where {T} = x
 
 check_within_limits(x, y) = @test x ≈ y
 function check_within_limits(x::Vector{T}, y) where {T <: Integer}
-    if VectorizationBase.AVX512DQ
+    if VectorizationBase.has_feature("x86_64_avx512dq")
         return @test x ≈ y
     end
     r = typemin(Int32) .≤ y .≤ typemax(Int32)

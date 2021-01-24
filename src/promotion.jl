@@ -8,12 +8,11 @@ ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: Integer, T2 <: In
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: FloatingTypes, T2<:FloatingTypes,W} = _ff_promote_rule(T1,T2,Val{W}())
 @generated function ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: IntegerTypes, T2 <: FloatingTypes,W}
     T_canon = promote_type(T1,T2)
-    (sizeof(T_canon) * W ≤ REGISTER_SIZE) && return T_canon
-    @assert sizeof(T1) * W ≤ REGISTER_SIZE
+    rs = dynamic_register_size()
+    (sizeof(T_canon) * W ≤ rs) && return T_canon
+    @assert sizeof(T1) * W ≤ rs
     @assert sizeof(T1) == 4
     Float32
-    # N, r = 4W ÷ REGISTER_SIZE
-    # @assert iszero(r)
 end
 
 Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:AbstractSIMDVector{W,T1}} = Vec{W,ff_promote_rule(T1,T2,Val{W}())}
@@ -23,7 +22,7 @@ Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:Abstract
         return :(Vec{$W,$T})
     end
     if T === Float64 || T === Float32
-        N, r1 = (sizeof(T) * W) ÷ REGISTER_SIZE
+        N, r1 = (sizeof(T) * W) ÷ dynamic_register_size()
         Wnew, r2 = divrem(W, N)
         @assert iszero(r)
         
