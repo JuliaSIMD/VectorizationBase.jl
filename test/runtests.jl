@@ -223,13 +223,22 @@ include("testsetup.jl")
 
     @time @testset "vector_width.jl" begin
         for T ∈ (Float32,Float64)
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.register_size() == VectorizationBase.dynamic_register_size()
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == @inferred(VectorizationBase.pick_vector_width_val(T)) * sizeof(T) == @inferred(VectorizationBase.register_size()) == @inferred(VectorizationBase.dynamic_register_size())
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) === @inferred(VectorizationBase.register_size()) === @inferred(VectorizationBase.dynamic_register_size())
+            @test @inferred(VectorizationBase.pick_vector_width_val(T)) * @inferred(VectorizationBase.static_sizeof(T)) === @inferred(VectorizationBase.sregister_size())
         end
         for T ∈ (Int8,Int16,Int32,Int64)
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.simd_integer_register_size() == VectorizationBase.dynamic_integer_register_size()
-            @test @inferred(VectorizationBase.pick_vector_width(unsigned(T))) * sizeof(unsigned(T)) == VectorizationBase.simd_integer_register_size() == VectorizationBase.dynamic_integer_register_size()
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == @inferred(VectorizationBase.pick_vector_width_val(T)) * sizeof(T) == @inferred(VectorizationBase.ssimd_integer_register_size()) == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.dynamic_integer_register_size())
+            UT = unsigned(T)
+            @test @inferred(VectorizationBase.pick_vector_width(UT)) * sizeof(UT) == @inferred(VectorizationBase.pick_vector_width_val(UT)) * sizeof(UT) == @inferred(VectorizationBase.ssimd_integer_register_size()) == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.dynamic_integer_register_size())
         end
 
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int32, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.sregister_size())
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.ssimd_integer_register_size())
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int32)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.sregister_size())
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.ssimd_integer_register_size())
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Float32)) * VectorizationBase.static_sizeof(Float32) === @inferred(VectorizationBase.sregister_size())
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Int32)) * VectorizationBase.static_sizeof(Float32) === @inferred(VectorizationBase.ssimd_integer_register_size())
         
         @test all(VectorizationBase.ispow2, 0:1)
         @test all(i -> !any(VectorizationBase.ispow2, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.ispow2(1 << i), 2:9)
@@ -839,6 +848,9 @@ include("testsetup.jl")
         @test VectorizationBase.dynamic_cache_inclusivity() === VectorizationBase.cache_inclusivity()
         
         @test VectorizationBase.Hwloc.histmap(VectorizationBase.Hwloc.topology_load())[Symbol("L", convert(Int, @inferred(VectorizationBase.snum_cache_levels())), "Cache")] > 0
+
+
+        
     end
 end
 
