@@ -41,8 +41,8 @@
         str = """
         attributes #0 = { alwaysinline nounwind readnone }
         declare <$W x double> $(fmastr)(<$W x double>, <$W x double>, <$W x double>) #0
-        declare <$W x double> $(rndstr)(<$W x double>, i32, <$W x double>, i8, i32) #0
-        declare <$W x i64> $(d2istr)(<$W x double>, <$W x i64>, i8, i32) #0
+        declare <$W x double> $(rndstr)(<$W x double>, i32, <$W x double>, i8$(W == 8 ? ", i32" : "")) #0
+        declare <$W x i64> $(d2istr)(<$W x double>, <$W x i64>, i8$(W == 8 ? ", i32" : "")) #0
 
         define <$W x double> @entry(<$W x double>) #0 {
         top:
@@ -52,8 +52,8 @@
           %4 = fmul <$W x double> %3, %3
           %5 = bitcast <$W x double> %4 to <$W x i64>
           %6 = fcmp olt <$W x double> %3, $(llvmconst(W, "double 6.500000e-01"))
-          %7 = bitcast <$W x i1> %6 to i8
-          %8 = icmp eq i8 %7, 0
+          %7 = bitcast <$W x i1> %6 to i$(W)
+          %8 = icmp eq i$(W) %7, 0
           br i1 %8, label %21, label %9
         ; 9:                                               ; preds = %top
           %10 = tail call <$W x double> $(fmastr)(<$W x double> %4, <$W x double> $(llvmconst(W, "double 0x3F110512D5B20332")), <$W x double> $(llvmconst(W, "double 0x3F53B7664358865A"))) #0
@@ -66,18 +66,18 @@
           %17 = tail call <$W x double> $(fmastr)(<$W x double> %4, <$W x double> %16, <$W x double> $(llvmconst(W, "double 1.000000e+00"))) #0
           %18 = fmul <$W x double> %13, %0
           %19 = fdiv <$W x double> %18, %17
-          %20 = icmp eq i8 %7, -1
+          %20 = icmp eq i$(W) %7, -1
           br i1 %20, label %106, label %21
         ; 21:                                               ; preds = %9, %top
           %22 = phi <$W x double> [ %19, %9 ], [ zeroinitializer, %top ]
           %23 = fcmp olt <$W x double> %3, $(llvmconst(W, "double 2.200000e+00"))
-          %24 = bitcast <$W x i1> %23 to i8
-          %25 = xor i8 %7, -1
-          %26 = and i8 %25, %24
+          %24 = bitcast <$W x i1> %23 to i$(W)
+          %25 = xor i$(W) %7, -1
+          %26 = and i$(W) %25, %24
           %27 = xor <$W x i64> %5, $(llvmconst(W, "i64 -9223372036854775808"))
           %28 = bitcast <$W x i64> %27 to <$W x double>
           %29 = fmul <$W x double> %28, $(llvmconst(W, "double 0x3FF71547652B82FE"))
-          %30 = tail call <$W x double> $(rndstr)(<$W x double> %29, i32 0, <$W x double> zeroinitializer, i8 -1, i32 4)
+          %30 = tail call <$W x double> $(rndstr)(<$W x double> %29, i32 0, <$W x double> zeroinitializer, i8 -1$(W == 8 ? ", i32 4" : ""))
           %31 = tail call <$W x double> $(fmastr)(<$W x double> %30, <$W x double> $(llvmconst(W, "double 0xBFE62E42FEE00000")), <$W x double> %28) #0
           %32 = fmul <$W x double> %30, $(llvmconst(W, "double 0x3DEA39EF35793C76"))
           %33 = fsub <$W x double> %31, %32
@@ -95,7 +95,7 @@
           %45 = fadd <$W x double> %44, %31
           %46 = fadd <$W x double> %45, %43
           %47 = fcmp ole <$W x double> %28, $(llvmconst(W, "double 0xC086232BDD7ABCD2"))
-          %48 = tail call <$W x i64> $(d2istr)(<$W x double> %30, <$W x i64> zeroinitializer, i8 -1, i32 4) #0
+          %48 = tail call <$W x i64> $(d2istr)(<$W x double> %30, <$W x i64> zeroinitializer, i8 -1$(W == 8 ? ", i32 4" : ""))  #0
           %49 = trunc <$W x i64> %48 to <$W x i32>
           %50 = shl <$W x i64> %48, $(llvmconst(W, "i64 52"))
           %51 = add <$W x i64> %50, $(llvmconst(W, "i64 4607182418800017408"))
@@ -104,7 +104,7 @@
           %54 = select <$W x i1> %47, <$W x double> zeroinitializer, <$W x double> %53
           %55 = fcmp oge <$W x double> %28, $(llvmconst(W, "double 0x40862E42FEFA39EF"))
           %56 = select <$W x i1> %55, <$W x double> $(llvmconst(W, "double 0x7FF0000000000000")), <$W x double> %54
-          %57 = icmp eq i8 %26, 0
+          %57 = icmp eq i$(W) %26, 0
           br i1 %57, label %83, label %58
         ; 58:                                               ; preds = %21
           %59 = tail call fast <$W x double> $(fmastr)(<$W x double> %3, <$W x double> zeroinitializer, <$W x double> $(llvmconst(W, "double 0x3F7CF4CFE0AACBB4"))) #0
@@ -129,8 +129,8 @@
           %78 = select <$W x i1> %75, <$W x double> %77, <$W x double> %73
           %79 = select <$W x i1> %6, <$W x double> %22, <$W x double> %78
           %80 = or <$W x i1> %23, %6
-          %81 = bitcast <$W x i1> %80 to i8
-          %82 = icmp eq i8 %81, -1
+          %81 = bitcast <$W x i1> %80 to i$(W)
+          %82 = icmp eq i$(W) %81, -1
           br i1 %82, label %106, label %83
         ; 83:                                               ; preds = %58, %21
           %84 = phi <$W x double> [ %79, %58 ], [ %22, %21 ]

@@ -222,12 +222,6 @@ include("testsetup.jl")
 
 
     @time @testset "vector_width.jl" begin
-        @test VectorizationBase.dynamic_register_size() == VectorizationBase.register_size() == VectorizationBase.sregister_size()
-        @test VectorizationBase.dynamic_integer_register_size() == VectorizationBase.simd_integer_register_size() == VectorizationBase.ssimd_integer_register_size()
-        @test VectorizationBase.dynamic_register_count() == VectorizationBase.register_count() == VectorizationBase.sregister_count()
-        @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
-        @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
-        
         for T ∈ (Float32,Float64)
             @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == VectorizationBase.register_size()
         end
@@ -836,7 +830,15 @@ include("testsetup.jl")
         @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
     @time @testset "Arch Functions" begin
+        @test VectorizationBase.dynamic_register_size() == VectorizationBase.register_size() == VectorizationBase.sregister_size()
+        @test VectorizationBase.dynamic_integer_register_size() == VectorizationBase.simd_integer_register_size() == VectorizationBase.ssimd_integer_register_size()
+        @test VectorizationBase.dynamic_register_count() == VectorizationBase.register_count() == VectorizationBase.sregister_count()
+        @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
+        @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
+        
         @test VectorizationBase.dynamic_cache_inclusivity() === VectorizationBase.cache_inclusivity()
+        
+        @test VectorizationBase.Hwloc.histmap(VectorizationBase.Hwloc.topology_load())[Symbol("L", convert(Int, @inferred(VectorizationBase.snum_cache_levels())), "Cache")] > 0
     end
 end
 
