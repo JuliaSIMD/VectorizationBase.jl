@@ -3,34 +3,35 @@ function _precompile_()
     for T in (Bool, Int, Float32, Float64)
         for A in (Vector, Matrix)
             precompile(stridedpointer, (A{T},))
+            precompile(stridedpointer, (LinearAlgebra.Adjoint{T,A{T}},))
         end
     end
-    function precompile_nt(@nospecialize(T))
-        for I ∈ (Int8, UInt8, Int16, UInt16, Int32, UInt32, Int64, UInt64)
-            precompile(vload_quote, (Type{T}, Type{I}, Symbol, Int, Int, Int, Int, Bool, Bool))
-            precompile(vload_quote, (Type{T}, Type{I}, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool))
-        end
-    end
-    U = NativeTypes
-    while isa(U, Union)
-        T, U = U.a, U.b
-        precompile_nt(T)
-    end
-    precompile_nt(U)
-    precompile(_pick_vector_width, (Type, Vararg{Type,100}))
-    if VERSION ≥ v"1.7.0-DEV.346"
-        for T ∈ (Float32, Float64)
-            W = pick_vector_width(T)
-            precompile(>=, (Int, MM{W, 1, Int}))
-            for op ∈ (-, Base.FastMath.sub_fast)
-                precompile(op, (Vec{W, T}, ))
-            end
-            for op ∈ (+, -, *, Base.FastMath.add_fast, Base.FastMath.sub_fast, Base.FastMath.mul_fast)
-                precompile(op, (Vec{W, T}, Vec{W, T}))
-            end
-            for op ∈ (VectorizationBase.vfmadd, VectorizationBase.vfmadd_fast)
-                precompile(op, (Vec{W, T}, Vec{W, T}, Vec{W, T}))
-            end
-        end
-    end
+
+    precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool))
+    
+    precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Symbol))
+    precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Expr))
+    
+    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Symbol))
+    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Expr))
+    
+    # precompile(_pick_vector_width, (Type, Vararg{Type,100}))
+    # the `"NATIVE_PRECOMPILE_VECTORIZATIONBASE" ∈ keys(ENV)` isn't respected, seems
+    # like it gets precompiled anyway given that the first condition is `true`.
+    # if VERSION ≥ v"1.7.0-DEV.346" && "NATIVE_PRECOMPILE_VECTORIZATIONBASE" ∈ keys(ENV)
+    #     set_features!()
+    #     for T ∈ (Float32, Float64)
+    #         W = pick_vector_width(T)
+    #         precompile(>=, (Int, MM{W, 1, Int}))
+    #         for op ∈ (-, Base.FastMath.sub_fast)
+    #             precompile(op, (Vec{W, T}, ))
+    #         end
+    #         for op ∈ (+, -, *, Base.FastMath.add_fast, Base.FastMath.sub_fast, Base.FastMath.mul_fast)
+    #             precompile(op, (Vec{W, T}, Vec{W, T}))
+    #         end
+    #         for op ∈ (VectorizationBase.vfmadd, VectorizationBase.vfmadd_fast)
+    #             precompile(op, (Vec{W, T}, Vec{W, T}, Vec{W, T}))
+    #         end
+    #     end
+    # end
 end

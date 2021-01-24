@@ -1,21 +1,68 @@
 
-const COUNTS = Hwloc.histmap(TOPOLOGY);
-# TODO: Makes topological assumptions that aren't right for
-# multiple nodes or with >3 or <3 levels of Cache.
+mutable struct Topology
+    topology::Union{Nothing,Hwloc.Object}
+end
+Topology() = Topology(nothing)
 
-const CACHE_COUNT = (
-    COUNTS[:L1Cache],
-    COUNTS[:L2Cache],
-    COUNTS[:L3Cache],
-    COUNTS[:L4Cache]
-)
-const NUM_CORES = COUNTS[:Core]
-const SYS_CPU_THREADS = Sys.CPU_THREADS
+function count_attr(topology::Hwloc.Object, attr)
+    count = 0
+    for t ∈ topology
+        count += t.type_ == attr
+    end
+    count
+end
 
-const CACHE_LEVELS = something(findfirst(isequal(0), CACHE_COUNT), length(CACHE_COUNT) + 1) - 1
+@generated function sattr_count(::Val{attr}) where {attr}
+    topology = TOPOLOGY.topology
+    topology === nothing && return nothing
+    count = count_attr(topology, attr)
+    Expr(:call, Expr(:curly, :StaticInt, count))
+end
+
+scache_count(::Union{StaticInt{1},Val{1}}) = sattr_count(Val{:L1Cache}())
+scache_count(::Union{StaticInt{2},Val{2}}) = sattr_count(Val{:L2Cache}())
+scache_count(::Union{StaticInt{3},Val{3}}) = sattr_count(Val{:L3Cache}())
+scache_count(::Union{StaticInt{4},Val{4}}) = sattr_count(Val{:L4Cache}())
+cache_count(::Union{StaticInt{N},Val{N}}) where {N} = convert(Int, scache_count(Val(N)))
+
+snum_machines() = sattr_count(Val{:Machine}())
+num_machines() = convert(Int, snum_machines())
+
+snum_sockets() = sattr_count(Val{:Package}())
+num_sockets() = convert(Int, snum_sockets())
+
+snum_cores() = sattr_count(Val{:Core}())
+num_cores() = convert(Int, snum_cores())
+
+snum_threads() = sattr_count(Val{:PU}())
+num_threads() = convert(Int, snum_threads())
+
+function snum_cache_levels()
+    l4s = scache_count(Val(4))
+    l4s === nothing && return nothing
+    if l4s === Zero()
+        if scache_count(Val(3)) === Zero()
+            if scache_count(Val(2)) === Zero()
+                if scache_count(Val(1)) === Zero()
+                    return StaticInt{0}()
+                else
+                    return StaticInt{1}()
+                end
+            else
+                return StaticInt{2}()
+            end
+        else
+            return StaticInt{3}()
+        end
+    else
+        return StaticInt{4}()
+    end
+end
+num_cache_levels() = convert(Int, snum_cache_levels())
 
 function define_cache(N)
-    if N > CACHE_LEVELS
+    topology = TOPOLOGY.topology
+    if (topology === nothing) || (N > num_cache_levels())
         return (
             size = nothing,
             depth = nothing,
@@ -25,7 +72,7 @@ function define_cache(N)
         )
     end
     cache_name = (:L1Cache, :L2Cache, :L3Cache, :L4Cache)[N]
-    c = first(t for t in TOPOLOGY if t.type_ == cache_name && t.attr.depth == N).attr
+    c = first(t for t in topology if t.type_ == cache_name && t.attr.depth == N).attr
     (
         size = c.size,
         depth = c.depth,
@@ -35,18 +82,13 @@ function define_cache(N)
     )
 end
 
+@generated cache_description(::Union{Val{N},StaticInt{N}}) where {N} = define_cache(N)
 
-const L₁CACHE = define_cache(1)
-const L₂CACHE = define_cache(2)
-const L₃CACHE = define_cache(3)
-const L₄CACHE = define_cache(4)
-"""
-L₁, L₂, L₃, L₄ cache size
-"""
-const CACHE_SIZE = (
-    L₁CACHE.size,
-    L₂CACHE.size,
-    L₃CACHE.size,
-    L₄CACHE.size
-)
+@generated scache_size(::Union{Val{N},StaticInt{N}}) where {N} = Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).size, 0)))
+cache_size(::Union{Val{N},StaticInt{N}}) where {N} = convert(Int, scache_size(Val(N)))
+
+@generated scacheline_size(::Union{Val{N},StaticInt{N}}) where {N} = Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).linesize, 64)))
+cacheline_size(::Union{Val{N},StaticInt{N}}) where {N} = convert(Int, scacheline_size(Val(N)))
+scacheline_size() = scacheline_size(Val(1))
+cacheline_size() = cacheline_size(Val(1))
 

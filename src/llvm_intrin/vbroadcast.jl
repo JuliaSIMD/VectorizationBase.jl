@@ -23,8 +23,8 @@
 @inline vzero(::StaticInt{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @generated function vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T<:NativeTypes}
     # isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
-    if W * sizeof(T) > REGISTER_SIZE
-        d, r1 = divrem(sizeof(T) * W, REGISTER_SIZE)
+    if W * sizeof(T) > register_size()
+        d, r1 = divrem(sizeof(T) * W, register_size())
         Wnew, r2 = divrem(W, d)
         @assert (iszero(r1) & iszero(r2)) "If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."
         t = Expr(:tuple)
@@ -42,15 +42,15 @@
 end
 @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, s::_T) where {W,_T<:NativeTypes}
     isone(W) && return :s
-    if _T <: Integer && sizeof(_T) * W > REGISTER_SIZE
+    if _T <: Integer && sizeof(_T) * W > register_size()
         T = pick_integer(W, sizeof(_T))
         if _T <: Unsigned
             T = unsigned(T)
         end
         # ssym = :(s % $T)
         ssym = :(convert($T, s))
-    elseif sizeof(_T) * W > REGISTER_SIZE
-        d, r1 = divrem(sizeof(_T) * W, REGISTER_SIZE)
+    elseif sizeof(_T) * W > register_size()
+        d, r1 = divrem(sizeof(_T) * W, register_size())
         Wnew, r2 = divrem(W, d)
         @assert (iszero(r1) & iszero(r2)) "If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."
         t = Expr(:tuple)
