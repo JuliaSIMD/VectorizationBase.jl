@@ -835,6 +835,9 @@ include("testsetup.jl")
         si = VectorizationBase.LazyMulAdd{2}(240)
         @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
+    @time @testset "Arch Functions" begin
+        @test VectorizationBase.dynamic_cache_inclusivity() === VectorizationBase.cache_inclusivity()
+    end
 end
 
             # ptr_A = pointer(A)
