@@ -391,7 +391,6 @@ function assert_init_has_finished()
 end
 
 function __init__()
-    _init_has_started[] = true
     set_features!()
     try
         TOPOLOGY.topology = Hwloc.topology_load();
