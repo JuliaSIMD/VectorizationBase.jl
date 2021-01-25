@@ -44,3 +44,5 @@ end
     assert_init_has_finished()
     return dynamic_cache_inclusivity()
 end
+
+# @generated cache_inclusivity(::Union{Val{N},StaticInt{N}}) where {N} = dynamic_cache_inclusivity()
