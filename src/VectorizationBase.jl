@@ -383,7 +383,11 @@ const TOPOLOGY = Topology()
 include("precompile.jl")
 _precompile_()
 
+const _init_has_started = Ref(false)
+const _init_has_finished = Ref(false)
+
 function __init__()
+    _init_has_started[] = true
     set_features!()
     try
         TOPOLOGY.topology = Hwloc.topology_load();
@@ -394,6 +398,8 @@ function __init__()
             Proceeding with generic topology assumptions. This may result in reduced performance.
         """
     end
+    _init_has_finished[] = true
+    return nothing
 end
 
 
