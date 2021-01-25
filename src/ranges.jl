@@ -81,42 +81,42 @@ end
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, i))
     end
 end
-@generated function vrangemul(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
-    isone(W) && return Expr(:block, Expr(:meta,:inline), :(vmul(i, $(O % I))))
-    bytes = pick_integer_bytes(W, sizeof(T))
-    bits = 8bytes
-    jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
-    iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
-    typ = "i$(bits)"
-    vtyp = vtype(W, typ)
-    rangevec = join(("$typ $(F*w+O)" for w ∈ 0:W-1), ", ")
-    instrs = """
-        %ie = insertelement $vtyp undef, $typ %0, i32 0
-        %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
-        %res = mul nsw $vtyp %v, <$rangevec>
-        ret $vtyp %res
-    """
-    quote
-        $(Expr(:meta,:inline))
-        Vec(llvmcall(instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
-    end
-end
-@generated function vrangemul(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
-    isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.FastMath.mul_fast(i, $(T(O)))))
-    typ = LLVM_TYPES[T]
-    vtyp = vtype(W, typ)
-    rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:W-1), ", ")
-    instrs = """
-        %ie = insertelement $vtyp undef, $typ %0, i32 0
-        %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
-        %res = fmul fast $vtyp %v, <$rangevec>
-        ret $vtyp %res
-    """
-    quote
-        $(Expr(:meta,:inline))
-        Vec(llvmcall(instrs, _Vec{$W,$T}, Tuple{$T}, i))
-    end
-end
+# @generated function vrangemul(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
+#     isone(W) && return Expr(:block, Expr(:meta,:inline), :(vmul(i, $(O % I))))
+#     bytes = pick_integer_bytes(W, sizeof(T))
+#     bits = 8bytes
+#     jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
+#     iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
+#     typ = "i$(bits)"
+#     vtyp = vtype(W, typ)
+#     rangevec = join(("$typ $(F*w+O)" for w ∈ 0:W-1), ", ")
+#     instrs = """
+#         %ie = insertelement $vtyp undef, $typ %0, i32 0
+#         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+#         %res = mul nsw $vtyp %v, <$rangevec>
+#         ret $vtyp %res
+#     """
+#     quote
+#         $(Expr(:meta,:inline))
+#         Vec(llvmcall(instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
+#     end
+# end
+# @generated function vrangemul(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
+#     isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.FastMath.mul_fast(i, $(T(O)))))
+#     typ = LLVM_TYPES[T]
+#     vtyp = vtype(W, typ)
+#     rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:W-1), ", ")
+#     instrs = """
+#         %ie = insertelement $vtyp undef, $typ %0, i32 0
+#         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+#         %res = fmul fast $vtyp %v, <$rangevec>
+#         ret $vtyp %res
+#     """
+#     quote
+#         $(Expr(:meta,:inline))
+#         Vec(llvmcall(instrs, _Vec{$W,$T}, Tuple{$T}, i))
+#     end
+# end
 
 
 @inline Vec(i::MM{W,X}) where {W,X} = vrangeincr(Val{W}(), data(i), Val{0}(), Val{X}())
