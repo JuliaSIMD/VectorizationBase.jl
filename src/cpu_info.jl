@@ -42,7 +42,7 @@ dynamic_has_opmask_registers() = has_feature("x86_64_avx512f")
 
 # This is terrible, I know. Please let me know if you have a better solution
 @generated function fma_fast()
-    _init_has_finished[] || throw(ErrorException("bad stuff happened"))
+    assert_init_has_finished()
     return dynamic_fma_fast()
 end
 @generated has_opmask_registers() = dynamic_has_opmask_registers()
