@@ -45,15 +45,26 @@ dynamic_has_opmask_registers() = has_feature("x86_64_avx512f")
     assert_init_has_finished()
     return dynamic_fma_fast()
 end
-@generated has_opmask_registers() = dynamic_has_opmask_registers()
 
-@generated sregister_size() = Expr(:call, Expr(:curly, :StaticInt, dynamic_register_size()))
-@generated sregister_count() = Expr(:call, Expr(:curly, :StaticInt, dynamic_register_count()))
-@generated ssimd_integer_register_size() = Expr(:call, Expr(:curly, :StaticInt, dynamic_integer_register_size()))
+@generated function has_opmask_registers()
+    assert_init_has_finished()
+    return dynamic_has_opmask_registers()
+end
+@generated function sregister_size() 
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, dynamic_register_size()))
+end
+
+@generated function sregister_count()
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, dynamic_register_count()))
+end
+
+@generated function ssimd_integer_register_size()
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, dynamic_integer_register_size()))
+end
 
 register_size() = convert(Int, sregister_size())
 register_count() = convert(Int, sregister_count())
 simd_integer_register_size() = convert(Int, ssimd_integer_register_size())
-
-
-
