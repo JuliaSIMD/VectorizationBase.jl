@@ -41,4 +41,5 @@ function dynamic_cache_inclusivity()::NTuple{4,Bool}
 end
 
 @generated cache_inclusivity() = dynamic_cache_inclusivity()
+# @generated cache_inclusivity(::Union{Val{N},StaticInt{N}}) where {N} = dynamic_cache_inclusivity()
 
