@@ -13,6 +13,7 @@ function count_attr(topology::Hwloc.Object, attr)
 end
 
 @generated function sattr_count(::Val{attr}) where {attr}
+    assert_init_has_finished()
     topology = TOPOLOGY.topology
     topology === nothing && return nothing
     count = count_attr(topology, attr)
@@ -82,13 +83,23 @@ function define_cache(N)
     )
 end
 
-@generated cache_description(::Union{Val{N},StaticInt{N}}) where {N} = define_cache(N)
+@generated function cache_description(::Union{Val{N},StaticInt{N}}) where {N}
+    assert_init_has_finished()
+    return define_cache(N)
+end
 
-@generated scache_size(::Union{Val{N},StaticInt{N}}) where {N} = Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).size, 0)))
+@generated function scache_size(::Union{Val{N},StaticInt{N}}) where {N}
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).size, 0)))
+end
+                         
 cache_size(::Union{Val{N},StaticInt{N}}) where {N} = convert(Int, scache_size(Val(N)))
 
-@generated scacheline_size(::Union{Val{N},StaticInt{N}}) where {N} = Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).linesize, 64)))
+@generated function scacheline_size(::Union{Val{N},StaticInt{N}}) where {N}
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).linesize, 64)))
+end
+
 cacheline_size(::Union{Val{N},StaticInt{N}}) where {N} = convert(Int, scacheline_size(Val(N)))
 scacheline_size() = scacheline_size(Val(1))
 cacheline_size() = cacheline_size(Val(1))
-

@@ -41,16 +41,30 @@ dynamic_register_count() = Sys.ARCH === :i686 ? 8 : (has_feature("x86_64_avx512f
 dynamic_has_opmask_registers() = has_feature("x86_64_avx512f")
 
 # This is terrible, I know. Please let me know if you have a better solution
-@generated fma_fast() = dynamic_fma_fast()
-@generated has_opmask_registers() = dynamic_has_opmask_registers()
+@generated function fma_fast()
+    assert_init_has_finished()
+    return dynamic_fma_fast()
+end
 
-@generated sregister_size() = Expr(:call, Expr(:curly, :StaticInt, dynamic_register_size()))
-@generated sregister_count() = Expr(:call, Expr(:curly, :StaticInt, dynamic_register_count()))
-@generated ssimd_integer_register_size() = Expr(:call, Expr(:curly, :StaticInt, dynamic_integer_register_size()))
+@generated function has_opmask_registers()
+    assert_init_has_finished()
+    return dynamic_has_opmask_registers()
+end
+@generated function sregister_size() 
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, dynamic_register_size()))
+end
+
+@generated function sregister_count()
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, dynamic_register_count()))
+end
+
+@generated function ssimd_integer_register_size()
+    assert_init_has_finished()
+    return Expr(:call, Expr(:curly, :StaticInt, dynamic_integer_register_size()))
+end
 
 register_size() = convert(Int, sregister_size())
 register_count() = convert(Int, sregister_count())
 simd_integer_register_size() = convert(Int, ssimd_integer_register_size())
-
-
-

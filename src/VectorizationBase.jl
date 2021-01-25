@@ -383,6 +383,13 @@ const TOPOLOGY = Topology()
 include("precompile.jl")
 _precompile_()
 
+const _init_has_finished = Ref(false)
+
+function assert_init_has_finished()
+    _init_has_finished[] || throw(ErrorException("bad stuff happened"))
+    return nothing
+end
+
 function __init__()
     set_features!()
     try
@@ -394,6 +401,8 @@ function __init__()
             Proceeding with generic topology assumptions. This may result in reduced performance.
         """
     end
+    _init_has_finished[] = true
+    return nothing
 end
 
 
