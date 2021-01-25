@@ -383,8 +383,12 @@ const TOPOLOGY = Topology()
 include("precompile.jl")
 _precompile_()
 
-const _init_has_started = Ref(false)
 const _init_has_finished = Ref(false)
+
+function assert_init_has_finished()
+    _init_has_finished[] || throw(ErrorException("bad stuff happened"))
+    return nothing
+end
 
 function __init__()
     _init_has_started[] = true
