@@ -118,63 +118,11 @@ end
 #     M2,N2,W2,T2 = description(T2)
 # end
 
-function demoteint(T, W)
-    Wpick = pick_vector_width(T)
-    (W > Wpick) && (T <: Integer) && (sizeof(T) == 8)
-end
 
 @inline _demoteint(::Type{T}) where {T} = T
 @inline _demoteint(::Type{Int64}) = Int32
 @inline _demoteint(::Type{UInt64}) = UInt32
 
-@generated function simd_vec(y::_T, x::Vararg{_T,_W}) where {_T,_W}
-    W = 1 + _W
-    T = demoteint(_T, W) ? _demoteint(_T) : _T
-    trunc = T !== _T
-    Wfull = nextpow2(W)
-    ty = LLVM_TYPES[T]
-    init = W == Wfull ? "undef" : "zeroinitializer"
-    instrs = ["%v0 = insertelement <$Wfull x $ty> $init, $ty %0, i32 0"]
-    Tup = Expr(:curly, :Tuple, T)
-    for w ∈ 1:_W
-        push!(instrs, "%v$w = insertelement <$Wfull x $ty> %v$(w-1), $ty %$w, i32 $w")
-        push!(Tup.args, T)
-    end
-    push!(instrs, "ret <$Wfull x $ty> %v$_W")
-    llvmc = :(llvmcall($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup))
-    trunc ? push!(llvmc.args, :(y % $T)) : push!(llvmc.args, :y)
-    for w ∈ 1:_W
-        ref = Expr(:ref, :x, w)
-        trunc && (ref = Expr(:call, :%, ref, T))
-        push!(llvmc.args, ref)
-    end
-    quote
-        $(Expr(:meta,:inline))
-        Vec($llvmc)
-    end
-end
-function vec_quote(W, Wpow2, offset::Int = 0)
-    call = Expr(:call, :simd_vec); Wpow2 += offset
-    iszero(offset) && push!(call.args, :y)
-    foreach(w -> push!(call.args, Expr(:ref, :x, w)), max(1,offset):min(W,Wpow2)-1)
-    # foreach(w -> push!(call.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
-    call
-end
-@generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
-    W = _W + 1
-    Wpow2 = pick_vector_width(W, T)
-    Wpow2 += Wpow2 * demoteint(T, W)
-    if W ≤ Wpow2
-        vec_quote(W, Wpow2)
-    else
-        tup = Expr(:tuple)
-        offset = 0
-        while offset < W
-            push!(tup.args, vec_quote(W, Wpow2, offset)); offset += Wpow2
-        end
-        Expr(:call, :VecUnroll, tup)
-    end
-end
 
 
 struct Mask{W,U<:UnsignedHW} <: AbstractSIMDVector{W,Bit}
@@ -317,13 +265,18 @@ For use in spin-and-wait loops, like spinlocks.
 @inline pause() = ccall(:jl_cpu_pause, Cvoid, ())
 
 notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
+function assert_init_has_finished()
+    _init_has_finished[] || throw(ErrorException("bad stuff happened"))
+    return nothing
+end
 
 include("static.jl")
 include("cartesianvindex.jl")
 include("topology.jl")
 include("cpu_info.jl")
 include("cache_inclusivity.jl")
-include("vector_width.jl")
+include("early_definitions.jl")
+include("promotion.jl")
 include("llvm_types.jl")
 include("lazymul.jl")
 include("strided_pointers/stridedpointers.jl")
@@ -332,6 +285,13 @@ include("strided_pointers/cartesian_indexing.jl")
 include("strided_pointers/grouped_strided_pointers.jl")
 include("strided_pointers/cse_stridemultiples.jl")
 include("llvm_intrin/binary_ops.jl")
+include("vector_width.jl")
+function demoteint(T, W)
+    Wpick = pick_vector_width(T)
+    (W > Wpick) && (T <: Integer) && (sizeof(T) == 8)
+end
+
+include("ranges.jl")
 include("llvm_intrin/conversion.jl")
 include("llvm_intrin/masks.jl")
 include("llvm_intrin/intrin_funcs.jl")
@@ -344,10 +304,58 @@ include("llvm_intrin/nonbroadcastingops.jl")
 include("llvm_intrin/integer_fma.jl")
 include("base_defs.jl")
 include("fmap.jl")
-include("promotion.jl")
-include("ranges.jl")
 include("alignment.jl")
 include("special/misc.jl")
+
+@generated function simd_vec(y::_T, x::Vararg{_T,_W}) where {_T,_W}
+    W = 1 + _W
+    T = demoteint(_T, W) ? _demoteint(_T) : _T
+    trunc = T !== _T
+    Wfull = nextpow2(W)
+    ty = LLVM_TYPES[T]
+    init = W == Wfull ? "undef" : "zeroinitializer"
+    instrs = ["%v0 = insertelement <$Wfull x $ty> $init, $ty %0, i32 0"]
+    Tup = Expr(:curly, :Tuple, T)
+    for w ∈ 1:_W
+        push!(instrs, "%v$w = insertelement <$Wfull x $ty> %v$(w-1), $ty %$w, i32 $w")
+        push!(Tup.args, T)
+    end
+    push!(instrs, "ret <$Wfull x $ty> %v$_W")
+    llvmc = :(llvmcall($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup))
+    trunc ? push!(llvmc.args, :(y % $T)) : push!(llvmc.args, :y)
+    for w ∈ 1:_W
+        ref = Expr(:ref, :x, w)
+        trunc && (ref = Expr(:call, :%, ref, T))
+        push!(llvmc.args, ref)
+    end
+    quote
+        $(Expr(:meta,:inline))
+        Vec($llvmc)
+    end
+end
+function vec_quote(W, Wpow2, offset::Int = 0)
+    call = Expr(:call, :simd_vec); Wpow2 += offset
+    iszero(offset) && push!(call.args, :y)
+    foreach(w -> push!(call.args, Expr(:ref, :x, w)), max(1,offset):min(W,Wpow2)-1)
+    # foreach(w -> push!(call.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
+    call
+end
+@generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
+    W = _W + 1
+    Wpow2 = pick_vector_width(W, T)
+    Wpow2 += Wpow2 * demoteint(T, W)
+    if W ≤ Wpow2
+        vec_quote(W, Wpow2)
+    else
+        tup = Expr(:tuple)
+        offset = 0
+        while offset < W
+            push!(tup.args, vec_quote(W, Wpow2, offset)); offset += Wpow2
+        end
+        Expr(:call, :VecUnroll, tup)
+    end
+end
+
 
 const TOPOLOGY = Topology()
 # function reduce_to_onevec_quote(Nm1)
@@ -384,11 +392,6 @@ include("precompile.jl")
 _precompile_()
 
 const _init_has_finished = Ref(false)
-
-function assert_init_has_finished()
-    _init_has_finished[] || throw(ErrorException("bad stuff happened"))
-    return nothing
-end
 
 function __init__()
     set_features!()

@@ -35,7 +35,7 @@ function set_features!()
 end
 
 dynamic_register_size() = has_feature("x86_64_avx512f") ? 64 : has_feature("x86_64_avx") ? 32 : 16
-dynamic_integer_register_size() = has_feature("x86_64_avx2") ? register_size() : (has_feature("x86_64_sse2") ? 16 : 8)
+dynamic_integer_register_size() = has_feature("x86_64_avx2") ? dynamic_register_size() : (has_feature("x86_64_sse2") ? 16 : 8)
 dynamic_fma_fast() = has_feature("x86_64_fma") | has_feature("x86_64_fma4")
 dynamic_register_count() = Sys.ARCH === :i686 ? 8 : (has_feature("x86_64_avx512f") ? 32 : 16)
 dynamic_has_opmask_registers() = has_feature("x86_64_avx512f")
@@ -68,3 +68,10 @@ end
 register_size() = convert(Int, sregister_size())
 register_count() = convert(Int, sregister_count())
 simd_integer_register_size() = convert(Int, ssimd_integer_register_size())
+
+register_size(::Type{T}) where {T} = register_size()
+register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = simd_integer_register_size()
+sregister_size(::Type{T}) where {T} = sregister_size()
+sregister_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = ssimd_integer_register_size()
+
+

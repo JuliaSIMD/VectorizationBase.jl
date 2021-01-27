@@ -3,6 +3,8 @@
 # @inline relu(x) = (y = zero(x); ifelse(x > y, x, y)) 
 @inline relu(x) = (y = zero(x); ifelse(x < y, y, x))
 
+Base.sign(v::AbstractSIMD) = ifelse(v > 0, one(v), -one(v))
+
 @inline Base.fld(x::AbstractSIMD, y::AbstractSIMD) = div(promote_div(x,y)..., RoundDown)
 @inline Base.fld(x::AbstractSIMD, y::Real) = div(promote_div(x,y)..., RoundDown)
 @inline Base.fld(x::Real, y::AbstractSIMD) = div(promote_div(x,y)..., RoundDown)

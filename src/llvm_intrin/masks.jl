@@ -148,48 +148,6 @@ end
 @inline vadd(m::Mask, i::Integer) = i + count_ones(m)
 @inline vadd(i::Integer, m::Mask) = i + count_ones(m)
 
-function mask_type_symbol(W)
-    if W <= 8
-        return :UInt8
-    elseif W <= 16
-        return :UInt16
-    elseif W <= 32
-        return :UInt32
-    elseif W <= 64
-        return :UInt64
-    else#if W <= 128
-        return :UInt128
-    end
-end
-function mask_type(W)
-    if W <= 8
-        return UInt8
-    elseif W <= 16
-        return UInt16
-    elseif W <= 32
-        return UInt32
-    elseif W <= 64
-        return UInt64
-    else#if W <= 128
-        return UInt128
-    end
-end
-mask_type(::Union{Val{1},StaticInt{1}}) = UInt8#Bool
-mask_type(::Union{Val{2},StaticInt{2}}) = UInt8
-mask_type(::Union{Val{4},StaticInt{4}}) = UInt8
-mask_type(::Union{Val{8},StaticInt{8}}) = UInt8
-mask_type(::Union{Val{16},StaticInt{16}}) = UInt16
-mask_type(::Union{Val{32},StaticInt{32}}) = UInt32
-mask_type(::Union{Val{64},StaticInt{64}}) = UInt64
-
-@generated function mask_type(::Type{T}, ::Union{Val{P},StaticInt{P}}) where {T,P}
-    mask_type_symbol(pick_vector_width(P, T))
-end
-@generated function mask_type(::Type{T}) where {T}
-    W = max(1, register_size(T) >>> intlog2(T))
-    mask_type_symbol(W)
-    # mask_type_symbol(pick_vector_width(T))
-end
 @generated function vzero(::Type{<:Mask{W}}) where {W}
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), Expr(:call, :zero, mask_type_symbol(W))))
 end

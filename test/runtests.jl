@@ -239,7 +239,7 @@ include("testsetup.jl")
         @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.ssimd_integer_register_size())
         @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Float32)) * VectorizationBase.static_sizeof(Float32) === @inferred(VectorizationBase.sregister_size())
         @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Int32)) * VectorizationBase.static_sizeof(Float32) === @inferred(VectorizationBase.ssimd_integer_register_size())
-        
+
         @test all(VectorizationBase.ispow2, 0:1)
         @test all(i -> !any(VectorizationBase.ispow2, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.ispow2(1 << i), 2:9)
         @test all(i ->  VectorizationBase.intlog2(1 << i) == i, 0:(Int == Int64 ? 53 : 30))
@@ -264,8 +264,8 @@ include("testsetup.jl")
             end
         end
 
-        @test VectorizationBase.nextpow2(0) == 1
-        @test all(i -> VectorizationBase.nextpow2(i) == i, 1:2)
+        # @test VectorizationBase.nextpow2(0) == 1
+        @test all(i -> VectorizationBase.nextpow2(i) == i, 0:2)
         for j in 1:10
             l, u = (1<<j)+1, 1<<(j+1)
             @test all(i -> VectorizationBase.nextpow2(i) == u, l:u)
@@ -443,7 +443,7 @@ include("testsetup.jl")
             x = tovector(v)
             for f ∈ [
                 -, abs, inv, floor, ceil, trunc, round, VectorizationBase.relu, abs2,
-                Base.FastMath.abs2_fast, Base.FastMath.sub_fast
+                Base.FastMath.abs2_fast, Base.FastMath.sub_fast, sign
             ]
                 # @show T, f
                 @test tovector(@inferred(f(v))) == map(f, x)
@@ -466,7 +466,7 @@ include("testsetup.jl")
             # summarystats(f32t)
             # for now, I'll use `4eps(T)` if the systems don't have AVX512, but should check to set a stricter bound.
             # also put `sqrt ∘ abs` in here
-            let rtol = eps(T) * (VectorizationBase.has_feature("x86_64_avx512f") ? 1 : 4) # more accuracte 
+            let rtol = eps(T) * (VectorizationBase.has_feature("x86_64_avx512f") ? 1 : 4) # more accuracte
                 @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = rtol)
                 let f = sqrt ∘ abs
                     if T === Float32
@@ -491,10 +491,10 @@ include("testsetup.jl")
             Vec(ntuple(_ -> rand(int), Val(W64))...)
         )) % Int
         xi = tovector(vi)
-        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs]
+        for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, sign]
             @test tovector(@inferred(f(vi))) == map(f, xi)
         end
-        let rtol = eps(Float64) * (VectorizationBase.has_feature("x86_64_avx512f") ? 1 : 4) # more accuracte 
+        let rtol = eps(Float64) * (VectorizationBase.has_feature("x86_64_avx512f") ? 1 : 4) # more accuracte
             @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(vi))), map(Base.FastMath.inv_fast, xi), rtol = rtol)
         end
         # vpos = VectorizationBase.VecUnroll((
@@ -531,7 +531,7 @@ include("testsetup.jl")
             xi1 = tovector(vi1); xi2 = tovector(vi2);
             xi3 =  mapreduce(tovector, vcat, m1.data);
             xi4 =  mapreduce(tovector, vcat, m2.data);
-            I3 = promote_type(I1,I2); 
+            I3 = promote_type(I1,I2);
             # I4 = sizeof(I1) < sizeof(I2) ? I1 : (sizeof(I1) > sizeof(I2) ? I2 : I3)
             for f ∈ [
                 +, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod,
@@ -844,13 +844,13 @@ include("testsetup.jl")
         @test VectorizationBase.dynamic_register_count() == @inferred(VectorizationBase.register_count()) == @inferred(VectorizationBase.sregister_count())
         @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
         @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
-        
+
         @test VectorizationBase.dynamic_cache_inclusivity() === VectorizationBase.cache_inclusivity()
-        
+
         @test VectorizationBase.Hwloc.histmap(VectorizationBase.Hwloc.topology_load())[Symbol("L", convert(Int, @inferred(VectorizationBase.snum_cache_levels())), "Cache")] > 0
 
 
-        
+
     end
 end
 
@@ -878,4 +878,3 @@ end
             # @test vB[1, 2] == B[2, 3] == vload(VectorizationBase.stridedpointer(B, 2, 3))
             # @test vB[3] == B[4] == vload(VectorizationBase.stridedpointer(B, 4))
             # @test vload(Vec{4,Float64}, vB) == Vec{4,Float64}(ntuple(i->B[i], Val(4)))
-
