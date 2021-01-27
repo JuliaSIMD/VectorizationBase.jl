@@ -29,7 +29,7 @@ const STORE_SCOPE_FLAGS = ", !noalias !3";
 const USE_TBAA = false
 # use TBAA?
 # define: LOAD_SCOPE_TBAA, LOAD_SCOPE_TBAA_FLAGS, SCOPE_METADATA, STORE_TBAA, SCOPE_FLAGS, STORE_TBAA_FLAGS
-let 
+let
     LOAD_TBAA = """
     !4 = !{!"jtbaa"}
     !5 = !{!6, !6, i64 0, i64 0}
@@ -38,7 +38,7 @@ let
     LOAD_TBAA_FLAGS = ", !tbaa !5";
     global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_TBAA : SCOPE_METADATA;
     global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? LOAD_SCOPE_FLAGS * LOAD_TBAA_FLAGS : LOAD_SCOPE_FLAGS
-        
+
     global const STORE_TBAA = USE_TBAA ? """
     !4 = !{!"jtbaa", !5, i64 0}
     !5 = !{!"jtbaa"}
@@ -184,7 +184,7 @@ function offset_ptr(
     end
     # ind_type === :Integer || ind_type === :StaticInt
     if !(isone(X) | iszero(X)) # vec
-        vibytes = min(4, dynamic_register_size() ÷ W)
+        vibytes = min(4, DYNAMIC_REGISTER_SIZE ÷ W)
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
         if typ !== index_gep_typ
@@ -240,7 +240,7 @@ function gep_quote(
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
     largs = String[JULIAPOINTERTYPE]
     arg_syms = Union{Symbol,Expr}[:ptr]
-    
+
     if !(iszero(M) || ind_type === :StaticInt)
         push!(arg_syms, Expr(:call, :data, :i))
         if ind_type === :Integer
@@ -291,7 +291,7 @@ function vload_quote(
     vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, jtyp)
 end
 function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool)
-    D, r1 = divrem(W * sizeof_T, dynamic_register_size())
+    D, r1 = divrem(W * sizeof_T, DYNAMIC_REGISTER_SIZE)
     Wnew, r2 = divrem(W, D)
     @assert (iszero(r1) & iszero(r2)) "If loading more than a vector, Must load a multiple of the vector width."
     q = Expr(:block,Expr(:meta,:inline))
@@ -314,7 +314,7 @@ function vload_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, ret::Union{Symbol,Expr}
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
-    if W * sizeof_T > dynamic_register_size()
+    if W * sizeof_T > DYNAMIC_REGISTER_SIZE
         return vload_split_quote(W, sizeof_T, mask, align)
     end
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
@@ -336,8 +336,8 @@ function vload_quote(
     else
         alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
         typ = LLVM_TYPES_SYM[T_sym]
-    end    
-        
+    end
+
     decl = LOAD_SCOPE_TBAA
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
@@ -542,7 +542,7 @@ function vstore_quote(
         @assert iszero(Xr)
     end
     instrs, i = offset_ptr(T_sym, ind_type, '2', ibits, W, X, M, O, false)
-    
+
     grv = gep_returns_vector(W, X, M, ind_type)
 
     align != nontemporal # should I do this?
@@ -850,7 +850,7 @@ for (store,align,alias,nontemporal) ∈ [
         @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool)
             b && vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
-        
+
         @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number) where {F<:Function}
             vstore!(f, ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
         end
@@ -1294,5 +1294,3 @@ end
 @inline vload(::StaticInt{N}, args...) where {N} = StaticInt{N}()
 @inline stridedpointer(::StaticInt{N}) where {N} = StaticInt{N}()
 @inline zero_offsets(::StaticInt{N}) where {N} = StaticInt{N}()
-
-

@@ -4,14 +4,15 @@ InteractiveUtils.versioninfo(stdout; verbose=true)
 include("testsetup.jl")
 
 @time @testset "VectorizationBase.jl" begin
-    # Write your own tests here.
-    # Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
-    @time Aqua.test_all(VectorizationBase)
-    # @test isempty(detect_unbound_args(VectorizationBase))
-    # @test isempty(detect_ambiguities(VectorizationBase))
+    @testset "_Generate" begin
+        VectorizationBase._Generate._print_feature_lines(
+            devnull,
+            VectorizationBase._features,
+        )
+    end
 
     W = @inferred(VectorizationBase.pick_vector_width(Float64))
-    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.register_size() == VectorizationBase.simd_integer_register_size() ? Int64 : Int32)
+    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.register_size() == VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE ? Int64 : Int32)
 
 
     @test first(A) === A[1]
@@ -65,7 +66,7 @@ include("testsetup.jl")
         @test all(i -> VectorizationBase.align(i) == 2VectorizationBase.register_size(), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
         @test all(i -> VectorizationBase.align(i) == 10VectorizationBase.register_size(), (1:VectorizationBase.register_size()) .+ 9VectorizationBase.register_size())
 
-        @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},   VectorizationBase.register_size()), 1:VectorizationBase.sregister_size())
+        @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},   VectorizationBase.register_size()), 1:VectorizationBase.DYNAMIC_REGISTER_SIZE)
         @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},  2VectorizationBase.register_size()), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
         @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid}, 20VectorizationBase.register_size()), (1:VectorizationBase.register_size()) .+ 19VectorizationBase.register_size())
 
@@ -223,22 +224,22 @@ include("testsetup.jl")
 
     @time @testset "vector_width.jl" begin
         for T ∈ (Float32,Float64)
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == @inferred(VectorizationBase.pick_vector_width_val(T)) * sizeof(T) == @inferred(VectorizationBase.register_size()) == @inferred(VectorizationBase.dynamic_register_size())
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) === @inferred(VectorizationBase.register_size()) === @inferred(VectorizationBase.dynamic_register_size())
-            @test @inferred(VectorizationBase.pick_vector_width_val(T)) * @inferred(VectorizationBase.static_sizeof(T)) === @inferred(VectorizationBase.sregister_size())
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == @inferred(VectorizationBase.pick_vector_width_val(T)) * sizeof(T) == @inferred(VectorizationBase.register_size()) == DYNAMIC_REGISTER_SIZE
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) === @inferred(VectorizationBase.register_size()) === DYNAMIC_REGISTER_SIZE
+            @test @inferred(VectorizationBase.pick_vector_width_val(T)) * @inferred(VectorizationBase.static_sizeof(T)) === DYNAMIC_REGISTER_SIZE
         end
         for T ∈ (Int8,Int16,Int32,Int64)
-            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == @inferred(VectorizationBase.pick_vector_width_val(T)) * sizeof(T) == @inferred(VectorizationBase.ssimd_integer_register_size()) == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.dynamic_integer_register_size())
+            @test @inferred(VectorizationBase.pick_vector_width(T)) * sizeof(T) == @inferred(VectorizationBase.pick_vector_width_val(T)) * sizeof(T) == VectorizationBase.SDYNAMIC_INTEGER_REGISTER_SIZE == VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE == VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE
             UT = unsigned(T)
-            @test @inferred(VectorizationBase.pick_vector_width(UT)) * sizeof(UT) == @inferred(VectorizationBase.pick_vector_width_val(UT)) * sizeof(UT) == @inferred(VectorizationBase.ssimd_integer_register_size()) == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.dynamic_integer_register_size())
+            @test @inferred(VectorizationBase.pick_vector_width(UT)) * sizeof(UT) == @inferred(VectorizationBase.pick_vector_width_val(UT)) * sizeof(UT) == VectorizationBase.SDYNAMIC_INTEGER_REGISTER_SIZE == VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE == VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE
         end
 
-        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int32, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.sregister_size())
-        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.ssimd_integer_register_size())
-        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int32)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.sregister_size())
-        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.ssimd_integer_register_size())
-        @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Float32)) * VectorizationBase.static_sizeof(Float32) === @inferred(VectorizationBase.sregister_size())
-        @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Int32)) * VectorizationBase.static_sizeof(Float32) === @inferred(VectorizationBase.ssimd_integer_register_size())
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int32, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === DYNAMIC_REGISTER_SIZE
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === VectorizationBase.SDYNAMIC_INTEGER_REGISTER_SIZE
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int32)) * VectorizationBase.static_sizeof(Float64) === DYNAMIC_REGISTER_SIZE
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float64, Int64)) * VectorizationBase.static_sizeof(Float64) === VectorizationBase.SDYNAMIC_INTEGER_REGISTER_SIZE
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Float32)) * VectorizationBase.static_sizeof(Float32) === DYNAMIC_REGISTER_SIZE
+        @test @inferred(VectorizationBase.pick_vector_width_val(Float32, Int32)) * VectorizationBase.static_sizeof(Float32) === VectorizationBase.SDYNAMIC_INTEGER_REGISTER_SIZE
 
         @test all(VectorizationBase.ispow2, 0:1)
         @test all(i -> !any(VectorizationBase.ispow2, 1+(1 << (i-1)):(1 << i)-1 ) && VectorizationBase.ispow2(1 << i), 2:9)
@@ -466,7 +467,7 @@ include("testsetup.jl")
             # summarystats(f32t)
             # for now, I'll use `4eps(T)` if the systems don't have AVX512, but should check to set a stricter bound.
             # also put `sqrt ∘ abs` in here
-            let rtol = eps(T) * (VectorizationBase.has_feature("x86_64_avx512f") ? 1 : 4) # more accuracte
+            let rtol = eps(T) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte
                 @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(v))), map(Base.FastMath.inv_fast, x), rtol = rtol)
                 let f = sqrt ∘ abs
                     if T === Float32
@@ -480,11 +481,11 @@ include("testsetup.jl")
                 @test tovector(@inferred(f(Int32, v))) == map(y -> f(Int32,y), x)
                 @test tovector(@inferred(f(Int64, v))) == map(y -> f(Int64,y), x)
             end
-            invtol = VectorizationBase.has_feature("x86_64_avx512f") ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
+            invtol = VectorizationBase.AVX512F ? 2^-14 : 1.5*2^-12 # moreaccurate with AVX512
             @test isapprox(tovector(@inferred(VectorizationBase.inv_approx(v))), map(VectorizationBase.inv_approx, x), rtol = invtol)
         end
 
-        int = VectorizationBase.has_feature("x86_64_avx512dq") ? Int : Int32
+        int = VectorizationBase.AVX512DQ ? Int : Int32
         vi = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> rand(int), Val(W64))...),
             Vec(ntuple(_ -> rand(int), Val(W64))...),
@@ -494,7 +495,7 @@ include("testsetup.jl")
         for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, sign]
             @test tovector(@inferred(f(vi))) == map(f, xi)
         end
-        let rtol = eps(Float64) * (VectorizationBase.has_feature("x86_64_avx512f") ? 1 : 4) # more accuracte
+        let rtol = eps(Float64) * (VectorizationBase.AVX512F ? 1 : 4) # more accuracte
             @test isapprox(tovector(@inferred(Base.FastMath.inv_fast(vi))), map(Base.FastMath.inv_fast, xi), rtol = rtol)
         end
         # vpos = VectorizationBase.VecUnroll((
@@ -518,7 +519,7 @@ include("testsetup.jl")
                 Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(W64))),
                 Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(W64)))
             ))
-            srange = one(I2):(VectorizationBase.has_feature("x86_64_avx512dq") ? I2(8sizeof(I1)-1) : I2(31))
+            srange = one(I2):(VectorizationBase.AVX512DQ ? I2(8sizeof(I1)-1) : I2(31))
             vi2 = VectorizationBase.VecUnroll((
                 Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(W64))),
                 Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(W64))),
@@ -539,7 +540,7 @@ include("testsetup.jl")
             ]
             # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
                 # @show f, I1, I2
-                # if (!VectorizationBase.has_feature("x86_64_avx512dq")) && (f === /) && sizeof(I1) === sizeof(I2) === 8
+                # if (!VectorizationBase.AVX512DQ) && (f === /) && sizeof(I1) === sizeof(I2) === 8
                 #     continue
                 # end
                 check_within_limits(tovector(@inferred(f(vi1, vi2))),  trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3));
@@ -688,21 +689,21 @@ include("testsetup.jl")
         end
     end
     @time @testset "Special functions" begin
-        if VERSION ≥ v"1.6.0-DEV.674" && VectorizationBase.has_feature("x86_64_sse4.1")
+        if VERSION ≥ v"1.6.0-DEV.674" && VectorizationBase.SSE4_1
             erfs = [0.1124629160182849, 0.22270258921047847, 0.3286267594591274, 0.42839235504666845, 0.5204998778130465, 0.6038560908479259, 0.6778011938374184, 0.7421009647076605, 0.7969082124228322, 0.8427007929497149, 0.8802050695740817, 0.9103139782296353, 0.9340079449406524, 0.9522851197626487, 0.9661051464753108, 0.976348383344644, 0.9837904585907745, 0.9890905016357308, 0.9927904292352575, 0.9953222650189527, 0.997020533343667, 0.9981371537020182, 0.9988568234026434, 0.999311486103355, 0.999593047982555, 0.9997639655834707, 0.9998656672600594, 0.9999249868053346, 0.9999589021219005, 0.9999779095030014, 0.9999883513426328, 0.9999939742388483]
-            if VectorizationBase.has_feature("x86_64_avx512f")
+            if VectorizationBase.AVX512F
                 v = VectorizationBase.verf(Vec{8, Float64}(0.1:0.1:0.8...,))
                 @test [v(i) for i in 1:8] ≈ erfs[1:8]
                 v = VectorizationBase.verf(Vec{16, Float32}(0.1:0.1:1.6...,))
                 @test [v(i) for i in 1:16] ≈ erfs[1:16]
             end
-            if VectorizationBase.has_feature("x86_64_avx")
+            if VectorizationBase.AVX
                 v = VectorizationBase.verf(Vec{4, Float64}(0.1:0.1:0.4...,))
                 @test [v(i) for i in 1:4] ≈ erfs[1:4]
                 v = VectorizationBase.verf(Vec{8, Float32}(0.1:0.1:0.8...,))
                 @test [v(i) for i in 1:8] ≈ erfs[1:8]
             end
-            if VectorizationBase.has_feature("x86_64_sse4.1")
+            if VectorizationBase.SSE4_1
                 v = VectorizationBase.verf(Vec{2, Float64}(0.1:0.1:0.2...,))
                 @test [v(i) for i in 1:2] ≈ erfs[1:2]
             end
@@ -790,7 +791,7 @@ include("testsetup.jl")
         @test vf2 === v2f32
 
 
-        vm = if VectorizationBase.has_feature("x86_64_avx512dq")
+        vm = if VectorizationBase.AVX512DQ
             VectorizationBase.VecUnroll((
                 MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int)),MM{W64}(rand(Int))
             ))
@@ -839,8 +840,8 @@ include("testsetup.jl")
         @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
     @time @testset "Arch Functions" begin
-        @test VectorizationBase.dynamic_register_size() == @inferred(VectorizationBase.register_size()) == @inferred(VectorizationBase.sregister_size())
-        @test VectorizationBase.dynamic_integer_register_size() == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.ssimd_integer_register_size())
+        @test VectorizationBase.DYNAMIC_REGISTER_SIZE() == @inferred(VectorizationBase.register_size()) == DYNAMIC_REGISTER_SIZE
+        @test VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE == VectorizationBase.DYNAMIC_INTEGER_REGISTER_SIZE == VectorizationBase.SDYNAMIC_INTEGER_REGISTER_SIZE
         @test VectorizationBase.dynamic_register_count() == @inferred(VectorizationBase.register_count()) == @inferred(VectorizationBase.sregister_count())
         @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
         @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
@@ -852,6 +853,8 @@ include("testsetup.jl")
 
 
     end
+
+    @time Aqua.test_all(VectorizationBase)
 end
 
             # ptr_A = pointer(A)

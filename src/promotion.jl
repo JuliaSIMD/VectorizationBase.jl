@@ -46,7 +46,7 @@ signorunsign(i, ::Val{false}) = unsigned(i)
 
 @generated function ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: IntegerTypes, T2 <: FloatingTypes,W}
     T_canon = promote_type(T1,T2)
-    rs = dynamic_register_size()
+    rs = DYNAMIC_REGISTER_SIZE
     (sizeof(T_canon) * W ≤ rs) && return T_canon
     @assert sizeof(T1) * W ≤ rs
     @assert sizeof(T1) == 4
@@ -59,10 +59,10 @@ end
         return :(Vec{$W,$T})
     end
     if T === Float64 || T === Float32
-        N, r1 = (sizeof(T) * W) ÷ dynamic_register_size()
+        N, r1 = (sizeof(T) * W) ÷ DYNAMIC_REGISTER_SIZE
         Wnew, r2 = divrem(W, N)
         @assert iszero(r)
-        
+
         return :(VecUnroll{$(N-1),$Wnew,$T,Vec{$Wnew,$T}})
         # Should we demote `Float64` -> `Float32`?
         # return :(Vec{$W,$T})
@@ -75,7 +75,7 @@ end
     if V1MM ⊻ V2MM
         V1MM ? :(Vec{$W,$T2}) : :(Vec{$W,$T1})
     else
-        I = pick_integer(W, sizeof(Int), 4 - 3V1MM) # 
+        I = pick_integer(W, sizeof(Int), 4 - 3V1MM) #
         T <: Unsigned ? :(Vec{$W,$(unsigned(I))}) : :(Vec{$W,$I})
     end
 end
@@ -92,4 +92,3 @@ end
     end
     _assemble_vec_unroll(Val{Nm1}(), promote_type(V1,V3))
 end
-

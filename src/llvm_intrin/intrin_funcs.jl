@@ -79,7 +79,7 @@ else
 end
 @inline vmax_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmax(v1, v2)
 @inline vmin_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmin(v1, v2)
-     
+
 # floating point
 for (op,f) ∈ [("sqrt",:vsqrt),("fabs",:vabs),("floor",:vfloor),("ceil",:vceil),("trunc",:vtrunc),("nearbyint",:vround)
               ]
@@ -126,7 +126,7 @@ That is for scalar arguments or vector arguments without AVX512, it requires the
 
 # AVX512 lets us use 1 instruction instead of 2 dependent instructions to set bits
 @generated function vpternlog(m::Vec{W,UInt64}, x::Vec{W,UInt64}, y::Vec{W,UInt64}, ::Val{L}) where {W, L}
-    @assert has_feature("x86_64_avx512f")
+    @assert AVX512F
     @assert W ∈ (2,4,8)
     bits = 64W
     decl64 = "declare <$W x i64> @llvm.x86.avx512.mask.pternlog.q.$(bits)(<$W x i64>, <$W x i64>, <$W x i64>, i32, i8)"
@@ -138,7 +138,7 @@ That is for scalar arguments or vector arguments without AVX512, it requires the
     llvmcall_expr(decl64, instr64, :(_Vec{$W,UInt64}), :(Tuple{_Vec{$W,UInt64},_Vec{$W,UInt64},_Vec{$W,UInt64}}), "<$W x i64>", ["<$W x i64>", "<$W x i64>", "<$W x i64>"], arg_syms)
 end
 @generated function vpternlog(m::Vec{W,UInt32}, x::Vec{W,UInt32}, y::Vec{W,UInt32}, ::Val{L}) where {W, L}
-    @assert has_feature("x86_64_avx512f")
+    @assert AVX512F
     @assert W ∈ (4,8,16)
     # if W ∉ (4,8,16)
     #     return Expr(:block, Expr(:meta, :inline), :(((~m) & x) | (m & y)))
@@ -161,7 +161,7 @@ end
     #     Expr(:block, Expr(:meta, :inline), ex)
     # end
 @generated function bitselect(m::Vec{W,T}, x::Vec{W,T}, y::Vec{W,T}) where {W,T <: Union{UInt32,UInt64}}
-    ex = if !has_feature("x86_64_avx512f")
+    ex = if !AVX512F
         :(((~m) & x) | (m & y))
     elseif W*sizeof(T) ∈ (16,32,64)
         :(vpternlog(m, x, y, Val{172}()))
@@ -171,7 +171,7 @@ end
     Expr(:block, Expr(:meta, :inline), ex)
 end
 @generated function vcopysign(v1::Vec{W,Float64}, v2::Vec{W,Float64}) where {W}
-    ex = if !has_feature("x86_64_avx512f")
+    ex = if !AVX512F
         :(llvm_copysign(v1, v2))
     else
         :(reinterpret(Float64, bitselect(Vec{W,UInt64}(0x8000000000000000), reinterpret(UInt64, v1), reinterpret(UInt64, v2))))
@@ -179,7 +179,7 @@ end
     Expr(:block, Expr(:meta,:inline), ex)
 end
 @generated function vcopysign(v1::Vec{W,Float32}, v2::Vec{W,Float32}) where {W}
-    ex = if !has_feature("x86_64_avx512f")
+    ex = if !AVX512F
         :(llvm_copysign(v1, v2))
     else
         :(reinterpret(Float32, bitselect(Vec{W,UInt32}(0x80000000), reinterpret(UInt32, v1), reinterpret(UInt32, v2))))
@@ -361,7 +361,7 @@ end
 
 @inline roundint(x::Float32) = round(Int32, x)
 @generated function roundint(x::Float64)
-    ex = if has_feature("x86_64_avx512dq")
+    ex = if AVX512DQ
         :(round(Int, x))
     else
         :(round(Int32, x))
@@ -369,13 +369,13 @@ end
     Expr(:block, Expr(:meta, :inline), ex)
 end
 @generated function roundint(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
-    ex = if T === Float64 && has_feature("x86_64_avx512dq") && Sys.WORD_SIZE ≥ 64
+    ex = if T === Float64 && AVX512DQ && Sys.WORD_SIZE ≥ 64
         :(round(Int64, v))
     else
         :(round(Int32, v))
     end
     Expr(:block, Expr(:meta, :inline), ex)
-end    
+end
 
 # binary
 
@@ -440,7 +440,7 @@ end
 @inline vfmsub231(a, b, c) = vfmsub(a, b, c)
 @inline vfnmsub231(a, b, c) = vfnmsub(a, b, c)
 @generated function vfmadd231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    if !(has_feature("x86_64_fma") && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
+    if !(FMA && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
         return Expr(:block, Expr(:meta, :inline), :(vfmadd(a, b, c)))
     end
     typ = LLVM_TYPES[T]
@@ -453,7 +453,7 @@ end
     end
 end
 @generated function vfnmadd231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    if !(has_feature("x86_64_fma") && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
+    if !(FMA && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
         return Expr(:block, Expr(:meta, :inline), :(vfnmadd(a, b, c)))
     end
     typ = LLVM_TYPES[T]
@@ -466,7 +466,7 @@ end
     end
 end
 @generated function vfmsub231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    if !(has_feature("x86_64_fma") && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
+    if !(FMA && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
         return Expr(:block, Expr(:meta, :inline), :(vfmsub(a, b, c)))
     end
     typ = LLVM_TYPES[T]
@@ -479,7 +479,7 @@ end
     end
 end
 @generated function vfnmsub231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    if !(has_feature("x86_64_fma") && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
+    if !(FMA && ispow2(W) && (W * sizeof(T) ≤ register_size()) && (W ≥ (T === Float32 ? 4 : 2)))
         return Expr(:block, Expr(:meta, :inline), :(vfnmsub(a, b, c)))
     end
     typ = LLVM_TYPES[T]
@@ -493,11 +493,11 @@ end
 end
 
 @generated function vifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
-    if !(has_feature("x86_64_avx512bw") && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
+    if !(AVX512BW && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
         return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmadd, m, a, b, c)))
     end
     typ = LLVM_TYPES[T]
-    suffix = T == Float32 ? "ps" : "pd"                    
+    suffix = T == Float32 ? "ps" : "pd"
     vfmaddmask_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
                                             ret <$W x $(typ)> %res"""
     quote
@@ -506,11 +506,11 @@ end
     end
 end
 @generated function vifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
-    if !(has_feature("x86_64_avx512bw") && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
+    if !(AVX512BW && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
         return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmmadd, m, a, b, c)))
     end
     typ = LLVM_TYPES[T]
-    suffix = T == Float32 ? "ps" : "pd"                    
+    suffix = T == Float32 ? "ps" : "pd"
     vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
                                         ret <$W x $(typ)> %res"""
     quote
@@ -519,11 +519,11 @@ end
     end
 end
 @generated function vifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
-    if !(has_feature("x86_64_avx512bw") && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
+    if !(AVX512BW && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
         return Expr(:block, Expr(:meta, :inline), :(vifelse(vfmsub, m, a, b, c)))
     end
     typ = LLVM_TYPES[T]
-    suffix = T == Float32 ? "ps" : "pd"                    
+    suffix = T == Float32 ? "ps" : "pd"
     vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
                                         ret <$W x $(typ)> %res"""
     quote
@@ -532,11 +532,11 @@ end
     end
 end
 @generated function vifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
-    if !(has_feature("x86_64_avx512bw") && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
+    if !(AVX512BW && (W ≥ 8) && ispow2(W) && (W * sizeof(T) ≤ register_size()))
         return Expr(:block, Expr(:meta, :inline), :(vifelse(vfnmsub, m, a, b, c)))
     end
     typ = LLVM_TYPES[T]
-    suffix = T == Float32 ? "ps" : "pd"                    
+    suffix = T == Float32 ? "ps" : "pd"
     vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
                                         ret <$W x $(typ)> %res"""
     quote
@@ -559,8 +559,8 @@ end
 function inv_approx_expr(W, @nospecialize(T), vector::Bool=true)
     ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)) || return :(inv(v))
     bits = 8sizeof(T) * W
-    pors = (vector | has_feature("x86_64_avx512f")) ? 'p' : 's'
-    if (has_feature("x86_64_avx512f") && (bits === 512)) || (has_feature("x86_64_avx512vl") && (bits ∈ (128, 256)))
+    pors = (vector | AVX512F) ? 'p' : 's'
+    if (AVX512F && (bits === 512)) || (ABX512VL && (bits ∈ (128, 256)))
         typ = T === Float64 ? "double" : "float"
         vtyp = "<$W x $(typ)>"
         dors = T === Float64 ? "d" : "s"
@@ -569,7 +569,7 @@ function inv_approx_expr(W, @nospecialize(T), vector::Bool=true)
         instrs = "%res = call $(vtyp) $f($vtyp %0, $vtyp zeroinitializer, i$(max(8,W)) -1)\nret $(vtyp) %res"
         return llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], [:(data(v))], true)
     end
-    if (has_feature("x86_64_avx") && (W == 8)) && (T === Float32)
+    if (AVX && (W == 8)) && (T === Float32)
         decl = "declare <8 x float> @llvm.x86.avx.rcp.$(pors)s.256(<8 x float>) nounwind readnone"
         instrs = "%res = call <8 x float> @llvm.x86.avx.rcp.$(pors)s.256(<8 x float> %0)\nret <8 x float> %res"
         return llvmcall_expr(decl, instrs, :(_Vec{8,Float32}), :(Tuple{_Vec{8,Float32}}), "<8 x float>", ["<8 x float>"], [:(data(v))], true)
@@ -583,7 +583,7 @@ function inv_approx_expr(W, @nospecialize(T), vector::Bool=true)
             call = llvmcall_expr(decl, instrs, :(_Vec{4,Float32}), :(Tuple{_Vec{4,Float32}}), "<4 x float>", ["<4 x float>"], argexpr, true)
             return :(convert(Float64, $call))
         end
-    elseif (has_feature("x86_64_avx512f") || (T === Float32)) && bits < 128
+    elseif (AVX512F || (T === Float32)) && bits < 128
         L = 16 ÷ sizeof(T)
         inv_expr = inv_approx_expr(L, T, W > 1)
         resize_expr = W < 1 ? :(extractelement(v⁻¹, 0)) : :(vresize(Val{$W}(), v⁻¹))
@@ -615,7 +615,7 @@ Use a Newton iteration:
 yₙ₊₁ = yₙ - f(yₙ)/f′(yₙ)
 f(yₙ) = 1/yₙ - x
 f′(yₙ) = -1/yₙ²
-yₙ₊₁ = yₙ + (1/yₙ - x) * yₙ² = yₙ + yₙ - x * yₙ² = 2yₙ - x * yₙ² = yₙ * ( 2 - x * yₙ ) 
+yₙ₊₁ = yₙ + (1/yₙ - x) * yₙ² = yₙ + yₙ - x * yₙ² = 2yₙ - x * yₙ² = yₙ * ( 2 - x * yₙ )
 yₙ₊₁ = yₙ * ( 2 - x * yₙ )
 """
 @inline vinv_fast(v) = vinv(v)
@@ -625,7 +625,7 @@ if ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))
         vmul_fast(v⁻¹, vfnmadd_fast(v, v⁻¹, 2f0))
     end
     @generated function vinv_fast(v::AbstractSIMD{W,Float64}) where {W}
-        ex = if !(has_feature("x86_64_avx512f"))
+        ex = if !(AVX512F)
             :(vinv(v))
         else
             quote
@@ -638,4 +638,3 @@ if ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))
     end
 end
 @inline vinv_fast(v::AbstractSIMD{<:Any,<:Integer}) = vinv_fast(float(v))
-

@@ -8,7 +8,7 @@ function align end
 @inline align(x::Integer) = vadd_fast(x, register_size()-1) & -register_size()
 @inline align(x::Ptr{T}, args...) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x), args...))
 @inline align(x::Integer, n) = (nm1 = n - One(); (x + nm1) & -n)
-@inline align(x::Integer, ::Type{T}) where {T} = align(x, sregister_size() ÷ static_sizeof(T))
+@inline align(x::Integer, ::Type{T}) where {T} = align(x, DYNAMIC_REGISTER_SIZE ÷ static_sizeof(T))
 
 # @generated align(::Val{L}, ::Type{T}) where {L,T} = align(L, T)
 aligntrunc(x::Integer, n) = x & -n
@@ -21,4 +21,3 @@ function valloc(N::Integer, ::Type{T} = Float64, a = max(register_size(), cachel
     size_T = max(1, sizeof(T))
     reinterpret(Ptr{T}, align(reinterpret(UInt,Libc.malloc(size_T*N + a - 1)), a))
 end
-

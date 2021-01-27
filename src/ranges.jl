@@ -139,7 +139,7 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 
 # Division
 @generated function floattype(::Val{W}) where {W}
-    (dynamic_register_size() ÷ W) ≥ 8 ? :Float64 : :Float32
+    (DYNAMIC_REGISTER_SIZE ÷ W) ≥ 8 ? :Float64 : :Float32
 end
 @inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(i.i % pick_integer(Val{W}(),I))))
 @inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
@@ -220,10 +220,10 @@ end
 for f ∈ [ :vdiv, :vrem ]
     @eval begin
         @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
-        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:SignedHW,T2<:IntegerTypes} = $f(v, Vec(i))
         @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:SignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
         @inline $f(i::MM{W,X,T1}, v::AbstractSIMDVector{W,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), v)
-        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(v, Vec(i))        
+        @inline $f(v::AbstractSIMDVector{W,T1}, i::MM{W,X,T2}) where {W,X,T1<:UnsignedHW,T2<:IntegerTypes} = $f(v, Vec(i))
         @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
     end
 end
@@ -263,5 +263,3 @@ end
 
 @inline vadd_fast(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
 @inline vadd(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
-
-

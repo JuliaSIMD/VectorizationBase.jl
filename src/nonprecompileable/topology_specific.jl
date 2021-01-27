@@ -1,4 +1,3 @@
-
 mutable struct Topology
     topology::Union{Nothing,Hwloc.Object}
 end
@@ -92,7 +91,7 @@ end
     assert_init_has_finished()
     return Expr(:call, Expr(:curly, :StaticInt, something(define_cache(N).size, 0)))
 end
-                         
+
 cache_size(::Union{Val{N},StaticInt{N}}) where {N} = convert(Int, scache_size(Val(N)))
 
 @generated function scacheline_size(::Union{Val{N},StaticInt{N}}) where {N}

@@ -1,3 +1,7 @@
+register_size() = DYNAMIC_REGISTER_SIZE
+register_size(::Type{T}) where {T} = DYNAMIC_REGISTER_SIZE
+register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = DYNAMIC_INTEGER_REGISTER_SIZE
+
 intlog2(N::I) where {I <: Integer} = (8sizeof(I) - one(I) - leading_zeros(N)) % I
 intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
 nextpow2(W) = (one(W) << (8sizeof(W) - leading_zeros((W - one(W)))))
@@ -32,8 +36,8 @@ function __pick_vector_width(min_W::Int, max_W::Int, @nospecialize(_T))::Tuple{I
     T = _T.parameters[1]
     if T === Bit
         min_W = 8
-    elseif (simd_integer_register_size() != register_size()) && T <: Integer # only check subtype if it matters
-        max_W = min(max_W, simd_integer_register_size() ÷ sizeof(T))
+    elseif (DYNAMIC_INTEGER_REGISTER_SIZE != register_size()) && T <: Integer # only check subtype if it matters
+        max_W = min(max_W, DYNAMIC_INTEGER_REGISTER_SIZE ÷ sizeof(T))
     else
         max_W = min(max_W, register_size() ÷ sizeof(T))
     end
@@ -57,17 +61,17 @@ end
 #         T = v.parameters[1]
 #         if T === Bit
 #             min_W = 8
-#         elseif (simd_integer_register_size() != register_size()) && T <: Integer # only check subtype if it matters
-#             max_W = min(max_W, simd_integer_register_size() ÷ sizeof(T))
+#         elseif (DYNAMIC_INTEGER_REGISTER_SIZE != register_size()) && T <: Integer # only check subtype if it matters
+#             max_W = min(max_W, DYNAMIC_INTEGER_REGISTER_SIZE ÷ sizeof(T))
 #         else
 #             max_W = min(max_W, register_size() ÷ sizeof(T))
 #         end
 #     end
 #     W = max(min_W, max_W)
 # end
-pick_vector_width_val(::Type{T}) where {T} = sregister_size() ÷ static_sizeof(T)
-pick_vector_width_val(::Type{Bit}) = sregister_size()
-pick_vector_width_val(::Type{I}) where {I <: Integer} = ssimd_integer_register_size() ÷ static_sizeof(I)
+pick_vector_width_val(::Type{T}) where {T} = StaticInt{register_size()}() ÷ static_sizeof(T)
+pick_vector_width_val(::Type{Bit}) = StaticInt{register_size()}()
+pick_vector_width_val(::Type{I}) where {I <: Integer} = StaticInt{DYNAMIC_INTEGER_REGISTER_SIZE}() ÷ static_sizeof(I)
 @generated function pick_vector_width_val(vargs...)
     W = _pick_vector_width(vargs...)
     Expr(:call, Expr(:curly, :StaticInt, W))
@@ -84,7 +88,7 @@ pick_vector_width(::Type{T}) where {T} = Int(pick_vector_width_val(T))::Int
 pick_vector_width(N::Integer, T)::Int = min(nextpow2(N), pick_vector_width(T))
 
 function int_type_symbol(W)
-    bits = 8*(simd_integer_register_size() ÷ W)
+    bits = 8*(DYNAMIC_INTEGER_REGISTER_SIZE ÷ W)
     if bits ≤ 8
         :Int8
     elseif bits ≤ 16
@@ -110,7 +114,7 @@ end
     end
 end
 
-function pick_integer_bytes(W::Int, preferred::Int, minbytes::Int = min(preferred,4), sirs::Int = simd_integer_register_size())
+function pick_integer_bytes(W::Int, preferred::Int, minbytes::Int = min(preferred,4), sirs::Int = DYNAMIC_INTEGER_REGISTER_SIZE)
     # SIMD quadword integer support requires AVX512DQ
     # preferred = AVX512DQ ? preferred :  min(4, preferred)
     max(minbytes,min(preferred, prevpow2(sirs ÷ W)))
@@ -176,4 +180,3 @@ end
     mask_type_symbol(W)
     # mask_type_symbol(pick_vector_width(T))
 end
-

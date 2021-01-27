@@ -31,9 +31,9 @@
     bits = 64W
     @assert W ∈ (2,4,8)
     if W == 8
-        @assert has_feature("x86_64_avx512f")
+        @assert AVX512F
     end
-    if has_feature("x86_64_avx512f")
+    if AVX512F
         # if we have AVX512, we don't want i64, not i32
         fmastr = "@llvm.fma.v$(W)f64"
         rndstr = "@llvm.x86.avx512.mask.rndscale.pd.$(bits)"
@@ -166,7 +166,7 @@
         llvmcall(($str, "entry"), _Vec{$W,Float64}, Tuple{_Vec{$W,Float64}}, data(v)) |> Vec
         end
     elseif W == 4
-        @assert has_feature("x86_64_avx")
+        @assert AVX
         return quote
         $(Expr(:meta,:inline))
         llvmcall(("""
@@ -304,7 +304,7 @@
         """, "entry"), _Vec{4,Float64}, Tuple{_Vec{4,Float64}}, data(v)) |> Vec
         end
     else
-        @assert has_feature("x86_64_sse4.1")
+        @assert SSE4_1
         return quote
         $(Expr(:meta,:inline))
         llvmcall(("""
@@ -448,7 +448,7 @@ end
 @generated function verf(v::Vec{W,Float32}) where {W}
     @assert W ∈ (8,16)
     if W == 16
-        @assert has_feature("x86_64_avx512f")
+        @assert AVX512F
         return quote
         $(Expr(:meta,:inline))
         Base.llvmcall(("""
@@ -534,7 +534,7 @@ end
         """, "entry"), _Vec{16,Float32}, Tuple{_Vec{16,Float32}}, data(v)) |> Vec
         end
     else#if W == 8
-        @assert has_feature("x86_64_avx")
+        @assert AVX
         return quote
         $(Expr(:meta,:inline))
         llvmcall(("""

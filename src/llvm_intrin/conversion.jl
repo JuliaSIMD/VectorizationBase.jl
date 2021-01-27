@@ -58,7 +58,7 @@ end
     quote
         $(Expr(:meta,:inline))
         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
-    end    
+    end
 end
 @inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Mask{W}, v)
 
@@ -171,7 +171,7 @@ end
 @inline vfloat_fast(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
 @inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, vu.data))
 @generated function vfloat_fast(v::Vec{W,I}) where {W, I <: Integer}
-    if has_feature("x86_64_avx512dq")
+    if AVX512DQ
         return Expr(:block, Expr(:meta, :inline), :(vfloat(v)))
     end
     arg = if (2W*sizeof(I) ≤ register_size()) || sizeof(I) ≤ 4
@@ -203,8 +203,3 @@ end
 @inline vrem(v::AbstractSIMDVector{W,T}, ::Type{I}) where {W,I,T} = vconvert(Vec{W,I}, v)
 @inline vrem(v::AbstractSIMDVector{W,T}, ::Type{V}) where {W,I,T,V<:AbstractSIMD{W,I}} = vconvert(V, v)
 @inline vrem(r::IntegerTypesHW, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = convert(V, r % I)
-
-
-
-
-

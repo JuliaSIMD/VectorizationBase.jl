@@ -6,7 +6,7 @@ using ArrayInterface: StaticInt, Zero, One, contiguous_axis, contiguous_axis_ind
     known_length, known_first, known_last, strides, offsets,
     static_first, static_last, static_length
 import IfElse: ifelse
-# using LinearAlgebra: Adjoint, 
+# using LinearAlgebra: Adjoint,
 
 # const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
 
@@ -272,9 +272,6 @@ end
 
 include("static.jl")
 include("cartesianvindex.jl")
-include("topology.jl")
-include("cpu_info.jl")
-include("cache_inclusivity.jl")
 include("early_definitions.jl")
 include("promotion.jl")
 include("llvm_types.jl")
@@ -357,7 +354,6 @@ end
 end
 
 
-const TOPOLOGY = Topology()
 # function reduce_to_onevec_quote(Nm1)
 #     N = Nm1 + 1
 #     q = Expr(:block, Expr(:meta,:inline))
@@ -388,25 +384,11 @@ const TOPOLOGY = Topology()
 # end
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} = ArrayInterface.reduce_tup(f, data(vu))
 
+include("generate/generate.jl") # the `VectorizationBase._Generate` submodule is defined in this file
+
 include("precompile.jl")
 _precompile_()
 
-const _init_has_finished = Ref(false)
+include("init.jl") # the `VectorizationBase.__init__()` function is defined in this file
 
-function __init__()
-    set_features!()
-    try
-        TOPOLOGY.topology = Hwloc.topology_load();
-    catch e
-        @warn e
-        @warn """
-            Using Hwloc failed. Please file an issue with the above warning at: https://github.com/JuliaParallel/Hwloc.jl
-            Proceeding with generic topology assumptions. This may result in reduced performance.
-        """
-    end
-    _init_has_finished[] = true
-    return nothing
-end
-
-
-end # module
+end # module VectorizationBase

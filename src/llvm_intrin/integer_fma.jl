@@ -28,7 +28,7 @@ end
 @generated __ifmahi(v1::Vec{W,UInt64}, v2::Vec{W,UInt64}, v3::Vec{W,UInt64}) where {W} = ifmahi_quote(W)
 
 function ifmaquote(W::Int, lo::Bool)
-    if !(has_feature("avx512ifma") && ispow2(W) && 8 < 8W ≤ register_size())
+    if !(AVX512IFMA && ispow2(W) && 8 < 8W ≤ register_size())
         return Expr(:block, Expr(:meta,:inline), Expr(:call, lo ? :__ifmalo : :__ifmahi, :v1, :v2, :v3))
     end
     op = lo ? "@llvm.x86.avx512.vpmadd52l.uq.$(64W)" : "@llvm.x86.avx512.vpmadd52h.uq.$(64W)"
@@ -45,7 +45,7 @@ end
 
 Multiply unsigned integers `v1` and `v2`, adding the lower 52 bits to `v3`.
 
-Requires `VectorizationBase.has_feature("x86_64_avx512ifma")` to be fast.
+Requires `VectorizationBase.AVX512IFMA` to be fast.
 """
 @inline ifmalo(v1, v2, v3) = _ifmalo(v1 % UInt64, v2 % UInt64, v3 % UInt64)
 """
@@ -53,16 +53,15 @@ Requires `VectorizationBase.has_feature("x86_64_avx512ifma")` to be fast.
 
 Multiply unsigned integers `v1` and `v2`, adding the upper 52 bits to `v3`.
 
-Requires `VectorizationBase.has_feature("x86_64_avx512ifma")` to be fast.
+Requires `VectorizationBase.AVX512IFMA` to be fast.
 """
 @inline ifmahi(v1, v2, v3) = ((a,b,c) = promote(v1 % UInt64, v2 % UInt64, v3 % UInt64); _ifmahi(a, b, c))
 
 @generated function vfmadd_fast(a::Vec{W,UInt64},b::Vec{W,UInt64},c::Vec{W,UInt64}) where {W}
-    ex = if has_feature("avx512ifma")
+    ex = if AVX512IFMA
         :(ifmalo(a, b, c))
     else
         :(add_fast(mul_fast(a, b), c))
     end
     Expr(:block, Expr(:meta,:inline), ex)
 end
-
