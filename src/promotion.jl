@@ -17,8 +17,8 @@ Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,W,T2,V2}}) wh
 Base.promote_rule(::Type{Bit}, ::Type{T}) where {T <: Number} = T
 
 issigned(x) = issigned(typeof(x))
-issigned(::Type{<:Signed}) = Val{true}()
-issigned(::Type{<:Unsigned}) = Val{false}()
+issigned(::Type{<:Signed}) = True()
+issigned(::Type{<:Unsigned}) = False()
 issigned(::Type{<:AbstractSIMD{<:Any,T}}) where {T} = issigned(T)
 issigned(::Type{T}) where {T} = nothing
 """
@@ -27,17 +27,17 @@ issigned(::Type{T}) where {T} = nothing
 @inline promote_div(x::Union{Integer,AbstractSIMD{<:Any,<:Integer}}, y::Union{Integer,AbstractSIMD{<:Any,<:Integer}}) = promote_div(x, y, issigned(x))
 @inline promote_div(x, y) = promote(x, y)
 @inline promote_div(x, y, ::Nothing) = promote(x, y) # for Integers that are neither Signed or Unsigned, e.g. Bool
-@inline function promote_div(x::T1, y::T2, ::Val{true}) where {T1,T2}
+@inline function promote_div(x::T1, y::T2, ::True) where {T1,T2}
     T = promote_type(T1, T2)
     signed(x % T), signed(y % T)
 end
-@inline function promote_div(x::T1, y::T2, ::Val{false}) where {T1,T2}
+@inline function promote_div(x::T1, y::T2, ::False) where {T1,T2}
     T = promote_type(T1, T2)
     unsigned(x % T), unsigned(y % T)
 end
 itosize(i::Union{I,AbstractSIMD{<:Any,I}}, ::Type{J}) where {I,J} = signorunsign(i % J, issigned(I))
-signorunsign(i, ::Val{true}) = signed(i)
-signorunsign(i, ::Val{false}) = unsigned(i)
+signorunsign(i, ::True) = signed(i)
+signorunsign(i, ::False) = unsigned(i)
 
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{T2}) where {M,N,W,T1,T2<:NativeTypes} = VecTile{M,N,W,promote_rule(T1,T2)}
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{Vec{W,T2}}) where {M,N,W,T1,T2} = VecTile{M,N,W,promote_rule(T1,T2)}

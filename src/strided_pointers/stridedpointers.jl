@@ -44,7 +44,6 @@
 end
 @inline memory_reference(::ArrayInterface.CPUIndex, A) = throw("Memory access for $(typeof(A)) not implemented yet.")
 
-
 """
   abstract type AbstractStridedPointer{T,N,C,B,R,X,O} end
 
@@ -69,16 +68,16 @@ end
 @inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 
 @inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
-    stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), stride_rank(A), bytestrides(A), offsets(A))
+    stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A))
 end
 @inline function stridedpointer(
-    ptr::Ptr{T}, ::Contiguous{C}, ::ContiguousBatch{B}, ::StrideRank{R}, strd::X, offsets::O
+    ptr::Ptr{T}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
 ) where {T<:NativeTypes,C,B,R,N,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
 @inline Base.strides(ptr::AbstractStridedPointer) = Base.getfield(ptr, :strd)
 @inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = Base.getfield(ptr, :offsets)
-@inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(Contiguous{C}(), Val{N}())
+@inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(StaticInt{C}(), Val{N}())
 
 
 @generated function zerotuple(::Val{N}) where {N}
@@ -113,7 +112,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
 @inline vstore!(ptr::AbstractStridedPointer{T}, v::T) where {T} = vstore!(pointer(ptr), v)
 
 @generated function nopromote_axis_indicator(::AbstractStridedPointer{<:Any,N}) where {N}
-    t = Expr(:tuple); foreach(n -> push!(t.args, Expr(:call, Expr(:curly, :Val, true))), 1:N)
+    t = Expr(:tuple); foreach(n -> push!(t.args, True()), 1:N)
     Expr(:block, Expr(:meta, :inline), t)
 end
 

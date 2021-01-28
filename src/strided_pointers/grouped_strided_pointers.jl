@@ -24,10 +24,10 @@ it gives the groups.
         map(memory_reference, A),
         map(contiguous_axis, A),
         map(contiguous_batch_size, A),
-        map(stride_rank, A),
+        map(val_stride_rank, A),
         map(bytestrides, A),
         map(offsets, A),
-        map(ArrayInterface.dense_dims, A),
+        map(val_dense_dims, A),
         Val{G}()
     )
 end
@@ -212,7 +212,7 @@ end
             push!(x.args, Expr(:ref, :strds, j))
             push!(o.args, Expr(:ref, :offs, j))
         end
-        push!(t.args, Expr(:call, :stridedpointer, p, :(Contiguous{$(C[i])}()), :(ContiguousBatch{$(B[i])}()), :(StrideRank{$(R[i])}()), x, o))
+        push!(t.args, Expr(:call, :stridedpointer, p, :(StaticInt{$(C[i])}()), :(StaticInt{$(B[i])}()), :(Val{$(R[i])}()), x, o))
     end
     Expr(:block, Expr(:meta,:inline), :(ptrs = gsp.ptrs), :(strds = gsp.strides), :(offs = gsp.offsets), t)
 end
