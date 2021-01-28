@@ -1,53 +1,28 @@
 module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse
-using ArrayInterface: StaticInt, Zero, One, contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
-    Contiguous, CPUPointer, ContiguousBatch, StrideRank, device,
+using ArrayInterface:
+    StaticInt, Zero, One, StaticBool, True, False,
+    contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
+    device, CPUPointer, CPUIndex,    
     known_length, known_first, known_last, strides, offsets,
     static_first, static_last, static_length
 import IfElse: ifelse
-# using LinearAlgebra: Adjoint, 
 
-# const LLVM_SHOULD_WORK = Sys.ARCH !== :i686 && isone(length(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist())))
+asbool(::Type{True}) = true
+asbool(::Type{False}) = false
+Base.@pure asvalbool(r) = Val(map(Bool, r))
+Base.@pure asvalint(r) = Val(map(Int, r))
+@inline val_stride_rank(A) = asvalint(stride_rank(A))
+@inline val_dense_dims(A) = asvalbool(ArrayInterface.dense_dims(A))
 
-## Until SIMDPirates stops importing it
-# isfile(joinpath(@__DIR__, "cpu_info.jl")) || throw("File $(joinpath(@__DIR__, "cpu_info.jl")) does not exist. Please run `using Pkg; Pkg.build()`.")
+# doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
+export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, 
+    vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub
 
-export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub
-
-# using Base: llvmcall
 using Base: llvmcall, VecElement, HWReal
-# @inline llvmcall(s::String, args...) = Base.llvmcall(s, args...)
-# @inline llvmcall(s::Tuple{String,String}, args...) = Base.llvmcall(s, args...)
 
-# export Vec, VE, Vec, Mask, MM,
-#     gep, gesp,
-#     data,
-#     pick_vector_width,
-#     pick_vector_width_shift,
-#     stridedpointer,
-#     PackedStridedPointer, RowMajorStridedPointer,
-#     StaticIntStridedPointer, StaticIntStridedStruct,
-#     vload, vstore!, vbroadcast, StaticInt, mask, masktable
-
-# @static if VERSION < v"1.4"
-#     # I think this is worth using, and simple enough that I may as well.
-#     # I'll uncomment when I find a place to use it.
-#     function only(x)
-#         @boundscheck length(x) == 0 && throw(ArgumentError("Collection is empty, must contain exactly 1 element"))
-#         @boundscheck length(x) > 1 && throw(ArgumentError("Collection has multiple elements, must contain exactly 1 element"))
-#         @inbounds x[1]
-#     end
-#     export only
-# end
-
-# const IntTypes = Union{Int8, Int16, Int32, Int64} # Int128
-# const UIntTypes = Union{UInt8, UInt16, UInt32, UInt64} # UInt128
-# const IntegerTypes = Union{IntTypes, UIntTypes, Ptr, Bool}
 const FloatingTypes = Union{Float32, Float64} # Float16
-# const ScalarTypes = Union{IntegerTypes, FloatingTypes}
-# const SUPPORTED_FLOATS = [Float32, Float64]
-# const SUPPORTED_TYPES = [Float32, Float64, Int16, Int32, Int64, Int8, UInt16, UInt32, UInt64, UInt8]
 
 const SignedHW = Union{Int8,Int16,Int32,Int64}
 const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64}
@@ -60,14 +35,6 @@ const NativeTypesExceptBit = Union{Bool,HWReal}
 const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
-# const _Vec{W,T<:Number} = Tuple{VecElement{T},Vararg{VecElement{T},W}}
-# @eval struct StaticInt{N} <: Number
-#     (f::Type{<:StaticInt})() = $(Expr(:new,:f))
-# end
-# Base.@pure StaticInt(N) = StaticInt{N}()
-
-# abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
-# abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
 
 abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real
@@ -306,6 +273,7 @@ include("base_defs.jl")
 include("fmap.jl")
 include("alignment.jl")
 include("special/misc.jl")
+# include("special/log.jl")
 
 @generated function simd_vec(y::_T, x::Vararg{_T,_W}) where {_T,_W}
     W = 1 + _W
