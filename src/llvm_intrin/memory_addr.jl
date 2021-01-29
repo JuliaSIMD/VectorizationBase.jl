@@ -299,7 +299,7 @@ function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool)
     push!(q.args, :(isplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), i)))
     mask && push!(q.args, :(msplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), m)))
     t = Expr(:tuple)
-    alignval = Expr(:call, Expr(:curly, :Val, align))
+    alignval = Expr(:call, align ? :True : :False)
     for d ∈ 1:D
         call = Expr(:call, :vload, :ptr)
         push!(call.args, Expr(:ref, :isplit, d))
@@ -402,79 +402,79 @@ function vload_quote(
     end
 end
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
-@generated function vload(ptr::Ptr{T}, ::Val{A}) where {T <: NativeTypes, A}
-    vload_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A)
+@generated function vload(ptr::Ptr{T}, ::A) where {T <: NativeTypes, A <: StaticBool}
+    vload_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::I, ::Val{A}) where {A, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, 1, 1, 1, 0, false, A)
+@generated function vload(ptr::Ptr{T}, i::I, ::A) where {A <: StaticBool, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Integer, 1, 1, 1, 0, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, ::StaticInt{N}, ::Val{A}) where {A, N, T <: NativeTypes}
-    vload_quote(T, Int, :StaticInt, 1, 1, 0, N, false, A)
+@generated function vload(ptr::Ptr{T}, ::StaticInt{N}, ::A) where {A <: StaticBool, N, T <: NativeTypes}
+    vload_quote(T, Int, :StaticInt, 1, 1, 0, N, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, ::Val{A}) where {A, W, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Vec, W, 1, 1, 0, false, A)
+@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, ::A) where {A <: StaticBool, W, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Vec, W, 1, 1, 0, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, ::Val{A}) where {A, W, X, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, W, X, 1, 0, false, A)
+@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, ::A) where {A <: StaticBool, W, X, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Integer, W, X, 1, 0, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, ::MM{W,X,StaticInt{N}}, ::Val{A}) where {A, W, X, T <: NativeTypes, N}
-    vload_quote(T, Int, :StaticInt, W, X, 1, N, false, A)
+@generated function vload(ptr::Ptr{T}, ::MM{W,X,StaticInt{N}}, ::A) where {A <: StaticBool, W, X, T <: NativeTypes, N}
+    vload_quote(T, Int, :StaticInt, W, X, 1, N, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::Val{A}) where {A, M, O, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, 1, 1, M, O, false, A)
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::A) where {A <: StaticBool, M, O, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Integer, 1, 1, M, O, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::Val{A}) where {A, W, M, O, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Vec, W, 1, M, O, false, A)
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::A) where {A <: StaticBool, W, M, O, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Vec, W, 1, M, O, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, W, X*M, M, O, false, A)
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::A) where {A <: StaticBool, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Integer, W, X*M, M, O, false, A === True)
 end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I}
-    vload_quote(T, Int, :StaticInt, W, X*M, M, O + I*M, false, A)
-end
-
-@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}, ::Val{A}) where {A, W, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Vec, W, 1, 1, 0, true, A)
-end
-@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, m::Mask{W}, ::Val{A}) where {A, W, X, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, W, X, 1, 0, true, A)
-end
-@generated function vload(ptr::Ptr{T}, ::MM{W,X,StaticInt{N}}, m::Mask{W}, ::Val{A}) where {A, W, X, T <: NativeTypes, N}
-    vload_quote(T, Int, :StaticInt, W, X, 1, N, true, A)
-end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Vec, W, 1, M, O, true, A)
-end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
-    vload_quote(T, I, :Integer, W, X*M, M, O, true, A)
-end
-@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, m::Mask{W}, ::Val{A}) where {A, W, M, O, X, T <: NativeTypes, I}
-    vload_quote(T, Int, :StaticInt, W, X*M, M, O + I*M, true, A)
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, ::A) where {A <: StaticBool, W, M, O, X, T <: NativeTypes, I}
+    vload_quote(T, Int, :StaticInt, W, X*M, M, O + I*M, false, A === True)
 end
 
+@generated function vload(ptr::Ptr{T}, i::Vec{W,I}, m::Mask{W}, ::A) where {A <: StaticBool, W, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Vec, W, 1, 1, 0, true, A === True)
+end
+@generated function vload(ptr::Ptr{T}, i::MM{W,X,I}, m::Mask{W}, ::A) where {A <: StaticBool, W, X, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Integer, W, X, 1, 0, true, A === True)
+end
+@generated function vload(ptr::Ptr{T}, ::MM{W,X,StaticInt{N}}, m::Mask{W}, ::A) where {A <: StaticBool, W, X, T <: NativeTypes, N}
+    vload_quote(T, Int, :StaticInt, W, X, 1, N, true, A === True)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::A) where {A <: StaticBool, W, M, O, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Vec, W, 1, M, O, true, A === True)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::A) where {A <: StaticBool, W, M, O, X, T <: NativeTypes, I <: IntegerTypes}
+    vload_quote(T, I, :Integer, W, X*M, M, O, true, A === True)
+end
+@generated function vload(ptr::Ptr{T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, m::Mask{W}, ::A) where {A <: StaticBool, W, M, O, X, T <: NativeTypes, I}
+    vload_quote(T, Int, :StaticInt, W, X*M, M, O + I*M, true, A === True)
+end
 
-@inline function _vload_scalar(ptr::Ptr{Bit}, i::Integer, ::Val{A}) where {A}
+
+@inline function _vload_scalar(ptr::Ptr{Bit}, i::Integer, A::StaticBool)
     d = i >> 3; r = i & 7;
-    u = vload(Base.unsafe_convert(Ptr{UInt8}, ptr), d, Val{A}())
+    u = vload(Base.unsafe_convert(Ptr{UInt8}, ptr), d, A)
     (u >> r) % Bool
 end
-@inline vload(ptr::Ptr{Bit}, i::IntegerTypesHW, ::Val{A}) where {A} = _vload_scalar(ptr, i, Val{A}())
+@inline vload(ptr::Ptr{Bit}, i::IntegerTypesHW, A::StaticBool) = _vload_scalar(ptr, i, A)
 # avoid ambiguities
-@inline vload(ptr::Ptr{Bit}, ::StaticInt{N}, ::Val{A}) where {A,N} = _vload_scalar(ptr, StaticInt{N}(), Val{A}())
+@inline vload(ptr::Ptr{Bit}, ::StaticInt{N}, A::StaticBool) where {N} = _vload_scalar(ptr, StaticInt{N}(), A)
 
 
-@inline vload(ptr::Union{Ptr,AbstractStridedPointer}) = vload(ptr, Val{false}())
-@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}) = vload(ptr, Val{true}())
-@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{false}())
-@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, Val{true}())
-@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{false}())
-@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, Val{true}())
-@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{false}())
-@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, Val{true}())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}) = vload(ptr, False())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}) = vload(ptr, True())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, False())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}) = vload(ptr, i, True())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, False())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, m::Mask) = vload(ptr, i, m, True())
+@inline vload(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, False())
+@inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, True())
 
-@inline function vload(ptr::Ptr{T}, i::Number, b::Bool, ::Val{A}) where {T,A}
+@inline function vload(ptr::Ptr{T}, i::Number, b::Bool, A::StaticBool) where {T}
     if b
-        vload(ptr, i, Val{A}())
+        vload(ptr, i, A)
     else
         zero(T)
     end
@@ -495,9 +495,9 @@ end
 
 @inline zero_init(::Type{T}, ::Tuple{StaticInt{W},StaticInt{U}}) where {W,U,T} = zero_init(T, StaticInt{W}(), StaticInt{U}())
 
-@inline function vload(ptr::Ptr{T}, i::Tuple, b::Bool, ::Val{A}) where {T,A}
+@inline function vload(ptr::Ptr{T}, i::Tuple, b::Bool, A::StaticBool) where {T}
     if b
-        vload(ptr, i, Val{A}())
+        vload(ptr, i, A)
     else
         zero_init(T, vwidth_from_ind(i))
     end
@@ -505,9 +505,9 @@ end
 @generated function zero_vecunroll(::Val{N}, ::Val{W}, ::Type{T}) where {N,W,T}
     Expr(:block, Expr(:meta, :inline), :(zero(VecUnroll{$(N-1),$W,$T,Vec{$W,$T}})))
 end
-@inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,I}, b::Bool, ::Val{A}) where {T,AU,F,N,AV,W,M,I,A}
+@inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,I}, b::Bool, A::StaticBool) where {T,AU,F,N,AV,W,M,I}
     if b
-        vload(ptr, i, Val{A}())
+        vload(ptr, i, A)
     else
         zero_vecunroll(Val{N}(), Val{W}(), T)
         # VecUnroll(ntuple(@inline(_ -> vzero(Val{W}(), T)), Val{N}()))
@@ -601,156 +601,154 @@ end
 
 
 @generated function vstore!(
-    ptr::Ptr{T}, v::T, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T <: NativeTypes, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A, S, NT)
+    ptr::Ptr{T}, v::T, ::A, ::S, ::NT
+) where {T <: NativeTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::T, i::I, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, 1, 1, 1, 0, false, A, S, NT)
+    ptr::Ptr{T}, v::T, i::I, ::A, ::S, ::NT
+) where {T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, 1, 1, 1, 0, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::T, ::StaticInt{N}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T <: NativeTypes, N, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, 1, 1, 0, N, false, A, S, NT)
+    ptr::Ptr{T}, v::T, ::StaticInt{N}, ::A, ::S, ::NT
+) where {T <: NativeTypes, N, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, 1, 1, 0, N, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Vec, W, 1, 1, 0, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Vec, W, 1, 1, 0, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::MM{W,X,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, X, 1, 0, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::MM{W,X,I}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, X, 1, 0, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::I, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::I, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, 0, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, 0, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, ::StaticInt{N}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, N, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, N, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, ::StaticInt{N}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, N, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, N, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,StaticInt{N}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, N, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, X, 0, N, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,StaticInt{N}}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, N, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, X, 0, N, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::T, i::LazyMulAdd{M,O,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, 1, 1, M, O, false, A, S, NT)
+    ptr::Ptr{T}, v::T, i::LazyMulAdd{M,O,I}, ::A, ::S, ::NT
+) where {T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, 1, 1, M, O, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Vec, W, 1, M, O, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Vec, W, 1, M, O, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, X*M, M, O, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, X*M, M, O, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, M, O, I, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, X*M, M, O + M*I, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, M, O, I, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, X*M, M, O + M*I, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, false, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Vec, W, 1, 1, 0, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::Vec{W,I}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Vec, W, 1, 1, 0, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::MM{W,X,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, X, 1, 0, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::MM{W,X,I}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, X, 1, 0, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::I, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::I, m::Mask{W}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, sizeof(T), 1, 0, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, ::StaticInt{N}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, N, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, N, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, ::StaticInt{N}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, N, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, N, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,StaticInt{N}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, N, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, X, 0, N, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, ::MM{W,X,StaticInt{N}}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, N, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, X, 0, N, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Vec, W, 1, M, O, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,Vec{W,I}}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Vec, W, 1, M, O, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, X*M, M, O, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,I}}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, X*M, M, O, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, X, T <: NativeTypes, M, O, I, A, S, NT}
-    vstore_quote(T, Int, :StaticInt, W, X*M, M, O + M*I, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, X, T <: NativeTypes, M, O, I, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, Int, :StaticInt, W, X*M, M, O + M*I, true, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A, S, NT}
-    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, true, A, S, NT)
+    ptr::Ptr{T}, v::Vec{W,T}, i::LazyMulAdd{M,O,I}, m::Mask{W}, ::A, ::S, ::NT
+) where {W, T <: NativeTypes, M, O, I <: IntegerTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool}
+    vstore_quote(T, I, :Integer, W, sizeof(T), M, O, true, A===True, S===True, NT===True)
 end
 
 # broadcasting scalar stores
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T, A, S, NT}
-    vstore!(ptr, convert(Vec{W,T}, v), i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::VectorIndex{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, T}
+    vstore!(ptr, convert(Vec{W,T}, v), i, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T, A, S, NT}
-    vstore!(ptr, convert(Vec{W,T}, v), i, m, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, T}
+    vstore!(ptr, convert(Vec{W,T}, v), i, m, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT}
-    vstore!(ptr, convert(T, v), i.i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T}
+    vstore!(ptr, convert(T, v), i.i, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, m::Mask{1}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT}
-    Bool(m) && vstore!(ptr, convert(T, v), i.i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::MM{1}, m::Mask{1}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T}
+    Bool(m) && vstore!(ptr, convert(T, v), i.i, A, S, NT)
     nothing
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::LazyMulAdd{M,O,MM{1,X,I}}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT, M,O,X,I}
-    vstore!(ptr, convert(T, v), _materialize(i).i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::LazyMulAdd{M,O,MM{1,X,I}}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T, M,O,X,I}
+    vstore!(ptr, convert(T, v), _materialize(i).i, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v::Base.HWReal, i::LazyMulAdd{M,O,MM{1,X,I}}, m::Mask{1}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT, M,O,X,I}
-    Bool(m) && vstore!(ptr, convert(T, v), _materialize(i).i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v::Base.HWReal, i::LazyMulAdd{M,O,MM{1,X,I}}, m::Mask{1}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T, M,O,X,I}
+    Bool(m) && vstore!(ptr, convert(T, v), _materialize(i).i, A, S, NT)
     nothing
 end
-
-
 
 # @inline function vstore!(ptr::Ptr{Bit}, m::Mask{W,U}, i, ::Val{A}, ::Val{S}, ::Val{NT}) where {W,U,A,S,NT}
 #     @assert W == 8sizeof(U)
@@ -758,110 +756,110 @@ end
 # end
 
 # BitArray stores
-@inline function vstore!(ptr::Ptr{Bit}, v::Mask{W,U}, ::Val{A}, ::Val{S}, ::Val{NT}) where {W, U, A, S, NT}
-    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
+@inline function vstore!(ptr::Ptr{Bit}, v::Mask{W,U}, A::StaticBool, S::StaticBool, NT::StaticBool) where {W, U}
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, U, A, S, NT}
-    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, U}
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, U, A, S, NT}
+    ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, U}
     ishift = data(i) >> 3
     u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, Val{A}()), data(v))
-    vstore!(Base.unsafe_convert(Ptr{U}, ptr), u, ishift, Val{A}(), Val{S}(), Val{NT}())
+    vstore!(Base.unsafe_convert(Ptr{U}, ptr), u, ishift, A, S, NT)
 end
-@inline function vstore!(f::F, ptr::Ptr{Bit}, v::Mask{W,U}, ::Val{A}, ::Val{S}, ::Val{NT}) where {W, U, A, S, NT, F<:Function}
-    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), Val{A}(), Val{S}(), Val{NT}())
-end
-@inline function vstore!(
-    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, U, A, S, NT, F<:Function}
-    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, Val{A}(), Val{S}(), Val{NT}())
+@inline function vstore!(f::F, ptr::Ptr{Bit}, v::Mask{W,U}, A::StaticBool, S::StaticBool, NT::StaticBool) where {W, U, F<:Function}
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), A, S, NT)
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, U, A, S, NT, F<:Function}
+    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, U, F<:Function}
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), data(v), data(i) >> 3, A, S, NT)
+end
+@inline function vstore!(
+    f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, U, F<:Function}
     ishift = data(i) >> 3
     u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, Val{A}()), data(v))
-    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), u, ishift, Val{A}(), Val{S}(), Val{NT}())
+    vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), u, ishift, A, S, NT)
 end
 
 
 
-@inline function vstore!(ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT}
-    vstore!(ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
+@inline function vstore!(ptr::Ptr{T}, v, A::StaticBool, S::StaticBool, NT::StaticBool) where {T}
+    vstore!(ptr, convert(T, v), A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v, i, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT}
-    vstore!(ptr, convert(T, v), i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v, i, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T}
+    vstore!(ptr, convert(T, v), i, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W,T, A, S, NT}
-    vstore!(ptr, convert(Vec{W,T}, v), i, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v, i::VectorIndex{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W,T}
+    vstore!(ptr, convert(Vec{W,T}, v), i, A, S, NT)
 end
 @inline function vstore!(
-    ptr::Ptr{T}, v, i, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T, A, S, NT}
-    vstore!(ptr, convert(Vec{W,T}, v), i, m, Val{A}(), Val{S}(), Val{NT}())
+    ptr::Ptr{T}, v, i, m::Mask{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, T}
+    vstore!(ptr, convert(Vec{W,T}, v), i, m, A, S, NT)
 end
-@inline function vstore!(f::F, ptr::Ptr{T}, v, ::Val{A}, ::Val{S}, ::Val{NT}) where {T, A, S, NT, F<:Function}
-    vstore!(f, ptr, convert(T, v), Val{A}(), Val{S}(), Val{NT}())
-end
-@inline function vstore!(
-    f::F, ptr::Ptr{T}, v, i, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T, A, S, NT, F<:Function}
-    vstore!(f, ptr, convert(T, v), i, Val{A}(), Val{S}(), Val{NT}())
+@inline function vstore!(f::F, ptr::Ptr{T}, v, A::StaticBool, S::StaticBool, NT::StaticBool) where {T, F<:Function}
+    vstore!(f, ptr, convert(T, v), A, S, NT)
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T, A, S, NT, F<:Function}
-    vstore!(f, ptr, convert(Vec{W,T}, v), i, Val{A}(), Val{S}(), Val{NT}())
+    f::F, ptr::Ptr{T}, v, i, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T, F<:Function}
+    vstore!(f, ptr, convert(T, v), i, A, S, NT)
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v, i, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {W, T, A, S, NT, F<:Function}
-    vstore!(f, ptr, convert(Vec{W,T}, v), i, m, Val{A}(), Val{S}(), Val{NT}())
+    f::F, ptr::Ptr{T}, v, i::VectorIndex{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, T, F<:Function}
+    vstore!(f, ptr, convert(Vec{W,T}, v), i, A, S, NT)
+end
+@inline function vstore!(
+    f::F, ptr::Ptr{T}, v, i, m::Mask{W}, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {W, T, F<:Function}
+    vstore!(f, ptr, convert(Vec{W,T}, v), i, m, A, S, NT)
 end
 
 
 for (store,align,alias,nontemporal) ∈ [
-    (:vstore!,false,false,false),
-    (:vstorea!,true,false,false),
-    (:vstorent!,true,false,true),
-    (:vnoaliasstore!,false,true,false),
-    (:vnoaliasstorea!,true,true,false),
-    (:vnoaliasstorent!,true,true,true)
+    (:vstore!,False(),False(),False()),
+    (:vstorea!,True(),False(),False()),
+    (:vstorent!,True(),False(),True()),
+    (:vnoaliasstore!,False(),True(),False()),
+    (:vnoaliasstorea!,True(),True(),False()),
+    (:vnoaliasstorent!,True(),True(),True())
 ]
     @eval begin
         @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number)
-            vstore!(ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            vstore!(ptr, v, $align, $alias, $nontemporal)
         end
         @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll})
-            vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            vstore!(ptr, v, i, $align, $alias, $nontemporal)
         end
         @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask)
-            vstore!(ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            vstore!(ptr, v, i, m, $align, $alias, $nontemporal)
         end
         @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool)
-            b && vstore!(ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            b && vstore!(ptr, v, i, $align, $alias, $nontemporal)
         end
         
         @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number) where {F<:Function}
-            vstore!(f, ptr, v, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            vstore!(f, ptr, v, $align, $alias, $nontemporal)
         end
         @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}) where {F<:Function}
-            vstore!(f, ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            vstore!(f, ptr, v, i, $align, $alias, $nontemporal)
         end
         @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, m::Mask) where {F<:Function}
-            vstore!(f, ptr, v, i, m, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            vstore!(f, ptr, v, i, m, $align, $alias, $nontemporal)
         end
         @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool) where {F<:Function}
-            b && vstore!(f, ptr, v, i, Val{$align}(), Val{$alias}(), Val{$nontemporal}())
+            b && vstore!(f, ptr, v, i, $align, $alias, $nontemporal)
         end
     end
 end
@@ -905,7 +903,7 @@ function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M:
     t = Expr(:tuple)
     inds = unrolled_indicies(D, AU, F, N, AV, W)
     # TODO: Consider doing some alignment checks before accepting user's `align`?
-    alignval = Expr(:call, Expr(:curly, :Val, align))
+    alignval = Expr(:call, align ? :True : :False)
     for n in 1:N
         l = Expr(:call, :vload, :gptr, inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
@@ -920,11 +918,11 @@ function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M:
     end
 end
 
-@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, ::Val{A}) where {A,AU,F,N,AV,W,M,I,T,D}
-    vload_unroll_quote(D, AU, F, N, AV, W, M, false, A)
+@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, ::A) where {A<:StaticBool,AU,F,N,AV,W,M,I,T,D}
+    vload_unroll_quote(D, AU, F, N, AV, W, M, false, A === True)
 end
-@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::Val{A}) where {A,AU,F,N,AV,W,M,I,T,D}
-    vload_unroll_quote(D, AU, F, N, AV, W, M, true, A)
+@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A) where {A<:StaticBool,AU,F,N,AV,W,M,I,T,D}
+    vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True)
 end
 
 function vstore_unroll_quote(
@@ -937,9 +935,9 @@ function vstore_unroll_quote(
         gptr = gesp(ptr, u.i)
         t = data(v)
     end
-    alignval = Expr(:call, Expr(:curly, :Val, align))
-    noaliasval = Expr(:call, Expr(:curly, :Val, noalias))
-    nontemporalval = Expr(:call, Expr(:curly, :Val, nontemporal))
+    alignval = Expr(:call, align ? :True : :False)
+    noaliasval = Expr(:call, noalias ? :True : :False)
+    nontemporalval = Expr(:call, nontemporal ? :True : :False)
     for n in 1:N
         l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n), inds[n])
         (mask && (M % Bool)) && push!(l.args, :m)
@@ -950,16 +948,16 @@ function vstore_unroll_quote(
     q
 end
 @generated function vstore!(
-    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {AU,F,N,AV,W,M,I,T,D,Nm1,S,A,NT}
+    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,I}, ::A, ::S, ::NT
+) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool}
     @assert Nm1+1 == N
-    vstore_unroll_quote(D, AU, F, N, AV, W, M, false, A, S, NT)
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, false, A===True, S===True, NT===True)
 end
 @generated function vstore!(
-    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {AU,F,N,AV,W,M,I,T,D,Nm1,S,A,NT}
+    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A, ::S, ::NT
+) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool}
     @assert Nm1+1 == N
-    vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A, S, NT)
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A===True, S===True, NT===True)
 end
 function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     N = Nm1 + 1
@@ -971,9 +969,9 @@ function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
         end
     end
     j = 0
-    alignval = Expr(:call, Expr(:curly, :Val, A))
-    aliasval = Expr(:call, Expr(:curly, :Val, S))
-    notmpval = Expr(:call, Expr(:curly, :Val, NT))
+    alignval = Expr(:call, A ? :True : :False)
+    aliasval = Expr(:call, S ? :True : :False)
+    notmpval = Expr(:call, NT ? :True : :False)
     for n ∈ 1:N
         shufflemask = Expr(:tuple)
         for w ∈ 1:Wsplit
@@ -990,14 +988,14 @@ function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     q
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T,Nm1,Wsplit,W,A,S,NT}
-    vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, false)
+    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, ::A, ::S, ::NT
+) where {T,Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool}
+    vstore_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, false)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T,Nm1,Wsplit,W,A,S,NT}
-    vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, true)
+    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, m::Mask{W}, ::A, ::S, ::NT
+) where {T,Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool}
+    vstore_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, true)
 end
 function vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
     N = Nm1 + 1
@@ -1012,25 +1010,25 @@ function vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, mask::Bool)
         j == N && break
         push!(q.args, :(u <<= $Wsplit))
     end
-    alignval = Expr(:call, Expr(:curly, :Val, A))
-    aliasval = Expr(:call, Expr(:curly, :Val, S))
-    notmpval = Expr(:call, Expr(:curly, :Val, NT))
-    mask && push!(q.args, :(u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{$(mask_type_symbol(W))}, ptr), (i.i >> 3), Val{$A}()), u)))
+    alignval = Expr(:call, A ? :True : :False)
+    aliasval = Expr(:call, A ? :True : :False)
+    notmpval = Expr(:call, A ? :True : :False)
+    mask && push!(q.args, :(u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{$(mask_type_symbol(W))}, ptr), (i.i >> 3), $alignval), u)))
     call = Expr(:call, :vstore!, :(reinterpret(Ptr{UInt8}, ptr)), :u, :(i.i >> 3))
     push!(call.args, alignval, aliasval, notmpval)
     push!(q.args, call)
     q
 end
 @generated function vstore!(
-    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {Nm1,Wsplit,W,A,S,NT}
+    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, ::A, ::S, ::NT
+) where {Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool}
     # 1 + 1
-    vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, false)
+    vstorebit_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, false)
 end
 @generated function vstore!(
-    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, m::Mask{W}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {Nm1,Wsplit,W,A,S,NT}
-    vstorebit_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, true)
+    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, m::Mask{W}, ::A, ::S, ::NT
+) where {Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool}
+    vstorebit_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, true)
 end
 
 # @inline vstore!(::typeof(identity), ptr, v, u) = vstore!(ptr, v, u)
@@ -1041,12 +1039,12 @@ end
 
 # If `::Function` vectorization is masked, then it must not be reduced by `::Function`.
 @generated function vstore!(
-    ::Function, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}, m, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T,D,C,U,AU,F,N,W,M,I,AV,A,S,NT}
+    ::Function, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}, m, A::StaticBool, S::StaticBool, NT::StaticBool
+) where {T,D,C,U,AU,F,N,W,M,I,AV}
     @assert N == U + 1
     # mask means it isn't vectorized
     @assert AV > 0 "AV ≤ 0, but masking what, exactly?"
-    Expr(:block, Expr(:meta, :inline), :(vstore!(ptr, vu, u, m, Val{$A}(), Val{$S}(), Val{$NT}())))
+    Expr(:block, Expr(:meta, :inline), :(vstore!(ptr, vu, u, m, A, S, NT)))
 end
 
 function transposeshuffle(split, W, offset::Bool)
@@ -1143,11 +1141,11 @@ function horizonal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op = :+, reduct = :v
     q
 end
 @generated function vstore!(
-    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}, ::Val{A}, ::Val{S}, ::Val{NT}
-) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A,S,NT}
+    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}, ::A, ::S, ::NT
+) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool}
     @assert N == U + 1
     if G === typeof(identity) || AV > 0
-        return Expr(:block, Expr(:meta, :inline), :(vstore!(ptr, vu, u, Val{$A}(), Val{$S}(), Val{$NT}())))
+        return Expr(:block, Expr(:meta, :inline), :(vstore!(ptr, vu, u, $A(), $S(), $NT())))
     elseif G === typeof(vsum)
         op = :+; reduct = :vsum
     elseif G === typeof(vprod)
@@ -1155,12 +1153,12 @@ end
     else
         throw("Function $f not recognized.")
     end
-    horizonal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S)
+    horizonal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S === True)
 end
 
 function lazymulunroll_load_quote(M,O,N,mask,align)
     t = Expr(:tuple)
-    alignval = Expr(:call, Expr(:curly, :Val, align))
+    alignval = Expr(:call, align ? :True : :False)
     for n in 1:N+1
         ind = if (M != 1) | (O != 0)
             :(LazyMulAdd{$M,$O}(u[$n]))
@@ -1179,29 +1177,29 @@ function lazymulunroll_load_quote(M,O,N,mask,align)
     push!(q.args, Expr(:call, :VecUnroll, t))
     q
 end
-@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, ::Val{A}) where {T,N,W,I,V,A}
-    lazymulunroll_load_quote(1,0,N,false,A)
+@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, ::A) where {T,N,W,I,V,A<:StaticBool}
+    lazymulunroll_load_quote(1,0,N,false,A === True)
 end
-@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::Val{A}) where {T,N,W,I,V,A,U}
-    lazymulunroll_load_quote(1,0,N,true,A)
+@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A) where {T,N,W,I,V,A<:StaticBool,U}
+    lazymulunroll_load_quote(1,0,N,true,A===True)
 end
-@inline function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask, ::Val{A}) where {T,N,W,I,V,A}
-    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), Val{A}())
+@inline function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask, A::StaticBool) where {T,N,W,I,V}
+    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), A)
 end
-@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, ::Val{A}) where {T,M,O,N,W,I,V,A}
-    lazymulunroll_load_quote(M,O,N,false,A)
+@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, ::A) where {T,M,O,N,W,I,V,A<:StaticBool}
+    lazymulunroll_load_quote(M,O,N,false,A===True)
 end
-@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::Val{A}) where {T,M,O,N,W,I,V,A,U}
-    lazymulunroll_load_quote(M,O,N,true,A)
+@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A) where {T,M,O,N,W,I,V,A<:StaticBool,U}
+    lazymulunroll_load_quote(M,O,N,true,A===True)
 end
-@inline function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask, ::Val{A}) where {T,M,O,N,W,I,V,A}
-    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), Val{A}())
+@inline function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask, A::StaticBool) where {T,M,O,N,W,I,V}
+    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), A)
 end
 function lazymulunroll_store_quote(M,O,N,mask,align,noalias,nontemporal)
     q = Expr(:block, Expr(:meta, :inline), :(u = um.data.data), :(v = vm.data.data))
-    alignval = Expr(:call, Expr(:curly, :Val, align))
-    noaliasval = Expr(:call, Expr(:curly, :Val, noalias))
-    nontemporalval = Expr(:call, Expr(:curly, :Val, nontemporal))
+    alignval = Expr(:call, align ? :True : :False)
+    noaliasval = Expr(:call, noalias ? :True : :False)
+    nontemporalval = Expr(:call, nontemporal ? :True : :False)
     for n in 1:N+1
         push!(q.args, Expr(:call, :vstore!, :ptr, Expr(:ref, :v, n), :(LazyMulAdd{$M,$O}(u[$n])), alignval, noaliasval, nontemporalval))
     end
@@ -1217,7 +1215,7 @@ end
         call void @llvm.prefetch(i8* %addr, i32 $R, i32 $L, i32 1)
         ret void
     """
-    llvmcall_expr(decl, instrs, Cvoid, :(Tuple{Ptr{Cvoid}}), "void", [JULIAPOINTERTYPE], [:ptr])
+    llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{Cvoid}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
 @inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) where {T,L,R} = prefetch(Base.unsafe_convert(Ptr{Cvoid}, ptr), Val{L}(), Val{R}())
 
@@ -1268,7 +1266,7 @@ end
     truncate_mask!(instrs, '2', W, 0)
     decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, $typ*, <$W x i1>)"
     push!(instrs, "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, $typ* %ptr, <$W x i1> %mask.0)\nret void")
-    llvmcall_expr(decl, join(instrs,"\n"), :Cvoid, :(Tuple{NTuple{$W,VecElement{$T}}, Ptr{$T}, $U}), "void", [vtyp, JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:(data(v)), :ptr, :(data(mask))])
+    llvmcall_expr(decl, join(instrs,"\n"), :Cvoid, :(Tuple{_Vec{$W,$T}, Ptr{$T}, $U}), "void", [vtyp, JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:(data(v)), :ptr, :(data(mask))])
 end
 
 @generated function expandload(ptr::Ptr{T}, mask::Mask{W,U}) where {W, T <: NativeTypes, U<:Unsigned}
@@ -1288,7 +1286,7 @@ end
     end
     decl = "declare $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ*, <$W x i1>, $vtyp)"
     push!(instrs, "%res = call $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ* %ptr, <$W x i1> %mask, $vtyp zeroinitializer)\nret $vtyp %res")
-    llvmcall_expr(decl, join(instrs,"\n"), :(NTuple{$W,VecElement{$T}}), :(Tuple{Ptr{$T}, $U}), vtyp, [JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:ptr, :(data(mask))])
+    llvmcall_expr(decl, join(instrs,"\n"), :(_Vec{$W,$T}), :(Tuple{Ptr{$T}, $U}), vtyp, [JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:ptr, :(data(mask))])
 end
 
 @inline vload(::StaticInt{N}, args...) where {N} = StaticInt{N}()
