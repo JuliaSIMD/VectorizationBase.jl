@@ -750,10 +750,6 @@ end
     nothing
 end
 
-# @inline function vstore!(ptr::Ptr{Bit}, m::Mask{W,U}, i, ::Val{A}, ::Val{S}, ::Val{NT}) where {W,U,A,S,NT}
-#     @assert W == 8sizeof(U)
-#     vstore!(Base.unsafe_convert(Ptr{U}, ptr), data(m), i, Val{A}(), Val{S}(), Val{NT}())
-# end
 
 # BitArray stores
 @inline function vstore!(ptr::Ptr{Bit}, v::Mask{W,U}, A::StaticBool, S::StaticBool, NT::StaticBool) where {W, U}
@@ -768,7 +764,7 @@ end
     ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool
 ) where {W, U}
     ishift = data(i) >> 3
-    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, Val{A}()), data(v))
+    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, A), data(v))
     vstore!(Base.unsafe_convert(Ptr{U}, ptr), u, ishift, A, S, NT)
 end
 @inline function vstore!(f::F, ptr::Ptr{Bit}, v::Mask{W,U}, A::StaticBool, S::StaticBool, NT::StaticBool) where {W, U, F<:Function}
@@ -783,7 +779,7 @@ end
     f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool
 ) where {W, U, F<:Function}
     ishift = data(i) >> 3
-    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, Val{A}()), data(v))
+    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, A), data(v))
     vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), u, ishift, A, S, NT)
 end
 
