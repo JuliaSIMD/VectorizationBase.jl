@@ -200,7 +200,9 @@ function build_llvmcall_expr(op, WR, R::Symbol, WA, TA, flags::String)
 end
 
 @static if VERSION ≥ v"1.6.0-DEV.674"
-    function llvmcall_expr(decl::String, instr::String, @nospecialize(ret), @nospecialize(args), lret::String, largs, arg_syms, callonly::Bool = false)
+    function llvmcall_expr(
+        decl::String, instr::String, ret::Union{Symbol,Expr}, args::Expr, lret::String, largs::Vector{String}, arg_syms::Vector, callonly::Bool = false
+    )
         mod = """
             $decl
 
@@ -219,7 +221,9 @@ end
         Expr(:block, Expr(:meta, :inline), call)
     end
 else
-    function llvmcall_expr(decl::String, instr::String, @nospecialize(ret), @nospecialize(args), lret::String, largs, arg_syms, callonly::Bool = false)
+    function llvmcall_expr(
+                decl::String, instr::String, ret::Union{Symbol,Expr}, args::Expr, lret::String, largs::Vector{String}, arg_syms::Vector, callonly::Bool = false
+    )
         call = Expr(:call, :llvmcall, (decl, instr), ret, args)
         foreach(arg -> push!(call.args, arg), arg_syms)
         if first(lret) === '<'

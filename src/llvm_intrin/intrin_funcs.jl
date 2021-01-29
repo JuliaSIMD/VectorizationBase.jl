@@ -8,7 +8,7 @@
         %res = call $typ $f($typ %0, $typ %1)
         ret $typ %res
     """
-    llvmcall_expr(decl, instrs, I, :(Tuple{$I,$I}), typ, [typ,typ], [:x,:y])
+    llvmcall_expr(decl, instrs, JULIA_TYPES[I], :(Tuple{$I,$I}), typ, [typ,typ], [:x,:y])
 end
 @generated function saturated_add(x::Vec{W,I}, y::Vec{W,I}) where {W,I}
     typ = "i$(8sizeof(I))"
@@ -71,7 +71,7 @@ end
 if Base.libllvm_version ≥ v"12"
     for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed),("umax",:max,:Unsigned),("umin",:min,:Unsigned)]
         vf = Symbol(:v,f)
-        @eval @generated $vf(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, (W, W), (TS, TS)))
+        @eval @generated $vf(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, [W, W], [TS, TS]))
     end
 else
     @inline vmax(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vifelse(v1 > v2, v1, v2)
@@ -84,7 +84,7 @@ end
 for (op,f) ∈ [("sqrt",:vsqrt),("fabs",:vabs),("floor",:vfloor),("ceil",:vceil),("trunc",:vtrunc),("nearbyint",:vround)
               ]
     # @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
-    @eval @generated $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = (TS = T === Float32 ? :Float32 : :Float64; build_llvmcall_expr($op, W, TS, (W,), (TS,), "fast"))
+    @eval @generated $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = (TS = T === Float32 ? :Float32 : :Float64; build_llvmcall_expr($op, W, TS, [W], [TS], "fast"))
 end
 @inline vsqrt(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} = vsqrt(float(v))
 
@@ -196,7 +196,7 @@ for (op,f,fast) ∈ [
     fast && (ff *= " nnan")
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         TS = T === Float32 ? :Float32 : :Float64
-        build_llvmcall_expr($op, W, TS, (W, W), (TS, TS), $ff)
+        build_llvmcall_expr($op, W, TS, [W, W], [TS, TS], $ff)
     end
 end
 @inline _signbit(v::Vec{W, I}) where {W, I<:Signed} = v & Vec{W,I}(typemin(I))
@@ -242,7 +242,7 @@ for (op,f,fast) ∈ [
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: FloatingTypes}
         TS = T === Float32 ? :Float32 : :Float64
         # TS = JULIA_TYPES[T]
-        build_llvmcall_expr($op, W, TS, (W, W, W), (TS, TS, TS), $(fast_flags(fast)))
+        build_llvmcall_expr($op, W, TS, [W, W, W], [TS, TS, TS], $(fast_flags(fast)))
     end
 end
 # @inline Base.fma(a::Vec, b::Vec, c::Vec) = vfma(a,b,c)
@@ -298,7 +298,7 @@ for (op,f) ∈ [
     @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         # TS = JULIA_TYPES[T]
         TS = T === Float32 ? :Float32 : :Float64
-        build_llvmcall_expr($op, -1, TS, (1, W), (TS, TS), "nsz arcp contract afn reassoc")
+        build_llvmcall_expr($op, -1, TS, [1, W], [TS, TS], "nsz arcp contract afn reassoc")
     end
 end
 @inline vsum(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.add_fast(s, vsum(v))
@@ -310,7 +310,7 @@ for (op,f) ∈ [
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         # TS = JULIA_TYPES[T]
         TS = T === Float32 ? :Float32 : :Float64
-        build_llvmcall_expr($op, -1, TS, (W,), (TS,), "nsz arcp contract afn reassoc")
+        build_llvmcall_expr($op, -1, TS, [W], [TS], "nsz arcp contract afn reassoc")
     end
 end
 for (op,f,S) ∈ [
@@ -326,7 +326,7 @@ for (op,f,S) ∈ [
 ]
     @eval @generated function $f(v1::Vec{W,T}) where {W, T <: $S}
         TS = JULIA_TYPES[T]
-        build_llvmcall_expr($op, -1, TS, (W,), (TS,))
+        build_llvmcall_expr($op, -1, TS, [W], [TS])
     end
 end
 
@@ -385,7 +385,8 @@ function count_zeros_func(W, I, op, tf = 1)
     instr = "@llvm.$op.v$(W)$(typ)"
     decl = "declare $vtyp $instr($vtyp, i1)"
     instrs = "%res = call $vtyp $instr($vtyp %0, i1 $tf)\nret $vtyp %res"
-    llvmcall_expr(decl, instrs, _Vec{W,I}, Tuple{_Vec{W,I}}, vtyp, (vtyp,), (:(data(v)),))
+    rettypexpr = :(_Vec{$W,$I})
+    llvmcall_expr(decl, instrs, rettypexpr, :(Tuple{$rettypexpr}), vtyp, [vtyp], [:(data(v))])
 end
 # @generated Base.abs(v::Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "abs", 0)
 @generated vleading_zeros(v::Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "ctlz")
@@ -394,14 +395,14 @@ end
 
 
 for (op,f) ∈ [("ctpop", :vcount_ones)]
-    @eval @generated $f(v1::Vec{W,T}) where {W,T} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, (W,), (TS,)))
+    @eval @generated $f(v1::Vec{W,T}) where {W,T} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, [W], [TS]))
 end
 
 for (op,f) ∈ [("fshl",:funnel_shift_left),("fshr",:funnel_shift_right)
               ]
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W,T}
         TS = JULIA_TYPES[T]
-        build_llvmcall_expr($op, W, TS, (W,W,W), (TS,TS,TS))
+        build_llvmcall_expr($op, W, TS, [W,W,W], [TS,TS,TS])
     end
 end
 @inline function funnel_shift_left(a::T, b::T, c::T) where {T}
