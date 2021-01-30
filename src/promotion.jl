@@ -44,22 +44,25 @@ signorunsign(i, ::False) = unsigned(i)
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{VecUnroll{M,W,T2}}) where {M,N,W,T1,T2} = VecTile{M,N,W,promote_rule(T1,T2)}
 # Base.promote_rule(::Type{VecTile{M,N,W,T1}}, ::Type{VecTile{M,N,W,T2}}) where {M,N,W,T1,T2} = VecTile{M,N,W,promote_rule(T1,T2)}
 
-@generated function ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: IntegerTypes, T2 <: FloatingTypes,W}
+@generated function _ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}, ::StaticInt{RS}) where {T1 <: IntegerTypes, T2 <: FloatingTypes,W, RS}
     T_canon = promote_type(T1,T2)
-    rs = dynamic_register_size()
-    (sizeof(T_canon) * W ≤ rs) && return T_canon
-    @assert sizeof(T1) * W ≤ rs
+    (sizeof(T_canon) * W ≤ RS) && return T_canon
+    @assert sizeof(T1) * W ≤ RS
     @assert sizeof(T1) == 4
     Float32
 end
-
-@generated function Base.promote_rule(::Type{V1}, ::Type{V2}) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2}}
-    T = promote_type(T1,T2)
-    if pick_vector_width(T) ≥ W
+@inline function ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: IntegerTypes, T2 <: FloatingTypes,W}
+    _ff_promote_rule(T1, T2, Val{W}(), register_size())
+end
+@generated function _promote_rule(
+    ::Type{V1}, ::Type{V2}, ::StaticInt{RS}
+) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2},RS}
+    T = promote_type(T1,T2) # `T1` and `T2` should be defined in `Base`
+    if RS ≥ W * sizeof(T)
         return :(Vec{$W,$T})
     end
     if T === Float64 || T === Float32
-        N, r1 = (sizeof(T) * W) ÷ dynamic_register_size()
+        N, r1 = (sizeof(T) * W) ÷ RS
         Wnew, r2 = divrem(W, N)
         @assert iszero(r)
         
@@ -74,22 +77,35 @@ end
     V2MM = V2 <: MM
     if V1MM ⊻ V2MM
         V1MM ? :(Vec{$W,$T2}) : :(Vec{$W,$T1})
-    else
-        I = pick_integer(W, sizeof(Int), 4 - 3V1MM) # 
-        T <: Unsigned ? :(Vec{$W,$(unsigned(I))}) : :(Vec{$W,$I})
+    else # either both are `MM` or neither are
+        B = W ÷ sizeof(T)
+        if !V1MM # if neither are
+            B = max(4, B)
+        end
+        I = integer_of_bytes_symbol(B, T <: Unsigned)
+        :(Vec{$W,$I})
     end
 end
+@inline function Base.promote_rule(::Type{V1}, ::Type{V2}) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2}}
+    _promote_rule(V1, V2, register_size(promote_type(T1,T2)))
+end
 
-@generated function Base.promote_rule(
+maybethrow(::True) = throw(ArgumentError("The arguments were invalid."))
+maybethrow(::False) = nothing
+
+# not @generated, because calling `promote_type` on vector types
+@inline function Base.promote_rule(
     ::Type{<:VecUnroll{Nm1,Wsplit,T,V1}}, ::Type{V2}
 ) where {Nm1,Wsplit,T,T2,V1,W,V2<:AbstractSIMDVector{W,T2}}
-    N = Nm1 + 1
-    @assert N * Wsplit == W
-    V3 = if V2 <: Mask
-        Mask{Wsplit,mask_type(Wsplit)}
-    else
-        Vec{Wsplit,T2}
-    end
+    maybethrow(ArrayInterface.ne(StaticInt{Nm1}() * StaticInt{Wsplit}() + StaticInt{Wsplit}(), StaticInt{W}()))
+    V3 = Vec{Wsplit,T2}
+    _assemble_vec_unroll(Val{Nm1}(), promote_type(V1,V3))
+end
+@inline function Base.promote_rule(
+    ::Type{<:VecUnroll{Nm1,Wsplit,T,V1}}, ::Type{V2}
+) where {Nm1,Wsplit,T,V1,W,V2<:Mask{W}}
+    maybethrow(ArrayInterface.ne(StaticInt{Nm1}() * StaticInt{Wsplit}() + StaticInt{Wsplit}(), StaticInt{W}()))
+    V3 = Mask{Wsplit,mask_type(StaticInt{Wsplit}())}
     _assemble_vec_unroll(Val{Nm1}(), promote_type(V1,V3))
 end
 

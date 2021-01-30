@@ -5,10 +5,11 @@ Return aligned memory address with minimum increment. `align` assumes `n` is a
 power of 2.
 """
 function align end
-@inline align(x::Integer) = vadd_fast(x, register_size()-1) & -register_size()
-@inline align(x::Ptr{T}, args...) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x), args...))
+@inline align(x::Integer) = vadd_fast(x, Int(register_size()-One())) & Int(-register_size())
+@inline align(x::Ptr{T}, arg) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x), arg))
+@inline align(x::Ptr{T}) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x)))
 @inline align(x::Integer, n) = (nm1 = n - One(); (x + nm1) & -n)
-@inline align(x::Integer, ::Type{T}) where {T} = align(x, sregister_size() ÷ static_sizeof(T))
+@inline align(x::Integer, ::Type{T}) where {T} = align(x, register_size() ÷ static_sizeof(T))
 
 # @generated align(::Val{L}, ::Type{T}) where {L,T} = align(L, T)
 aligntrunc(x::Integer, n) = x & -n

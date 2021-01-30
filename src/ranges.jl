@@ -2,18 +2,20 @@
 
 
 
-@generated function vrange(::Val{W}, ::Type{T}, ::Val{O}, ::Val{F}) where {W,T,O,F}
-    if T <: Integer
-        _T2 = pick_integer(W, sizeof(T))
-        T2 = T <: Signed ? _T2 : unsigned(_T2)
-    else
-        T2 = T
-    end
+@generated function _vrange(::Val{W}, ::Type{T}, ::Val{O}, ::Val{F}) where {W,T,O,F}
     t = Expr(:tuple)
-    foreach(w -> push!(t.args, Expr(:call, :(Core.VecElement), T2(F*w + O))), 0:W-1)
+    foreach(w -> push!(t.args, Expr(:call, :(Core.VecElement), T(F*w + O))), 0:W-1)
     Expr(:block, Expr(:meta, :inline), Expr(:call, :Vec, t))
 end
+@inline function vrange(::Val{W}, ::Type{T}, ::Val{O}, ::Val{F}) where {W,T,O,F}
+    _vrange(Val{W}(), pick_integer(Val{W}(), T), Val{O}(), Val{F}())
+end
 
+function pick_integer_bytes(W::Int, preferred::Int, sirs::Int, minbytes::Int = min(preferred,4))
+    # SIMD quadword integer support requires AVX512DQ
+    # preferred = AVX512DQ ? preferred :  min(4, preferred)
+    max(minbytes,min(preferred, prevpow2(sirs ÷ W)))
+end
 """
   vrange(::Val{W}, i::I, ::Val{O}, ::Val{F})
 
@@ -22,9 +24,9 @@ i::I - dynamic offset
 O - static offset
 F - static multiplicative factor
 """
-@generated function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
+@generated function _vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}, ::StaticInt{SIRS}) where {W,I<:Integer,O,F,SIRS}
     isone(W) && return Expr(:block, Expr(:meta,:inline), :(vadd_fast(i, $(O % I))))
-    bytes = pick_integer_bytes(W, sizeof(I))
+    bytes = pick_integer_bytes(W, sizeof(I), SIRS)
     bits = 8bytes
     jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
     iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
@@ -41,6 +43,9 @@ F - static multiplicative factor
         $(Expr(:meta,:inline))
         Vec(llvmcall($instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
     end
+end
+@inline function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
+    _vrangeincr(Val{W}(), i, Val{O}(), Val{F}(), simd_integer_register_size())
 end
 @generated function vrangeincr(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
     isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.FastMath.add_fast(i, $(T(O)))))
@@ -138,9 +143,9 @@ end
 vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 
 # Division
-@generated function floattype(::Val{W}) where {W}
-    (dynamic_register_size() ÷ W) ≥ 8 ? :Float64 : :Float32
-end
+@generated _floattype(::Union{StaticInt{R},Val{R}}) where {R} = R ≥ 8 ? :Float64 : :Float32
+@inline floattype(::Val{W}) where {W} = _floattype(register_size() ÷ StaticInt{W}())
+
 @inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(i.i % pick_integer(Val{W}(),I))))
 @inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline vfdiv(j::T, i::MM) where {T<:Real} = j / float(i)

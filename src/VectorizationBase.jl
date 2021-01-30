@@ -4,10 +4,11 @@ import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse
 using ArrayInterface:
     StaticInt, Zero, One, StaticBool, True, False,
     contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
-    device, CPUPointer, CPUIndex,    
+    device, CPUPointer, CPUIndex, eq, ne, lt, le, gt, ge,
     known_length, known_first, known_last, strides, offsets,
     static_first, static_last, static_length
 import IfElse: ifelse
+using Preferences
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
@@ -17,7 +18,7 @@ Base.@pure asvalint(r) = Val(map(Int, r))
 @inline val_dense_dims(A) = asvalbool(ArrayInterface.dense_dims(A))
 
 # doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
-export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, 
+export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False,
     vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub
 
 using Base: llvmcall, VecElement, HWReal
@@ -52,7 +53,8 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
     @generated function Vec(x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}) where {_W,T<:NativeTypes}
         W = _W + 1
         # @assert W === pick_vector_width(W, T)# || W === 8
-        Expr(:block, Expr(:meta,:inline), Expr(:call, Expr(:curly, :Vec, W, T), :x))
+        vtyp = Expr(:curly, :Vec, W, T)
+        Expr(:block, Expr(:meta,:inline), Expr(:(::), Expr(:call, vtyp, :x), vtyp))
     end
     # @inline function Vec(x::NTuple{W,<:Core.VecElement}) where {W}
     #     T = eltype(x)
@@ -65,14 +67,14 @@ end
 @inline Base.copy(v::AbstractSIMDVector) = v
 @inline asvec(x::_Vec) = Vec(x)
 @inline asvec(x) = x
-@inline data(vu::VecUnroll) = vu.data
+@inline data(vu::VecUnroll) = getfield(vu, :data)
 
 # struct VecUnroll{N,W,T} <: AbstractSIMDVector{W,T}
 #     data::NTuple{N,Vec{W,T}}
 # end
 
 @inline unrolleddata(x) = x
-@inline unrolleddata(x::VecUnroll) = x.data
+@inline unrolleddata(x::VecUnroll) = getfield(x, :data)
 # struct VecTile{M,N,W,T} <: AbstractSIMDVector{W,T}
     # data::NTuple{N,VecUnroll{M,Vec{W,T}}}
 # end
@@ -161,6 +163,8 @@ end
 @inline (v::AbstractSIMDVector)(i::Integer) = extractelement(v, Int(i) - 1)
 Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = vu.data[j](i)
 
+@inline Base.Tuple(v::Vec{W}) where {W} = ntuple(v, Val{W}())
+
 # @inline function Vec{N,T}(v::Vec{N,T2}) where {N,T,T2}
     # @inbounds Vec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
 # end
@@ -174,7 +178,7 @@ Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = vu.data[j](i)
 # Use with care in function signatures; try to avoid the `T` to stay clean on Test.detect_unbound_args
 
 @inline data(v) = v
-@inline data(v::Vec) = v.data
+@inline data(v::Vec) = getfield(v, :data)
 #@inline data(v::AbstractSIMDVector) = v.data
 # @inline extract_value(v::Vec, i) = v[i].value
 # @inline extract_value(v::Vec, i) = v.data[i].value
@@ -220,7 +224,7 @@ end
 @inline MM(i::MM{W,X}) where {W,X} = MM{W,X}(i.i)
 @inline MM{W}(i::Union{HWReal,StaticInt}) where {W} = MM{W,1}(i)
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
-@inline data(i::MM) = i.i
+@inline data(i::MM) = getfield(i, :i)
 
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = i.i + (X % I) * (j % I)
 
@@ -231,17 +235,17 @@ For use in spin-and-wait loops, like spinlocks.
 """
 @inline pause() = ccall(:jl_cpu_pause, Cvoid, ())
 
-notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
-function assert_init_has_finished()
-    _init_has_finished[] || throw(ErrorException("bad stuff happened"))
-    return nothing
-end
+# notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
+# function assert_init_has_finished()
+#     _init_has_finished[] || throw(ErrorException("bad stuff happened"))
+#     return nothing
+# end
 
 include("static.jl")
 include("cartesianvindex.jl")
 include("topology.jl")
 include("cpu_info.jl")
-include("cache_inclusivity.jl")
+# include("cache_inclusivity.jl")
 include("early_definitions.jl")
 include("promotion.jl")
 include("llvm_types.jl")
@@ -253,11 +257,6 @@ include("strided_pointers/grouped_strided_pointers.jl")
 include("strided_pointers/cse_stridemultiples.jl")
 include("llvm_intrin/binary_ops.jl")
 include("vector_width.jl")
-function demoteint(T, W)
-    Wpick = pick_vector_width(T)
-    (W > Wpick) && (T <: Integer) && (sizeof(T) == 8)
-end
-
 include("ranges.jl")
 include("llvm_intrin/conversion.jl")
 include("llvm_intrin/masks.jl")
@@ -275,9 +274,14 @@ include("alignment.jl")
 include("special/misc.jl")
 # include("special/log.jl")
 
-@generated function simd_vec(y::_T, x::Vararg{_T,_W}) where {_T,_W}
+demoteint(::Type{T}, W) where {T} = False()
+demoteint(::Type{UInt64}, W::StaticInt) = gt(W, pick_vector_width(UInt64))
+demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
+
+
+@generated function simd_vec(::DemoteInt, y::_T, x::Vararg{_T,_W}) where {DemoteInt<:StaticBool,_T,_W}
     W = 1 + _W
-    T = demoteint(_T, W) ? _demoteint(_T) : _T
+    T = DemoteInt === True ? _demoteint(_T) : _T
     trunc = T !== _T
     Wfull = nextpow2(W)
     ty = LLVM_TYPES[T]
@@ -301,78 +305,56 @@ include("special/misc.jl")
         Vec($llvmc)
     end
 end
-function vec_quote(W, Wpow2, offset::Int = 0)
-    call = Expr(:call, :simd_vec); Wpow2 += offset
+function vec_quote(demote, W, Wpow2, offset::Int = 0)
+    call = Expr(:call, :simd_vec, Expr(:call, demote ? :True : :False)); Wpow2 += offset
     iszero(offset) && push!(call.args, :y)
     foreach(w -> push!(call.args, Expr(:ref, :x, w)), max(1,offset):min(W,Wpow2)-1)
     # foreach(w -> push!(call.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
     call
 end
-@generated function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
+@generated function _vec(::StaticInt{_Wpow2}, ::DemoteInt, y::T, x::Vararg{T,_W}) where {DemoteInt<:StaticBool, _Wpow2, _W, T <: NativeTypes}
     W = _W + 1
-    Wpow2 = pick_vector_width(W, T)
-    Wpow2 += Wpow2 * demoteint(T, W)
+    demote = DemoteInt === True
+    Wpow2 = demote ? 2_Wpow2 : _Wpow2
     if W ≤ Wpow2
-        vec_quote(W, Wpow2)
+        vec_quote(demote, W, Wpow2)
     else
         tup = Expr(:tuple)
         offset = 0
         while offset < W
-            push!(tup.args, vec_quote(W, Wpow2, offset)); offset += Wpow2
+            push!(tup.args, vec_quote(demote, W, Wpow2, offset)); offset += Wpow2
         end
         Expr(:call, :VecUnroll, tup)
     end
 end
+@inline function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
+    W = StaticInt{_W}() + One()
+    _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
+end
 
-
-const TOPOLOGY = Topology()
-# function reduce_to_onevec_quote(Nm1)
-#     N = Nm1 + 1
-#     q = Expr(:block, Expr(:meta,:inline))
-#     assign = Expr(:tuple); syms = Vector{Symbol}(undef, N)
-#     for n ∈ 1:N
-#         x_n = Symbol(:x_, n)
-#         push!(assign.args, x_n); syms[n] = x_n;
-#     end
-#     push!(q.args, Expr(:(=), assign, :(data(vu))))
-#     while N > 1
-#         tz = trailing_zeros(N)
-#         for h ∈ 1:tz
-#             N >>= 1
-#             for n ∈ 1:N
-#                 push!(q.args, Expr(:(=), syms[n], Expr(:call, :f, syms[n], syms[n+N])))
-#             end
-#         end
-#         if N > 1 # N must be odd
-#             push!(q.args, Expr(:(=), syms[N-1], Expr(:call, :f, syms[N-1], syms[N])))
-#             N -= 1
-#         end
-#     end
-#     push!(q.args, first(syms))
-#     q
-# end
-# @generated function reduce_to_onevec(f::F, vu::VecUnroll{Nm1}) where {F, Nm1}
-#     reduce_to_onevec_quote(Nm1)
-# end
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} = ArrayInterface.reduce_tup(f, data(vu))
 
-include("precompile.jl")
-_precompile_()
+# include("precompile.jl")
+# _precompile_()
 
-const _init_has_finished = Ref(false)
 
 function __init__()
-    set_features!()
-    try
-        TOPOLOGY.topology = Hwloc.topology_load();
-    catch e
-        @warn e
-        @warn """
-            Using Hwloc failed. Please file an issue with the above warning at: https://github.com/JuliaParallel/Hwloc.jl
-            Proceeding with generic topology assumptions. This may result in reduced performance.
-        """
+    reset_features!()
+    safe_topology_load!()
+    for (attr,f) ∈ [
+        ("L1Cache", :num_l1cache),
+        ("L2Cache", :num_l2cache),
+        ("L3Cache", :num_l3cache),
+        ("L4Cache", :num_l4cache),
+        ("Machine", :num_machines),
+        ("Package", :num_sockets),
+        ("Core", :num_cores),
+        ("PU", :num_threads)
+    ]
+        redefine_attr_count(attr, f)
     end
-    _init_has_finished[] = true
+    foreach(redefine_cache, 1:4)
+    
     return nothing
 end
 

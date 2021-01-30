@@ -16,7 +16,7 @@ It additionally provides some information on the host computer it is running on,
 ```julia
 julia> using VectorizationBase
 
-julia> vx = Vec(ntuple(_ -> 10randn(), VectorizationBase.pick_vector_width_val(Float64))...)
+julia> vx = Vec(ntuple(_ -> 10randn(), VectorizationBase.pick_vector_width(Float64))...)
 Vec{8,Float64}<14.424983437388981, -7.7378330531368045, -3.499708331670689, -3.358981392002452, 22.519898671389406, -13.08647686033593, 13.96943264299162, -9.518537139443254>
 
 julia> vx[1]
@@ -41,6 +41,9 @@ julia> vx(1), vx(2)
 
 julia> ntuple(vx, Val(8))
 (14.424983437388981, -7.7378330531368045, -3.499708331670689, -3.358981392002452, 22.519898671389406, -13.08647686033593, 13.96943264299162, -9.518537139443254)
+
+julia> Tuple(vx) # defined for convenience
+(14.424983437388981, -7.7378330531368045, -3.499708331670689, -3.358981392002452, 22.519898671389406, -13.08647686033593, 13.96943264299162, -9.518537139443254)
 ```
 Unfortunately, this means no support for indexing with `begin`/`end`.
 
@@ -49,16 +52,16 @@ Reductions are like the ordinary version, but prefixed with `v`:
 ```julia
 julia> using VectorizationBase: vsum, vprod, vmaximum, vminimum
 
-julia> vsum(vx), sum(ntuple(vx, Val(8)))
+julia> vsum(vx), sum(Tuple(vx))
 (13.712777975180877, 13.712777975180877)
 
-julia> vprod(vx), prod(ntuple(vx, Val(8)))
+julia> vprod(vx), prod(Tuple(vx))
 (-5.141765647043406e7, -5.141765647043406e7)
 
-julia> vmaximum(vx), maximum(ntuple(vx, Val(8)))
+julia> vmaximum(vx), maximum(Tuple(vx))
 (22.519898671389406, 22.519898671389406)
 
-julia> vminimum(vx), minimum(ntuple(vx, Val(8)))
+julia> vminimum(vx), minimum(Tuple(vx))
 (-13.08647686033593, -13.08647686033593)
 ```
 

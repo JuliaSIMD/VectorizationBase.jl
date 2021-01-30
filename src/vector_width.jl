@@ -1,13 +1,14 @@
 
-ispow2(x::Integer) = count_ones(x) < 2
 # nextpow2(W) = vshl(one(W), vsub_fast(8sizeof(W), leading_zeros(vsub_fast(W, one(W)))))
 
 
 
-pick_vector(::Type{T}) where {T} = _pick_vector(pick_vector_width_val(T), T)
-_pick_vector(::StaticInt{W}, ::Type{T}) where {W,T} = Vec{W,T}
-@generated pick_vector(::Val{N}, ::Type{T}) where {N, T} =  Expr(:curly, :Vec, pick_vector_width(N, T), T)
-pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
+# @inline _pick_vector(::StaticInt{W}, ::Type{T}) where {W,T} = Vec{W,T}
+# @inline pick_vector(::Type{T}) where {T} = _pick_vector(pick_vector_width(T), T)
+# @inline function pick_vector(::Val{N}, ::Type{T}) where {N, T}
+#     _pick_vector(smin(nextpow2(StaticInt{N}()), pick_vector_width(T)), T)
+# end
+# pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
 
 @inline MM(::Union{Val{W},StaticInt{W}}) where {W} = MM{W}(0)
 @inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
@@ -47,4 +48,10 @@ pick_vector(N::Int, ::Type{T}) where {T} = pick_vector(Val(N), T)
     vm = Vec(m)
     (vm ≥ first(r)) & (vm ≤ last(r))
 end
+
+@inline function pick_vector_width_shift(args::Vararg{Any,K}) where {K}
+    W = pick_vector_width(args...)
+    W, intlog2(W)
+end
+    
 
