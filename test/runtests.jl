@@ -838,6 +838,37 @@ include("testsetup.jl")
         si = VectorizationBase.LazyMulAdd{2}(240)
         @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
+    @time @testset "Static Zero and One" begin
+        vx = randnvec(W64)
+        vu = VectorizationBase.VecUnroll((vx,randnvec(W64)))
+        vm = MM{16}(24);
+        for f ∈ [+,Base.FastMath.add_fast]
+            @test f(vx, Zero()) === f(Zero(), vx) === vx
+            @test f(vu, Zero()) === f(Zero(), vu) === vu
+            @test f(vm, Zero()) === f(Zero(), vm) === vm
+        end
+        for f ∈ [-,Base.FastMath.sub_fast]
+            @test f(vx, Zero()) ===  vx
+            @test f(Zero(), vx) === -vx
+            @test f(vu, Zero()) ===  vu
+            @test f(Zero(), vu) === -vu
+            @test f(vm, Zero()) ===  vm
+            @test f(Zero(), vm) === -vm
+        end
+        for f ∈ [*,Base.FastMath.mul_fast]
+            @test f(vx, Zero()) === f(Zero(), vx) === Zero()
+            @test f(vu, Zero()) === f(Zero(), vu) === Zero()
+            @test f(vm, Zero()) === f(Zero(), vm) === Zero()
+            @test f(vx, One()) === f(One(), vx) === vx
+            @test f(vu, One()) === f(One(), vu) === vu
+            @test f(vm, One()) === f(One(), vm) === vm
+        end
+        vnan = NaN * vx
+        for f ∈ [fma, muladd, VectorizationBase.vfma_fast, VectorizationBase.vmuladd_fast]
+            @test f(vnan, Zero(), vx) === vx
+            @test f(Zero(), vnan, vx) === vx
+        end
+    end
     @time @testset "Arch Functions" begin
         @test VectorizationBase.dynamic_register_size() == @inferred(VectorizationBase.register_size()) == @inferred(VectorizationBase.sregister_size())
         @test VectorizationBase.dynamic_integer_register_size() == @inferred(VectorizationBase.simd_integer_register_size()) == @inferred(VectorizationBase.ssimd_integer_register_size())

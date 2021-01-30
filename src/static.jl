@@ -41,12 +41,21 @@ for f ∈ [:vadd_fast, :vsub_fast, :vmul_fast]
     @eval @inline $f(::StaticInt{M}, n::Number) where {M} = $f(M, n)
     @eval @inline $f(m::Number, ::StaticInt{N}) where {N} = $f(m, N)
 end
-
-@inline vsub_fast(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
-# @inline vsub_fast(::Zero, ::StaticInt{N}) where {N} = StaticInt{-N}()
+@inline vsub_fast(::Zero, m::Number) = -m
+@inline vsub_fast(m::Number, ::Zero) =  m
 @inline vsub_fast(::Zero, ::Zero) = Zero()
-@inline vsub_fast(a::Number, ::Zero) = a
-@inline vsub_fast(a, ::Zero) = a
+@inline vsub_fast(::Zero, ::StaticInt{N}) where {N} = -StaticInt{N}()
+@inline vsub_fast(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
+@inline vsub(::Zero, m::Number) = -m
+@inline vsub(m::Number, ::Zero) =  m
+@inline vsub(::Zero, ::Zero) =  Zero()
+
+
+# @inline vsub_fast(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
+# @inline vsub_fast(::Zero, ::StaticInt{N}) where {N} = StaticInt{-N}()
+# @inline vsub_fast(::Zero, ::Zero) = Zero()
+# @inline vsub_fast(a::Number, ::Zero) = a
+# @inline vsub_fast(a, ::Zero) = a
 
 @inline vadd_fast(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
 @inline vadd_fast(::Zero, ::StaticInt{N}) where {N} = StaticInt{N}()
@@ -119,6 +128,9 @@ for V ∈ [:AbstractSIMD, :MM]
 
         @inline Base.FastMath.add_fast(::Zero, x::$V) = x
         @inline Base.FastMath.add_fast(x::$V, ::Zero) = x
+
+        @inline Base.FastMath.sub_fast(::Zero, x::$V) = -x
+        @inline Base.FastMath.sub_fast(x::$V, ::Zero) =  x
     end
 end
 

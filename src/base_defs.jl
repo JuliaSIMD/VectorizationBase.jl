@@ -210,16 +210,22 @@ end
 @inline IfElse.ifelse(f::Function, m::AbstractSIMD{W,B}, args::Vararg{NativeTypesV,K}) where {W,K,B<:Union{Bool,Bit}} = vifelse(f, m, args...)
 @inline IfElse.ifelse(f::Function, m::Bool, args::Vararg{NativeTypesV,K}) where {K} = vifelse(f, m, args...)
 for (f,add,mul) ∈ [
+    (:fma,:(+),:(*)), (:muladd,:(+),:(*)),
     (:vfma,:(+),:(*)), (:vmuladd,:(+),:(*)),
     (:vfma_fast,:(Base.FastMath.add_fast),:(Base.FastMath.mul_fast)),
     (:vmuladd_fast,:(Base.FastMath.add_fast),:(Base.FastMath.mul_fast))
 ]
-    @eval begin
-        @inline function $f(a::NativeTypesV, b::NativeTypesV, c::NativeTypesV)
-            x, y, z = promote(a, b, c)
-            $f(x, y, z)
+    if (f !== :fma) && (f !== :muladd)
+        @eval begin
+            @inline function $f(a::NativeTypesV, b::NativeTypesV, c::NativeTypesV)
+                x, y, z = promote(a, b, c)
+                $f(x, y, z)
+            end
         end
-
+    else
+        f = :(Base.$f)
+    end
+    @eval begin
         @inline $f(a::Zero, b::NativeTypesV, c::NativeTypesV) = c
         @inline $f(a::NativeTypesV, b::Zero, c::NativeTypesV) = c
         @inline $f(a::Zero, b::Zero, c::NativeTypesV) = c
