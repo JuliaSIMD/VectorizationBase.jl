@@ -110,4 +110,15 @@ end
 @inline vmul_fast(::VecUnroll, ::Zero) = Zero()
 @inline vmul_fast(::Zero, ::VecUnroll) = Zero()
 
+for V ∈ [:AbstractSIMD, :MM]
+    @eval begin
+        @inline Base.FastMath.mul_fast(::Zero, x::$V) = Zero()
+        @inline Base.FastMath.mul_fast(::One, x::$V) = x
+        @inline Base.FastMath.mul_fast(x::$V, ::Zero) = Zero()
+        @inline Base.FastMath.mul_fast(x::$V, ::One) = x
+
+        @inline Base.FastMath.add_fast(::Zero, x::$V) = x
+        @inline Base.FastMath.add_fast(x::$V, ::Zero) = x
+    end
+end
 
