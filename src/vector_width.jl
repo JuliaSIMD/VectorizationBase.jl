@@ -32,6 +32,7 @@
 @inline vadd(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_fast(i, j.i))
 @inline vsub(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub_fast(i.i, j))
 @inline vsub(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(i.i, j))
+@inline vsub(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 @inline vsub(i::MM) = i * StaticInt{-1}()
 @inline vmul(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(vmul_fast(i.i, StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
 @inline vmul(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(vmul_fast(i.i, StaticInt{M}()), StaticInt{X}() * StaticInt{M}())

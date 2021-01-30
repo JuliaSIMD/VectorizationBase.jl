@@ -840,6 +840,38 @@ include("testsetup.jl")
     #     @test VectorizationBase.dynamic_register_count() == @inferred(VectorizationBase.register_count()) == @inferred(VectorizationBase.sregister_count())
     #     @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
     #     @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
+    # end
+    @time @testset "Static Zero and One" begin
+        vx = randnvec(W64)
+        vu = VectorizationBase.VecUnroll((vx,randnvec(W64)))
+        vm = MM{16}(24);
+        for f ∈ [+,Base.FastMath.add_fast]
+            @test f(vx, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vx) === vx
+            @test f(vu, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vu) === vu
+            @test f(vm, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vm) === vm
+        end
+        for f ∈ [-,Base.FastMath.sub_fast]
+            @test f(vx, VectorizationBase.Zero()) ===  vx
+            @test f(VectorizationBase.Zero(), vx) === -vx
+            @test f(vu, VectorizationBase.Zero()) ===  vu
+            @test f(VectorizationBase.Zero(), vu) === -vu
+            @test f(vm, VectorizationBase.Zero()) ===  vm
+            @test f(VectorizationBase.Zero(), vm) === -vm
+        end
+        for f ∈ [*,Base.FastMath.mul_fast]
+            @test f(vx, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vx) === VectorizationBase.Zero()
+            @test f(vu, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vu) === VectorizationBase.Zero()
+            @test f(vm, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vm) === VectorizationBase.Zero()
+            @test f(vx, VectorizationBase.One()) === f(VectorizationBase.One(), vx) === vx
+            @test f(vu, VectorizationBase.One()) === f(VectorizationBase.One(), vu) === vu
+            @test f(vm, VectorizationBase.One()) === f(VectorizationBase.One(), vm) === vm
+        end
+        vnan = NaN * vx
+        for f ∈ [fma, muladd, VectorizationBase.vfma_fast, VectorizationBase.vmuladd_fast]
+            @test f(vnan, VectorizationBase.Zero(), vx) === vx
+            @test f(VectorizationBase.Zero(), vnan, vx) === vx
+        end
+    end
 
     #     @test VectorizationBase.dynamic_cache_inclusivity() === VectorizationBase.cache_inclusivity()
 
