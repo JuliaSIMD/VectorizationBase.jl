@@ -843,30 +843,30 @@ include("testsetup.jl")
         vu = VectorizationBase.VecUnroll((vx,randnvec(W64)))
         vm = MM{16}(24);
         for f ∈ [+,Base.FastMath.add_fast]
-            @test f(vx, Zero()) === f(Zero(), vx) === vx
-            @test f(vu, Zero()) === f(Zero(), vu) === vu
-            @test f(vm, Zero()) === f(Zero(), vm) === vm
+            @test f(vx, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vx) === vx
+            @test f(vu, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vu) === vu
+            @test f(vm, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vm) === vm
         end
         for f ∈ [-,Base.FastMath.sub_fast]
-            @test f(vx, Zero()) ===  vx
-            @test f(Zero(), vx) === -vx
-            @test f(vu, Zero()) ===  vu
-            @test f(Zero(), vu) === -vu
-            @test f(vm, Zero()) ===  vm
-            @test f(Zero(), vm) === -vm
+            @test f(vx, VectorizationBase.Zero()) ===  vx
+            @test f(VectorizationBase.Zero(), vx) === -vx
+            @test f(vu, VectorizationBase.Zero()) ===  vu
+            @test f(VectorizationBase.Zero(), vu) === -vu
+            @test f(vm, VectorizationBase.Zero()) ===  vm
+            @test f(VectorizationBase.Zero(), vm) === -vm
         end
         for f ∈ [*,Base.FastMath.mul_fast]
-            @test f(vx, Zero()) === f(Zero(), vx) === Zero()
-            @test f(vu, Zero()) === f(Zero(), vu) === Zero()
-            @test f(vm, Zero()) === f(Zero(), vm) === Zero()
-            @test f(vx, One()) === f(One(), vx) === vx
-            @test f(vu, One()) === f(One(), vu) === vu
-            @test f(vm, One()) === f(One(), vm) === vm
+            @test f(vx, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vx) === VectorizationBase.Zero()
+            @test f(vu, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vu) === VectorizationBase.Zero()
+            @test f(vm, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vm) === VectorizationBase.Zero()
+            @test f(vx, VectorizationBase.One()) === f(VectorizationBase.One(), vx) === vx
+            @test f(vu, VectorizationBase.One()) === f(VectorizationBase.One(), vu) === vu
+            @test f(vm, VectorizationBase.One()) === f(VectorizationBase.One(), vm) === vm
         end
         vnan = NaN * vx
         for f ∈ [fma, muladd, VectorizationBase.vfma_fast, VectorizationBase.vmuladd_fast]
-            @test f(vnan, Zero(), vx) === vx
-            @test f(Zero(), vnan, vx) === vx
+            @test f(vnan, VectorizationBase.Zero(), vx) === vx
+            @test f(VectorizationBase.Zero(), vnan, vx) === vx
         end
     end
     @time @testset "Arch Functions" begin
