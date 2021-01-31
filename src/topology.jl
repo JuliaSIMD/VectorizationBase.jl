@@ -200,7 +200,6 @@ end
 function redefine_cache(N)
     c = load_cache_preference(N, nothing_cache_summary())
     correct = dynamic_cache_summary(N)
-    # @show c === correct, c, correct
     c === correct || define_cache(N, correct)
     nothing
 end

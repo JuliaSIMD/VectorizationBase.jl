@@ -339,6 +339,7 @@ end
 
 
 function __init__()
+    ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
     safe_topology_load!()
     for (attr,f) ∈ [
@@ -354,7 +355,6 @@ function __init__()
         redefine_attr_count(attr, f)
     end
     foreach(redefine_cache, 1:4)
-    
     return nothing
 end
 
