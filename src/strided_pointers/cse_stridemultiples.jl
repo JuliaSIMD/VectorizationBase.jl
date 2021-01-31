@@ -147,4 +147,5 @@ end
 
 
 @inline tdot(ptr::OffsetPrecalc{T}, a, b, c) where {T} = tdot(T, a, b, ptr.precalc, c)
+@inline tdot(ptr::OffsetPrecalc, ::Tuple{}, ::Tuple{}, ::Tuple{}) = Zero()
 

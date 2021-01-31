@@ -906,7 +906,7 @@ end
     ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
 ) where {W, U}
     ishift = data(i) >> 3
-    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, A), data(v))
+    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, A, RS), data(v))
     vstore!(Base.unsafe_convert(Ptr{U}, ptr), u, ishift, A, S, NT, RS)
 end
 @inline function vstore!(f::F, ptr::Ptr{Bit}, v::Mask{W,U}, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt) where {W, U, F<:Function}
@@ -921,7 +921,7 @@ end
     f::F, ptr::Ptr{Bit}, v::Mask{W,U}, i::VectorIndex{W}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
 ) where {W, U, F<:Function}
     ishift = data(i) >> 3
-    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, A), data(v))
+    u = bitselect(data(m), vload(Base.unsafe_convert(Ptr{U}, ptr), ishift, A, RS), data(v))
     vstore!(f, Base.unsafe_convert(Ptr{U}, ptr), u, ishift, A, S, NT, RS)
 end
 
@@ -1001,7 +1001,10 @@ for (store,align,alias,nontemporal) ∈ [
         end
     end
 end
-
+@inline function vstore!(ptr::AbstractStridedPointer, v, i::Tuple, b::Bool, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt)
+    b && vstore!(ptr, v, i, A, S, NT, RS)
+    nothing
+end
 
 
 # unroll

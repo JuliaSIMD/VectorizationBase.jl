@@ -128,39 +128,39 @@ end
 @inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, A::StaticBool, RS::StaticInt) where {T,N}
     vload(pointer(ptr), linear_index(ptr, i), A, RS)
 end
-@inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m, A::StaticBool, RS::StaticInt) where {T,N}
+@inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m::Mask, A::StaticBool, RS::StaticInt) where {T,N}
     vload(pointer(ptr), linear_index(ptr, i), m, A, RS)
 end
 @inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, A::StaticBool, RS::StaticInt) where {T,I}
     vload(pointer(ptr), tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), A, RS)
 end
-@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m, A::StaticBool, RS::StaticInt) where {T,I}
+@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Mask, A::StaticBool, RS::StaticInt) where {T,I}
     vload(pointer(ptr), tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m, A, RS)
 end
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
 @inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, A::StaticBool, RS::StaticInt) where {T,I}
     vload(pointer(ptr), linear_index(ptr, i), A, RS)
 end
-@inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m, A::StaticBool, RS::StaticInt) where {T,I}
+@inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Mask, A::StaticBool, RS::StaticInt) where {T,I}
     vload(pointer(ptr), linear_index(ptr, i), m, A, RS)
 end
 # @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, ::True) where {T,I,C,B,R,X,O}
 #     vload(pointer(ptr), tdot(ptr, map(vsub_fast, i, offsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), True())
 # end
-# @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, m, ::True) where {T,I,C,B,R,X,O}
+# @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, m::Mask, ::True) where {T,I,C,B,R,X,O}
 #     vload(pointer(ptr), tdot(ptr, map(vsub_fast, i, offsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m, True())
 # end
 # @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, ::False) where {T,I,C,B,R,X,O}
 #     vload(pointer(ptr), tdot(ptr, map(vsub_fast, i, offsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), False())
 # end
-# @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, m, ::False) where {T,I,C,B,R,X,O}
+# @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,O}, i::Tuple{I}, m::Mask, ::False) where {T,I,C,B,R,X,O}
 #     vload(pointer(ptr), tdot(ptr, map(vsub_fast, i, offsets(ptr)), strides(ptr), contiguous_axis_indicator(ptr)), m, False())
 # end
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
 # @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{StaticInt{0}}}, i::Tuple{I}, A::StaticBool) where {T,I,C,B,R,X}
 #     vload(pointer(ptr), tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), A)
 # end
-# @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{StaticInt{0}}}, i::Tuple{I}, m, A::StaticBool) where {T,I,C,B,R,X}
+# @inline function vload(ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{StaticInt{0}}}, i::Tuple{I}, m::Mask, A::StaticBool) where {T,I,C,B,R,X}
 #     vload(pointer(ptr), tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m, A)
 # end
 
@@ -171,7 +171,7 @@ end
     vstore!(pointer(ptr), v, linear_index(ptr, i), A, S, NT, RS)
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
+    ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
 ) where {T,N}
     vstore!(pointer(ptr), v, linear_index(ptr, i), m, A, S, NT, RS)
 end
@@ -181,7 +181,7 @@ end
     vstore!(pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), A, S, NT, RS)
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
+    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
 ) where {T,I}
     vstore!(pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m, A, S, NT, RS)
 end
@@ -191,7 +191,7 @@ end
     vstore!(pointer(ptr), v, linear_index(ptr, i), A, S, NT, RS)
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
+    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Mask, A::StaticBool, S::StaticBool, NT::StaticBool, RS::StaticInt
 ) where {T,I}
     vstore!(pointer(ptr), v, linear_index(ptr, i), m, A, S, NT, RS)
 end

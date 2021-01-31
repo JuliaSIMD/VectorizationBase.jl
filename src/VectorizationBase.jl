@@ -228,6 +228,17 @@ end
 
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = i.i + (X % I) * (j % I)
 
+# function Base.getproperty(::AbstractSIMD, s)
+#     throw("""
+# `Base.getproperty` not defined on AbstractSIMD.
+# If you wish to access the underlying data, e.g. for use with `Base.llvmcall`, use `data(v) instead.`
+# If you wish to convert to work with the data as a tuple, it is recommended to use `Tuple(v)`.
+# Accessing individual elements can be done via `v(1)` for the first element.
+# Alternatively, `VectorizationBase.extractelement(v, i)` will access the `i+1`st element (0-indexed) and
+# `VectorizationBase.insertelement(v, x, i)` will insert `x` into position `i+1` (0-indexed).
+# """)
+# end
+
 """
   pause()
 

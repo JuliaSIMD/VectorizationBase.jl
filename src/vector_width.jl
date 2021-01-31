@@ -12,7 +12,9 @@
 
 @inline MM(::Union{Val{W},StaticInt{W}}) where {W} = MM{W}(0)
 @inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
+@inline MM(::StaticInt{W}, i, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline gep(ptr::Ptr, i::MM) = gep(ptr, i.i)
+
 
 @inline staticm1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vsub_fast(i.i, one(I)))
 @inline staticp1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vadd_fast(i.i, one(I)))
