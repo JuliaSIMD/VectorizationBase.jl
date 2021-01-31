@@ -342,8 +342,10 @@ end
     FastRange{T}(f + ii * s, r.s, Zero())
 end
 @inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, r.f) + convert(T, r.s) * (first(i) - convert(T, r.offset))
-@inline vload(r::FastRange, i::Tuple, m::Mask) = vload(r, i)
-@inline vload(r::FastRange, i::Tuple, m::Bool) = vload(r, i)
+@inline vload(r::FastRange, i::Tuple, m::Mask) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i, _, __) = vload(r, i)
+@inline vload(r::FastRange, i, m::Mask, __, ___) = vload(r, i, m)
 # @inline Base.getindex(r::FastRange, i::Integer) = vload(r, (i,))
 @inline Base.eltype(::FastRange{T}) where {T} = T
 

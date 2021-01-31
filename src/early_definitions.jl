@@ -36,26 +36,26 @@ end
 end
 
 function integer_of_bytes_symbol(bytes::Int, unsigned::Bool = false)
-    if bytes == 8
+    if bytes ≥ 8
         unsigned ? :UInt64 : :Int64
-    elseif bytes == 4
+    elseif bytes ≥ 4
         unsigned ? :UInt32 : :Int32
-    elseif bytes == 2
+    elseif bytes ≥ 2
         unsigned ? :UInt16 : :Int16
-    elseif bytes == 1
+    elseif bytes ≥ 1
         unsigned ? :UInt8 : :Int8
     else
         throw("$bytes is an invalid number of bytes for integers.")
     end
 end
 function integer_of_bytes(bytes::Int)
-    if bytes == 8
+    if bytes ≥ 8
         Int64
-    elseif bytes == 4
+    elseif bytes ≥ 4
         Int32
-    elseif bytes == 2
+    elseif bytes ≥ 2
         Int16
-    elseif bytes == 1
+    elseif bytes ≥ 1
         Int8
     else
         throw("$bytes is an invalid number of bytes for integers.")
