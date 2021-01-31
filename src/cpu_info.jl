@@ -33,19 +33,22 @@ function set_features!()
     end
     Libc.free(features_cstring)
 end
+function set_featue(feature, ext)
+    featqn = QuoteNode(Symbol(feature))
+    if first(ext) == '+'
+        @eval has_feature(::Val{$featqn}) = True()
+    else
+        @eval has_feature(::Val{$featqn}) = False()
+    end
+    @set_preferences!(feature => ext)
+end
 set_features!()
 function reset_features!()
     features, features_cstring = feature_string()
     for ext ∈ features
         feature = feature_name(ext)
         ext_pref = @load_preference(feature)
-        feature == ext_pref && continue
-        featqn = QuoteNode(Symbol(feature))
-        if first(ext) == '+'
-            @eval has_feature(::Val{$featqn}) = True()
-        else
-            @eval has_feature(::Val{$featqn}) = False()
-        end
+        ext != ext_pref && set_featue(feature, ext)
     end
     Libc.free(features_cstring)
 end

@@ -170,18 +170,19 @@ function dynamic_cache_summary(N)
 end
 function load_cache_preference(N, c)
     size_string = @load_preference("cache$(N)_size")
-    linesize_string = @load_preference("cache$(N)_size")
-    associativity_string = @load_preference("cache$(N)_size")
-    type_string = @load_preference("cache$(N)_size")
+    linesize_string = @load_preference("cache$(N)_linesize")
+    associativity_string = @load_preference("cache$(N)_associativity")
+    type_string = @load_preference("cache$(N)_type")
     inclusive_string = @load_preference("cache$(N)_inclusive")
     size = size_string === nothing ? c.size : parse(Int, size_string)::Int
     linesize = linesize_string === nothing ? c.linesize : parse(Int, linesize_string)::Int
     associativity = associativity_string === nothing ? c.associativity : parse(Int, associativity_string)::Int
     type = type_string === nothing ? c.type : Symbol(type_string)::Symbol
     inclusive = inclusive_string === nothing ? c.inclusive : parse(Bool, inclusive_string)::Bool
-    (size = c.size, linesize = c.linesize, associativity = c.associativity, type = c.type, inclusive = inclusive)
+    (size = size, linesize = linesize, associativity = associativity, type = type, inclusive = inclusive)
 end
-function define_cache(N, c)
+function define_cache(N, c = load_cache_preference(N, dynamic_cache_summary(N)))
+    c === nothing_cache_summary() && return
     @eval begin
         cache_size(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.size)}()
         cache_linesize(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.linesize)}()
@@ -199,10 +200,11 @@ end
 function redefine_cache(N)
     c = load_cache_preference(N, nothing_cache_summary())
     correct = dynamic_cache_summary(N)
+    # @show c === correct, c, correct
     c === correct || define_cache(N, correct)
     nothing
 end
-foreach(redefine_cache, 1:4)
+foreach(define_cache, 1:4)
 
 cache_linesize() = cache_linesize(Val(1))
 
