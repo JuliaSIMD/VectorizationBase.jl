@@ -1,7 +1,7 @@
 
 """
 AU - Unrolled axis
-F - Factor, step size per unroll
+F - Factor, step size per unroll. If AU == AV, `F == W` means successive loads. `1` would mean offset by `1`, e.g. `x{1:8]`, `x[2:9]`, and `x[3:10]`.
 N - How many times is it unrolled
 AV - Vectorized axis # 0 means not vectorized, some sort of reduction
 W - vector width
@@ -12,6 +12,7 @@ struct Unroll{AU,F,N,AV,W,M,I}
     i::I
 end
 @inline Unroll{AU,F,N,AV,W,M}(i::I) where {AU,F,N,AV,W,M,I} = Unroll{AU,F,N,AV,W,M,I}(i)
+
 
 const VectorIndexCore{W} = Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}
 const VectorIndex{W} = Union{VectorIndexCore{W},LazyMulAdd{<:Any,<:Any,<:VectorIndexCore{W}}}
@@ -295,7 +296,8 @@ function vload_quote(
         end
     end
     jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
-    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp)
+    jtyp_expr = Expr(:(.), :Base, QuoteNode(jtyp)) # reduce latency, hopefully
+    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp_expr)
 end
 function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::Int, T_sym::Symbol)
     D, r1 = divrem(W * sizeof_T, rs)
@@ -319,8 +321,8 @@ function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::I
     push!(q.args, :(VecUnroll($t)::VecUnroll{$(D-1),$Wnew,$T_sym,Vec{$Wnew,$T_sym}}))
     q
 end
-function vload_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
+function vload_quote_llvmcall(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Expr
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
@@ -398,14 +400,16 @@ function vload_quote(
         push!(args.args, mask_type(W))
         push!(largs, "i$(max(8,nextpow2(W)))")
     end
-    if isbit && W > 1
-        quote
-            $(Expr(:meta,:inline))
-            Mask{$W}($(llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)))
-        end
-    else
-        llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
+    return llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)
+end
+function vload_quote(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Expr
+)
+    call = vload_quote_llvmcall(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, ret)
+    if (W > 1) & (T_sym === :Bit)
+        call = Expr(:call, Expr(:curly, :Mask, W), call)
     end
+    Expr(:block, Expr(:meta,:inline), call)
 end
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
 
@@ -526,15 +530,12 @@ end
 function vstore_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
 )
-    if W > 1
-        vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs, :(_Vec{$W,$T_sym}))
-    else
-        vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs, T_sym)
-    end
+    jtyp = W > 1 ? :(_Vec{$W,$T_sym}) : :(Base.$T_sym)
+    vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs, jtyp)
 end
 function vstore_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
-    mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int, jtyp::Union{Symbol,Expr}
+    mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int, jtyp::Expr
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
@@ -845,12 +846,11 @@ function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
         end
         push!(baseind.args, i)
     end
-    WF = AU == AV ? W : 1
     inds = Vector{Expr}(undef, N)
     inds[1] = baseind
     for n in 1:N-1
         ind = copy(baseind)
-        i = Expr(:call, Expr(:curly, :StaticInt, n*F*WF))
+        i = Expr(:call, Expr(:curly, :StaticInt, n*F))
         if AU == AV && W > 1
             i = Expr(:call, Expr(:curly, :MM, W), i)
         end
@@ -859,6 +859,16 @@ function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
     end
     inds
 end
+# if either
+# x = rand(3,L);
+# foo(x[1,i],x[2,i],x[3,i])
+# `(AU == 1) & (AV == 2) & (F == 1) & (stride(p,2) == N)`
+# or
+# x = rand(3L);
+# foo(x[3i - 2], x[3i - 1], x[3i   ])
+# Index would be `(MM{W,3}(1),)`
+# so we have `AU == AV == 1`, but also `X == N == F`.
+
 
 function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool, align::Bool, rs::Int)
     t = Expr(:tuple)
@@ -878,6 +888,10 @@ function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M:
         gptr = gesp(ptr, u.i)
         VecUnroll($t)
     end
+end
+
+function vload_shuffle_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool, align::Bool, rs::Int)
+    
 end
 
 @generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I,T,D,RS}

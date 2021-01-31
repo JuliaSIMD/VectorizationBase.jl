@@ -333,8 +333,13 @@ include("testsetup.jl")
             for AV ∈ 1:3
                 v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
                 GC.@preserve B begin
-                    vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
-                    vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+                    if AU == AV
+                        vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
+                        vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))))
+                    else
+                        vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
+                        vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+                    end
                 end
                 @test v1 === vu.data[1]
                 @test v2 === vu.data[2]

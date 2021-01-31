@@ -352,18 +352,7 @@ function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
     safe_topology_load!()
-    for (attr,f) ∈ [
-        ("L1Cache", :num_l1cache),
-        ("L2Cache", :num_l2cache),
-        ("L3Cache", :num_l3cache),
-        ("L4Cache", :num_l4cache),
-        ("Machine", :num_machines),
-        ("Package", :num_sockets),
-        ("Core", :num_cores),
-        ("PU", :num_threads)
-    ]
-        redefine_attr_count(attr, f)
-    end
+    foreach_attr(redefine_attr_count)
     foreach(redefine_cache, 1:4)
     return nothing
 end

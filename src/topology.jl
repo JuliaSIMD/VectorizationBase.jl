@@ -69,18 +69,21 @@ function define_attr(attr, fname, v)
     nothing
 end
 
-for (attr,f) ∈ [
-    ("L1Cache", :num_l1cache),
-    ("L2Cache", :num_l2cache),
-    ("L3Cache", :num_l3cache),
-    ("L4Cache", :num_l4cache),
-    ("Machine", :num_machines),
-    ("Package", :num_sockets),
-    ("Core", :num_cores),
-    ("PU", :num_threads)
-]
-    define_attr_count(attr, f)
+function foreach_attr(@nospecialize(g))
+    for (attr,f) ∈ [
+        ("L1Cache", :num_l1cache),
+        ("L2Cache", :num_l2cache),
+        ("L3Cache", :num_l3cache),
+        ("L4Cache", :num_l4cache),
+        ("Machine", :num_machines),
+        ("Package", :num_sockets),
+        ("Core", :num_cores),
+        ("PU", :num_threads)
+    ]
+        g(attr, f)
+    end
 end
+foreach_attr(define_attr_count)
 
 num_cache(::Union{Val{1},StaticInt{1}}) = num_l1cache()
 num_cache(::Union{Val{2},StaticInt{2}}) = num_l2cache()
