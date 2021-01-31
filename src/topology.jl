@@ -17,7 +17,7 @@ end
 const TOPOLOGY = Topology()
 safe_topology_load!()
 
-function count_attr(topology::Hwloc.Object, attr)
+function count_attr(topology::Hwloc.Object, attr::Symbol)
     count = 0
     for t ∈ topology
         count += t.type_ == attr
@@ -25,17 +25,16 @@ function count_attr(topology::Hwloc.Object, attr)
     count
 end
 
-function count_attr(attr)
+function count_attr(attr::Symbol)
     topology = TOPOLOGY.topology
     topology === nothing && return nothing
     count_attr(topology, attr)
-    # Expr(:call, Expr(:curly, :StaticInt, count))
 end
 
 function define_attr_count(attr, fname)
     v = @load_preference(attr)
     if v === nothing
-        define_attr(attr, fname, count_attr(attr))
+        define_attr(attr, fname, count_attr(Symbol(attr)))
     else
         define_attr(attr, fname, parse(Int, v)::Int)
     end
@@ -47,13 +46,14 @@ function redefine_attr_count(attr, fname)
         correct === nothing || define_attr(attr, fname, correct)
     else
         v = parse(Int, v_string)::Int
-        v === correct || define_attr(attr, fname, correct)
+        v == correct || define_attr(attr, fname, correct)
     end
     nothing
 end
 function define_attr(attr, fname, v)
     if v === nothing
         @eval $fname() = nothing
+        return
     elseif v isa Integer
         @eval $fname() = StaticInt{$(convert(Int,v))}()
     elseif v isa Bool
