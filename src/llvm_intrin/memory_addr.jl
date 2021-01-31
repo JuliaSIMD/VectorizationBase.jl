@@ -908,7 +908,8 @@ function shuffle_quote(
     ::Type{T}, N, C, B, AU, F, UN, AV, W, ::Type{I}, align::Bool, rs::Int
 ) where {T,I}
     IT, ind_type, _W, X, M, O = index_summary(I)
-    @assert _W == W
+    # we don't require vector indices for `Unroll`s...
+    # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
     size_T = sizeof(T)
     # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
     ((((AU == C) && (C > 0)) && (F == 1)) && (X == (UN*size_T)) && (B < 1)) || return nothing
@@ -949,7 +950,7 @@ end
     # `maybeshufflequote` for now requires `mask` to be `false`
     maybeshufflequote === nothing || return maybeshufflequote
     
-    vload_unroll_quote(D, AU, F, N, AV, W, M, false, align, RS)
+    vload_unroll_quote(N, AU, F, UN, AV, W, M, false, align, RS)
 end
 @generated function _vload_unroll(sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I<:Index,T,D,RS}
     vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True, RS)
