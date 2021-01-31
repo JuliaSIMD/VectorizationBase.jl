@@ -334,9 +334,8 @@ end
 
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} = ArrayInterface.reduce_tup(f, data(vu))
 
-# include("precompile.jl")
-# _precompile_()
-
+include("precompile.jl")
+_precompile_()
 
 function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
