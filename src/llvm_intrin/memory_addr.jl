@@ -12,7 +12,11 @@ struct Unroll{AU,F,N,AV,W,M,I}
     i::I
 end
 @inline Unroll{AU,F,N,AV,W,M}(i::I) where {AU,F,N,AV,W,M,I} = Unroll{AU,F,N,AV,W,M,I}(i)
-
+@inline data(u::Unroll) = getfield(u, :i)
+@inline function linear_index(ptr::AbstractStridedPointer, u::Unroll{AU,F,N,AV,W,M,I}) where {AU,F,N,AV,W,M,I<:Tuple}
+    i = linear_index(ptr, data(u))
+    Unroll{AU,F,N,AV,W,M,typeof(i)}(i)
+end
 
 const VectorIndexCore{W} = Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}
 const VectorIndex{W} = Union{VectorIndexCore{W},LazyMulAdd{<:Any,<:Any,<:VectorIndexCore{W}}}
@@ -416,19 +420,22 @@ end
 # ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
 
 function index_summary(::Type{StaticInt{N}}) where {N}
-    #I, ind_type::Symbol, W::Int, X, M, O
-    Int, :StaticInt,     1,      1,  0, N
+    #I,    ind_type, W, X, M, O
+    Int, :StaticInt, 1,1,  0, N
 end
 function index_summary(::Type{I}) where {I <: IntegerTypesHW}
+    #I, ind_type, W, X, M, O
     I, :Integer, 1, 1, 1, 0
 end
 function index_summary(::Type{Vec{W,I}}) where {W, I <: IntegerTypes}
-    I,    :Vec,  W, 1, 1, 0
+    #I, ind_type, W, X, M, O
+    I,    :Vec,   W, 1, 1, 0
 end
 function index_summary(::Type{MM{W,X,I}}) where {W, X, I <: IntegerTypes}
-    IT, ind_type, _, __, ___, O = index_summary(I)
-    # I, :Integer, W, X, 1, 0
-    IT, ind_type, W, X, 1, O
+    #I, ind_type, W,  X, M, O
+    IT, ind_type, _, __, M, O = index_summary(I)
+    # inherit from parent, replace `W` and `X`
+    IT, ind_type, W, X, M, O
 end
 function index_summary(::Type{LazyMulAdd{LMAM,LMAO,LMAI}}) where {LMAM,LMAO,LMAI}
     I, ind_type, W, X, M, O = index_summary(LMAI)
@@ -859,16 +866,6 @@ function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int)
     end
     inds
 end
-# if either
-# x = rand(3,L);
-# foo(x[1,i],x[2,i],x[3,i])
-# `(AU == 1) & (AV == 2) & (F == 1) & (stride(p,2) == N)`
-# or
-# x = rand(3L);
-# foo(x[3i - 2], x[3i - 1], x[3i   ])
-# Index would be `(MM{W,3}(1),)`
-# so we have `AU == AV == 1`, but also `X == N == F`.
-
 
 function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool, align::Bool, rs::Int)
     t = Expr(:tuple)
@@ -885,20 +882,84 @@ function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M:
     end
     quote
         $(Expr(:meta, :inline))
-        gptr = gesp(ptr, u.i)
+        gptr = similar_no_offset(sptr, gep(pointer(sptr), data(data(u))))
+        # gptr = gesp(ptr, u.i)
         VecUnroll($t)
     end
 end
+# so I could call `linear_index`, then
+# `IT, ind_type, W, X, M, O = index_summary(I)`
+# `gesp` to set offset multiplier (`M`) and offset (`O`) to `0`.
+# call, to build extended load quote (`W` below is `W*N`):
+# vload_quote_llvmcall(
+#     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Expr
+# )
 
-function vload_shuffle_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, mask::Bool, align::Bool, rs::Int)
+# if either
+# x = rand(3,L);
+# foo(x[1,i],x[2,i],x[3,i])
+# `(AU == 1) & (AV == 2) & (F == 1) & (stride(p,2) == N)`
+# or
+# x = rand(3L);
+# foo(x[3i - 2], x[3i - 1], x[3i   ])
+# Index would be `(MM{W,3}(1),)`
+# so we have `AU == AV == 1`, but also `X == N == F`.
+function shuffle_quote(
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, ::Type{I}, align::Bool, rs::Int
+) where {T,I}
+    IT, ind_type, _W, X, M, O = index_summary(I)
+    @assert _W == W
+    size_T = sizeof(T)
+    # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
+    ((((AU == C) && (C > 0)) && (F == 1)) && (X == (UN*size_T)) && (B < 1)) || return nothing
+    # `X` is stride between indices, e.g. `X = 3` means our final vectors should be `<x[0], x[3], x[6], x[9]>`
+    # We need `X` to equal the steps (the unrolling factor)
+    Wfull = W * UN
+    T_sym = JULIA_TYPES[T]
+    I_sym = JULIA_TYPES[IT]
+    mask = false
+    vloadexpr = vload_quote_llvmcall(
+        T_sym, I_sym, ind_type, Wfull, size_T, M, O, mask, align, rs, :(_Vec{$Wfull,$T_sym})
+    )
+    q = quote
+        $(Expr(:meta,:inline))
+        ptr = pointer(sptr)
+        i = data(u)
+        v = $vloadexpr
+    end
+    vut = Expr(:tuple)
+    for n ∈ 0:UN-1
+        shufftup = Expr(:tuple)
+        for w ∈ 0:W-1
+            push!(shufftup.args, n + UN*w)
+        end
+        push!(vut.args, :(shufflevector(v, Val{$shufftup}())))
+    end
+    push!(q.args, Expr(:call, :VecUnroll, vut))
+    q
+end
+
+
+@generated function _vload_unroll(
+    sptr::AbstractStridedPointer{T,N,C,B,R,X,O}, u::Unroll{AU,F,UN,AV,W,M,I}, ::A, ::StaticInt{RS}
+) where {T<:NativeTypes,N,C,B,R,X,O,AU,F,UN,AV,W,M,I<:Index,A<:StaticBool,RS}
+    1+1
+    align = A === True
+    maybeshufflequote = shuffle_quote(T,N,C,B,AU,F,UN,AV,W, I, align, RS)
+    # `maybeshufflequote` for now requires `mask` to be `false`
+    maybeshufflequote === nothing || return maybeshufflequote
     
+    vload_unroll_quote(D, AU, F, N, AV, W, M, false, align, RS)
+end
+@generated function _vload_unroll(sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I<:Index,T,D,RS}
+    vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True, RS)
 end
 
-@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I,T,D,RS}
-    vload_unroll_quote(D, AU, F, N, AV, W, M, false, A === True, RS)
+@inline function vload(ptr::AbstractStridedPointer, u::Unroll, A::StaticBool, RS::StaticInt)
+    _vload_unroll(ptr, linear_index(ptr, u), A, RS)
 end
-@generated function vload(ptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I,T,D,RS}
-    vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True, RS)
+@inline function vload(ptr::AbstractStridedPointer, u::Unroll, m::Mask, A::StaticBool, RS::StaticInt)
+    _vload_unroll(ptr, linear_index(ptr, u), m, A, RS)
 end
 
 function vstore_unroll_quote(

@@ -409,6 +409,14 @@ include("testsetup.jl")
         @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),), mbig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
         @inferred(vstore!(stridedpointer(xf64), -11 * vxtu, (MM{4W64}(1),), mbig));
         @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == ifelse.(mbigtv, -11 .* vxtutv, vxtutvmult)
+
+        colors = [(R = rand(), G = rand(), B = rand()) for i ∈ 1:100];
+        colormat = reinterpret(reshape, Float64, colors)
+        sp = stridedpointer(colormat)
+        GC.@preserve colors begin
+            @test tovector(vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1,MM{8}(9))))) == vec(colormat[:,9:16]')
+        end
+        
     end
 
     @time @testset "Grouped Strided Pointers" begin
