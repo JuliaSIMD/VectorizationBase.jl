@@ -350,7 +350,7 @@ _precompile_()
 function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
-    if cpu_name() !== Symbol(Sys.CPU_NAME::String)
+    if unwrap(cpu_name()) !== Symbol(Sys.CPU_NAME::String)
         @info "Defining CPU name."
         define_cpu_name()
     end

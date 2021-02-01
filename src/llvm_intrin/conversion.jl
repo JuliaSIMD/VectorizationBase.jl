@@ -49,17 +49,18 @@ end
 @generated function vconvert(::Type{Vec{W,Float64}}, v::Vec{W,Float32}) where {W}
     convert_func("fpext", Float64, W, Float32, W)
 end
-@generated function vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W}
-    instrs = String[]
-    push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
-    zext_mask!(instrs, 'm', W, '0')
-    push!(instrs, "ret i$(max(8,W)) %res.0")
-    U = mask_type_symbol(W);
-    quote
-        $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
-    end    
-end
+@inline vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
+# @generated function vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W}
+#     instrs = String[]
+#     push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
+#     zext_mask!(instrs, 'm', W, '0')
+#     push!(instrs, "ret i$(max(8,W)) %res.0")
+#     U = mask_type_symbol(W);
+#     quote
+#         $(Expr(:meta,:inline))
+#         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
+#     end
+# end
 @inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Mask{W}, v)
 
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T<:IntegerTypesHW} = v
@@ -206,8 +207,3 @@ end
 @inline vrem(v::AbstractSIMDVector{W,T}, ::Type{I}) where {W,I,T} = vconvert(Vec{W,I}, v)
 @inline vrem(v::AbstractSIMDVector{W,T}, ::Type{V}) where {W,I,T,V<:AbstractSIMD{W,I}} = vconvert(V, v)
 @inline vrem(r::IntegerTypesHW, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = convert(V, r % I)
-
-
-
-
-

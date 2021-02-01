@@ -80,7 +80,7 @@ register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = simd_integer_regist
 
 function define_cpu_name()
     cpu = QuoteNode(Symbol(Sys.CPU_NAME::String))
-    @eval cpu_name() = $cpu
+    @eval cpu_name() = Val{$cpu}()
 end
 define_cpu_name()
 

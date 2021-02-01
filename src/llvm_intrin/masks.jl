@@ -40,7 +40,7 @@ function binary_mask_op(W, U, op)
     end    
 end
 
-@inline data(m::Mask) = m.u
+@inline data(m::Mask) = getfield(m, :u)
 for (f,op) ∈ [
     (:vand,"and"), (:vor,"or"), (:vxor,"xor"), (:veq,"icmp eq"), (:vne,"icmp ne")
 ]
@@ -214,7 +214,7 @@ end
 #     )
 # end
 
-@inline tomask(m::Unsigned) = m
+@inline tomask(m::Unsigned) = Mask{sizeof(m)}(m)
 @inline tomask(m::Mask) = m
 @generated function tomask(v::Vec{W,Bool}) where {W}
     usize = W > 8 ? nextpow2(W) : 8
@@ -229,7 +229,10 @@ end
         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
     end
 end
-@inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(data(v))
+@inline tomask(v::AbstractSIMDVector{W,Bool}) where {W} = tomask(vconvert(Vec{W,Bool}, data(v)))
+# @inline tounsigned(m::Mask) = getfield(m, :u)
+# @inline tounsigned(m::Vec{W,Bool}) where {W} = getfield(tomask(m), :u)
+@inline tounsigned(v) = getfield(tomask(v), :u)
 
 @generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Integer}
     bits = 8sizeof(I)
