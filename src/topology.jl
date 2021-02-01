@@ -31,26 +31,7 @@ function count_attr(attr::Symbol)
     count_attr(topology, attr)
 end
 
-function define_attr_count(attr, fname)
-    v = @load_preference(attr)
-    if v === nothing
-        define_attr(attr, fname, count_attr(Symbol(attr)))
-    else
-        define_attr(attr, fname, parse(Int, v)::Int)
-    end
-end
-function redefine_attr_count(attr, fname)
-    correct = count_attr(Symbol(attr))
-    v_string = @load_preference(attr)
-    if v_string === nothing
-        correct === nothing || define_attr(attr, fname, correct)
-    else
-        v = parse(Int, v_string)::Int
-        v == correct || define_attr(attr, fname, correct)
-    end
-    nothing
-end
-function define_attr(attr, fname, v)
+function define_attr_count(fname::Symbol, v)
     if v === nothing
         @eval $fname() = nothing
         return
@@ -65,25 +46,40 @@ function define_attr(attr, fname, v)
     else
         @eval $fname() = $v
     end
-    @set_preferences!(attr => string(v))
     nothing
 end
+# define_attr(fname::Symbol, attr::Symbol) = define_attr_count(fname, )
 
-function foreach_attr(@nospecialize(g))
-    for (attr,f) ∈ [
-        ("L1Cache", :num_l1cache),
-        ("L2Cache", :num_l2cache),
-        ("L3Cache", :num_l3cache),
-        ("L4Cache", :num_l4cache),
-        ("Machine", :num_machines),
-        ("Package", :num_sockets),
-        ("Core", :num_cores),
-        ("PU", :num_threads)
-    ]
-        g(attr, f)
-    end
+for (f, attr) ∈ [
+    (:num_l1cache, :L1Cache),
+    (:num_l2cache, :L2Cache),
+    (:num_l3cache, :L3Cache),
+    (:num_l4cache, :L4Cache),
+    (:num_machines, :Machine),
+    (:num_sockets, :Package),
+    (:num_cores, :Core),
+    (:num_threads, :PU)
+]
+    define_attr_count(f, count_attr(attr))
 end
-foreach_attr(define_attr_count)
+
+function redefine_attr_count()
+    iter = [
+        (num_l1cache(), :num_l1cache, :L1Cache),
+        (num_l2cache(), :num_l2cache, :L2Cache),
+        (num_l3cache(), :num_l3cache, :L3Cache),
+        (num_l4cache(), :num_l4cache, :L4Cache),
+        (num_machines(), :num_machines, :Machine),
+        (num_sockets(), :num_sockets, :Package),
+        (num_cores(), :num_cores, :Core),
+        (num_threads(), :num_threads, :PU)
+    ]
+    for (v, f, attr) ∈ iter
+        ref = count_attr(attr)
+        ref == v || define_attr_count(f, ref)
+    end
+    nothing
+end
 
 num_cache(::Union{Val{1},StaticInt{1}}) = num_l1cache()
 num_cache(::Union{Val{2},StaticInt{2}}) = num_l2cache()
@@ -171,20 +167,12 @@ function dynamic_cache_summary(N)
         inclusive = dynamic_cache_inclusivity()[N]
     )
 end
-function load_cache_preference(N, c)
-    size_string = @load_preference("cache$(N)_size")
-    linesize_string = @load_preference("cache$(N)_linesize")
-    associativity_string = @load_preference("cache$(N)_associativity")
-    type_string = @load_preference("cache$(N)_type")
-    inclusive_string = @load_preference("cache$(N)_inclusive")
-    size = size_string === nothing ? c.size : parse(Int, size_string)::Int
-    linesize = linesize_string === nothing ? c.linesize : parse(Int, linesize_string)::Int
-    associativity = associativity_string === nothing ? c.associativity : parse(Int, associativity_string)::Int
-    type = type_string === nothing ? c.type : Symbol(type_string)::Symbol
-    inclusive = inclusive_string === nothing ? c.inclusive : parse(Bool, inclusive_string)::Bool
-    (size = size, linesize = linesize, associativity = associativity, type = type, inclusive = inclusive)
-end
-function define_cache(N, c = load_cache_preference(N, dynamic_cache_summary(N)))
+cache_size(_) = nothing
+cache_linesize(_) = StaticInt{64}() # assume...
+cache_associativity(_) = nothing
+cache_type(_) = nothing
+cache_inclusive(_) = nothing
+function define_cache(N, c = dynamic_cache_summary(N))
     c === nothing_cache_summary() && return
     @eval begin
         cache_size(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.size)}()
@@ -193,15 +181,16 @@ function define_cache(N, c = load_cache_preference(N, dynamic_cache_summary(N)))
         cache_type(::Union{Val{$N},StaticInt{$N}}) = Val{$(c.type === nothing ? nothing : QuoteNode(c.type))}()
         cache_inclusive(::Union{Val{$N},StaticInt{$N}}) = $(c.inclusive ? :True : :False)()
     end
-    @set_preferences!("cache$(N)_size" => string(c.size))
-    @set_preferences!("cache$(N)_linesize" => string(c.linesize))
-    @set_preferences!("cache$(N)_associativity" => string(c.associativity))
-    @set_preferences!("cache$(N)_type" => string(c.type))
-    @set_preferences!("cache$(N)_inclusive" => string(c.inclusive))
     nothing
 end
 function redefine_cache(N)
-    c = load_cache_preference(N, nothing_cache_summary())
+    c = (
+        size = cache_size(StaticInt(N)),
+        linesize = cache_linesize(StaticInt(N)),
+        associativity = cache_associativity(StaticInt(N)),
+        type = cache_type(StaticInt(N)),
+        inclusive = cache_inclusive(StaticInt(N))
+    )
     correct = dynamic_cache_summary(N)
     c === correct || define_cache(N, correct)
     nothing

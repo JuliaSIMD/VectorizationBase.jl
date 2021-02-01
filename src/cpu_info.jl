@@ -15,40 +15,33 @@ end
 archstr() = Sys.ARCH === :i686 ? "x86_64_" : string(Sys.ARCH) * '_'
 
 # feature_name(ext) = archstr() * replace(ext[2:end], r"\." => "_")
-feature_name(ext) = archstr() * ext[2:end]
-# process_feature(ext) = (feature_name(ext), first(ext) == '+')
+feature_name(ext) = Symbol(archstr() * ext[2:end])
+process_feature(ext) = (feature_name(ext), first(ext) == '+')
 
 has_feature(_) = False()
-function set_features!()
-    features, features_cstring = feature_string()
-    for ext ∈ features
-        feature = feature_name(ext)
-        _ext = @load_preference(feature, ext)
-        featqn = QuoteNode(Symbol(feature))
-        if first(_ext) == '+'
-            @eval has_feature(::Val{$featqn}) = True()
-        else
-            @eval has_feature(::Val{$featqn}) = False()
-        end
-    end
-    Libc.free(features_cstring)
-end
-function set_featue(feature, ext)
-    featqn = QuoteNode(Symbol(feature))
-    if first(ext) == '+'
+function set_featue(feature::Symbol, has::Bool)
+    featqn = QuoteNode(feature)
+    if has
         @eval has_feature(::Val{$featqn}) = True()
     else
         @eval has_feature(::Val{$featqn}) = False()
     end
-    @set_preferences!(feature => ext)
+end
+function set_features!()
+    features, features_cstring = feature_string()
+    for ext ∈ features
+        feature, has = process_feature(ext)
+        set_featue(feature, has)
+    end
+    Libc.free(features_cstring)
 end
 set_features!()
+
 function reset_features!()
     features, features_cstring = feature_string()
     for ext ∈ features
-        feature = feature_name(ext)
-        ext_pref = @load_preference(feature)
-        ext != ext_pref && set_featue(feature, ext)
+        feature, has = process_feature(ext)
+        Bool(has_feature(Val(feature)))::Bool === has || set_featue(feature, has)
     end
     Libc.free(features_cstring)
 end
@@ -82,5 +75,9 @@ has_opmask_registers() = has_feature(Val(:x86_64_avx512f))
 register_size(::Type{T}) where {T} = register_size()
 register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = simd_integer_register_size()
 
-
+function define_cpu_name()
+    cpu = QuoteNode(Symbol(Sys.CPU_NAME::String))
+    @eval cpu_name() = $cpu
+end
+define_cpu_name()
 

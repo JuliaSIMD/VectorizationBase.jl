@@ -8,7 +8,6 @@ using ArrayInterface:
     known_length, known_first, known_last, strides, offsets,
     static_first, static_last, static_length
 import IfElse: ifelse
-using Preferences
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
@@ -351,8 +350,9 @@ _precompile_()
 function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
+    cpu_name() === Symbol(Sys.CPU_NAME::String) || define_cpu_name()
     safe_topology_load!()
-    foreach_attr(redefine_attr_count)
+    redefine_attr_count()
     foreach(redefine_cache, 1:4)
     return nothing
 end
