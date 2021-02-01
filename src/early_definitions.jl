@@ -134,4 +134,7 @@ mask_type(::Union{Val{64},StaticInt{64}}) = UInt64
 @inline mask_type(::Type{T}) where {T} = _mask_type(pick_vector_width(T))
 @inline mask_type(::Type{T}, ::Union{StaticInt{P},Val{P}}) where {T,P} = _mask_type(pick_vector_width(StaticInt{P}(), T))
 
+@inline unwrap(::Val{N}) where {N} = N
+@inline unwrap(::StaticInt{N}) where {N} = N
+@inline unwrap(x) = x
 

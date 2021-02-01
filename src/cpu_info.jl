@@ -41,7 +41,10 @@ function reset_features!()
     features, features_cstring = feature_string()
     for ext ∈ features
         feature, has = process_feature(ext)
-        Bool(has_feature(Val(feature)))::Bool === has || set_featue(feature, has)
+        if Bool(has_feature(Val(feature)))::Bool !== has
+            @info "Defining $(has ? "presence" : "absense") of feature $feature."
+            set_featue(feature, has)
+        end
     end
     Libc.free(features_cstring)
 end

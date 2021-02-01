@@ -76,7 +76,10 @@ function redefine_attr_count()
     ]
     for (v, f, attr) ∈ iter
         ref = count_attr(attr)
-        ref == v || define_attr_count(f, ref)
+        if ref ≠ v
+            @info "Redefining attr count $f = $ref."
+            define_attr_count(f, ref)
+        end
     end
     nothing
 end
@@ -151,7 +154,7 @@ function dynamic_cache_inclusivity()::NTuple{4,Bool}
 end
 
 
-nothing_cache_summary() = (size = nothing, linesize = nothing, associativity = nothing, type = nothing, inclusive = nothing)
+nothing_cache_summary() = (size = nothing, linesize = 64, associativity = nothing, type = nothing, inclusive = nothing)
 function dynamic_cache_summary(N)
     topology = TOPOLOGY.topology
     cache_name = (:L1Cache, :L2Cache, :L3Cache, :L4Cache)[N]
@@ -183,16 +186,25 @@ function define_cache(N, c = dynamic_cache_summary(N))
     end
     nothing
 end
+
 function redefine_cache(N)
+    s = cache_size(StaticInt(N))
+    l = cache_linesize(StaticInt(N))
+    a = cache_associativity(StaticInt(N))
+    t = cache_type(StaticInt(N))
+    i = cache_inclusive(StaticInt(N))
     c = (
-        size = cache_size(StaticInt(N)),
-        linesize = cache_linesize(StaticInt(N)),
-        associativity = cache_associativity(StaticInt(N)),
-        type = cache_type(StaticInt(N)),
-        inclusive = cache_inclusive(StaticInt(N))
+        size = s === nothing ? nothing : Int(s)::Int,
+        linesize = l === nothing ? nothing : Int(l)::Int,
+        associativity = a === nothing ? nothing : Int(a)::Int,
+        type = t === nothing ? nothing : unwrap(t)::Symbol,
+        inclusive = i === nothing ? nothing : Bool(i)::Bool
     )
     correct = dynamic_cache_summary(N)
-    c === correct || define_cache(N, correct)
+    if c !== correct
+        @info "Redefining cache $N."
+        define_cache(N, correct)
+    end
     nothing
 end
 foreach(define_cache, 1:4)

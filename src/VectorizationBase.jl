@@ -350,7 +350,10 @@ _precompile_()
 function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
-    cpu_name() === Symbol(Sys.CPU_NAME::String) || define_cpu_name()
+    if cpu_name() !== Symbol(Sys.CPU_NAME::String)
+        @info "Defining CPU name."
+        define_cpu_name()
+    end
     safe_topology_load!()
     redefine_attr_count()
     foreach(redefine_cache, 1:4)

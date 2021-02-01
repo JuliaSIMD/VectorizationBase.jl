@@ -9,15 +9,12 @@ function _precompile_()
 
                             
     precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int))
-
-    # precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int, Symbol))
     precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int, Expr))
-
-    # precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int, Symbol))
     precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int, Expr))
 
     precompile(reset_features!, ())
     precompile(safe_topology_load!, ())
+    precompile(redefine_attr_count, ())
     precompile(redefine_cache, (Int,))
 
     # precompile(_pick_vector_width, (Type, Vararg{Type,100}))
