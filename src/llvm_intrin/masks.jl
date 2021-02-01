@@ -40,7 +40,7 @@ function binary_mask_op(W, U, op)
     end    
 end
 
-@inline data(m::Mask) = m.u
+@inline data(m::Mask) = getfield(m, :u)
 for (f,op) ∈ [
     (:vand,"and"), (:vor,"or"), (:vxor,"xor"), (:veq,"icmp eq"), (:vne,"icmp ne")
 ]
@@ -159,23 +159,26 @@ end
     U = mask_type(W)
     :(Mask{$W,$U}($(one(U)<<W - one(U))))
 end
-@inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width_val(T))
+@inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
 
 @generated function valrem(::Union{Val{W},StaticInt{W}}, l) where {W}
     ex = ispow2(W) ? :(l & $(W - 1)) : :(l % $W)
     Expr(:block, Expr(:meta, :inline), ex)
 end
-@generated function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
+@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
+    # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
     M = mask_type(W)
-    if has_opmask_registers()
-        quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
-            $(Expr(:meta,:inline))
-            rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
-            Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
-        end
-    elseif Base.libllvm_version ≥ v"11"
-        quote # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
+    quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
+        $(Expr(:meta,:inline))
+        rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
+        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
+    end
+end
+@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
+    # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
+    if Base.libllvm_version ≥ v"11"
+        quote
             $(Expr(:meta,:inline))
             mask(Val{$W}(), zero(l), ((l - one(l)) & $(I(W-1))))
         end
@@ -187,8 +190,13 @@ end
         end
     end
 end
-@generated mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W, L} = mask(Val(W), L)
-@inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width_val(T), l)
+@inline function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W, I <: Integer}
+    _mask(StaticInt{W}(), l, has_opmask_registers())
+end
+# This `mask` method returns a constant, independent of `has_opmask_registers()`; that only effects method of calculating
+# the constant. So it'd be safe to bake in a value.
+@generated mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W, L} = mask(StaticInt(W), L)
+@inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width(T), l)
 
 
 # @generated function masktable(::Union{Val{W},StaticInt{W}}, rem::Integer) where {W}
@@ -206,7 +214,7 @@ end
 #     )
 # end
 
-@inline tomask(m::Unsigned) = m
+@inline tomask(m::Unsigned) = Mask{sizeof(m)}(m)
 @inline tomask(m::Mask) = m
 @generated function tomask(v::Vec{W,Bool}) where {W}
     usize = W > 8 ? nextpow2(W) : 8
@@ -221,7 +229,10 @@ end
         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
     end
 end
-@inline tomask(v::AbstractSIMDVector{<:Any,Bool}) = tomask(data(v))
+@inline tomask(v::AbstractSIMDVector{W,Bool}) where {W} = tomask(vconvert(Vec{W,Bool}, data(v)))
+# @inline tounsigned(m::Mask) = getfield(m, :u)
+# @inline tounsigned(m::Vec{W,Bool}) where {W} = getfield(tomask(m), :u)
+@inline tounsigned(v) = getfield(tomask(v), :u)
 
 @generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Integer}
     bits = 8sizeof(I)
@@ -465,7 +476,7 @@ end
     using VectorizationBase, SLEEFPirates
     x = randn(117); y = similar(x);
     function vexp!(y, x)
-        W = VectorizationBase.pick_vector_width_val(eltype(x));
+        W = VectorizationBase.pick_vector_width(eltype(x));
         L = length(y);
         spx = stridedpointer(x); spy = stridedpointer(y);
         i = MM(W, 1); # use an `MM` index.
@@ -481,7 +492,7 @@ end
 
     # A sum optimized for short vectors (e.g., 10-20 elements)
     function simd_sum(x)
-        W = VectorizationBase.pick_vector_width_val(eltype(x));
+        W = VectorizationBase.pick_vector_width(eltype(x));
         L = length(x);
         spx = stridedpointer(x);
         i = MM(W, 1); # use an `MM` index.
@@ -494,7 +505,7 @@ end
     end
     # or
     function simd_sum(x)
-        W = VectorizationBase.pick_vector_width_val(eltype(x));
+        W = VectorizationBase.pick_vector_width(eltype(x));
         L = length(x);
         spx = stridedpointer(x);
         i = MM(W, 1); # use an `MM` index.

@@ -49,17 +49,18 @@ end
 @generated function vconvert(::Type{Vec{W,Float64}}, v::Vec{W,Float32}) where {W}
     convert_func("fpext", Float64, W, Float32, W)
 end
-@generated function vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W}
-    instrs = String[]
-    push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
-    zext_mask!(instrs, 'm', W, '0')
-    push!(instrs, "ret i$(max(8,W)) %res.0")
-    U = mask_type_symbol(W);
-    quote
-        $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
-    end    
-end
+@inline vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
+# @generated function vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W}
+#     instrs = String[]
+#     push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
+#     zext_mask!(instrs, 'm', W, '0')
+#     push!(instrs, "ret i$(max(8,W)) %res.0")
+#     U = mask_type_symbol(W);
+#     quote
+#         $(Expr(:meta,:inline))
+#         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
+#     end
+# end
 @inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Mask{W}, v)
 
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T<:IntegerTypesHW} = v
@@ -155,40 +156,43 @@ end
 @inline vsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % signed(T)
 @inline vunsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
 
-@generated function vfloat(v::Vec{W,I}) where {W, I <: Integer}
-    ex = if 8W ≤ register_size()
+@generated function _vfloat(v::Vec{W,I}, ::StaticInt{RS}) where {W, I <: Integer, RS}
+    ex = if 8W ≤ RS
         :(vconvert(Vec{$W,Float64}, v))
     else
         :(vconvert(Vec{$W,Float32}, v))
     end
     Expr(:block, Expr(:meta, :inline), ex)
 end
+@inline vfloat(v::Vec{W,I}) where {W, I <: Integer} = _vfloat(v, register_size())
 @inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
 @inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, vu.data))
 # @inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
 
 
-@inline vfloat_fast(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
+@inline vfloat_fast(v::AbstractSIMDVector{W,T}) where {W,T <: Union{Float32,Float64}} = v
+@inline vfloat_fast(vu::VecUnroll{W,T}) where {W,T<:Union{Float32,Float64}} = vu
 @inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, vu.data))
-@generated function vfloat_fast(v::Vec{W,I}) where {W, I <: Integer}
-    if has_feature("x86_64_avx512dq")
-        return Expr(:block, Expr(:meta, :inline), :(vfloat(v)))
-    end
-    arg = if (2W*sizeof(I) ≤ register_size()) || sizeof(I) ≤ 4
+
+@generated function __vfloat_fast(v::Vec{W,I}, ::StaticInt{RS}) where {W, I <: Integer, RS}
+    arg = if (2W*sizeof(I) ≤ RS) || sizeof(I) ≤ 4
         :v
     elseif I <: Signed
         :(v % Int32)
     else
         :(v % UInt32)
     end
-    ex = if 8W ≤ register_size()
+    ex = if 8W ≤ RS
         :(Vec{$W,Float64}($arg))
     else
         :(Vec{$W,Float32}($arg))
     end
     Expr(:block, Expr(:meta, :inline), ex)
 end
+@inline _vfloat_fast(v, ::False) = __vfloat_fast(v, register_size())
+@inline _vfloat_fast(v, ::True) = vfloat(v)
 
+@inline vfloat_fast(v::Vec) = _vfloat_fast(v, has_feature(Val(:x86_64_avx512dq)))
 
 @generated function vreinterpret(::Type{T1}, v::Vec{W2,T2}) where {W2, T1 <: NativeTypes, T2}
     W1 = W2 * sizeof(T2) ÷ sizeof(T1)
@@ -203,8 +207,3 @@ end
 @inline vrem(v::AbstractSIMDVector{W,T}, ::Type{I}) where {W,I,T} = vconvert(Vec{W,I}, v)
 @inline vrem(v::AbstractSIMDVector{W,T}, ::Type{V}) where {W,I,T,V<:AbstractSIMD{W,I}} = vconvert(V, v)
 @inline vrem(r::IntegerTypesHW, ::Type{V}) where {W, I, V <: AbstractSIMD{W,I}} = convert(V, r % I)
-
-
-
-
-

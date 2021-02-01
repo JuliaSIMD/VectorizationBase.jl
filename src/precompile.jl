@@ -7,14 +7,16 @@ function _precompile_()
         end
     end
 
-    precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool))
-    
-    precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Symbol))
-    precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Expr))
-    
-    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Symbol))
-    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Expr))
-    
+                            
+    precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int))
+    precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int, Expr))
+    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int, Expr))
+
+    precompile(reset_features!, ())
+    precompile(safe_topology_load!, ())
+    precompile(redefine_attr_count, ())
+    precompile(redefine_cache, (Int,))
+
     # precompile(_pick_vector_width, (Type, Vararg{Type,100}))
     # the `"NATIVE_PRECOMPILE_VECTORIZATIONBASE" ∈ keys(ENV)` isn't respected, seems
     # like it gets precompiled anyway given that the first condition is `true`.

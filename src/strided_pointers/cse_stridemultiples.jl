@@ -69,8 +69,8 @@ end
 # @inline tdotc(a::Tuple{I1,I4,Vararg}, b::Tuple{I2,I5,Vararg}, c::Tuple{I3,I6,Vararg}) where {I1,I2,I3,I4,I5,I6} = lazyadd(lazymul(a[1],b[1]), tdotc(Base.tail(a), Base.tail(b), Base.tail(c)))
 
 
-unwrap(::Type{StaticInt{N}}) where {N} = N
-unwrap(_) = nothing
+_unwrap(::Type{StaticInt{N}}) where {N} = N
+_unwrap(_) = nothing
 # descript is a tuple of (unrollfactor) for each ind; if it shouldn't preallocate, unrollfactor may be set to 1
 function precalc_quote_from_descript(descript, contig, X)
     precalc = Expr(:tuple)
@@ -81,7 +81,7 @@ function precalc_quote_from_descript(descript, contig, X)
             push!(precalc.args, nothing)
         else
             t = Expr(:tuple)
-            Xᵢ = unwrap(X[i])
+            Xᵢ = _unwrap(X[i])
             anyprecalcs = true
             if Xᵢ === nothing
                 anydynamicprecals = true
@@ -147,4 +147,5 @@ end
 
 
 @inline tdot(ptr::OffsetPrecalc{T}, a, b, c) where {T} = tdot(T, a, b, ptr.precalc, c)
+@inline tdot(ptr::OffsetPrecalc, ::Tuple{}, ::Tuple{}, ::Tuple{}) = Zero()
 

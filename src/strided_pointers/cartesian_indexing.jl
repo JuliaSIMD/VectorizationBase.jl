@@ -1,5 +1,6 @@
 
 # Overloadable method, e.g to insert OffsetPrecalc's precalculated stride multiples
+@inline tdot(ptr::AbstractStridedPointer, ::Tuple{}, ::Tuple{}, ::Tuple{}) = Zero()
 @inline tdot(ptr::AbstractStridedPointer{T}, a, b, c) where {T} = tdot(T, a, b, c)
 
 @inline tdot(::Type{T}, a::Tuple{A}, b::Tuple{B,Vararg}, ::Tuple{False,Vararg}) where {T,A,B} = lazymul(first(a), first(b))
