@@ -183,7 +183,8 @@ end
             mask(Val{$W}(), zero(l), ((l - one(l)) & $(I(W-1))))
         end
     else
-        quote     
+        M = mask_type_symbol(W)
+        quote
             $(Expr(:meta,:inline))
             rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
             rem ≥ MM{$W}(0)
