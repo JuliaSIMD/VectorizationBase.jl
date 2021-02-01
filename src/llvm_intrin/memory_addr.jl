@@ -663,10 +663,10 @@ end
     (W == _W || _W == 1) || throw(ArgumentError("Vector width: $W, index width: $(_W). They must either be equal, or index width == 1."))
     if W == 1
         return Expr(:block, Expr(:meta,:inline), :(Bool(m) && vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
-    elseif VT !== T
+    else
         return Expr(:block, Expr(:meta,:inline), :(vstore!(ptr, convert(Vec{$W,$T}, v), i, m, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
     end
-    vstore_quote(T, IT, ind_type, W, X, M, O, true, A===True, S===True, NT===True, RS)
+    # vstore_quote(T, IT, ind_type, W, X, M, O, true, A===True, S===True, NT===True, RS)
 end
 @generated function vstore!(
     ptr::Ptr{T}, v::V, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
