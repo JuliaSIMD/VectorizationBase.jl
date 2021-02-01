@@ -81,7 +81,7 @@ function precalc_quote_from_descript(descript, contig, X)
             push!(precalc.args, nothing)
         else
             t = Expr(:tuple)
-            Xᵢ = unwrap(X[i])
+            Xᵢ = _unwrap(X[i])
             anyprecalcs = true
             if Xᵢ === nothing
                 anydynamicprecals = true
