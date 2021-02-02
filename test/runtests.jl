@@ -414,9 +414,11 @@ include("testsetup.jl")
         colormat = reinterpret(reshape, Float64, colors)
         sp = stridedpointer(colormat)
         GC.@preserve colors begin
-            @test tovector(vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1,MM{8}(9))))) == vec(colormat[:,9:16]')
+            @test tovector(@inferred(vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1,MM{8}(9)))))) == vec(colormat[:,9:16]')
         end
-        
+        vu = @inferred(vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1,MM{8}(41)))))
+        @inferred(vstore!(sp, vu, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1,MM{8}(1)))))
+        @test vec(colormat[:,41:48]) == vec(colormat[:,1:8])
     end
 
     @time @testset "Grouped Strided Pointers" begin
