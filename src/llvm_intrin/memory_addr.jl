@@ -1341,7 +1341,7 @@ function transpose_vecunroll_quote(W)
     push!(q.args, Expr(:call, :VecUnroll, t))
     q
 end
-@generated function Base.adjoint(vu::VecUnroll{N,W}) where {N,W}
+@generated function transpose_vecunroll(vu::VecUnroll{N,W}) where {N,W}
     N+1 == W || throw(ArgumentError("Transposing is currently only supported for sets of vectors of size equal to their length, but received $(N+1) vectors of length $W."))
     W == 1 && return :vu
     transpose_vecunroll_quote(W)

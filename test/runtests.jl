@@ -444,7 +444,7 @@ include("testsetup.jl")
         A = rand(W64,W64); B = similar(A);
         GC.@preserve A B begin
             vut = @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W64,1,W64}((1,1))))
-            vu = @inferred(adjoint(vut))
+            vu = @inferred(transpose_vecunroll(vut))
             @test vu === @inferred(vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W64,1,W64}((1,1))))
             @test vu === @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W64,2,W64}((1,1))))
             vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W64,1,W64}((1,1)))
