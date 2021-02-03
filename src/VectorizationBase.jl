@@ -28,7 +28,6 @@ end
     end
     Expr(:call, Expr(:curly, :Val, t))
 end
-@generated asvalint(r) = Val(map(Int, r))
 @inline val_stride_rank(A) = asvalint(stride_rank(A))
 @inline val_dense_dims(A) = asvalbool(ArrayInterface.dense_dims(A))
 
