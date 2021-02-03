@@ -523,11 +523,12 @@ include("testsetup.jl")
         end
 
         int = Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ? Int : Int32
+        int2 = Bool(VectorizationBase.has_feature(Val(:x86_64_avx2))) ? Int : Int32
         vi = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> rand(int), Val(W64))...),
             Vec(ntuple(_ -> rand(int), Val(W64))...),
             Vec(ntuple(_ -> rand(int), Val(W64))...)
-        )) % Int
+        )) % int2
         xi = tovector(vi)
         for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, sign]
             @test tovector(@inferred(f(vi))) == map(f, xi)
@@ -547,102 +548,109 @@ include("testsetup.jl")
     @time @testset "Binary Functions" begin
         # TODO: finish getting these tests to pass
         # for I1 ∈ (Int32,Int64,UInt32,UInt64), I2 ∈ (Int32,Int64,UInt32,UInt64)
-        for I1 ∈ (Int32,Int64), I2 ∈ (Int32,Int64,UInt32)
-            # TODO: No longer skip these either.
-            sizeof(I1) > sizeof(I2) && continue
-            vi1 = VectorizationBase.VecUnroll((
-                Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(W64))),
-                Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(W64))),
-                Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(W64))),
-                Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(W64)))
-            ))
-            srange = one(I2):(Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ? I2(8sizeof(I1)-1) : I2(31))
-            vi2 = VectorizationBase.VecUnroll((
-                Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(W64))),
-                Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(W64))),
-                Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(W64))),
-                Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(W64)))
-            ))
-            i = rand(srange); j = rand(I1);
-            m1 = VectorizationBase.VecUnroll((MM{W64}(I1(7)), MM{W64}(I1(1)), MM{W64}(I1(13)), MM{W64}(I1(32%last(srange)))));
-            m2 = VectorizationBase.VecUnroll((MM{W64,2}(I2(3)), MM{W64,2}(I2(8)), MM{W64,2}(I2(39%last(srange))), MM{W64,2}(I2(17))));
-            xi1 = tovector(vi1); xi2 = tovector(vi2);
-            xi3 =  mapreduce(tovector, vcat, m1.data);
-            xi4 =  mapreduce(tovector, vcat, m2.data);
-            I3 = promote_type(I1,I2);
-            # I4 = sizeof(I1) < sizeof(I2) ? I1 : (sizeof(I1) > sizeof(I2) ? I2 : I3)
-            for f ∈ [
-                +, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod,
-                VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini, maxi_fast, mini_fast
-            ]
-            # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
-                # @show f, I1, I2
-                # if (!Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq)))) && (f === /) && sizeof(I1) === sizeof(I2) === 8
-                #     continue
-                # end
-                check_within_limits(tovector(@inferred(f(vi1, vi2))),  trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3));
-                check_within_limits(tovector(@inferred(f(j, vi2))), trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)), I3));
-                check_within_limits(tovector(@inferred(f(vi1, i))), trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)), I3));
-                check_within_limits(tovector(@inferred(f(m1, i))), trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(i, I3)), I3));
-                check_within_limits(tovector(@inferred(f(m1, vi2))), trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi2, I3)), I3));
-                check_within_limits(tovector(@inferred(f(m1, m2))), trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi4, I3)), I3));
-                check_within_limits(tovector(@inferred(f(m1, m1))), trunc_int.(f.(size_trunc_int.(xi3, I1), size_trunc_int.(xi3, I1)), I1));
-                check_within_limits(tovector(@inferred(f(m2, i))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(i, I3)), I2));
-                check_within_limits(tovector(@inferred(f(m2, vi2))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi2, I3)), I2));
-                check_within_limits(tovector(@inferred(f(m2, m2))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi4, I3)), I2));
-                check_within_limits(tovector(@inferred(f(m2, m1))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi3, I3)), I3));
-                if !((f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right))
-                    check_within_limits(tovector(@inferred(f(j, m1))), trunc_int.(f.(j, xi3), I1));
-                    check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I1), size_trunc_int.(xi4, I1)), I1));
+        let WI = Int(VectorizationBase.pick_vector_width(Int64))
+            for I1 ∈ (Int32,Int64), I2 ∈ (Int32,Int64,UInt32)
+                # TODO: No longer skip these either.
+                sizeof(I1) > sizeof(I2) && continue
+                vi1 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
+                    Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
+                    Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
+                    Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI)))
+                ))
+                srange = one(I2):(Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ? I2(8sizeof(I1)-1) : I2(31))
+                vi2 = VectorizationBase.VecUnroll((
+                    Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
+                    Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
+                    Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
+                    Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI)))
+                ))
+                i = rand(srange); j = rand(I1);
+                m1 = VectorizationBase.VecUnroll((MM{WI}(I1(7)), MM{WI}(I1(1)), MM{WI}(I1(13)), MM{WI}(I1(32%last(srange)))));
+                m2 = VectorizationBase.VecUnroll((MM{WI,2}(I2(3)), MM{WI,2}(I2(8)), MM{WI,2}(I2(39%last(srange))), MM{WI,2}(I2(17))));
+                xi1 = tovector(vi1); xi2 = tovector(vi2);
+                xi3 =  mapreduce(tovector, vcat, m1.data);
+                xi4 =  mapreduce(tovector, vcat, m2.data);
+                I3 = promote_type(I1,I2);
+                # I4 = sizeof(I1) < sizeof(I2) ? I1 : (sizeof(I1) > sizeof(I2) ? I2 : I3)
+                for f ∈ [
+                    +, -, *, ÷, /, %, <<, >>, >>>, ⊻, &, |, fld, mod,
+                    VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, maxi, mini, maxi_fast, mini_fast
+                ]
+                    # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
+                    # @show f, I1, I2
+                    # if (!Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq)))) && (f === /) && sizeof(I1) === sizeof(I2) === 8
+                    #     continue
+                    # end
+                    check_within_limits(tovector(@inferred(f(vi1, vi2))),  trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(j, vi2))), trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(vi1, i))), trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(m1, i))), trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(i, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(m1, vi2))), trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi2, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(m1, m2))), trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi4, I3)), I3));
+                    check_within_limits(tovector(@inferred(f(m1, m1))), trunc_int.(f.(size_trunc_int.(xi3, I1), size_trunc_int.(xi3, I1)), I1));
+                    check_within_limits(tovector(@inferred(f(m2, i))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(i, I3)), I2));
+                    check_within_limits(tovector(@inferred(f(m2, vi2))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi2, I3)), I2));
+                    check_within_limits(tovector(@inferred(f(m2, m2))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi4, I3)), I2));
+                    check_within_limits(tovector(@inferred(f(m2, m1))), trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi3, I3)), I3));
+                    if !((f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right))
+                        check_within_limits(tovector(@inferred(f(j, m1))), trunc_int.(f.(j, xi3), I1));
+                        check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I1), size_trunc_int.(xi4, I1)), I1));
+                    end
                 end
+                @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
+                @test @inferred(VectorizationBase.vall(@inferred(1 - MM{WI}(1)) == (1 - Vec(ntuple(identity, Val(WI))...)) ))
             end
-            @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
-            @test @inferred(VectorizationBase.vall(@inferred(1 - MM{W64}(1)) == (1 - Vec(ntuple(identity, Val(W64))...)) ))
+            vf1 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI))),
+                Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
+            ))
+            vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
+            xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
+            a = randn();
+            for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast]
+                # @show f
+                @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
+                @test tovector(@inferred(f(a, vf1))) ≈ f.(a, xf1)
+                @test tovector(@inferred(f(a, vf2))) ≈ f.(a, xf2)
+                @test tovector(@inferred(f(vf1, a))) ≈ f.(xf1, a)
+                @test tovector(@inferred(f(vf2, a))) ≈ f.(xf2, a)
+            end
+
+            vi2 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
+                Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
+                Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
+                Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI)))
+            ))
+            vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
+            @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0)));
+            @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0)));
+            @test VectorizationBase.vall(vi2f == vi2)
+            W32 = StaticInt(WI)*StaticInt(2)
+            vf2 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
+                Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32))
+            ))
+            vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
+            if Bool(VectorizationBase.has_feature(Val(:x86_64_avx2)))
+                @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
+                @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
+                @test vf2 === v2f32
+            else
+                @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1.0),vbroadcast(W32, 1.0)))
+                @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2.0),vbroadcast(W32, 2.0)))
+                @test convert(Float64, vf2) === v2f32
+            end
+            i = rand(1:31)
+            m1 = VectorizationBase.VecUnroll((MM{WI}(7), MM{WI}(1), MM{WI}(13), MM{WI}(18)))
+            @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
+            @test tovector(mod(m1, 1:i)) == mod1.(tovector(m1), i)
+
+            @test VectorizationBase.vdivrem.(1:30, 1:30') == divrem.(1:30, 1:30')
+            @test VectorizationBase.vcld.(1:30, 1:30') == cld.(1:30, 1:30')
+            @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
         end
-        vf1 = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        ))
-        vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
-        xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
-        a = randn();
-        for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast]
-            # @show f
-            @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
-            @test tovector(@inferred(f(a, vf1))) ≈ f.(a, xf1)
-            @test tovector(@inferred(f(a, vf2))) ≈ f.(a, xf2)
-            @test tovector(@inferred(f(vf1, a))) ≈ f.(xf1, a)
-            @test tovector(@inferred(f(vf2, a))) ≈ f.(xf2, a)
-        end
-
-        vi2 = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-            Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64)))
-        ))
-        vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
-        @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
-        @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
-        @test VectorizationBase.vall(vi2f == vi2)
-        W32 = StaticInt(W64)*StaticInt(2)
-        vf2 = VectorizationBase.VecUnroll((
-            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
-            Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32))
-        ))
-        vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
-        @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
-        @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
-        @test vf2 === v2f32
-
-        i = rand(1:31)
-        m1 = VectorizationBase.VecUnroll((MM{W64}(7), MM{W64}(1), MM{W64}(13), MM{W64}(18)))
-        @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
-        @test tovector(mod(m1, 1:i)) == mod1.(tovector(m1), i)
-
-        @test VectorizationBase.vdivrem.(1:30, 1:30') == divrem.(1:30, 1:30')
-        @test VectorizationBase.vcld.(1:30, 1:30') == cld.(1:30, 1:30')
-        @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
     end
     @time @testset "Ternary Functions" begin
         for T ∈ (Float32, Float64)
@@ -690,39 +698,41 @@ include("testsetup.jl")
                 @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, b64, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
             end
         end
-        vi64 = VectorizationBase.VecUnroll((
-           Vec(ntuple(_ -> rand(Int64), Val(W64))...),
-           Vec(ntuple(_ -> rand(Int64), Val(W64))...),
-           Vec(ntuple(_ -> rand(Int64), Val(W64))...)
-        ))
-        vi32 = VectorizationBase.VecUnroll((
-           Vec(ntuple(_ -> rand(Int32), Val(W64))...),
-           Vec(ntuple(_ -> rand(Int32), Val(W64))...),
-           Vec(ntuple(_ -> rand(Int32), Val(W64))...)
-        ))
-        xi64 = tovector(vi64); xi32 = tovector(vi32);
-        @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) == ifelse.(xi64 .> xi32, xi64, xi32)
-        @test tovector(@inferred(VectorizationBase.ifelse(vi64 < vi32, vi64, vi32))) == ifelse.(xi64 .< xi32, xi64, xi32)
-        @test tovector(@inferred(VectorizationBase.ifelse(true, vi64, vi32))) == ifelse.(true, xi64, xi32)
-        @test tovector(@inferred(VectorizationBase.ifelse(false, vi64, vi32))) == ifelse.(false, xi64, xi32)
-        vu64_1 = VectorizationBase.VecUnroll((
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...)
-        ))
-        vu64_2 = VectorizationBase.VecUnroll((
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...)
-        ))
-        vu64_3 = VectorizationBase.VecUnroll((
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...),
-           Vec(ntuple(_ -> rand(UInt64), Val(W64))...)
-        ))
-        xu1 = tovector(vu64_1); xu2 = tovector(vu64_2); xu3 = tovector(vu64_3);
-        for f ∈ [clamp, muladd, VectorizationBase.ifmalo, VectorizationBase.ifmahi, VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub]
-            @test tovector(@inferred(f(vu64_1,vu64_2,vu64_3))) == f.(xu1, xu2, xu3)
+        let WI = Int(VectorizationBase.pick_vector_width(Int64))
+            vi64 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> rand(Int64), Val(WI))...),
+                Vec(ntuple(_ -> rand(Int64), Val(WI))...),
+                Vec(ntuple(_ -> rand(Int64), Val(WI))...)
+            ))
+            vi32 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> rand(Int32), Val(WI))...),
+                Vec(ntuple(_ -> rand(Int32), Val(WI))...),
+                Vec(ntuple(_ -> rand(Int32), Val(WI))...)
+            ))
+            xi64 = tovector(vi64); xi32 = tovector(vi32);
+            @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) == ifelse.(xi64 .> xi32, xi64, xi32)
+            @test tovector(@inferred(VectorizationBase.ifelse(vi64 < vi32, vi64, vi32))) == ifelse.(xi64 .< xi32, xi64, xi32)
+            @test tovector(@inferred(VectorizationBase.ifelse(true, vi64, vi32))) == ifelse.(true, xi64, xi32)
+            @test tovector(@inferred(VectorizationBase.ifelse(false, vi64, vi32))) == ifelse.(false, xi64, xi32)
+            vu64_1 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...)
+            ))
+            vu64_2 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...)
+            ))
+            vu64_3 = VectorizationBase.VecUnroll((
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+                Vec(ntuple(_ -> rand(UInt64), Val(WI))...)
+            ))
+            xu1 = tovector(vu64_1); xu2 = tovector(vu64_2); xu3 = tovector(vu64_3);
+            for f ∈ [clamp, muladd, VectorizationBase.ifmalo, VectorizationBase.ifmahi, VectorizationBase.vfmadd, VectorizationBase.vfnmadd, VectorizationBase.vfmsub, VectorizationBase.vfnmsub]
+                @test tovector(@inferred(f(vu64_1,vu64_2,vu64_3))) == f.(xu1, xu2, xu3)
+            end
         end
     end
     @time @testset "Special functions" begin
