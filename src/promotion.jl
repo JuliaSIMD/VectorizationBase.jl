@@ -2,7 +2,7 @@
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1,T2,W} = promote_type(T1,T2)
 function _ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1, T2, W}
     T_canon = promote_type(T1,T2)
-    ifelse(le(pick_vector_width(T_canon) < StaticInt{W}()), T1, T_canon)
+    ifelse(le(pick_vector_width(T_canon), StaticInt{W}()), T1, T_canon)
 end
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: Integer, T2 <: Integer,W} = _ff_promote_rule(T1,T2,Val{W}())
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: FloatingTypes, T2<:FloatingTypes,W} = _ff_promote_rule(T1,T2,Val{W}())
