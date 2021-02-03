@@ -1,21 +1,27 @@
 
 """
-AU - Unrolled axis
-F - Factor, step size per unroll. If AU == AV, `F == W` means successive loads. `1` would mean offset by `1`, e.g. `x{1:8]`, `x[2:9]`, and `x[3:10]`.
-N - How many times is it unrolled
-AV - Vectorized axis # 0 means not vectorized, some sort of reduction
-W - vector width
-M - bitmask indicating whether each factor is masked
-i::I - index
+  Unroll{AU,F,N,AV,W,M}(i::I)
+
+ - AU: Unrolled axis
+ - F: Factor, step size per unroll. If AU == AV, `F == W` means successive loads. `1` would mean offset by `1`, e.g. `x{1:8]`, `x[2:9]`, and `x[3:10]`.
+ - N: How many times is it unrolled
+ - AV: Vectorized axis # 0 means not vectorized, some sort of reduction
+ - W: vector width
+ - X: stride between loads of vectors along axis `AV`.
+ - M: bitmask indicating whether each factor is masked
+ - i::I - index
 """
-struct Unroll{AU,F,N,AV,W,M,I}
+struct Unroll{AU,F,N,AV,W,M,X,I}
     i::I
 end
-@inline Unroll{AU,F,N,AV,W,M}(i::I) where {AU,F,N,AV,W,M,I} = Unroll{AU,F,N,AV,W,M,I}(i)
+@inline Unroll{AU,F,N,AV,W}(i::I) where {AU,F,N,AV,W,I} = Unroll{AU,F,N,AV,W,zero(UInt),1,I}(i)
+@inline Unroll{AU,F,N,AV,W,M}(i::I) where {AU,F,N,AV,W,M,I} = Unroll{AU,F,N,AV,W,M,1,I}(i)
+@inline Unroll{AU,F,N,AV,W,M,X}(i::I) where {AU,F,N,AV,W,M,X,I} = Unroll{AU,F,N,AV,W,M,X,I}(i)
 @inline data(u::Unroll) = getfield(u, :i)
-@inline function linear_index(ptr::AbstractStridedPointer, u::Unroll{AU,F,N,AV,W,M,I}) where {AU,F,N,AV,W,M,I<:Tuple}
+@inline function linear_index(ptr::AbstractStridedPointer, u::Unroll{AU,F,N,AV,W,M,X,I}) where {AU,F,N,AV,W,M,X,I<:Tuple}
     i = linear_index(ptr, data(u))
-    Unroll{AU,F,N,AV,W,M,typeof(i)}(i)
+    # Unroll{AU,F,N,AV,W,M,typeof(i)}(i)
+    Unroll{AU,F,N,AV,W,M,X}(i)
 end
 
 const VectorIndexCore{W} = Union{Vec{W},MM{W},Unroll{<:Any,<:Any,<:Any,<:Any,W}}
@@ -522,7 +528,7 @@ end
 @generated function zero_vecunroll(::Val{N}, ::Val{W}, ::Type{T}) where {N,W,T}
     Expr(:block, Expr(:meta, :inline), :(zero(VecUnroll{$(N-1),$W,$T,Vec{$W,$T}})))
 end
-@inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,I}, b::Bool, ::A, ::StaticInt{RS}) where {T,AU,F,N,AV,W,M,I,A<:StaticBool,RS}
+@inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,X,I}, b::Bool, ::A, ::StaticInt{RS}) where {T,AU,F,N,AV,W,M,X,I,A<:StaticBool,RS}
     if b
         vload(ptr, i, A(), StaticInt{RS}())
     else
@@ -878,9 +884,9 @@ end
 # Index would be `(MM{W,3}(1),)`
 # so we have `AU == AV == 1`, but also `X == N == F`.
 function shuffle_load_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, ::Type{I}, align::Bool, rs::Int
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int
 ) where {T,I}
-    IT, ind_type, _W, X, M, O = index_summary(I)
+    IT, ind_type, _W, _X, M, O = index_summary(I)
     # we don't require vector indices for `Unroll`s...
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
     size_T = sizeof(T)
@@ -913,24 +919,40 @@ function shuffle_load_quote(
     q
 end
 
+# @inline staticunrolledvectorstride(_, __) = nothing
+# @inline staticunrolledvectorstride(::StaticInt{M}, ::StaticInt{X}) where {M,X} = StaticInt{M}() * StaticInt{X}()
+# @inline staticunrolledvectorstride(sp::AbstractStridedPointer, ::Unroll{AU,F,UN,AV,W,M,X}) where {AU,F,UN,AV,W,M,X} = staticunrolledvectorstride(strides(ptr)[AV], StaticInt{X}())
+
+@generated function staticunrolledvectorstride(str::T, ::Unroll{AU,F,UN,AV,W,M,X}) where {T,AU,F,UN,AV,W,M,X}
+    SM = T.parameters[AV]
+    if SM <: StaticInt
+        return Expr(:block, Expr(:meta,:inline), Expr(:call, *, Expr(:call, SM), Expr(:call, Expr(:curly, :StaticInt, X))))
+    else
+        return nothing
+    end
+end
 
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,I}, ::A, ::StaticInt{RS}
-) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,I<:Index,A<:StaticBool,RS}
-    1+1
-    # @show I
+    sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::StaticInt{X}
+) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:Index,A<:StaticBool,RS,X}
+    # 2+2
     align = A === True
-    maybeshufflequote = shuffle_load_quote(T,N,C,B,AU,F,UN,AV,W, I, align, RS)
+    maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS)
     # `maybeshufflequote` for now requires `mask` to be `false`
     maybeshufflequote === nothing || return maybeshufflequote
     vload_unroll_quote(N, AU, F, UN, AV, W, M, false, align, RS)
 end
-@generated function _vload_unroll(sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I<:Index,T,D,RS}
+@generated function _vload_unroll(
+    sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::Nothing
+) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:Index,A<:StaticBool,RS}
+    vload_unroll_quote(N, AU, F, UN, AV, W, M, false, A === True, RS)
+end
+@generated function _vload_unroll(sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::Mask{W}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I<:Index,T,D,RS,UX}
     vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True, RS)
 end
 
 @inline function vload(ptr::AbstractStridedPointer, u::Unroll, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
-    _vload_unroll(ptr, linear_index(ptr, u), A(), StaticInt{RS}())
+    _vload_unroll(ptr, linear_index(ptr, u), A(), StaticInt{RS}(), staticunrolledvectorstride(strides(ptr), u))
 end
 @inline function vload(ptr::AbstractStridedPointer, u::Unroll, m::Mask, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
     _vload_unroll(ptr, linear_index(ptr, u), m, A(), StaticInt{RS}())
@@ -962,9 +984,9 @@ function vstore_unroll_quote(
 end
 
 function shuffle_store_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int
 ) where {T,I}
-    IT, ind_type, _W, X, M, O = index_summary(I)
+    IT, ind_type, _W, _X, M, O = index_summary(I)
     # we don't require vector indices for `Unroll`s...
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
     size_T = sizeof(T)
@@ -1028,22 +1050,31 @@ end
 
 
 @generated function _vstore_unroll!(
-    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,I}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B}
+    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{X}
+) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,X}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     # 1+1
     align =  A === True
     alias =  S === True
     notmp = NT === True
-    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W, I, align, alias, notmp, RS)
+    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS)
     # `maybeshufflequote` for now requires `mask` to be `false`
     maybeshufflequote === nothing || return maybeshufflequote
 
     vstore_unroll_quote(D, AU, F, N, AV, W, M, false, align, alias, notmp, RS)
 end
 @generated function _vstore_unroll!(
-    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,I}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS}
+    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
+) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX}
+    align =  A === True
+    alias =  S === True
+    notmp = NT === True
+    N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, false, align, alias, notmp, RS)
+end
+@generated function _vstore_unroll!(
+    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A===True, S===True, NT===True, RS)
 end
@@ -1051,7 +1082,7 @@ end
 @inline function vstore!(
     sptr::AbstractStridedPointer, vu::VecUnroll, u::Unroll, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    _vstore_unroll!(sptr, vu, linear_index(sptr, u), A(), S(), NT(), StaticInt{RS}())
+    _vstore_unroll!(sptr, vu, linear_index(sptr, u), A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
 end
 @inline function vstore!(
     sptr::AbstractStridedPointer, vu::VecUnroll, u::Unroll, m::Mask, ::A, ::S, ::NT, ::StaticInt{RS}
@@ -1140,8 +1171,8 @@ end
 
 # If `::Function` vectorization is masked, then it must not be reduced by `::Function`.
 @generated function vstore!(
-    ::Function, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}, m, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T,D,C,U,AU,F,N,W,M,I,AV,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    ::Function, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,X,I}, m, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T,D,C,U,AU,F,N,W,M,I,AV,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,X}
     N == U + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(U+1)."))
     # mask means it isn't vectorized
     AV > 0 || throw(ArgumentError("AV ≤ 0, but masking what, exactly?"))
@@ -1245,8 +1276,8 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
     q
 end
 @generated function vstore!(
-    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,I}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS}
+    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,X,I}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS,X}
     N == U + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(U+1)."))
     if G === typeof(identity) || AV > 0
         return Expr(:block, Expr(:meta, :inline), :(vstore!(ptr, vu, u, $A(), $S(), $NT(), StaticInt{$RS}())))
@@ -1258,6 +1289,92 @@ end
         throw("Function $f not recognized.")
     end
     horizontal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S === True, RS)
+end
+
+
+
+function transpose_vecunroll_quote(W)
+    @assert VectorizationBase.ispow2(W)
+    log2W = VectorizationBase.intlog2(W)
+    q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
+    N = W # N vectors of length W
+    vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
+    vectors2 = [Symbol(:v_, n+N) for n ∈ 0:N-1]
+    # z = Expr(:call, Expr(:curly, Expr(:(.), :VectorizationBase, QuoteNode(:MM)), W), 0)
+    # for n ∈ 1:N
+    #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
+    # end
+    for n ∈ 1:N
+        push!(q.args, Expr(:(=), vectors1[n], Expr(:ref, :vud, n)))
+    end
+    Nhalf = N >>> 1
+    shuffinstr = Expr(:(.), :VectorizationBase, QuoteNode(:shufflevector))
+    vecstride = 1
+    for nsplits in 0:log2W-1
+        shuffle0 = VectorizationBase.transposeshuffle(nsplits, W, false)
+        shuffle1 = VectorizationBase.transposeshuffle(nsplits, W, true)
+        partition_stride = 1 << vecstride
+        for partition ∈ 0:(W >>> (nsplits+1))-1
+            for _n1 ∈ 1:vecstride
+                n1 = partition * partition_stride + _n1
+                n2 = n1 + vecstride
+                v11 = vectors1[n1]
+                v12 = vectors1[n2]
+                v21 = vectors2[n1]
+                v22 = vectors2[n2]
+                shuff1 = Expr(:call, shuffinstr, v11, v12, shuffle0)
+                shuff2 = Expr(:call, shuffinstr, v11, v12, shuffle1)
+                push!(q.args, Expr(:(=), v21, shuff1))
+                push!(q.args, Expr(:(=), v22, shuff2))
+            end
+        end
+        vectors1, vectors2 = vectors2, vectors1
+        vecstride <<= 1
+        # @show vecstride <<= 1
+    end
+    t = Expr(:tuple)
+    for n ∈ 1:N
+        push!(t.args, vectors1[n])
+    end
+    # for n ∈ 1:N
+    #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vstore!)), :ptrB, vectors1[n], Expr(:tuple, z, n-1))))
+    # end
+    push!(q.args, Expr(:call, :VecUnroll, t))
+    q
+end
+@generated function Base.adjoint(vu::VecUnroll{N,W}) where {N,W}
+    N+1 == W || throw(ArgumentError("Transposing is currently only supported for sets of vectors of size equal to their length, but received $(N+1) vectors of length $W."))
+    W == 1 && return :vu
+    transpose_vecunroll_quote(W)
+    # q = Expr(:block, Expr(:meta,:inline), :(vud = data(vu)))
+    # S = W
+    # syms = Vector{Symbol}(undef, W)
+    # for w ∈ 1:W
+    #     syms[w] = v = Symbol(:v_, w)
+    #     push!(q.args, Expr(:(=), v, Expr(:ref, :vud, w)))
+    # end
+    # while S > 1
+    #     S >>>= 1
+    #     for s ∈ 1:S
+    #         v1 = syms[2s-1]
+    #         v2 = syms[2s  ]
+    #         vc = Symbol(v1,:_,v2)
+    #         push!(q.args, Expr(:(=), vc, Expr(:call, :vcat, v1, v2)))
+    #         syms[s] = vc
+    #     end        
+    # end
+    # t = Expr(:tuple)
+    # v1 = syms[1];# v2 = syms[2]
+    # for w1 ∈ 0:N
+    #     shufftup = Expr(:tuple)
+    #     for w2 ∈ 0:N
+    #         push!(shufftup.args, w2*W + w1)
+    #     end
+    #     push!(t.args, Expr(:call, :shufflevector, v1, Expr(:call, Expr(:curly, :Val, shufftup))))
+    #     # push!(t.args, Expr(:call, :shufflevector, v1, v2, Expr(:call, Expr(:curly, :Val, shufftup))))
+    # end
+    # push!(q.args, Expr(:call, :VecUnroll, t))
+    # q
 end
 
 function lazymulunroll_load_quote(M,O,N,mask,align,rs)
