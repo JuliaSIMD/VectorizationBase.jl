@@ -446,7 +446,7 @@ include("testsetup.jl")
             A = rand(W,W); B = similar(A);
             GC.@preserve A B begin
                 vut = @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1,1))))
-                vu = @inferred(transpose_vecunroll(vut))
+                vu = @inferred(VectorizationBase.transpose_vecunroll(vut))
                 @test vu === @inferred(vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W,1,W}((1,1))))
                 @test vu === @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W,2,W}((1,1))))
                 vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W,1,W}((1,1)))
@@ -459,7 +459,7 @@ include("testsetup.jl")
             A = rand(Float32,W,W); B = similar(A);
             GC.@preserve A B begin
                 vut = @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1,1))))
-                vu = @inferred(transpose_vecunroll(vut))
+                vu = @inferred(VectorizationBase.transpose_vecunroll(vut))
                 @test vu === @inferred(vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W,1,W}((1,1))))
                 @test vu === @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W,2,W}((1,1))))
                 vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W,1,W}((1,1)))
