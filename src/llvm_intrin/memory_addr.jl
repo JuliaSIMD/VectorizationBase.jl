@@ -964,7 +964,7 @@ function vstore_unroll_quote(
     inds = unrolled_indicies(D, AU, F, N, AV, W)
     q = quote
         $(Expr(:meta, :inline))
-        gptr = similar_no_offset(sptr, gep(pointer(sptr), data(data(u))))
+        gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u)))
         # gptr = gesp(sptr, u.i)
         t = data(vu)
     end

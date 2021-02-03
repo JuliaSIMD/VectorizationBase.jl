@@ -328,8 +328,7 @@ include("testsetup.jl")
                 end
             end
         end
-        for AU ∈ 1:3, B ∈ (A, P, O)
-            i, j, k = 2, 3, 4
+        for AU ∈ 1:3, B ∈ (A, P, O), i ∈ (StaticInt(1),2,StaticInt(2)), j ∈ (StaticInt(1),3,StaticInt(3)), k ∈ (StaticInt(1),4,StaticInt(4))
             for AV ∈ 1:3
                 v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
                 GC.@preserve B begin
