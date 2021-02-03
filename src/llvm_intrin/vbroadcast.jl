@@ -51,7 +51,7 @@ end
         ret $vtyp %v
     """
     quote
-        # $(Expr(:meta,:pure,:inline))
+        $(Expr(:meta,:inline))
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
     end
 end
