@@ -857,7 +857,7 @@ function vload_unroll_quote(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M:
     end
     quote
         $(Expr(:meta, :inline))
-        gptr = similar_no_offset(sptr, gep(pointer(sptr), data(data(u))))
+        gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u)))
         # gptr = gesp(ptr, u.i)
         VecUnroll($t)
     end
@@ -935,7 +935,6 @@ end
 @generated function _vload_unroll(
     sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::StaticInt{X}
 ) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:Index,A<:StaticBool,RS,X}
-    # 2+2
     align = A === True
     maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS)
     # `maybeshufflequote` for now requires `mask` to be `false`
