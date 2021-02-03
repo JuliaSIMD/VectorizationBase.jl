@@ -6,7 +6,7 @@
     if W * sizeof(T) > RS
         d, r1 = divrem(sizeof(T) * W, RS)
         Wnew, r2 = divrem(W, d)
-        @assert (iszero(r1) & iszero(r2)) "If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."
+        (iszero(r1) & iszero(r2)) || throw(ArgumentError("If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."))
         t = Expr(:tuple)
         for i ∈ 1:d
             push!(t.args, :v)
@@ -33,7 +33,7 @@ end
     elseif sizeof(_T) * W > RS
         d, r1 = divrem(sizeof(_T) * W, RS)
         Wnew, r2 = divrem(W, d)
-        @assert (iszero(r1) & iszero(r2)) "If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."
+        (iszero(r1) & iszero(r2)) || throw(ArgumentError("If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."))
         t = Expr(:tuple)
         for i ∈ 1:d
             push!(t.args, :v)
@@ -51,7 +51,7 @@ end
         ret $vtyp %v
     """
     quote
-        $(Expr(:meta,:pure,:inline))
+        # $(Expr(:meta,:pure,:inline))
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
     end
 end

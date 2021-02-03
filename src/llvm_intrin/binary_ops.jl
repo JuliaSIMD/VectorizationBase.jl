@@ -23,7 +23,7 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
         @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op($op, W, T)
         
         @generated $_ff_fast(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
-        Base.@pure @inline $ff_fast(v1::T, v2::T) where {T} = $_ff_fast(v1, v2)
+        @inline $ff_fast(v1::T, v2::T) where {T} = $_ff_fast(v1, v2)
         @inline $ff(x::T,y::T) where {T<:IntegerTypesHW} = $_ff_fast(x,y)
     end
 end
@@ -32,7 +32,7 @@ for (op,f) ∈ [("div",:÷),("rem",:%)]
     @eval begin
         @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
         @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
-        Base.@pure @inline $ff(v1::T, v2::T) where {T<:IntegerTypesHW} = $_ff(v1, v2)
+        @inline $ff(v1::T, v2::T) where {T<:IntegerTypesHW} = $_ff(v1, v2)
     end
 end
 @inline vcld(x, y) = vadd(vdiv(vsub(x, one(x)), y), one(x))

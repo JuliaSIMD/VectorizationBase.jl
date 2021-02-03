@@ -198,6 +198,7 @@ end
     W1 = W2 * sizeof(T2) ÷ sizeof(T1)
     Expr(:block, Expr(:meta, :inline), :(vreinterpret(Vec{$W1,$T1}, v)))
 end
+@inline vreinterpret(::Type{Vec{1,T1}}, v::Vec{W,T2}) where {W,T1,T2<:Base.BitInteger} = reinterpret(T1, fuseint(v))
 @generated function vreinterpret(::Type{Vec{W1,T1}}, v::Vec{W2,T2}) where {W1, W2, T1, T2}
     @assert sizeof(T1) * W1 == W2 * sizeof(T2)
     convert_func("bitcast", T1, W1, T2, W2)

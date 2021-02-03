@@ -11,8 +11,10 @@ import IfElse: ifelse
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
-Base.@pure asvalbool(r) = Val(map(Bool, r))
-Base.@pure asvalint(r) = Val(map(Int, r))
+# Base.@pure asvalbool(r) = Val(map(Bool, r))
+# Base.@pure asvalint(r) = Val(map(Int, r))
+ asvalbool(r) = Val(map(Bool, r))
+ asvalint(r) = Val(map(Int, r))
 @inline val_stride_rank(A) = asvalint(stride_rank(A))
 @inline val_dense_dims(A) = asvalbool(ArrayInterface.dense_dims(A))
 
