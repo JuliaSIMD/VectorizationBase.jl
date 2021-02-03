@@ -441,15 +441,19 @@ include("testsetup.jl")
     end
 
     @time @testset "Adjoint VecUnroll" begin
-        A = rand(W64,W64); B = similar(A);
-        GC.@preserve A B begin
-            vut = @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W64,1,W64}((1,1))))
-            vu = @inferred(transpose_vecunroll(vut))
-            @test vu === @inferred(vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W64,1,W64}((1,1))))
-            @test vu === @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W64,2,W64}((1,1))))
-            vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W64,1,W64}((1,1)))
+        W = W64
+        while W > 1
+            A = rand(W,W); B = similar(A);
+            GC.@preserve A B begin
+                vut = @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1,1))))
+                vu = @inferred(transpose_vecunroll(vut))
+                @test vu === @inferred(vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W,1,W}((1,1))))
+                @test vu === @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W,2,W}((1,1))))
+                vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W,1,W}((1,1)))
+            end
+            @test A == B'
+            W >>= 1
         end
-        @test A == B'
     end
     
     @time @testset "Unary Functions" begin
