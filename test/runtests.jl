@@ -895,6 +895,16 @@ include("testsetup.jl")
 
         vx = convert(Vec{16,Int64}, 1)
         @test typeof(vx) === typeof(zero(vx)) === Vec{16,Int64}
+
+        vxf32 = Vec(ntuple(_ -> randn(Float32), VectorizationBase.pick_vector_width(Float32))...)
+        xf32, yf32 = promote(vxf32, 1.0)
+        @test xf32 === vxf32
+        @test yf32 === vbroadcast(VectorizationBase.pick_vector_width(Float32), 1f0)
+        vxi32 = Vec(ntuple(_ -> rand(Int32), VectorizationBase.pick_vector_width(Int32))...)
+        xi32, yi32 = promote(vxi32, one(Int64))
+        @test xi32 === vxi32
+        @test yi32 === vbroadcast(VectorizationBase.pick_vector_width(Float32), one(Int32))
+
     end
     println("Lazymul")
     @time @testset "Lazymul" begin
