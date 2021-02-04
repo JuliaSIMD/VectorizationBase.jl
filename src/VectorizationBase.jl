@@ -55,7 +55,7 @@ abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: Real 
 struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real
     data::Tuple{V,Vararg{V,N}}
     # @inline VecUnroll{N,W,T,V}(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
-    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}(data)
+    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
 end
 
 

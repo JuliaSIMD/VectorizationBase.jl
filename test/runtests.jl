@@ -6,6 +6,7 @@ include("testsetup.jl")
 @time @testset "VectorizationBase.jl" begin
     # Write your own tests here.
     # Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
+    println("Aqua.test_all")
     @time Aqua.test_all(VectorizationBase)
     # @test isempty(detect_unbound_args(VectorizationBase))
     # @test isempty(detect_ambiguities(VectorizationBase))
@@ -16,6 +17,7 @@ include("testsetup.jl")
 
     @test first(A) === A[1]
     @test W64S == W64
+    println("Struct-Wrapped Vec")
     @time @testset "Struct-Wrapped Vec" begin
         @test data(zero(Vec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === data(Vec{4,Float64}(0.0))
         @test data(one(Vec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === data(Vec{4,Float64}(1.0)) === data(data(Vec{4,Float64}(1.0)))
@@ -59,6 +61,7 @@ include("testsetup.jl")
 
     end
 
+    println("alignment.jl")
     @time @testset "alignment.jl" begin
 
         @test all(i -> VectorizationBase.align(i) == VectorizationBase.register_size(), 1:VectorizationBase.register_size())
@@ -96,6 +99,7 @@ include("testsetup.jl")
         @test UInt(VectorizationBase.align(ptr, 1 << 12)) % (1 << 12) == 0
     end
 
+    println("masks.jl")
     @time @testset "masks.jl" begin
         # @test Mask{8,UInt8}(0x0f) === @inferred Mask(0x0f)
         # @test Mask{16,UInt16}(0x0f0f) === @inferred Mask(0x0f0f)
@@ -221,6 +225,7 @@ include("testsetup.jl")
     # end
 
 
+    println("vector_width.jl")
     @time @testset "vector_width.jl" begin
         for T ∈ (Float32,Float64)
             @test @inferred(VectorizationBase.pick_vector_width(T)) * @inferred(VectorizationBase.static_sizeof(T)) === @inferred(VectorizationBase.register_size(T)) === @inferred(VectorizationBase.register_size())
@@ -268,6 +273,7 @@ include("testsetup.jl")
 
     end
 
+    println("Memory")
     @time @testset "Memory" begin
         C = rand(40,20,10) .> 0;
         mtest = vload(stridedpointer(C), ((MM{16})(9), 2, 3));
@@ -420,6 +426,7 @@ include("testsetup.jl")
         @test vec(colormat[:,41:48]) == vec(colormat[:,1:8])
     end
 
+    println("Grouped Strided Pointers")
     @time @testset "Grouped Strided Pointers" begin
         M, K, N = 4, 5, 6
         A = rand(M, K); B = rand(K, N); C = rand(M, N);
@@ -440,6 +447,7 @@ include("testsetup.jl")
         end
     end
 
+    println("Adjoint VecUnroll")
     @time @testset "Adjoint VecUnroll" begin
         W = W64
         while W > 1
@@ -469,6 +477,7 @@ include("testsetup.jl")
         end
     end
     
+    println("Unary Functions")
     @time @testset "Unary Functions" begin
         for T ∈ (Float32,Float64)
             v = let W = VectorizationBase.pick_vector_width(T)
@@ -545,6 +554,7 @@ include("testsetup.jl")
         #     @test tovector(f(vpos)) == map(f, tovector(vpos))
         # end
     end
+    println("Binary Functions")
     @time @testset "Binary Functions" begin
         # TODO: finish getting these tests to pass
         # for I1 ∈ (Int32,Int64,UInt32,UInt64), I2 ∈ (Int32,Int64,UInt32,UInt64)
@@ -652,6 +662,7 @@ include("testsetup.jl")
             @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
         end
     end
+    println("Ternary Functions")
     @time @testset "Ternary Functions" begin
         for T ∈ (Float32, Float64)
             v1, v2, v3, m = let W = @inferred(VectorizationBase.pick_vector_width(T))
@@ -735,6 +746,7 @@ include("testsetup.jl")
             end
         end
     end
+    println("Special functions")
     @time @testset "Special functions" begin
         if VERSION ≥ v"1.6.0-DEV.674" && Bool(VectorizationBase.has_feature(Val(Symbol("x86_64_sse4.1"))))
             erfs = [0.1124629160182849, 0.22270258921047847, 0.3286267594591274, 0.42839235504666845, 0.5204998778130465, 0.6038560908479259, 0.6778011938374184, 0.7421009647076605, 0.7969082124228322, 0.8427007929497149, 0.8802050695740817, 0.9103139782296353, 0.9340079449406524, 0.9522851197626487, 0.9661051464753108, 0.976348383344644, 0.9837904585907745, 0.9890905016357308, 0.9927904292352575, 0.9953222650189527, 0.997020533343667, 0.9981371537020182, 0.9988568234026434, 0.999311486103355, 0.999593047982555, 0.9997639655834707, 0.9998656672600594, 0.9999249868053346, 0.9999589021219005, 0.9999779095030014, 0.9999883513426328, 0.9999939742388483]
@@ -756,6 +768,7 @@ include("testsetup.jl")
             end
         end
     end
+    println("Non-broadcasting operations")
     @time @testset "Non-broadcasting operations" begin
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
         v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
@@ -790,6 +803,7 @@ include("testsetup.jl")
         @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,0)) == -1
         @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == VectorizationBase.vminimum(VectorizationBase.minscalar(-2,vu3)) == -2
     end
+    println("broadcasting")
     @time @testset "broadcasting" begin
         @test VectorizationBase.vzero(Val(1), UInt32) === VectorizationBase.vzero(StaticInt(1), UInt32) === VectorizationBase.vzero(UInt32) === zero(UInt32)
         @test VectorizationBase.vzero(Val(1), Int) === VectorizationBase.vzero(StaticInt(1), Int) === VectorizationBase.vzero(Int) === 0
@@ -806,6 +820,7 @@ include("testsetup.jl")
 
         @test VectorizationBase.VecUnroll{2,W64,Float64}(first(A)) === VectorizationBase.VecUnroll{2,W64,Float64}(VectorizationBase.vbroadcast(W64S, pointer(A))) === VectorizationBase.VecUnroll((VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A)),VectorizationBase.vbroadcast(W64S, pointer(A)))) === VectorizationBase.VecUnroll{2}(VectorizationBase.vbroadcast(W64S, pointer(A)))
     end
+    println("CartesianVIndex")
     @time @testset "CartesianVIndex" begin
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)) === VectorizationBase.CartesianVIndex(ntuple(_ -> VectorizationBase.One(), ndims(A)))
         @test VectorizationBase.maybestaticlast(CartesianIndices(A)) === VectorizationBase.CartesianVIndex(size(A))
@@ -817,6 +832,7 @@ include("testsetup.jl")
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) == CartesianIndices(A)
         @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(CartesianIndices(A)) === CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
     end
+    println("Promotion")
     @time @testset "Promotion" begin
         vi2 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
@@ -880,6 +896,7 @@ include("testsetup.jl")
         vx = convert(Vec{16,Int64}, 1)
         @test typeof(vx) === typeof(zero(vx)) === Vec{16,Int64}
     end
+    println("Lazymul")
     @time @testset "Lazymul" begin
         # partially covered in memory
         for i ∈ (-5, -1, 0, 1, 4, 8), j ∈ (-5, -1, 0, 1, 4, 8)
@@ -897,6 +914,7 @@ include("testsetup.jl")
     #     @test VectorizationBase.dynamic_fma_fast() == VectorizationBase.fma_fast()
     #     @test VectorizationBase.dynamic_has_opmask_registers() == VectorizationBase.has_opmask_registers()
     # end
+    println("Static Zero and One")
     @time @testset "Static Zero and One" begin
         vx = randnvec(W64)
         vu = VectorizationBase.VecUnroll((vx,randnvec(W64)))
@@ -929,14 +947,55 @@ include("testsetup.jl")
         end
     end
 
-    #     @test VectorizationBase.dynamic_cache_inclusivity() === VectorizationBase.cache_inclusivity()
+    @inline function vlog(x1::VectorizationBase.AbstractSIMD{W,Float64}) where {W} # Testing if an assorted mix of operations
+        x2 = reinterpret(UInt64, x1)
+        x3 = x2 >>> 0x0000000000000020
+        greater_than_zero = x1 > zero(x1)
+        alternative = VectorizationBase.ifelse(x1 == zero(x1), -Inf, NaN)
+        isinf = x1 == Inf
+        x5 = x3 + 0x0000000000095f62
+        x6 = x5 >>> 0x0000000000000014
+        x7 = x6 - 0x00000000000003ff
+        x8 = convert(Float64, x7 % Int)
+        x9 = x5 << 0x0000000000000020
+        x10 = x9 & 0x000fffff00000000
+        x11 = x10 + 0x3fe6a09e00000000
+        x12 = x2 & 0x00000000ffffffff
+        x13 = x11 | x12
+        x14 = reinterpret(Float64, x13)
+        x15 = x14 - 1.0
+        x16 = x15 * x15
+        x17 = 0.5 * x16
+        x18 = x14 + 1.0
+        x19 = x15 / x18
+        x20 = x19 * x19
+        x21 = x20 * x20
+        x22 = vfmadd(x21, 0.15313837699209373, 0.22222198432149784)
+        x23 = vfmadd(x21, x22, 0.3999999999940942)
+        x24 = x23 * x21
+        x25 = vfmadd(x21, 0.14798198605116586, 0.1818357216161805)
+        x26 = vfmadd(x21, x25, 0.2857142874366239)
+        x27 = vfmadd(x21, x26, 0.6666666666666735)
+        x28 = x27 * x20
+        x29 = x24 + x17
+        x30 = x29 + x28
+        x31 = x8 * 1.9082149292705877e-10
+        x32 = vfmadd(x19, x30, x31)
+        x33 = x15 - x17
+        x34 = x33 + x32
+        x35 = vfmadd(x8, 0.6931471803691238, x34)
+        x36 = VectorizationBase.ifelse(greater_than_zero, x35, alternative)
+        VectorizationBase.ifelse(isinf, Inf, x36)
+    end
 
-    #     @test VectorizationBase.Hwloc.histmap(VectorizationBase.Hwloc.topology_load())[Symbol("L", convert(Int, @inferred(VectorizationBase.snum_cache_levels())), "Cache")] > 0
-
-
+    println("Defining log")
+    @time @testset "Defining log." begin
+        vx = Vec(ntuple(_ -> rand(), VectorizationBase.StaticInt(3) * VectorizationBase.pick_vector_width(Float64))...)
+        check_within_limits(tovector(@inferred(vlog(vx))), log.(tovector(vx)))
+    end
 
     # end
-end
+end # @testset VectorizationBase
 
             # ptr_A = pointer(A)
             # vA = VectorizationBase.stridedpointer(A)

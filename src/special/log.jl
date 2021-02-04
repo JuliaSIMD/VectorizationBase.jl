@@ -1,46 +1,7 @@
 
 
-@inline function Base.log(x1::AbstractSIMD{W,Float64}) where {W}
-    x2 = reinterpret(UInt64, x1)
-    x3 = x2 >>> 0x0000000000000020
-    notzero = x1 != zero(x1)
-    greater_than_zero = x1 > zero(x1)
-    isinf = x1 == Inf
-    x5 = x3 + 0x0000000000095f62
-    x6 = x5 >>> 0x0000000000000014
-    x7 = x6 - 0x00000000000003ff
-    x8 = convert(Float64, x7 % Int)
-    x9 = x5 << 0x0000000000000020
-    x10 = x9 & 0x000fffff00000000
-    x11 = x10 + 0x3fe6a09e00000000
-    x12 = x2 & 0x00000000ffffffff
-    x13 = x11 | x12
-    x14 = reinterpret(Float64, x13)
-    x15 = x14 - 1.0
-    x16 = x15 * x15
-    x17 = 0.5 * x16
-    x18 = x14 + 1.0
-    x19 = x15 / x18
-    x20 = x19 * x19
-    x21 = x20 * x20
-    x22 = vfmadd(x21, 0.15313837699209373, 0.22222198432149784)
-    x23 = vfmadd(x21, x22, 0.3999999999940942)
-    x24 = x23 * x21
-    x25 = vfmadd(x21, 0.14798198605116586, 0.1818357216161805)
-    x26 = vfmadd(x21, x25, 0.2857142874366239)
-    x27 = vfmadd(x21, x26, 0.6666666666666735)
-    x28 = x27 * x20
-    x29 = x24 + x17
-    x30 = x29 + x28
-    x31 = x8 * 1.9082149292705877e-10
-    x32 = vfmadd(x19, x30, x31)
-    x33 = x15 - x17
-    x34 = x33 + x32
-    x35 = vfmadd(x8, 0.6931471803691238, x34)
-    x36 = ifelse(notzero, x35, -Inf)
-    x37 = ifelse(greater_than_zero, x36, NaN)
-    ifelse(isinf, Inf, x37)
-end
+# @inline function Base.log(x1::AbstractSIMD{W,Float64}) where {W}
+# @inline function vlog(x1::Float64)
 # @inline Base.log(v::AbstractSIMD) = log(float(v))
 
 # @inline function vlog_fast(x1::AbstractSIMD{W,Float32}) where {W}
