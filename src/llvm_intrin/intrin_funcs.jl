@@ -12,10 +12,10 @@
 end
 @generated function saturated_add(x::Vec{W,I}, y::Vec{W,I}) where {W,I}
     typ = "i$(8sizeof(I))"
-    vtyp = "<$W x i$(typ)>"
+    vtyp = "<$W x $(typ)>"
     s = I <: Signed ? 's' : 'u'
     f = "@llvm.$(s)add.sat.$(suffix(W,typ))"
-    decl = "declare $vtyp $f($typ, $typ)"
+    decl = "declare $vtyp $f($vtyp, $vtyp)"
     instrs = """
         %res = call $vtyp $f($vtyp %0, $vtyp %1)
         ret $vtyp %res
