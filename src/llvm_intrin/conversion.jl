@@ -66,7 +66,7 @@ end
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T<:IntegerTypesHW} = v
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
 @inline vconvert(::Type{Vec{W,T}}, s::NativeTypes) where {W,T} = vbroadcast(Val{W}(), T(s))
-@inline vconvert(::Type{Vec{W,T}}, s::IntegerTypesHW) where {W,T<:IntegerTypesHW} = vbroadcast(Val{W}(), s % T)
+@inline vconvert(::Type{Vec{W,T}}, s::IntegerTypesHW) where {W,T<:IntegerTypesHW} = _vbroadcast(StaticInt{W}(), s % T, StaticInt{W}() * static_sizeof(T))
 @inline vconvert(::Type{V}, u::VecUnroll) where {V<:AbstractSIMDVector} = VecUnroll(fmap(vconvert, V, u.data))
 @inline vconvert(::Type{V}, u::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector} = u
 
