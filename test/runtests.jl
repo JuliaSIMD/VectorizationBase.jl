@@ -876,6 +876,9 @@ include("testsetup.jl")
         vum = @inferred(muladd(m, v32i, v64f))
         @test vum isa VectorizationBase.VecUnroll
         @test tovector(vum) ≈ muladd.(mtv, v32itv, v64ftv)
+
+        vx = convert(Vec{16,Int64}, 1)
+        @test typeof(vx) === typeof(zero(vx)) === Vec{16,Int64}
     end
     @time @testset "Lazymul" begin
         # partially covered in memory
