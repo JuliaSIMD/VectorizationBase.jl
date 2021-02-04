@@ -54,8 +54,11 @@ const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real
     data::Tuple{V,Vararg{V,N}}
-    @inline VecUnroll(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
+    # @inline VecUnroll{N,W,T,V}(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
+    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}(data)
 end
+
+
 const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
 
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
@@ -77,6 +80,11 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
     #     new{W,T}(x)
     # end
 end
+
+# @inline (VecUnroll(data::Tuple{Vec{W,T},Vararg{Vec{W,T},N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T} = VecUnroll{N,W,T,Vec{W,T}}(data)
+# @inline (VecUnroll(data::Tuple{Mask{W,U},Vararg{Mask{W,T},N}})::VecUnroll{N,W,Bit,Mask{W,U}}) where {N,W,U} = VecUnroll{N,W,Bit,Mask{W,U}}(data)
+# @inline (VecUnroll(data::Tuple{MM{W,X,I},Vararg{MM{W,X,I},N}})::VecUnroll{N,W,I,MM{W,X,I}}) where {N,W,X,I} = VecUnroll{N,W,I,MM{W,X,I}}(data)
+
 
 @inline Base.copy(v::AbstractSIMDVector) = v
 @inline asvec(x::_Vec) = Vec(x)
@@ -199,7 +207,8 @@ Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = vu.data[j](i)
 
 
 function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
-    print(io, "Vec{$W,$T}<")
+    name = typeof(v)
+    print(io, "$(name)<")
     for w ∈ 1:W
         print(io, repr(extractelement(v, w-1)))
         w < W && print(io, ", ")

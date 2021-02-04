@@ -11,7 +11,9 @@
         for i ∈ 1:d
             push!(t.args, :v)
         end
-        return Expr(:block, Expr(:meta,:inline), :(v = vzero(StaticInt{$Wnew}(), $T)), :(VecUnroll($t)))
+        # return Expr(:block, Expr(:meta,:inline), :(v = vzero(StaticInt{$Wnew}(), $T)), :(VecUnroll{$(d-1),$Wnew,$T,Vec{$Wnew,$T}}($t)))
+        return Expr(:block, Expr(:meta,:inline), :(v = _vzero(StaticInt{$Wnew}(), $T, StaticInt{$RS}())), :(VecUnroll($t)))
+        # return Expr(:block, Expr(:meta,:inline), :(v = _vzero(StaticInt{$Wnew}(), $T, StaticInt{$RS}())), :(VecUnroll($t)::VecUnroll{$(d-1),$Wnew,$T,Vec{$Wnew,$T}}))
     end
     typ = LLVM_TYPES[T]
     instrs = "ret <$W x $typ> zeroinitializer"
@@ -92,7 +94,7 @@ end
 
 @inline Vec{W,T}(v::Vec{W,T}) where {W,T} = v
 
-@inline Base.zero(::Type{Vec{W,T}}) where {W,T} = vzero(Val{W}(), T)
+@inline Base.zero(::Type{Vec{W,T}}) where {W,T} = _vzero(StaticInt{W}(), T, StaticInt{W}() * static_sizeof(T))
 @inline Base.zero(::Vec{W,T}) where {W,T} = zero(Vec{W,T})
 @inline Base.one(::Vec{W,T}) where {W,T} = vbroadcast(Val{W}(), one(T))
 
