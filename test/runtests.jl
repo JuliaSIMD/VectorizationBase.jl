@@ -903,7 +903,7 @@ include("testsetup.jl")
         vxi32 = Vec(ntuple(_ -> rand(Int32), VectorizationBase.pick_vector_width(Int32))...)
         xi32, yi32 = promote(vxi32, one(Int64))
         @test xi32 === vxi32
-        @test yi32 === vbroadcast(VectorizationBase.pick_vector_width(Float32), one(Int32))
+        @test yi32 === vbroadcast(VectorizationBase.pick_vector_width(Int32), one(Int32))
 
     end
     println("Lazymul")
@@ -1004,6 +1004,13 @@ include("testsetup.jl")
         check_within_limits(tovector(@inferred(vlog(vx))), log.(tovector(vx)))
     end
 
+    println("Saturated add")
+    @time @testset "Saturated add" begin
+        @test VectorizationBase.saturated_add(0xf0, 0xf0) === 0xff
+        @test VectorizationBase.saturated_add(2_000_000_000 % Int32, 1_000_000_000 % Int32) === typemax(Int32)
+        v = Vec(ntuple(_ -> rand(typemax(UInt)>>1+one(UInt):typemax(UInt)), VectorizationBase.pick_vector_width(UInt))...)
+        @test VectorizationBase.saturated_add(v, v) === vbroadcast(VectorizationBase.pick_vector_width(UInt), typemax(UInt))
+    end
     # end
 end # @testset VectorizationBase
 
