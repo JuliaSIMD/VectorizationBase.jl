@@ -79,6 +79,7 @@ end
 @inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = Base.getfield(ptr, :offsets)
 @inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(StaticInt{C}(), Val{N}())
 
+@inline bytestrides(A::StridedPointer) = getfield(A, :strd)
 
 @generated function zerotuple(::Val{N}) where {N}
     t = Expr(:tuple);
@@ -89,16 +90,16 @@ end
 end
 
 @inline function zero_offsets(sptr::StridedPointer{T,N,C,B,R}) where {T,N,C,B,R}
-    StridedPointer{T,N,C,B,R}(sptr.p, sptr.strd, zerotuple(Val{N}()))
+    StridedPointer{T,N,C,B,R}(getfield(sptr, :p), getfield(sptr, :strd), zerotuple(Val{N}()))
 end
 @inline zstridedpointer(A) = zero_offsets(stridedpointer(A))
 
 @inline function Base.similar(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
-    StridedPointer{T,N,C,B,R,X,O}(ptr, sptr.strd, sptr.offsets)
+    StridedPointer{T,N,C,B,R,X,O}(ptr, getfield(sptr, :strd), getfield(sptr, :offsets))
 end
 # @inline noalias!(p::StridedPointer) = similar(p, noalias!(pointer(p)))
 @inline function similar_no_offset(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
-    StridedPointer{T,N,C,B,R,X}(ptr, sptr.strd, zerotuple(Val{N}()))
+    StridedPointer{T,N,C,B,R,X}(ptr, getfield(sptr, :strd), zerotuple(Val{N}()))
 end
 
 @inline Base.pointer(ptr::StridedPointer) = Base.getfield(ptr, :p)
@@ -226,14 +227,14 @@ end
     q
 end
 @inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X,O}, ptr::Ptr{Bit}) where {N,C,B,R,X,O}
-    StridedBitPointer{N,C,B,R}(ptr, sptr.strd, zerotuple(Val{N}()))
+    StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), zerotuple(Val{N}()))
 end
 
 @generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
     quote
         $(Expr(:meta,:inline))
         offs = ptr.offsets
-        StridedBitPointer{$N,$C,$B,$R}(ptr.p, ptr.strd, Base.Cartesian.@ntuple $N n -> vsub_fast(offs[n], i[n]))
+        StridedBitPointer{$N,$C,$B,$R}(getfield(ptr, :p), getfield(ptr, :strd), Base.Cartesian.@ntuple $N n -> vsub_fast(offs[n], i[n]))
     end
 end
 @generated function pointerforcomparison(p::StridedBitPointer{N}) where {N}
@@ -296,7 +297,7 @@ function double_index_quote(C,B,R::NTuple{N,Int},I1,I2,typ) where {N}
     push!(typ.args, Rtup)
     gepedptr = Expr(:call, :gep, :ptr, inds)
     newptr = Expr(:call, typ, gepedptr, strd, offs)
-    Expr(:block, Expr(:meta,:inline), :(strd = ptr.strd), :(offs = ptr.offsets), newptr)
+    Expr(:block, Expr(:meta,:inline), :(strd = getfield(ptr, :strd)), :(offs = getfield(ptr, :offsets)), newptr)
 end
 @generated function double_index(ptr::StridedPointer{T,N,C,B,R}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
     double_index_quote(C,B,R,I1,I2, Expr(:curly, :StridedPointer, :T, N - 1))
@@ -322,11 +323,73 @@ end
     s = r.s
     FastRange{T}(f + ii * s, r.s, Zero())
 end
-@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, r.f) + convert(T, r.s) * (first(i) - convert(T, r.offset))
+@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) - convert(T, getfield(r, :offset)))
 @inline vload(r::FastRange, i::Tuple, m::Mask) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i, _, __) = vload(r, i)
 @inline vload(r::FastRange, i, m::Mask, __, ___) = vload(r, i, m)
 # @inline Base.getindex(r::FastRange, i::Integer) = vload(r, (i,))
 @inline Base.eltype(::FastRange{T}) where {T} = T
+
+"""
+For structs wrapping arrays, using `GC.@preserve` can trigger heap allocations.
+`preserve_buffer` attempts to extract the heap-allocated part. Isolating it by itself
+will often allow the heap allocations to be elided. For example:
+
+```julia
+julia> using StaticArrays, BenchmarkTools
+
+julia> # Needed until a release is made featuring https://github.com/JuliaArrays/StaticArrays.jl/commit/a0179213b741c0feebd2fc6a1101a7358a90caed
+       Base.elsize(::Type{<:MArray{S,T}}) where {S,T} = sizeof(T)
+
+julia> @noinline foo(A) = unsafe_load(A,1)
+foo (generic function with 1 method)
+
+julia> function alloc_test_1()
+           A = view(MMatrix{8,8,Float64}(undef), 2:5, 3:7)
+           A[begin] = 4
+           GC.@preserve A foo(pointer(A))
+       end
+alloc_test_1 (generic function with 1 method)
+
+julia> function alloc_test_2()
+           A = view(MMatrix{8,8,Float64}(undef), 2:5, 3:7)
+           A[begin] = 4
+           pb = parent(A) # or `LoopVectorization.preserve_buffer(A)`; `perserve_buffer(::SubArray)` calls `parent`
+           GC.@preserve pb foo(pointer(A))
+       end
+alloc_test_2 (generic function with 1 method)
+
+julia> @benchmark alloc_test_1()
+BenchmarkTools.Trial:
+  memory estimate:  544 bytes
+  allocs estimate:  1
+  --------------
+  minimum time:     17.227 ns (0.00% GC)
+  median time:      21.352 ns (0.00% GC)
+  mean time:        26.151 ns (13.33% GC)
+  maximum time:     571.130 ns (78.53% GC)
+  --------------
+  samples:          10000
+  evals/sample:     998
+
+julia> @benchmark alloc_test_2()
+BenchmarkTools.Trial:
+  memory estimate:  0 bytes
+  allocs estimate:  0
+  --------------
+  minimum time:     3.275 ns (0.00% GC)
+  median time:      3.493 ns (0.00% GC)
+  mean time:        3.491 ns (0.00% GC)
+  maximum time:     4.998 ns (0.00% GC)
+  --------------
+  samples:          10000
+  evals/sample:     1000
+```
+"""
+@inline preserve_buffer(A::AbstractArray) = A
+@inline preserve_buffer(A::SubArray) = preserve_buffer(parent(A))
+@inline preserve_buffer(A::PermutedDimsArray) = preserve_buffer(parent(A))
+@inline preserve_buffer(A::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint}) = preserve_buffer(parent(A))
+@inline preserve_buffer(x) = x
 
