@@ -32,7 +32,7 @@ end
 @inline val_dense_dims(A) = asvalbool(ArrayInterface.dense_dims(A))
 
 # doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
-export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False,
+export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False, Bit,
     vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub,
     VecUnroll, Unroll
 

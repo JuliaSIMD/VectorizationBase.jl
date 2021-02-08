@@ -952,8 +952,8 @@ end
     vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True, RS, false)
 end
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::VecUnroll{Nm1,W,Bit}, ::A, ::StaticInt{RS}
-) where {A<:StaticBool,AU,F,N,AV,W,M,I<:Index,T,D,RS,UX,Nm1}
+    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}
+) where {A<:StaticBool,AU,F,N,AV,W,M,I<:Index,T,D,RS,UX,Nm1,B<:Union{Bool,Bit}}
     Nm1+1 == N || throw(ArgumentError("Nm1 + 1 = $(Nm1 + 1) ≠ $N = N"))
     vload_unroll_quote(D, AU, F, N, AV, W, M, true, A === True, RS, true)
 end
@@ -964,7 +964,9 @@ end
 @inline function vload(ptr::AbstractStridedPointer, u::Unroll, m::Mask, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
     _vload_unroll(ptr, linear_index(ptr, u), m, A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer, u::Unroll, m::VecUnroll{Nm1,W,Bit}, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS,Nm1,W,Bit}
+@inline function vload(
+    ptr::AbstractStridedPointer, u::Unroll, m::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}
+) where {A<:StaticBool,RS,Nm1,W,B<:Union{Bool,Bit}}
     _vload_unroll(ptr, linear_index(ptr, u), m, A(), StaticInt{RS}())
 end
 
@@ -1095,9 +1097,10 @@ end
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A===True, S===True, NT===True, RS, false)
 end
+# TODO: add `m::VecUnroll{Nm1,W,Bool}`
 @generated function _vstore_unroll!(
-    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::VecUnroll{Nm1,W,Bit}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX}
+    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::VecUnroll{Nm1,W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,B<:Union{Bit,Bool}}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A===True, S===True, NT===True, RS, true)
 end
@@ -1113,8 +1116,8 @@ end
     _vstore_unroll!(sptr, vu, linear_index(sptr, u), m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, vu::VecUnroll, u::Unroll, m::VecUnroll{Nm1,W,Bit}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,Nm1,W,Bit}
+    sptr::AbstractStridedPointer, vu::VecUnroll, u::Unroll, m::VecUnroll{Nm1,W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,Nm1,W,B<:Union{Bool,Bit}}
     _vstore_unroll!(sptr, vu, linear_index(sptr, u), m, A(), S(), NT(), StaticInt{RS}())
 end
 
