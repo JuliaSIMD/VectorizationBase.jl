@@ -356,20 +356,25 @@ end
 @inline vlt(v1::AbstractSIMDVector{W,U}, v2::AbstractSIMDVector{W,S}) where {W,S<:SignedHW,U<:UnsignedHW} = vgt(v2, v1)
 @inline vle(v1::AbstractSIMDVector{W,S}, v2::AbstractSIMDVector{W,U}) where {W,S<:SignedHW,U<:UnsignedHW} = vge(v2, v1)
 @inline vle(v1::AbstractSIMDVector{W,U}, v2::AbstractSIMDVector{W,S}) where {W,S<:SignedHW,U<:UnsignedHW} = vge(v2, v1)
-for op ∈ [:vgt,:vge,:vlt,:vle]
+for (op,f) ∈ [(:vgt,:(>)),(:vge,:(≥)),(:vlt,:(<)),(:vle,:(≤))]
     @eval begin
-        function $op(v1::V1, v2::V2) where {V1<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}, V2<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}}
+        @inline function $op(v1::V1, v2::V2) where {V1<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}, V2<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}}
             V3 = promote_type(V1, V2)
             $op(itosize(v1, V3), itosize(v2, V3))
         end
-        function $op(v1, v2)
+        @inline function $op(v1, v2)
             v3, v4 = promote(v1, v2)
             $op(v3, v4)
         end
+        @inline $op(s1::IntegerTypesHW, s2::IntegerTypesHW) = $f(s1, s2)
+        @inline $op(s1::Union{Float32,Float64}, s2::Union{Float32,Float64}) = $f(s1, s2)
     end
 end
-for op ∈ [:veq, :vne]
-    @eval @inline $op(a,b) = ((c,d) = promote(a,b); $op(c,d))
+for (op,f) ∈ [(:veq,:(==)), (:vne,:(≠))]
+    @eval begin
+        @inline $op(a,b) = ((c,d) = promote(a,b); $op(c,d))
+        @inline $op(s1::NativeTypes, s2::NativeTypes) = $f(s1, s2)
+    end
 end
 
 @generated function vifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}

@@ -33,7 +33,8 @@ end
 
 # doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
 export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False,
-    vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub
+    vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub,
+    VecUnroll, Unroll
 
 using Base: llvmcall, VecElement, HWReal
 
@@ -51,15 +52,17 @@ const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 
-abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
-struct VecUnroll{N,W,T,V<:AbstractSIMDVector{W,T}} <: Real
+abstract type AbstractSIMD{W,T} <: Real end
+abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: AbstractSIMD{W,T} end
+struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
     data::Tuple{V,Vararg{V,N}}
     # @inline VecUnroll{N,W,T,V}(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
-    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
+    # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
+    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
+    @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}) where {N,T<:NativeTypes} = new{N,1,T,T}(data)
 end
 
-
-const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
+# const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
 
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}

@@ -162,7 +162,7 @@ end
 
 function llvmname(op::String, WR::Int, WA, T::Symbol, TA::Symbol)
     lret = LLVM_TYPES_SYM[T]
-    ln = "llvm.$op.$(suffix(WR,T))"
+    ln = WR ≤ 1 ? "llvm.$op" : "llvm.$op.$(suffix(WR,T))"
     (isone(abs(WR)) || T !== TA) ? ln * '.' * suffix(maximum(WA),TA) : ln
 end
 
