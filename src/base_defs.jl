@@ -78,6 +78,7 @@ for (op, f, promote) ∈ [
     (:(Base.:(≤)), :vle, :no_promote),
 ]
     @eval begin
+        # @inline $op(a::AbstractSIMD,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
         @inline $op(a::AbstractSIMD,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
         @inline $op(a::NativeTypes,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
         @inline $op(a::AbstractSIMD,b::NativeTypes) = ((c,d) = $promote(a,b); $f(c,d))

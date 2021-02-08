@@ -232,7 +232,7 @@ for f ∈ [ :vdiv, :vrem ]
         @inline $f(i::MM{W,X1,T1}, j::MM{W,X2,T2}) where {W,X1,X2,T1<:UnsignedHW,T2<:IntegerTypes} = $f(Vec(i), Vec(j))
     end
 end
-for f ∈ [:vlt, :vle, :vgt, :vge, :veq, :vne, :vmin, :vmax, :vcopysign]
+for f ∈ [:vlt, :vle, :vgt, :vge, :veq, :vne, :vmin, :vmax, :vmin_fast, :vmax_fast, :vcopysign]
     @eval begin
         # left floating
         @inline $f(i::MM{W,X,T}, v::IntegerTypes) where {W,X,T<:FloatingTypes} = $f(Vec(i), v)

@@ -107,10 +107,11 @@ end
 @inline Vec{W}(s::T) where {W,T<:NativeTypes} = vbroadcast(Val{W}(), s)
 @inline Vec(s::T) where {T<:NativeTypes} = vbroadcast(pick_vector_width(T), s)
 
-@generated function Base.zero(::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V}
-    t = Expr(:tuple); foreach(_ -> push!(t.args, :(zero(Vec{$W,$T}))), 0:N)
+@generated function _vzero(::Type{VecUnroll{N,W,T,V}}, ::StaticInt{RS}) where {N,W,T,V,RS}
+    t = Expr(:tuple); foreach(_ -> push!(t.args, :(_vzero(StaticInt{$W}(), $T, StaticInt{$RS}()))), 0:N)    
     Expr(:block, Expr(:meta, :inline), :(VecUnroll($t)))
 end
+@inline Base.zero(::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V} = _vzero(VecUnroll{N,W,T,V}, register_size())
 @inline Base.zero(::VecUnroll{N,W,T,V}) where {N,W,T,V} = zero(VecUnroll{N,W,T,V})
 
 @generated function VecUnroll{N,W,T,V}(x::S) where {N,W,T,V<:AbstractSIMDVector{W,T},S<:Real}
@@ -123,4 +124,21 @@ end
 @inline VecUnroll{N,W,T}(x::NativeTypesV) where {N,W,T} = VecUnroll{N,W,T,Vec{W,T}}(x)
 @inline VecUnroll{N}(x::V) where {N,W,T,V <: AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}(x)
 
+
+@generated function zero_vecunroll(::StaticInt{N}, ::StaticInt{W}, ::Type{T}, ::StaticInt{RS}) where {N,W,T,RS}
+    Expr(:block, Expr(:meta, :inline), :(_vzero(VecUnroll{$(N-1),$W,$T,Vec{$W,$T}}, StaticInt{$RS}())))
+end
+@inline zero_init(::Type{T}, ::StaticInt{1}, ::StaticInt{0}, ::StaticInt{RS}) where {T,RS} = zero(T)
+@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{0}, ::StaticInt{RS}) where {W,T,RS} = _vzero(StaticInt{W}(), T, StaticInt{RS}())
+@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{U}, ::StaticInt{RS}) where {W,U,T,RS} = _vzero(VecUnroll{U,W,T,Vec{W,T}}, StaticInt{RS}())
+@inline zero_init(::Type{T}, ::Tuple{StaticInt{W},StaticInt{U}}, ::StaticInt{RS}) where {W,U,T,RS} = zero_init(T, StaticInt{W}(), StaticInt{U}(), StaticInt{RS})
+@generated function vbroadcast_vecunroll(::StaticInt{N}, ::StaticInt{W}, s::T, ::StaticInt{RS}) where {N,W,T,RS}
+    q = Expr(:block, Expr(:meta,:inline), :(v = _vbroadcast(StaticInt{$W}(), s, StaticInt{$RS}())))
+    t = Expr(:tuple)
+    for n ∈ 1:N
+        push!(t.args, :v)
+    end
+    push!(q.args, :(VecUnroll($t)))
+    q
+end
 

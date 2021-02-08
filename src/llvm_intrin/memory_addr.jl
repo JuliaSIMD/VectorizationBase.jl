@@ -1,14 +1,14 @@
 
 """
-  Unroll{AU,F,N,AV,W,M}(i::I)
+  Unroll{AU,F,N,AV,W,M,X}(i::I)
 
  - AU: Unrolled axis
  - F: Factor, step size per unroll. If AU == AV, `F == W` means successive loads. `1` would mean offset by `1`, e.g. `x{1:8]`, `x[2:9]`, and `x[3:10]`.
  - N: How many times is it unrolled
  - AV: Vectorized axis # 0 means not vectorized, some sort of reduction
  - W: vector width
- - X: stride between loads of vectors along axis `AV`.
  - M: bitmask indicating whether each factor is masked
+ - X: stride between loads of vectors along axis `AV`.
  - i::I - index
 """
 struct Unroll{AU,F,N,AV,W,M,X,I}
@@ -512,27 +512,19 @@ end
 ) where {U,W}
     vwidth_from_ind(Base.tail(i), StaticInt{W}(), StaticInt{W}(U))
 end
-@inline zero_init(::Type{T}, ::StaticInt{1}, ::StaticInt{0}) where {T} = zero(T)
-@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{0}) where {W,T} = vzero(Val(W), T)
-@inline zero_init(::Type{T}, ::StaticInt{W}, ::StaticInt{U}) where {W,U,T} = zero(VecUnroll{U,W,T,Vec{W,T}})
-
-@inline zero_init(::Type{T}, ::Tuple{StaticInt{W},StaticInt{U}}) where {W,U,T} = zero_init(T, StaticInt{W}(), StaticInt{U}())
 
 @inline function vload(ptr::Ptr{T}, i::Tuple, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
     if b
         vload(ptr, i, A(), StaticInt{RS}())
     else
-        zero_init(T, vwidth_from_ind(i))
+        zero_init(T, vwidth_from_ind(i), StaticInt{RS}())
     end
-end
-@generated function zero_vecunroll(::Val{N}, ::Val{W}, ::Type{T}) where {N,W,T}
-    Expr(:block, Expr(:meta, :inline), :(zero(VecUnroll{$(N-1),$W,$T,Vec{$W,$T}})))
 end
 @inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,X,I}, b::Bool, ::A, ::StaticInt{RS}) where {T,AU,F,N,AV,W,M,X,I,A<:StaticBool,RS}
     if b
         vload(ptr, i, A(), StaticInt{RS}())
     else
-        zero_vecunroll(Val{N}(), Val{W}(), T)
+        zero_vecunroll(StaticInt{N}(), StaticInt{W}(), T, StaticInt{RS}())
         # VecUnroll(ntuple(@inline(_ -> vzero(Val{W}(), T)), Val{N}()))
     end
 end
@@ -891,7 +883,7 @@ function shuffle_load_quote(
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
     size_T = sizeof(T)
     # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
-    interleave_memory_access(AU, C, F, X, UN, size_T, B) || return nothing
+    ((AV > 0) && interleave_memory_access(AU, C, F, X, UN, size_T, B)) || return nothing
     # `X` is stride between indices, e.g. `X = 3` means our final vectors should be `<x[0], x[3], x[6], x[9]>`
     # We need `X` to equal the steps (the unrolling factor)
     Wfull = W * UN
@@ -923,7 +915,7 @@ end
 # @inline staticunrolledvectorstride(::StaticInt{M}, ::StaticInt{X}) where {M,X} = StaticInt{M}() * StaticInt{X}()
 # @inline staticunrolledvectorstride(sp::AbstractStridedPointer, ::Unroll{AU,F,UN,AV,W,M,X}) where {AU,F,UN,AV,W,M,X} = staticunrolledvectorstride(strides(ptr)[AV], StaticInt{X}())
 
-@generated function staticunrolledvectorstride(str::T, ::Unroll{AU,F,UN,AV,W,M,X}) where {T,AU,F,UN,AV,W,M,X}
+@generated function staticunrolledvectorstride(sptr::T, ::Unroll{AU,F,UN,AV,W,M,X}) where {T,AU,F,UN,AV,W,M,X}
     SM = T.parameters[AV]
     if SM <: StaticInt
         return Expr(:block, Expr(:meta,:inline), Expr(:call, *, Expr(:call, SM), Expr(:call, Expr(:curly, :StaticInt, X))))
@@ -1072,7 +1064,7 @@ end
     vstore_unroll_quote(D, AU, F, N, AV, W, M, false, align, alias, notmp, RS)
 end
 @generated function _vstore_unroll!(
-    ptr::AbstractStridedPointer{T,D}, v::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {AU,F,N,AV,W,M,I,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     vstore_unroll_quote(D, AU, F, N, AV, W, M, true, A===True, S===True, NT===True, RS)

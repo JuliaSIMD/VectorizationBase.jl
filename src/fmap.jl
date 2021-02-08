@@ -135,7 +135,7 @@ end
 @inline (::Type{VecUnroll{N,W,T,VT}})(vu::VecUnroll{N,W,S,VS})  where {N,W,T,VT<:AbstractSIMDVector{W,T},S,VS<:AbstractSIMDVector{W,S}} = VecUnroll(fmap(convert, Vec{W,T}, vu.data))
 
 
-function collapse_expr(N, op)
+function collapse_expr(N, op, final)
     N += 1
     t = Expr(:tuple); s = Vector{Symbol}(undef, N)
     for n ∈ 1:N
@@ -146,21 +146,43 @@ function collapse_expr(N, op)
         $(Expr(:meta,:inline))
         $t = data(vu)
     end
-    while N > 1
+    _final = if final == 1
+        1
+    else
+        2final
+    end
+    while N > _final
         for n ∈ 1:N >>> 1
             push!(q.args, Expr(:(=), s[n], Expr(:call, op, s[n], s[n + (N >>> 1)])))
         end
         isodd(N) && push!(q.args, Expr(:(=), s[1], Expr(:call, op, s[1], s[N])))
         N >>>= 1
     end
+    if final != 1
+        for n ∈ final+1:N
+            push!(q.args, Expr(:(=), s[n-final], Expr(:call, op, s[n-final], s[n])))
+        end
+        t = Expr(:tuple)
+        for n ∈ 1:final
+            push!(t.args, s[n])
+        end
+        push!(q.args, :(VecUnroll($t)))
+    end
     q
 end
-@generated collapse_add(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vadd)
-@generated collapse_mul(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vmul)
-@generated collapse_max(vu::VecUnroll{N}) where {N} = collapse_expr(N, :max)
-@generated collapse_min(vu::VecUnroll{N}) where {N} = collapse_expr(N, :min)
-@generated collapse_and(vu::VecUnroll{N}) where {N} = collapse_expr(N, :&)
-@generated collapse_or(vu::VecUnroll{N}) where {N} = collapse_expr(N, :|)
+@generated collapse_add(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vadd, 1)
+@generated collapse_mul(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vmul, 1)
+@generated collapse_max(vu::VecUnroll{N}) where {N} = collapse_expr(N, :max, 1)
+@generated collapse_min(vu::VecUnroll{N}) where {N} = collapse_expr(N, :min, 1)
+@generated collapse_and(vu::VecUnroll{N}) where {N} = collapse_expr(N, :&, 1)
+@generated collapse_or(vu::VecUnroll{N}) where {N} = collapse_expr(N, :|, 1)
+
+@generated contract_add(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :vadd, C)
+@generated contract_mul(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :vmul, C)
+@generated contract_max(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :max, C)
+@generated contract_min(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :min, C)
+@generated contract_and(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :&, C)
+@generated contract_or(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :|, C)
 @inline vsum(vu::VecUnroll) = vsum(collapse_add(vu))
 @inline vsum(s, vu::VecUnroll) = vsum(s, collapse_add(vu))
 @inline vprod(vu::VecUnroll) = vprod(collapse_mul(vu))
