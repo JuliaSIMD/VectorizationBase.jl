@@ -108,14 +108,14 @@ function vadd_expr(W,U)
 end
 @generated vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
 
-@inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
-@inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
+@inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, m.u, zero(m.u)))
+@inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(Core.ifelse(b, m.u, zero(m.u)))
 
-@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
-@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
+@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
+@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
 
-@inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
-@inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
+@inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, ~m.u, m.u))
+@inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(Core.ifelse(b, ~m.u, m.u))
 
 @inline vshl(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(m.u, i))
 @inline vashr(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))

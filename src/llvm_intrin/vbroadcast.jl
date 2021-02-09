@@ -59,6 +59,9 @@ end
 end
 @inline vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T} = _vzero(StaticInt{W}(), T, register_size(T))
 @inline vbroadcast(::Union{Val{W},StaticInt{W}}, s::T) where {W,T} = _vbroadcast(StaticInt{W}(), s, register_size(T))
+@inline function _vbroadcast(::StaticInt{W}, vu::VecUnroll{N, 1, T, T}, ::StaticInt{RS}) where {W,N,T,RS}
+    VecUnroll(fmap(_vbroadcast, StaticInt{W}(), data(vu), StaticInt{RS}()))
+end
 
 @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ptr::Ptr{T}) where {W, T}
     isone(W) && return Expr(:block, Expr(:meta, :inline), :(vload(ptr)))

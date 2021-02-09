@@ -100,10 +100,17 @@ end
 @inline function _vconvert(::Type{VecUnroll{N,W,T,V}}, v::AbstractSIMDVector{W}) where {N,W,T,V}
     VecUnroll{N}(vconvert(V, v))
 end
-@inline function vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N,W}) where {N,W,T,V}
+@inline function vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N}) where {N,W,T,V}
     VecUnroll(fmap(vconvert, V, v.data))
 end
 @inline vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = v
+@generated function vconvert(::Type{VecUnroll{N,1,T,T}}, s::NativeTypes) where {N,T}
+    quote
+        $(Expr(:meta,:inline))
+        x = convert($T, s)
+        VecUnroll((Base.Cartesian.@ntuple $(N+1) n -> x))
+    end
+end
 
 # @inline vconvert(::Type{T}, v::T) where {T} = v
 

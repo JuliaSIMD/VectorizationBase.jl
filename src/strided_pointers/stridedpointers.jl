@@ -129,20 +129,20 @@ end
 @inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
     vload(pointer(ptr), linear_index(ptr, i), A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m::Mask, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m::Union{Mask,Bool}, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
     vload(pointer(ptr), linear_index(ptr, i), m, A(), StaticInt{RS}())
 end
 @inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
     vload(pointer(ptr), tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Mask, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
     vload(pointer(ptr), tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m, A(), StaticInt{RS}())
 end
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
 @inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
     vload(pointer(ptr), linear_index(ptr, i), A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Mask, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
     vload(pointer(ptr), linear_index(ptr, i), m, A(), StaticInt{RS}())
 end
 
@@ -153,7 +153,7 @@ end
     vstore!(pointer(ptr), v, linear_index(ptr, i), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Mask, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,N,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     vstore!(pointer(ptr), v, linear_index(ptr, i), m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -163,7 +163,7 @@ end
     vstore!(pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Mask, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     vstore!(pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -173,7 +173,7 @@ end
     vstore!(pointer(ptr), v, linear_index(ptr, i), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Mask, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     vstore!(pointer(ptr), v, linear_index(ptr, i), m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -323,13 +323,22 @@ end
     s = r.s
     FastRange{T}(f + ii * s, r.s, Zero())
 end
+
 @inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) - convert(T, getfield(r, :offset)))
+
 @inline vload(r::FastRange, i::Tuple, m::Mask) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i, _, __) = vload(r, i)
 @inline vload(r::FastRange, i, m::Mask, __, ___) = vload(r, i, m)
+# discard unnueeded align/reg size info
+# @inline vload(r::FastRange, i, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i)
+# @inline vload(r::FastRange, i, m, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i,m)
 # @inline Base.getindex(r::FastRange, i::Integer) = vload(r, (i,))
 @inline Base.eltype(::FastRange{T}) where {T} = T
+
+# @generated function vload(r::FastRange{T}, i::Unroll{AU,F,N,AV,W,M,X,I}) where {T,I}
+    
+# end
 
 """
 For structs wrapping arrays, using `GC.@preserve` can trigger heap allocations.

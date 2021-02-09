@@ -333,9 +333,38 @@ function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::I
     push!(q.args, :(VecUnroll($t)::VecUnroll{$(D-1),$Wnew,$T_sym,Vec{$Wnew,$T_sym}}))
     q
 end
+
+@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::Mask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
+    Bool(m) ? vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
+end
+@inline function _mask_scalar_load(ptr::Ptr{T}, m::Mask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
+    Bool(m) ? vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
+end
+@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::Mask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
+    s = vload(ptr, i, A(), StaticInt{RS}())
+    ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
+end
+@inline function _mask_scalar_load(ptr::Ptr{T}, m::Mask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
+    s = vload(ptr, A(), StaticInt{RS}())
+    ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
+end
+
 function vload_quote_llvmcall(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Expr
 )
+    if mask && W == 1
+        if M == O == 0
+            return quote
+                $(Expr(:meta,:inline))
+                _mask_scalar_load(ptr, m, $(align ? :True : :False)(), StaticInt{$rs}())
+            end
+        else
+            return quote
+                $(Expr(:meta,:inline))
+                _mask_scalar_load(ptr, i, m, $(align ? :True : :False)(), StaticInt{$rs}())
+            end
+        end
+    end
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
     ibits = 8sizeof_I
@@ -496,11 +525,7 @@ end
 @inline vloada(ptr::Union{Ptr,AbstractStridedPointer}, i::Union{Number,Tuple,Unroll}, b::Bool) = vload(ptr, i, b, True(), register_size())
 
 @inline function vload(ptr::Ptr{T}, i::Number, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
-    if b
-        vload(ptr, i, A())
-    else
-        zero(T)
-    end
+    b ? vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
 end
 @inline vwidth_from_ind(i::Tuple) = vwidth_from_ind(i, StaticInt(1), StaticInt(0))
 @inline vwidth_from_ind(i::Tuple{}, ::StaticInt{W}, ::StaticInt{U}) where {W,U} = (StaticInt{W}(), StaticInt{U}())
@@ -521,13 +546,17 @@ end
     end
 end
 @inline function vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,X,I}, b::Bool, ::A, ::StaticInt{RS}) where {T,AU,F,N,AV,W,M,X,I,A<:StaticBool,RS}
-    if b
-        vload(ptr, i, A(), StaticInt{RS}())
-    else
-        zero_vecunroll(StaticInt{N}(), StaticInt{W}(), T, StaticInt{RS}())
-        # VecUnroll(ntuple(@inline(_ -> vzero(Val{W}(), T)), Val{N}()))
-    end
+    m = max_mask(Val{W}()) & b
+    vload(ptr, i, m, A(), StaticInt{RS}())
 end
+@inline function vload(ptr::Ptr{T}, i::I, m::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS,I<:IntegerIndex}
+    m ? vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
+end
+@inline function vload(ptr::Ptr{T}, i::I, m::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS,W,I<:VectorIndex{W}}
+    _m = max_mask(Val{W}()) & m
+    vload(ptr, i, _m, A(), StaticInt{RS}())
+end
+
 
 function vstore_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
@@ -795,7 +824,7 @@ for (store,align,alias,nontemporal) ∈ [
     end
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer, v, i::Tuple, b::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::Ptr, v, i, b::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     b && vstore!(ptr, v, i, A(), S(), NT(), StaticInt{RS}())
     nothing
@@ -1461,5 +1490,63 @@ end
 @inline vload(::StaticInt{N}, args...) where {N} = StaticInt{N}()
 @inline stridedpointer(::StaticInt{N}) where {N} = StaticInt{N}()
 @inline zero_offsets(::StaticInt{N}) where {N} = StaticInt{N}()
+
+@generated function vload(r::FastRange{T}, i::Unroll{1,W,N,1,W,M,X,Tuple{I}}) where {T,I,W,N,M,X}
+    q = quote
+        $(Expr(:meta,:inline))
+        s = vload(r, data(i))
+        step = getfield(r, :s)
+        mm = Vec(MM{$W,$X}(Zero())) * step
+        v = Base.FastMath.add_fast(s + mm)
+    end
+    t = Expr(:tuple, :v)
+    for n ∈ 1:N-1
+        # push!(t.args, :(MM{$W,$W}(Base.FastMath.add_fast(s, $(T(n*W))))))
+        push!(t.args, :(Base.FastMath.add_fast(v, Base.FastMath.mul_fast($(T(n*W)), step))))
+    end
+    push!(q.args, :(VecUnroll($t)))
+    q
+end
+@generated function vload(r::FastRange{T}, i::Unroll{1,W,N,1,W,M,X,Tuple{I}}, m::Mask{W}) where {T,I,W,N,M,X}
+    q = quote
+        $(Expr(:meta,:inline))
+        s = vload(r, data(i))
+        step = getfield(r, :s)
+        mm = Vec(MM{$W,$X}(Zero())) * step
+        v = Base.FastMath.add_fast(s + mm)
+        z = zero(v)
+    end
+    t = if M % Bool
+        Expr(:tuple, :(ifelse(m, v, z)))
+    else
+        Expr(:tuple, :v)
+    end
+    for n ∈ 1:N-1
+        M >>>= 1
+        if M % Bool
+            push!(t.args, :(ifelse(m, Base.FastMath.add_fast(v, Base.FastMath.mul_fast($(T(n*W)), step)), z)))
+        else
+            push!(t.args, :(Base.FastMath.add_fast(v, Base.FastMath.mul_fast($(T(n*W)), step))))
+        end
+    end
+    push!(q.args, :(VecUnroll($t)))
+    q
+end
+@generated function vload(r::FastRange{T}, i::Unroll{1,W,N,1,W,M,X,Tuple{I}}, m::VecUnroll{Nm1,W,B}) where {T,I,W,N,M,X,Nm1,B<:Union{Bit,Bool}}
+    q = quote
+        $(Expr(:meta,:inline))
+        s = vload(r, data(i))
+        step = getfield(r, :s)
+        mm = Vec(MM{$W,$X}(Zero())) * step
+        v = Base.FastMath.add_fast(s + mm)
+        z = zero(v)
+    end
+    t = Expr(:tuple, :(ifelse(getfield(m,$1,false), v, z)))
+    for n ∈ 1:N-1
+        push!(t.args, :(ifelse(getfield(m,$(n+1),false), Base.FastMath.add_fast(v, Base.FastMath.mul_fast($(T(n*W)), step)), z)))
+    end
+    push!(q.args, :(VecUnroll($t)))
+    q
+end
 
 
