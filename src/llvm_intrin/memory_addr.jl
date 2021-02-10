@@ -1162,22 +1162,23 @@ end
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, v), u, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, x::T, u::Unroll{AU,F,N,AV,W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,AU,F,N,AV}
+    sptr::AbstractStridedPointer{T}, x::NativeTypes, u::Unroll{AU,F,N,AV,W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T<:NativeTypes,AU,F,N,AV}
+    # @show typeof(x), VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, x), u, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, x::T, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,AU,F,N,AV}
+    sptr::AbstractStridedPointer{T}, x::NativeTypes, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T<:NativeTypes,AU,F,N,AV}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, x), u, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, v::T, u::Unroll{AU,F,N,-1,1}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T}, v::NativeTypes, u::Unroll{AU,F,N,-1,1}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, v::T, u::Unroll{AU,F,N,-1,1}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T}, v::NativeTypes, u::Unroll{AU,F,N,-1,1}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -1390,7 +1391,7 @@ end
 
 
 
-function lazymulunroll_load_quote(M,O,N,mask,align,rs)
+function lazymulunroll_load_quote(M,O,N,maskall,masklast,align,rs)
     t = Expr(:tuple)
     alignval = Expr(:call, align ? :True : :False)
     rsexpr = Expr(:call, Expr(:curly, :StaticInt, rs))
@@ -1400,32 +1401,40 @@ function lazymulunroll_load_quote(M,O,N,mask,align,rs)
         else
             Expr(:ref, :u, n)
         end
-        call = if mask
+        call = if maskall
             Expr(:call, :vload, :ptr, ind, Expr(:ref, :mt, n), alignval, rsexpr)
+        elseif masklast && n == N+1
+            Expr(:call, :vload, :ptr, ind, :m, alignval, rsexpr)
         else
             Expr(:call, :vload, :ptr, ind, alignval, rsexpr)
         end
         push!(t.args, call)
     end
     q = Expr(:block, Expr(:meta, :inline), :(u = data(um)))
-    mask && push!(q.args, :(mt = data(m)))
+    maskall && push!(q.args, :(mt = data(m)))
     push!(q.args, Expr(:call, :VecUnroll, t))
     q
 end
 @generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, ::A, ::StaticInt{RS}) where {T,N,W,I,V,A<:StaticBool,RS}
-    lazymulunroll_load_quote(1,0,N,false,A === True,RS)
+    lazymulunroll_load_quote(1,0,N,false,false,A === True,RS)
 end
 @generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}) where {T,N,W,I,V,A<:StaticBool,U,RS}
-    lazymulunroll_load_quote(1,0,N,true,A===True,RS)
+    lazymulunroll_load_quote(1,0,N,true,false,A===True,RS)
+end
+@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask{W,U}, ::A, ::StaticInt{RS}) where {T,N,W,I,V,A<:StaticBool,U,RS}
+    lazymulunroll_load_quote(1,0,N,false,true,A===True,RS)
 end
 @inline function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask, ::A, ::StaticInt{RS}) where {T,N,W,I,V,RS,A<:StaticBool}
     vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), A,RS)
 end
 @generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,RS}
-    lazymulunroll_load_quote(M,O,N,false,A===True,RS)
+    lazymulunroll_load_quote(M,O,N,false,false,A===True,RS)
 end
 @generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,U,RS}
-    lazymulunroll_load_quote(M,O,N,true,A===True,RS)
+    lazymulunroll_load_quote(M,O,N,true,false,A===True,RS)
+end
+@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask{W}, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,RS}
+    lazymulunroll_load_quote(M,O,N,false,true,A===True,RS)
 end
 @inline function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,RS}
     vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), A(), StaticInt{RS}())
