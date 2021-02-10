@@ -1414,8 +1414,16 @@ end
         op = :+; reduct = :vsum
     elseif G === typeof(vprod)
         op = :*; reduct = :vprod
+    elseif G === typeof(vmaximum)
+        op = :max; reduct = :vmaximum
+    elseif G === typeof(vminimum)
+        op = :min; reduct = :vminimum
+    elseif G === typeof(vall)
+        op = :&; reduct = :vall
+    elseif G === typeof(vany)
+        op = :|; reduct = :vany
     else
-        throw("Function $f not recognized.")
+        throw("Function $G not recognized.")
     end
     horizontal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S === True, RS)
 end
