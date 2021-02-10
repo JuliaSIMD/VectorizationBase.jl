@@ -290,7 +290,7 @@ include("testsetup.jl")
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
         indices = (
-            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> 2i + 1, Val(W64))...),
+            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), MM{W64,-1}(W64+2), Vec(ntuple(i -> 2i + 1, Val(W64))...),
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
         )
         # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
@@ -636,7 +636,7 @@ include("testsetup.jl")
             vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
             @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0)));
             @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0)));
-            @test VectorizationBase.vall(vi2f == vi2)
+            @test VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2))
             W32 = StaticInt(WI)*StaticInt(2)
             vf2 = VectorizationBase.VecUnroll((
                 Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
@@ -773,9 +773,9 @@ include("testsetup.jl")
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
         v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
         @test @inferred(VectorizationBase.vsum(2.3, v1)) ≈ @inferred(VectorizationBase.vsum(v1)) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1)))
-        @test @inferred(VectorizationBase.vsum(vu1)) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, vu1)))
+        @test @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(vu1))) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(vu1, 2.3)))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(2.3, vu1))))
         @test @inferred(VectorizationBase.vsum(v2)) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))) == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, v2)))
-        @test @inferred(VectorizationBase.vsum(vu2)) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3))) == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, vu2)))
+        @test @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(vu2))) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(vu2, 3)))) == @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(3, vu2))))
         @test @inferred(VectorizationBase.vprod(v1)) * 2.3 ≈ @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))) ≈ @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1)))
         @test @inferred(VectorizationBase.vprod(v2)) * 3 == @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2)))
         @test @inferred(VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2)))
@@ -796,12 +796,12 @@ include("testsetup.jl")
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)) === -1 % UInt
         @test VectorizationBase.maxscalar(v4, 1e-16) === Vec(1e-16, 1.0, 2.0, 3.0)
         @test VectorizationBase.maxscalar(v4, -1e-16) === v4
-        @test VectorizationBase.vmaximum(vu3) == 3
-        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,2)) == 3
-        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,4)) == 4
-        @test VectorizationBase.vminimum(vu3) == -1
-        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,0)) == -1
-        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == VectorizationBase.vminimum(VectorizationBase.minscalar(-2,vu3)) == -2
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(vu3)) == 3
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,2))) == 3
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,4))) == 4
+        @test VectorizationBase.vminimum(VectorizationBase.collapse_min(vu3)) == -1
+        @test VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3,0))) == -1
+        @test VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3,-2))) == VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(-2,vu3))) == -2
     end
     println("broadcasting")
     @time @testset "broadcasting" begin
@@ -843,7 +843,7 @@ include("testsetup.jl")
         vones, vi2f, vtwos = @inferred(promote(1.0, vi2, 2f0)); # promotes a binary function, right? Even when used with three args?
         @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
         @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
-        @test @inferred(VectorizationBase.vall(vi2f == vi2))
+        @test @inferred(VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2)))
         vf2 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))

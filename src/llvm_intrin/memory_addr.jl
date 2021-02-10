@@ -1,4 +1,3 @@
-
 """
   Unroll{AU,F,N,AV,W,M,X}(i::I)
 
@@ -41,7 +40,7 @@ const STORE_SCOPE_FLAGS = ", !noalias !3";
 const USE_TBAA = false
 # use TBAA?
 # define: LOAD_SCOPE_TBAA, LOAD_SCOPE_TBAA_FLAGS, SCOPE_METADATA, STORE_TBAA, SCOPE_FLAGS, STORE_TBAA_FLAGS
-let 
+let
     LOAD_TBAA = """
     !4 = !{!"jtbaa"}
     !5 = !{!6, !6, i64 0, i64 0}
@@ -50,7 +49,7 @@ let
     LOAD_TBAA_FLAGS = ", !tbaa !5";
     global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_TBAA : SCOPE_METADATA;
     global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? LOAD_SCOPE_FLAGS * LOAD_TBAA_FLAGS : LOAD_SCOPE_FLAGS
-        
+
     global const STORE_TBAA = USE_TBAA ? """
     !4 = !{!"jtbaa", !5, i64 0}
     !5 = !{!"jtbaa"}
@@ -254,7 +253,7 @@ function gep_quote(
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
     largs = String[JULIAPOINTERTYPE]
     arg_syms = Union{Symbol,Expr}[:ptr]
-    
+
     if !(iszero(M) || ind_type === :StaticInt)
         push!(arg_syms, Expr(:call, :data, :i))
         if ind_type === :Integer
@@ -366,6 +365,18 @@ function vload_quote_llvmcall(
         end
     end
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
+
+    reverse_load = ((W > 1) & (X == -sizeof_T)) & (ind_type !== :Vec)
+    if reverse_load
+        X = sizeof_T
+        O -= (W - 1) * sizeof_T
+    end
+    # if (X == -sizeof_T) & (!mask)
+    #     return quote
+    #         $(Expr(:meta,:inline))
+    #         vload(ptr, i
+    #     end
+    # end
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
     ibits = 8sizeof_I
     if W > 1 && ind_type !== :Vec
@@ -385,13 +396,19 @@ function vload_quote_llvmcall(
     else
         alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
         typ = LLVM_TYPES_SYM[T_sym]
-    end    
-        
+    end
+
     decl = LOAD_SCOPE_TBAA
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
     vtyp = vtype(W, typ)
-    mask && truncate_mask!(instrs, '1' + dynamic_index, W, 0)
+    if mask
+        if reverse_load
+            decl *= truncate_mask!(instrs, '1' + dynamic_index, W, 0, true)
+        else
+            truncate_mask!(instrs, '1' + dynamic_index, W, 0, false)
+        end
+    end
     if grv
         loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
@@ -409,11 +426,20 @@ function vload_quote_llvmcall(
     if isbit
         lret = string('i', max(8,W))
         if W > 1
+            if reverse_load
+                # isbit means mask is set to false, so we definitely need to declare `bitreverse`
+                bitreverse = "i$(W) @llvm.bitreverse.i$(W)(i$(W))"
+                decl *= "declare $bitreverse"
+                resbit = "resbitreverse"
+                push!(instrs, "%$(resbit) = call $bitreverse(i$(W) %res")
+            else
+                resbit = "res"
+            end
             if W < 8
-                push!(instrs, "%resint = bitcast <$W x i1> %res to i$(W)")
+                push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
                 push!(instrs, "%resfinal = zext i$(W) %resint to i8")
             else
-                push!(instrs, "%resfinal = bitcast <$W x i1> %res to i$(W)")
+                push!(instrs, "%resfinal = bitcast <$W x i1> %$(resbit) to i$(W)")
             end
         else
             push!(instrs, "%resfinal = zext i1 %res to i8")
@@ -421,7 +447,13 @@ function vload_quote_llvmcall(
         push!(instrs, "ret $lret %resfinal")
     else
         lret = vtyp
-        push!(instrs, "ret $vtyp %res")
+        if reverse_load
+            reversemask = '<' * join(map(x->string("i32 ", W-x), 1:W), ", ") * '>'
+            push!(instrs, "%resreversed = shufflevector $vtyp %res, $vtyp undef, <$W x i32> $reversemask")
+            push!(instrs, "ret $vtyp %resreversed")
+        else
+            push!(instrs, "ret $vtyp %res")
+        end
     end
     args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
     largs = String[JULIAPOINTERTYPE]
@@ -583,7 +615,7 @@ function vstore_quote(
         iszero(Xr) || throw(ArgumentError("sizeof($T_sym) == $sizeof_T, but stride between vector loads is given as $X, which is not a positive integer multiple."))
     end
     instrs, i = offset_ptr(T_sym, ind_type, '2', ibits, W, X, M, O, false, rs)
-    
+
     grv = gep_returns_vector(W, X, M, ind_type)
     align != nontemporal # should I do this?
     alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
@@ -810,7 +842,7 @@ for (store,align,alias,nontemporal) ∈ [
         @inline function $store(ptr::Union{Ptr,AbstractStridedPointer}, v::Number, i::Union{Number,Tuple,Unroll}, b::Bool)
             b && vstore!(ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
-        
+
         @inline function $store(f::F, ptr::Union{Ptr,AbstractStridedPointer}, v::Number) where {F<:Function}
             vstore!(f, ptr, v, $align, $alias, $nontemporal, register_size())
         end
@@ -1047,7 +1079,7 @@ function shuffle_store_quote(
     Wfull = W * UN
     # the approach for combining is to keep concatenating vectors to double their length
     # until we hit ≥ half Wfull, then we `vresize` the remainder, and shuffle in the final combination before storing.
-    
+
     T_sym = JULIA_TYPES[T]
     I_sym = JULIA_TYPES[IT]
     mask = false
@@ -1593,5 +1625,3 @@ end
     push!(q.args, :(VecUnroll($t)))
     q
 end
-
-

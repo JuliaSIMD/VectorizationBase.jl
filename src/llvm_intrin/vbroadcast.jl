@@ -117,6 +117,8 @@ end
 @inline Base.zero(::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V} = _vzero(VecUnroll{N,W,T,V}, register_size())
 @inline Base.zero(::VecUnroll{N,W,T,V}) where {N,W,T,V} = zero(VecUnroll{N,W,T,V})
 
+@inline Base.one(::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V} = VecUnroll{N}(one(V))
+
 @generated function VecUnroll{N,W,T,V}(x::S) where {N,W,T,V<:AbstractSIMDVector{W,T},S<:Real}
     t = Expr(:tuple)
     for n ∈ 0:N
@@ -124,8 +126,16 @@ end
     end
     Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
 end
+@generated function VecUnroll{N,1,T,T}(x::S) where {N,T<:NativeTypes,S<:Real}
+    t = Expr(:tuple)
+    for n ∈ 0:N
+        push!(t.args, :(convert($T, x)))
+    end
+    Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
+end
 @inline VecUnroll{N,W,T}(x::NativeTypesV) where {N,W,T} = VecUnroll{N,W,T,Vec{W,T}}(x)
 @inline VecUnroll{N}(x::V) where {N,W,T,V <: AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}(x)
+@inline VecUnroll{N}(x::T) where {N,T<:NativeTypes} = VecUnroll{N,1,T,T}(x)
 
 
 @generated function zero_vecunroll(::StaticInt{N}, ::StaticInt{W}, ::Type{T}, ::StaticInt{RS}) where {N,W,T,RS}
