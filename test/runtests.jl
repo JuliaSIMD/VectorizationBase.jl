@@ -376,7 +376,7 @@ include("testsetup.jl")
             end
             v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
             GC.@preserve B begin
-                vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,W64,zero(UInt)}((i, j, k)))
+                vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k)))
             end
             ir = 0:(AU == 1 ? 4 : 0); jr = 0:(AU == 2 ? 4 : 0); kr = 0:(AU == 3 ? 4 : 0)
             xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)

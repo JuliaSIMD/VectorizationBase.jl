@@ -63,7 +63,7 @@ struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{
 end
 
 # const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
-
+# const VecOrScalar = Union{AbstractSIMDVector,NativeTypes}
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}

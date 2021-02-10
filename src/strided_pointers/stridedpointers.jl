@@ -177,6 +177,40 @@ end
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     vstore!(pointer(ptr), v, linear_index(ptr, i), m, A(), S(), NT(), StaticInt{RS}())
 end
+
+
+@inline function vstore!(
+    f::F, ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F, T,N,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(f, pointer(ptr), v, linear_index(ptr, i), A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    f::F, ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F, T,N,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(f, pointer(ptr), v, linear_index(ptr, i), m, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(f, pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(f, pointer(ptr), v, tdot(ptr, i, strides(ptr), contiguous_axis_indicator(ptr)), m, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(f, pointer(ptr), v, linear_index(ptr, i), A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(f, pointer(ptr), v, linear_index(ptr, i), m, A(), S(), NT(), StaticInt{RS}())
+end
+
+
 @inline function gep(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,StaticInt{0}}}, i::Tuple{Vararg{Any,N}}) where {T,N,C,B,R,X}
     gep(pointer(ptr), tdot(ptr, i, strides(ptr), nopromote_axis_indicator(ptr)))
 end

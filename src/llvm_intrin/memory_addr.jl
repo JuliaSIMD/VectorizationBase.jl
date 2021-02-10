@@ -766,24 +766,26 @@ end
 
 
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v::Union{MM,Mask}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    vstore!(f, ptr, convert(T, v), A(), S(), NT(), StaticInt{RS}())
+    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W}
+    vstore!(ptr, f(v), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v::Union{MM,Mask}, i, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    vstore!(f, ptr, convert(T, v), i, A(), S(), NT(), StaticInt{RS}())
+    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, i::IntegerIndex, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W}
+    vstore!(ptr, f(v), i, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v::Union{MM,Mask}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    vstore!(f, ptr, convert(Vec{W,T}, v), i, A(), S(), NT(), StaticInt{RS}())
+    # vstore!(ptr, convert(Vec{W,T}, v), i, A(), S(), NT(), StaticInt{RS}()) # discard `f`
+    vstore!(ptr, v, i, A(), S(), NT(), StaticInt{RS}()) # discard `f`
 end
 @inline function vstore!(
-    f::F, ptr::Ptr{T}, v::Union{MM,Mask}, i, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, i::VectorIndex{W}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    vstore!(f, ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
+    # vstore!(ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
+    vstore!(ptr, f(v), i, m, A(), S(), NT(), StaticInt{RS}())
 end
 
 
@@ -1150,14 +1152,34 @@ end
     _vstore_unroll!(sptr, vu, linear_index(sptr, u), m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, v::V, u::Unroll{AU,F,N}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,V<:AbstractSIMDVector{W,T},AU,F,N}
+    sptr::AbstractStridedPointer, v::V, u::Unroll{AU,F,N,AV,W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,V<:AbstractSIMDVector{W,T},AU,F,N,AV}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, v), u, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, v::V, u::Unroll{AU,F,N}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,V<:AbstractSIMDVector{W,T},AU,F,N}
+    sptr::AbstractStridedPointer, v::V, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,V<:AbstractSIMDVector{W,T},AU,F,N,AV}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, v), u, m, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    sptr::AbstractStridedPointer, x::T, u::Unroll{AU,F,N,AV,W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,AU,F,N,AV}
+    vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, x), u, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    sptr::AbstractStridedPointer, x::T, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,AU,F,N,AV}
+    vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, x), u, m, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    sptr::AbstractStridedPointer, v::T, u::Unroll{AU,F,N,-1,1}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N}
+    vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    sptr::AbstractStridedPointer, v::T, u::Unroll{AU,F,N,-1,1}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N}
+    vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, m, A(), S(), NT(), StaticInt{RS}())
 end
 
 function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, rs::Int, mask::Bool)
@@ -1344,11 +1366,16 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
     end
     q
 end
-@generated function vstore!(
+@inline function vstore!(
     ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,X,I}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS,X}
+    vstore!(ptr, vu, u, A(), S(), NT(), StaticInt{RS}())
+end
+@generated function vstore!(
+    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,1,M,X,I}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS,X}
     N == U + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(U+1)."))
-    if G === typeof(identity) || AV > 0
+    if (G === typeof(identity)) || (AV > 0) || (W == 1)
         return Expr(:block, Expr(:meta, :inline), :(vstore!(ptr, vu, u, $A(), $S(), $NT(), StaticInt{$RS}())))
     elseif G === typeof(vsum)
         op = :+; reduct = :vsum

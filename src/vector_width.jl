@@ -12,6 +12,7 @@
 
 @inline MM(::Union{Val{W},StaticInt{W}}) where {W} = MM{W}(0)
 @inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
+@inline MM(::Union{Val{W},StaticInt{W}}, i::AbstractSIMDVector{W}) where {W} = i
 @inline MM(::StaticInt{W}, i, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline gep(ptr::Ptr, i::MM) = gep(ptr, data(i))
 

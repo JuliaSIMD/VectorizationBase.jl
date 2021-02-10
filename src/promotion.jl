@@ -28,7 +28,7 @@ Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,W,T2,V2}}) wh
 
 Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,W,T1,T2,V1} = _assemble_vec_unroll(Val{N}(), promote_type(V1,T2))
 Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,W,T2,V2}}) where {N,W,T1,T2,V2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,V2))
-Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,W,T1,T2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,T2))
+Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,T1,T2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,T2))
 
 Base.promote_rule(::Type{Bit}, ::Type{T}) where {T <: Number} = T
 

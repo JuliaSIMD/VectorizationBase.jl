@@ -58,12 +58,14 @@ for (f, attr) ∈ [
     (:num_machines, :Machine),
     (:num_sockets, :Package),
     (:num_cores, :Core),
+    (:sys_threads, :PU),
     (:num_threads, :PU)
 ]
     define_attr_count(f, count_attr(attr))
 end
 
 function redefine_attr_count()
+    sys_thread = sys_threads()
     iter = [
         (num_l1cache(), :num_l1cache, :L1Cache),
         (num_l2cache(), :num_l2cache, :L2Cache),
@@ -72,7 +74,7 @@ function redefine_attr_count()
         (num_machines(), :num_machines, :Machine),
         (num_sockets(), :num_sockets, :Package),
         (num_cores(), :num_cores, :Core),
-        (num_threads(), :num_threads, :PU)
+        (sys_thread, :sys_threads, :PU)
     ]
     for (v, f, attr) ∈ iter
         ref = count_attr(attr)
@@ -80,6 +82,9 @@ function redefine_attr_count()
             @info "Redefining attr count $f = $ref."
             define_attr_count(f, ref)
         end
+    end
+    if sys_thread != Threads.nthreads()
+        @eval num_threads() = StaticInt{$(Threads.nthreads())}()
     end
     nothing
 end
