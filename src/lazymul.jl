@@ -135,18 +135,11 @@ end
 
 @inline add_indices(p::Ptr, a::AbstractSIMDVector, b::LazyMulAdd{M,O,I}) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
 @inline add_indices(p::Ptr, b::LazyMulAdd{M,O,I}, a::AbstractSIMDVector) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
-# MM subtypes `AbstractSIMDVector`, so we need to again specifically redict to `vadd_fast` in the special case:
-@inline function vadd_fast(::MM{W,X,StaticInt{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:IntegerTypes,A,W,X}
-    LazyMulAdd(MM{W,X}(getfield(a, :data)), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
-end
-@inline function vadd_fast(a::LazyMulAdd{M,O,T}, ::MM{W,X,StaticInt{A}}) where {M,O,T<:IntegerTypes,A,W,X}
-    LazyMulAdd(MM{W,X}(getfield(a, :data)), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
-end
 @inline function add_indices(p::Ptr, ::MM{W,X,StaticInt{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:IntegerTypes,A,W,X}
-    p, vadd_fast(MM{W,X}(StaticInt{A}()), a)
+    gep(p, a), MM{W,X}(StaticInt{A}())
 end
 @inline function add_indices(p::Ptr, a::LazyMulAdd{M,O,T}, ::MM{W,X,StaticInt{A}}) where {M,O,T<:IntegerTypes,A,W,X}
-    p, vadd_fast(MM{W,X}(StaticInt{A}()), a)
+    gep(p, a), MM{W,X}(StaticInt{A}())
 end
 
 @generated function add_indices(p::Ptr, a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:IntegerTypes}

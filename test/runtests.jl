@@ -294,93 +294,99 @@ include("testsetup.jl")
             VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
         )
         # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
-        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ (A, P, O)
-            i = @inferred(VectorizationBase.lazymul(StaticInt(im), _i))
-            j = @inferred(VectorizationBase.lazymul(StaticInt(jm), _j))
-            k = @inferred(VectorizationBase.lazymul(StaticInt(km), _k))
-            iv = tovector(i); jv = tovector(j); kv = tovector(k)
-            if B === C
-                off = 9 - iv[1] % 8
-                iv += off
-                i += off
-            end
-            # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
-            x = getindex.(Ref(B), iv, jv, kv)
-            GC.@preserve B begin
-                # @show i,j,k, typeof(B)
-                v = @inferred(vload(stridedpointer(B), (i, j, k)))
-            end
-            @test x == tovector(v)
-            if length(x) > 1
-                m = Mask{W64}(rand(UInt8))
-                mv = tovector(m)
-                x .*= mv
+        println("LazyMulAdd Loads/Stores")
+        @time @testset "LazyMulAdd Loads/Stores" begin
+            for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ (A, P, O)
+                i = @inferred(VectorizationBase.lazymul(StaticInt(im), _i))
+                j = @inferred(VectorizationBase.lazymul(StaticInt(jm), _j))
+                k = @inferred(VectorizationBase.lazymul(StaticInt(km), _k))
+                iv = tovector(i); jv = tovector(j); kv = tovector(k)
+                if B === C
+                    off = 9 - iv[1] % 8
+                    iv += off
+                    i += off
+                end
+                # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
+                x = getindex.(Ref(B), iv, jv, kv)
                 GC.@preserve B begin
-                    v = @inferred(vload(stridedpointer(B), (i, j, k), m))
+                    # @show i,j,k, typeof(B)
+                    v = @inferred(vload(stridedpointer(B), (i, j, k)))
                 end
                 @test x == tovector(v)
-            end
-            for store! ∈ (vstore!, VectorizationBase.vnoaliasstore!)
-                y = isone(length(x)) ? randn() : randnvec(length(x))
-                GC.@preserve B store!(stridedpointer(B), y, (i, j, k))
-                x = getindex.(Ref(B), iv, jv, kv)
-                # @show i, j, k typeof.((i, j, k)), store!, typeof(B) y
-                @test x == tovector(y)
                 if length(x) > 1
-                    z = Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
-                    GC.@preserve B store!(stridedpointer(B), z, (i, j, k), m)
-                    y = getindex.(Ref(B), iv, jv, kv)
-                    @test y == ifelse.(mv, tovector(z), x)
+                    m = Mask{W64}(rand(UInt8))
+                    mv = tovector(m)
+                    x .*= mv
+                    GC.@preserve B begin
+                        v = @inferred(vload(stridedpointer(B), (i, j, k), m))
+                    end
+                    @test x == tovector(v)
+                end
+                for store! ∈ (vstore!, VectorizationBase.vnoaliasstore!)
+                    y = isone(length(x)) ? randn() : randnvec(length(x))
+                    GC.@preserve B store!(stridedpointer(B), y, (i, j, k))
+                    x = getindex.(Ref(B), iv, jv, kv)
+                    # @show i, j, k typeof.((i, j, k)), store!, typeof(B) y
+                    @test x == tovector(y)
+                    if length(x) > 1
+                        z = Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
+                        GC.@preserve B store!(stridedpointer(B), z, (i, j, k), m)
+                        y = getindex.(Ref(B), iv, jv, kv)
+                        @test y == ifelse.(mv, tovector(z), x)
+                    end
                 end
             end
         end
-        for AU ∈ 1:3, B ∈ (A, P, O), i ∈ (StaticInt(1),2,StaticInt(2)), j ∈ (StaticInt(1),3,StaticInt(3)), k ∈ (StaticInt(1),4,StaticInt(4))
-            for AV ∈ 1:3
-                v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
-                GC.@preserve B begin
-                    if AU == AV
-                        vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
-                        vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))))
-                    else
-                        vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
-                        vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+        println("VecUnroll Loads/Stores")
+        @time @testset "VecUnroll Loads/Stores" begin
+            for AU ∈ 1:3, B ∈ (A, P, O), i ∈ (StaticInt(1),2,StaticInt(2)), j ∈ (StaticInt(1),3,StaticInt(3)), k ∈ (StaticInt(1),4,StaticInt(4))
+                for AV ∈ 1:3
+                    v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
+                    GC.@preserve B begin
+                        if AU == AV
+                            vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
+                            vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))))
+                        else
+                            vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
+                            vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+                        end
                     end
-                end
-                @test v1 === vu.data[1]
-                @test v2 === vu.data[2]
-                @test v3 === vu.data[3]
+                    @test v1 === vu.data[1]
+                    @test v2 === vu.data[2]
+                    @test v3 === vu.data[3]
 
-                ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
-                x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-                if AU == 1
-                    ir = ir .+ length(ir)
-                elseif AU == 2
-                    jr = jr .+ length(jr)
-                elseif AU == 3
-                    kr = kr .+ length(kr)
-                end
-                x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-                if AU == 1
-                    ir = ir .+ length(ir)
-                elseif AU == 2
-                    jr = jr .+ length(jr)
-                elseif AU == 3
-                    kr = kr .+ length(kr)
-                end
-                x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                    ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
+                    x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                    if AU == 1
+                        ir = ir .+ length(ir)
+                    elseif AU == 2
+                        jr = jr .+ length(jr)
+                    elseif AU == 3
+                        kr = kr .+ length(kr)
+                    end
+                    x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                    if AU == 1
+                        ir = ir .+ length(ir)
+                    elseif AU == 2
+                        jr = jr .+ length(jr)
+                    elseif AU == 3
+                        kr = kr .+ length(kr)
+                    end
+                    x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
 
-                @test x1 == tovector(vu.data[1])
-                @test x2 == tovector(vu.data[2])
-                @test x3 == tovector(vu.data[3])
+                    @test x1 == tovector(vu.data[1])
+                    @test x2 == tovector(vu.data[2])
+                    @test x3 == tovector(vu.data[3])
 
+                end
+                v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
+                GC.@preserve B begin
+                    vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k)))
+                end
+                ir = 0:(AU == 1 ? 4 : 0); jr = 0:(AU == 2 ? 4 : 0); kr = 0:(AU == 3 ? 4 : 0)
+                xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                @test xvs ≈ map(VectorizationBase.vsum, [v1,v2,v3,v4,v5])
             end
-            v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
-            GC.@preserve B begin
-                vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k)))
-            end
-            ir = 0:(AU == 1 ? 4 : 0); jr = 0:(AU == 2 ? 4 : 0); kr = 0:(AU == 3 ? 4 : 0)
-            xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-            @test xvs ≈ map(VectorizationBase.vsum, [v1,v2,v3,v4,v5])
         end
         x = Vector{Int}(undef, 100);
         i = MM{1}(0)
