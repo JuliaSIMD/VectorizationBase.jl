@@ -295,9 +295,9 @@ include("testsetup.jl")
         )
         # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
         for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ (A, P, O)
-            i = @inferred(VectorizationBase.lazymul(im, _i))
-            j = @inferred(VectorizationBase.lazymul(jm, _j))
-            k = @inferred(VectorizationBase.lazymul(km, _k))
+            i = @inferred(VectorizationBase.lazymul(StaticInt(im), _i))
+            j = @inferred(VectorizationBase.lazymul(StaticInt(jm), _j))
+            k = @inferred(VectorizationBase.lazymul(StaticInt(km), _k))
             iv = tovector(i); jv = tovector(j); kv = tovector(k)
             if B === C
                 off = 9 - iv[1] % 8
@@ -910,7 +910,7 @@ include("testsetup.jl")
     @time @testset "Lazymul" begin
         # partially covered in memory
         for i ∈ (-5, -1, 0, 1, 4, 8), j ∈ (-5, -1, 0, 1, 4, 8)
-            @test VectorizationBase.lazymul(StaticInt(i), StaticInt(j)) === VectorizationBase.lazymul_no_promote(StaticInt(i), StaticInt(j)) === StaticInt(i*j)
+            @test @inferred(VectorizationBase.lazymul(StaticInt(i), StaticInt(j))) === StaticInt(i*j)
         end
         fi = VectorizationBase.LazyMulAdd{8,0}(MM{8}(StaticInt(16)))
         si = VectorizationBase.LazyMulAdd{2}(240)

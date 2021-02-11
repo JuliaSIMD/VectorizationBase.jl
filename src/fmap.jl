@@ -59,7 +59,9 @@ end
 @inline vreinterpret(::Type{T}, v::VecUnroll) where {T<:Number} = VecUnroll(fmap(vreinterpret, T, v.data))
 for op ∈ [:vadd,:vsub,:vmul,:vand,:vor,:vxor,:vlt,:vle,:vgt,:vge,:veq,:vne,:vadd_fast,:vsub_fast,:vmul_fast]
     @eval begin
-        @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, v1.data, v2.data))
+        @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data)))
+        @inline $op(v1::VecUnroll, v2::VecOrScalar) = VecUnroll(fmap($op, getfield(v1, :data), v2))
+        @inline $op(v1::VecOrScalar, v2::VecUnroll) = VecUnroll(fmap($op, v1, getfield(v2, :data)))
         @inline $op(v1::VecUnroll{N,W,T,V}, ::StaticInt{M}) where {N,W,T,V,M} = VecUnroll(fmap($op, v1.data, vbroadcast(Val{W}(), T(M))))
         @inline $op(::StaticInt{M}, v1::VecUnroll{N,W,T,V}) where {N,W,T,V,M} = VecUnroll(fmap($op, vbroadcast(Val{W}(), T(M)), v1.data))
 
