@@ -333,6 +333,8 @@ for (f,f_to,op,reduce,twoarg) ∈ [
         @inline $f_to(x::AbstractSIMD, y::NativeTypes) = $reduce(x)
         @inline $f(x::NativeTypes, y::NativeTypes) = $op(x,y)
         @inline $f(x::AbstractSIMD, y::AbstractSIMD) = $op(x,y)
+        @inline $f_to(x::VecUnroll, y::VecUnroll) = VecUnroll(fmap($f_to, getfield(x, :data), getfield(y, :data)))
+        @inline $f(x::VecUnroll, y::VecUnroll) = VecUnroll(fmap($f, getfield(x, :data), getfield(y, :data)))
     end
     if twoarg
         # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $reduce(y, x)

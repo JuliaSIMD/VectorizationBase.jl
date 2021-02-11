@@ -796,7 +796,7 @@ end
 end
 
 
-
+# Can discard `f` if we have a vector index
 @inline function vstore!(
     f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W}
@@ -818,6 +818,17 @@ end
 ) where {W, T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     # vstore!(ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
     vstore!(ptr, f(v), i, m, A(), S(), NT(), StaticInt{RS}())
+end
+
+@inline function vstore!(
+    f::F, ptr::Ptr{T}, v::NativeTypes, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(ptr, v, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function vstore!(
+    f::F, ptr::Ptr{T}, v::NativeTypes, i::IntegerIndex, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+    vstore!(ptr, v, i, A(), S(), NT(), StaticInt{RS}())
 end
 
 

@@ -65,6 +65,9 @@ for (op,f) ∈ [("fadd",:vadd),("fsub",:vsub),("fmul",:vmul),("fdiv",:vfdiv),("f
 end
 @inline vsub(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.sub_float(a,b)
 @inline vadd(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.add_float(a,b)
+@inline vsub_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.FastMath.sub_float_fast(a,b)
+@inline vadd_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.FastMath.add_float_fast(a,b)
+
 
 @inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = vfdiv(vsub(v1, vrem(v1, v2)), v2)
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = vfdiv_fast(vsub_fast(v1, vrem_fast(v1, v2)), v2)
