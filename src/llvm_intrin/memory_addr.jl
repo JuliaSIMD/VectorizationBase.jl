@@ -1481,26 +1481,46 @@ end
 @generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, ::A, ::StaticInt{RS}) where {T,N,W,I,V,A<:StaticBool,RS}
     lazymulunroll_load_quote(1,0,N,false,false,A === True,RS)
 end
-@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}) where {T,N,W,I,V,A<:StaticBool,U,RS}
+@generated function vload(
+    ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}
+) where {T,N,W,I,V,A<:StaticBool,U,RS}
     lazymulunroll_load_quote(1,0,N,true,false,A===True,RS)
 end
-@generated function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask{W,U}, ::A, ::StaticInt{RS}) where {T,N,W,I,V,A<:StaticBool,U,RS}
-    lazymulunroll_load_quote(1,0,N,false,true,A===True,RS)
-end
-@inline function vload(ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::Mask, ::A, ::StaticInt{RS}) where {T,N,W,I,V,RS,A<:StaticBool}
-    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), A,RS)
+@generated function vload(
+    ptr::Ptr{T}, um::VecUnroll{N,W1,I,V}, m::Mask{W2,U}, ::A, ::StaticInt{RS}
+) where {T,N,W1,W2,I,V,A<:StaticBool,U,RS}
+    if W1 == W2
+        lazymulunroll_load_quote(1,0,N,false,true,A===True,RS)
+    elseif W2 == (N+1)*W1
+        quote
+            $(Expr(:meta,:inline))
+            vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{$(N+1)}(), StaticInt{$W1}(), m)), $A(), StaticInt{$RS}())
+        end
+    else
+        throw(ArgumentError("Trying to load using $(N+1) indices of length $W1, while applying a mask of length $W2."))
+    end
 end
 @generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,RS}
     lazymulunroll_load_quote(M,O,N,false,false,A===True,RS)
 end
-@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,U,RS}
+@generated function vload(
+    ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}
+) where {T,M,O,N,W,I,V,A<:StaticBool,U,RS}
     lazymulunroll_load_quote(M,O,N,true,false,A===True,RS)
 end
-@generated function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask{W}, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,RS}
-    lazymulunroll_load_quote(M,O,N,false,true,A===True,RS)
-end
-@inline function vload(ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::Mask, ::A, ::StaticInt{RS}) where {T,M,O,N,W,I,V,A<:StaticBool,RS}
-    vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{N}() + One(), StaticInt{W}(), m)), A(), StaticInt{RS}())
+@generated function vload(
+    ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W1,I,V}}, m::Mask{W2}, ::A, ::StaticInt{RS}
+) where {T,M,O,N,W1,W2,I,V,A<:StaticBool,RS}
+    if W1 == W2
+        lazymulunroll_load_quote(M,O,N,false,true,A===True,RS)
+    elseif W1 * (N+1) == W2
+        quote
+            $(Expr(:meta,:inline))
+            vload(ptr, um, VecUnroll(splitvectortotuple(StaticInt{$(N+1)}(), StaticInt{$W1}(), m)), $A(), StaticInt{$RS}())
+        end
+    else
+        throw(ArgumentError("Trying to load using $(N+1) indices of length $W1, while applying a mask of length $W2."))
+    end
 end
 function lazymulunroll_store_quote(M,O,N,mask,align,noalias,nontemporal,rs)
     q = Expr(:block, Expr(:meta, :inline), :(u = um.data.data), :(v = vm.data.data))

@@ -116,7 +116,7 @@ end
 
 
 @generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::Mask{L}) where {N,W,L}
-    @assert N*W == L "Can't split a vector of length $L into $N pieces of length $W."
+    N*W == L || throw(ArgumentError("Can't split a vector of length $L into $N pieces of length $W."))
     t = Expr(:tuple, :(Mask{$W}(u)))
     s = 0
     for n ∈ 2:N
@@ -126,7 +126,7 @@ end
     Expr(:block, Expr(:meta,:inline), :(u = data(v)), t)
 end
 @generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::AbstractSIMDVector{L}) where {N,W,L}
-    @assert N*W == L "Can't split a vector of length $L into $N pieces of length $W."
+    N*W == L || throw(ArgumentError("Can't split a vector of length $L into $N pieces of length $W."))
     t = Expr(:tuple);
     j = 0
     for i ∈ 1:N

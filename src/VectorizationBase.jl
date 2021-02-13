@@ -34,7 +34,7 @@ end
 # doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
 export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False, Bit,
     vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub,
-    VecUnroll, Unroll
+    VecUnroll, Unroll, pick_vector_width
 
 using Base: llvmcall, VecElement, HWReal, tail
 
