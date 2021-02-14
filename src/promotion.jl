@@ -19,10 +19,17 @@ ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: FloatingTypes, T2
 Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:AbstractSIMDVector{W,T1}} = Vec{W,ff_promote_rule(T1,T2,Val{W}())}
 
 _assemble_vec_unroll(::Val{N}, ::Type{V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}
+_assemble_vec_unroll(::Val{N}, ::Type{T}) where {N,T<:NativeTypes} = VecUnroll{N,1,T,T}
 Base.promote_rule(::Type{VecUnroll{N,W,T1,V}}, ::Type{T2}) where {N,W,T1,V,T2<:NativeTypes} = _assemble_vec_unroll(Val{N}(), promote_type(V,T2))
-Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,V2<:AbstractSIMDVector{W}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
+Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,T2,V2<:AbstractSIMDVector{W,T2}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
+# Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,V2<:AbstractSIMDVector{W}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
 Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,V2<:Mask{W}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
 Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,W,T2,V2}}) where {N,W,T1,T2,V1,V2} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
+
+
+Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,W,T1,T2,V1} = _assemble_vec_unroll(Val{N}(), promote_type(V1,T2))
+Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,W,T2,V2}}) where {N,W,T1,T2,V2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,V2))
+Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,T1,T2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,T2))
 
 Base.promote_rule(::Type{Bit}, ::Type{T}) where {T <: Number} = T
 
@@ -106,7 +113,7 @@ maybethrow(::False) = nothing
 # not @generated, because calling `promote_type` on vector types
 @inline function Base.promote_rule(
     ::Type{VecUnroll{Nm1,Wsplit,T,V1}}, ::Type{V2}
-) where {Nm1,Wsplit,T,T2,V1,W,V2<:AbstractSIMDVector{W,T2}}
+) where {Nm1,Wsplit,T,V1,T2,W,V2<:AbstractSIMDVector{W,T2}}
     maybethrow(ArrayInterface.ne(StaticInt{Nm1}() * StaticInt{Wsplit}() + StaticInt{Wsplit}(), StaticInt{W}()))
     V3 = Vec{Wsplit,T2}
     _assemble_vec_unroll(Val{Nm1}(), promote_type(V1,V3))
@@ -117,5 +124,16 @@ end
     maybethrow(ArrayInterface.ne(StaticInt{Nm1}() * StaticInt{Wsplit}() + StaticInt{Wsplit}(), StaticInt{W}()))
     V3 = Mask{Wsplit,mask_type(StaticInt{Wsplit}())}
     _assemble_vec_unroll(Val{Nm1}(), promote_type(V1,V3))
+end
+
+@inline function Base.promote_rule(
+    ::Type{VecUnroll{Nm1,1,T,T}}, ::Type{V2}
+) where {Nm1,T,T2,W,V2<:AbstractSIMDVector{W,T2}}
+    _assemble_vec_unroll(Val{Nm1}(), promote_type(T,V2))
+end
+@inline function Base.promote_rule(
+    ::Type{VecUnroll{Nm1,1,T,T}}, ::Type{V2}
+) where {Nm1,T,W,V2<:Mask{W}}
+    _assemble_vec_unroll(Val{Nm1}(), promote_type(T,V2))
 end
 

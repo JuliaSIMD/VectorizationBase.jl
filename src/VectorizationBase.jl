@@ -34,9 +34,9 @@ end
 # doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
 export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False, Bit,
     vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub,
-    VecUnroll, Unroll
+    VecUnroll, Unroll, pick_vector_width
 
-using Base: llvmcall, VecElement, HWReal
+using Base: llvmcall, VecElement, HWReal, tail
 
 const FloatingTypes = Union{Float32, Float64} # Float16
 
@@ -52,8 +52,8 @@ const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 
-abstract type AbstractSIMD{W,T} <: Real end
-abstract type AbstractSIMDVector{W,T <: Union{<:StaticInt,NativeTypes}} <: AbstractSIMD{W,T} end
+abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
+abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
 struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
     data::Tuple{V,Vararg{V,N}}
     # @inline VecUnroll{N,W,T,V}(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
@@ -63,7 +63,7 @@ struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{
 end
 
 # const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
-
+const VecOrScalar = Union{AbstractSIMDVector,NativeTypes}
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}

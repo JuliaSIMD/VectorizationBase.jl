@@ -1,16 +1,35 @@
-
 #
 # We use these definitions because when we have other SIMD operations with masks
 # LLVM optimizes the masks better.
-function truncate_mask!(instrs, input, W, suffix)
+function truncate_mask!(instrs, input, W, suffix, reverse_load::Bool = false)
     mtyp_input = "i$(max(8,W))"
     mtyp_trunc = "i$(W)"
-    str = if mtyp_input == mtyp_trunc
-        "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>"
+    if reverse_load
+        bitreverse = "i$(W) @llvm.bitreverse.i$(W)"
+        decl = "declare $bitreverse(i$(W))"
+        bitrevmask = "bitrevmask.$(suffix)"
+        if mtyp_input == mtyp_trunc
+            str = """
+                %$(bitrevmask) = call $(bitreverse)($(mtyp_trunc) %$(input))
+                %mask.$(suffix) = bitcast $mtyp_input %$(bitrevmask) to <$W x i1>
+            """
+        else
+            str = """
+                %masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc
+                %$(bitrevmask) = call $(bitreverse)($(mtyp_trunc) %masktrunc.$(suffix))
+                %mask.$(suffix) = bitcast $mtyp_trunc %$(bitrevmask) to <$W x i1>
+            """
+        end
     else
-        "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc\n%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>"
+        decl = ""
+        if mtyp_input == mtyp_trunc
+            str = "%mask.$(suffix) = bitcast $mtyp_input %$input to <$W x i1>"
+        else
+            str = "%masktrunc.$(suffix) = trunc $mtyp_input %$input to $mtyp_trunc\n%mask.$(suffix) = bitcast $mtyp_trunc %masktrunc.$(suffix) to <$W x i1>"
+        end
     end
     push!(instrs, str)
+    decl
 end
 function zext_mask!(instrs, input, W, suffix)
     mtyp_input = "i$(max(8,W))"
@@ -37,7 +56,7 @@ function binary_mask_op(W, U, op)
     quote
         $(Expr(:meta,:inline))
         Mask{$W}(llvmcall($instrs, $U, Tuple{$U, $U}, m1.u, m2.u))
-    end    
+    end
 end
 
 @inline data(m::Mask) = getfield(m, :u)
@@ -92,7 +111,7 @@ end
     quote
         $(Expr(:meta,:inline))
         llvmcall($instrs, $T, Tuple{_Vec{$W,$I}}, data(v))
-    end            
+    end
 end
 
 
@@ -108,14 +127,14 @@ function vadd_expr(W,U)
 end
 @generated vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
 
-@inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? m.u : zero(m.u))
-@inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? m.u : zero(m.u))
+@inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, m.u, zero(m.u)))
+@inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(Core.ifelse(b, m.u, zero(m.u)))
 
-@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = b ? max_mask(Mask{W,U}) : m
-@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = b ? max_mask(Mask{W,U}) : m
+@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
+@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
 
-@inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(b ? ~m.u : m.u)
-@inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(b ? ~m.u : m.u)
+@inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, ~m.u, m.u))
+@inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(Core.ifelse(b, ~m.u, m.u))
 
 @inline vshl(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(m.u, i))
 @inline vashr(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
@@ -554,4 +573,3 @@ end
     end
     @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), i.i, N)
 end
-

@@ -12,10 +12,11 @@
 
 @inline MM(::Union{Val{W},StaticInt{W}}) where {W} = MM{W}(0)
 @inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
+@inline MM(::Union{Val{W},StaticInt{W}}, i::AbstractSIMDVector{W}) where {W} = i
 @inline MM(::StaticInt{W}, i, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline gep(ptr::Ptr, i::MM) = gep(ptr, data(i))
 
-
+@inline Base.one(::Type{MM{W,X,I}}) where {W,X,I} = one(I)
 @inline staticm1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vsub_fast(data(i), one(I)))
 @inline staticp1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vadd_fast(data(i), one(I)))
 @inline vadd_fast(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd_fast(data(i), j))
@@ -45,7 +46,12 @@
 @inline veq(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
 @inline veq(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
                    
-
+@inline function vsub(i::NativeTypes, j::MM{W,X}) where {W,X}
+    MM(StaticInt{W}(), vsub(i, data(j)), -StaticInt{X}())
+end
+@inline function vsub_fast(i::NativeTypes, j::MM{W,X}) where {W,X}
+    MM(StaticInt{W}(), vsub_fast(i, data(j)), -StaticInt{X}())
+end
 
 @inline function Base.in(m::MM{W,X,<:Integer}, r::AbstractUnitRange) where {W,X}
     vm = Vec(m)

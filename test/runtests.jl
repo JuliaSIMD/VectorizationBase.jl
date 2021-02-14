@@ -290,97 +290,103 @@ include("testsetup.jl")
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
         indices = (
-            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), Vec(ntuple(i -> 2i + 1, Val(W64))...),
-            VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
+            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), MM{W64,-1}(W64+2), Vec(ntuple(i -> 2i + 1, Val(W64))...)#,
+            # VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3))#, VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
         )
-        # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
-        for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ (A, P, O)
-            i = @inferred(VectorizationBase.lazymul(im, _i))
-            j = @inferred(VectorizationBase.lazymul(jm, _j))
-            k = @inferred(VectorizationBase.lazymul(km, _k))
-            iv = tovector(i); jv = tovector(j); kv = tovector(k)
-            if B === C
-                off = 9 - iv[1] % 8
-                iv += off
-                i += off
-            end
-            # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
-            x = getindex.(Ref(B), iv, jv, kv)
-            GC.@preserve B begin
-                # @show i,j,k, typeof(B)
-                v = @inferred(vload(stridedpointer(B), (i, j, k)))
-            end
-            @test x == tovector(v)
-            if length(x) > 1
-                m = Mask{W64}(rand(UInt8))
-                mv = tovector(m)
-                x .*= mv
+        println("LazyMulAdd Loads/Stores")
+        @time @testset "LazyMulAdd Loads/Stores" begin
+            max_const = 2
+            for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:max_const, jm ∈ 1:max_const, km ∈ 1:max_const, B ∈ (A, P, O)
+                i = @inferred(VectorizationBase.lazymul(StaticInt(im), _i))
+                j = @inferred(VectorizationBase.lazymul(StaticInt(jm), _j))
+                k = @inferred(VectorizationBase.lazymul(StaticInt(km), _k))
+                iv = tovector(i); jv = tovector(j); kv = tovector(k)
+                if B === C
+                    off = 9 - iv[1] % 8
+                    iv += off
+                    i += off
+                end
+                # @show typeof(B), i, j, k (im, _i), (jm, _j), (km, _k)
+                x = getindex.(Ref(B), iv, jv, kv)
                 GC.@preserve B begin
-                    v = @inferred(vload(stridedpointer(B), (i, j, k), m))
+                    # @show i,j,k, typeof(B)
+                    v = @inferred(vload(stridedpointer(B), (i, j, k)))
                 end
                 @test x == tovector(v)
-            end
-            for store! ∈ (vstore!, VectorizationBase.vnoaliasstore!)
-                y = isone(length(x)) ? randn() : randnvec(length(x))
-                GC.@preserve B store!(stridedpointer(B), y, (i, j, k))
-                x = getindex.(Ref(B), iv, jv, kv)
-                # @show i, j, k typeof.((i, j, k)), store!, typeof(B) y
-                @test x == tovector(y)
                 if length(x) > 1
-                    z = Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
-                    GC.@preserve B store!(stridedpointer(B), z, (i, j, k), m)
-                    y = getindex.(Ref(B), iv, jv, kv)
-                    @test y == ifelse.(mv, tovector(z), x)
+                    m = Mask{W64}(rand(UInt8))
+                    mv = tovector(m)
+                    x .*= mv
+                    GC.@preserve B begin
+                        v = @inferred(vload(stridedpointer(B), (i, j, k), m))
+                    end
+                    @test x == tovector(v)
+                end
+                for store! ∈ (vstore!, VectorizationBase.vnoaliasstore!)
+                    y = isone(length(x)) ? randn() : randnvec(length(x))
+                    GC.@preserve B store!(stridedpointer(B), y, (i, j, k))
+                    x = getindex.(Ref(B), iv, jv, kv)
+                    # @show i, j, k typeof.((i, j, k)), store!, typeof(B) y
+                    @test x == tovector(y)
+                    if length(x) > 1
+                        z = Vec(ntuple(_ -> Core.VecElement(randn()), length(x)))
+                        GC.@preserve B store!(stridedpointer(B), z, (i, j, k), m)
+                        y = getindex.(Ref(B), iv, jv, kv)
+                        @test y == ifelse.(mv, tovector(z), x)
+                    end
                 end
             end
         end
-        for AU ∈ 1:3, B ∈ (A, P, O), i ∈ (StaticInt(1),2,StaticInt(2)), j ∈ (StaticInt(1),3,StaticInt(3)), k ∈ (StaticInt(1),4,StaticInt(4))
-            for AV ∈ 1:3
-                v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
-                GC.@preserve B begin
-                    if AU == AV
-                        vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
-                        vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))))
-                    else
-                        vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
-                        vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+        println("VecUnroll Loads/Stores")
+        @time @testset "VecUnroll Loads/Stores" begin
+            for AU ∈ 1:3, B ∈ (A, P, O), i ∈ (StaticInt(1),2,StaticInt(2)), j ∈ (StaticInt(1),3,StaticInt(3)), k ∈ (StaticInt(1),4,StaticInt(4))
+                for AV ∈ 1:3
+                    v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
+                    GC.@preserve B begin
+                        if AU == AV
+                            vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
+                            vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))))
+                        else
+                            vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))
+                            vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
+                        end
                     end
-                end
-                @test v1 === vu.data[1]
-                @test v2 === vu.data[2]
-                @test v3 === vu.data[3]
+                    @test v1 === vu.data[1]
+                    @test v2 === vu.data[2]
+                    @test v3 === vu.data[3]
 
-                ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
-                x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-                if AU == 1
-                    ir = ir .+ length(ir)
-                elseif AU == 2
-                    jr = jr .+ length(jr)
-                elseif AU == 3
-                    kr = kr .+ length(kr)
-                end
-                x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-                if AU == 1
-                    ir = ir .+ length(ir)
-                elseif AU == 2
-                    jr = jr .+ length(jr)
-                elseif AU == 3
-                    kr = kr .+ length(kr)
-                end
-                x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                    ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
+                    x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                    if AU == 1
+                        ir = ir .+ length(ir)
+                    elseif AU == 2
+                        jr = jr .+ length(jr)
+                    elseif AU == 3
+                        kr = kr .+ length(kr)
+                    end
+                    x2 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                    if AU == 1
+                        ir = ir .+ length(ir)
+                    elseif AU == 2
+                        jr = jr .+ length(jr)
+                    elseif AU == 3
+                        kr = kr .+ length(kr)
+                    end
+                    x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
 
-                @test x1 == tovector(vu.data[1])
-                @test x2 == tovector(vu.data[2])
-                @test x3 == tovector(vu.data[3])
+                    @test x1 == tovector(vu.data[1])
+                    @test x2 == tovector(vu.data[2])
+                    @test x3 == tovector(vu.data[3])
 
+                end
+                v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
+                GC.@preserve B begin
+                    vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k)))
+                end
+                ir = 0:(AU == 1 ? 4 : 0); jr = 0:(AU == 2 ? 4 : 0); kr = 0:(AU == 3 ? 4 : 0)
+                xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
+                @test xvs ≈ map(VectorizationBase.vsum, [v1,v2,v3,v4,v5])
             end
-            v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
-            GC.@preserve B begin
-                vstore!(VectorizationBase.vsum, stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3,v4,v5)), VectorizationBase.Unroll{AU,1,5,0,W64,zero(UInt)}((i, j, k)))
-            end
-            ir = 0:(AU == 1 ? 4 : 0); jr = 0:(AU == 2 ? 4 : 0); kr = 0:(AU == 3 ? 4 : 0)
-            xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
-            @test xvs ≈ map(VectorizationBase.vsum, [v1,v2,v3,v4,v5])
         end
         x = Vector{Int}(undef, 100);
         i = MM{1}(0)
@@ -636,7 +642,7 @@ include("testsetup.jl")
             vones, vi2f, vtwos = promote(1.0, vi2, 2f0); # promotes a binary function, right? Even when used with three args?
             @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0),vbroadcast(Val(WI), 1.0)));
             @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0),vbroadcast(Val(WI), 2.0)));
-            @test VectorizationBase.vall(vi2f == vi2)
+            @test VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2))
             W32 = StaticInt(WI)*StaticInt(2)
             vf2 = VectorizationBase.VecUnroll((
                 Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
@@ -773,9 +779,9 @@ include("testsetup.jl")
         v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))); vu1 = VectorizationBase.VecUnroll((v1, Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))));
         v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))); vu2 = VectorizationBase.VecUnroll((v2, Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))));
         @test @inferred(VectorizationBase.vsum(2.3, v1)) ≈ @inferred(VectorizationBase.vsum(v1)) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1)))
-        @test @inferred(VectorizationBase.vsum(vu1)) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(vu1, 2.3))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, vu1)))
+        @test @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(vu1))) + 2.3 ≈ @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(vu1, 2.3)))) ≈ @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(2.3, vu1))))
         @test @inferred(VectorizationBase.vsum(v2)) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))) == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, v2)))
-        @test @inferred(VectorizationBase.vsum(vu2)) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(vu2, 3))) == @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, vu2)))
+        @test @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(vu2))) + 3 == @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(vu2, 3)))) == @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(VectorizationBase.addscalar(3, vu2))))
         @test @inferred(VectorizationBase.vprod(v1)) * 2.3 ≈ @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))) ≈ @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1)))
         @test @inferred(VectorizationBase.vprod(v2)) * 3 == @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2)))
         @test @inferred(VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2)))
@@ -796,12 +802,12 @@ include("testsetup.jl")
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)) === -1 % UInt
         @test VectorizationBase.maxscalar(v4, 1e-16) === Vec(1e-16, 1.0, 2.0, 3.0)
         @test VectorizationBase.maxscalar(v4, -1e-16) === v4
-        @test VectorizationBase.vmaximum(vu3) == 3
-        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,2)) == 3
-        @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(vu3,4)) == 4
-        @test VectorizationBase.vminimum(vu3) == -1
-        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,0)) == -1
-        @test VectorizationBase.vminimum(VectorizationBase.minscalar(vu3,-2)) == VectorizationBase.vminimum(VectorizationBase.minscalar(-2,vu3)) == -2
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(vu3)) == 3
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,2))) == 3
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,4))) == 4
+        @test VectorizationBase.vminimum(VectorizationBase.collapse_min(vu3)) == -1
+        @test VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3,0))) == -1
+        @test VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3,-2))) == VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(-2,vu3))) == -2
     end
     println("broadcasting")
     @time @testset "broadcasting" begin
@@ -843,7 +849,7 @@ include("testsetup.jl")
         vones, vi2f, vtwos = @inferred(promote(1.0, vi2, 2f0)); # promotes a binary function, right? Even when used with three args?
         @test vones === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0),vbroadcast(Val(W64), 1.0)));
         @test vtwos === VectorizationBase.VecUnroll((vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0),vbroadcast(Val(W64), 2.0)));
-        @test @inferred(VectorizationBase.vall(vi2f == vi2))
+        @test @inferred(VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2)))
         vf2 = VectorizationBase.VecUnroll((
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
             Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))
@@ -910,7 +916,7 @@ include("testsetup.jl")
     @time @testset "Lazymul" begin
         # partially covered in memory
         for i ∈ (-5, -1, 0, 1, 4, 8), j ∈ (-5, -1, 0, 1, 4, 8)
-            @test VectorizationBase.lazymul(StaticInt(i), StaticInt(j)) === VectorizationBase.lazymul_no_promote(StaticInt(i), StaticInt(j)) === StaticInt(i*j)
+            @test @inferred(VectorizationBase.lazymul(StaticInt(i), StaticInt(j))) === StaticInt(i*j)
         end
         fi = VectorizationBase.LazyMulAdd{8,0}(MM{8}(StaticInt(16)))
         si = VectorizationBase.LazyMulAdd{2}(240)
