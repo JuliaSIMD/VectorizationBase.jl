@@ -290,13 +290,13 @@ include("testsetup.jl")
         P = PermutedDimsArray(A, (3,1,2));
         O = OffsetArray(P, (-4, -2, -3));
         indices = (
-            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), MM{W64,-1}(W64+2), Vec(ntuple(i -> 2i + 1, Val(W64))...),
-            VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3)), VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
+            StaticInt{1}(), StaticInt{2}(), 2, MM{W64}(2), MM{W64,2}(3), MM{W64,-1}(W64+2), Vec(ntuple(i -> 2i + 1, Val(W64))...)#,
+            # VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3))#, VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
         )
-        # for i ∈ indices, j ∈ indices, k ∈ indices, B ∈ [A, P, O]
         println("LazyMulAdd Loads/Stores")
         @time @testset "LazyMulAdd Loads/Stores" begin
-            for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:3, jm ∈ 1:3, km ∈ 1:3, B ∈ (A, P, O)
+            max_const = 2
+            for _i ∈ indices, _j ∈ indices, _k ∈ indices, im ∈ 1:max_const, jm ∈ 1:max_const, km ∈ 1:max_const, B ∈ (A, P, O)
                 i = @inferred(VectorizationBase.lazymul(StaticInt(im), _i))
                 j = @inferred(VectorizationBase.lazymul(StaticInt(jm), _j))
                 k = @inferred(VectorizationBase.lazymul(StaticInt(km), _k))
