@@ -185,7 +185,7 @@ end
 @generated contract_min(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :min, C)
 @generated contract_and(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :&, C)
 @generated contract_or(vu::VecUnroll{N}, ::StaticInt{C}) where {N,C} = collapse_expr(N, :|, C)
-@inline vsum(vu::VecUnroll) = VecUnroll(fmap(vsum, data(vu)))
+@inline vsum(vu::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll(fmap(vsum, data(vu)))::VecUnroll{N,1,T,T}
 @inline vsum(s::VecUnroll, vu::VecUnroll) = VecUnroll(fmap(vsum, data(s), data(vu)))
 @inline vprod(vu::VecUnroll) = VecUnroll(fmap(vprod, data(vu)))
 @inline vprod(s::VecUnroll, vu::VecUnroll) = VecUnroll(fmap(vprod, data(s), data(vu)))
