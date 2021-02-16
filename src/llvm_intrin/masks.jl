@@ -331,8 +331,7 @@ for (f,cond) ∈ [(:vgt, "sgt"), (:vge, "sge"), (:vlt, "slt"), (:vle, "sle")]
     end
 end
 
-# for (f,cond) ∈ [(:(==), "oeq"), (:(>), "ogt"), (:(≥), "oge"), (:(<), "olt"), (:(≤), "ole"), (:(≠), "one")]
-for (f,cond) ∈ [(:veq, "ueq"), (:vgt, "ugt"), (:vge, "uge"), (:vlt, "ult"), (:vle, "ule"), (:vne, "une")]
+for (f,cond) ∈ [(:veq, "oeq"), (:vgt, "ogt"), (:vge, "oge"), (:vlt, "olt"), (:vle, "ole"), (:vne, "one")]
     @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
         fcmp_quote(W, $cond, T)
     end
