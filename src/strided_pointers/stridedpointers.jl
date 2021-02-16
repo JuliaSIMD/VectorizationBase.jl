@@ -72,7 +72,7 @@ end
 end
 @inline function stridedpointer(
     ptr::Ptr{T}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
-) where {T<:NativeTypes,C,B,R,N,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}}
+) where {T<:NativeTypesExceptBit,C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
 @inline Base.strides(ptr::AbstractStridedPointer) = Base.getfield(ptr, :strd)
@@ -260,6 +260,13 @@ function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets::O) where {N,C
 end
 @inline Base.pointer(p::StridedBitPointer) = p.p
 # @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
+
+@inline function stridedpointer(
+    ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
+) where {C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
+    StridedBitPointer{N,C,B,R,X,O}(ptr, strd, offsets)
+end
+
 @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (1,))
 @generated function stridedpointer(A::BitArray{N}) where {N}
     q = quote;
@@ -365,23 +372,23 @@ end
 
 @inline stridedpointer(ptr::AbstractStridedPointer) = ptr
 
-struct FastRange{T,F,S,O}# <: AbstractRange{T}
+struct FastRange{T,F,S}# <: AbstractRange{T}
     f::F
     s::S
-    offset::O
 end
-FastRange{T}(f::F,s::S,o::O) where {T,F,S,O} = FastRange{T,F,S,O}(f,s,o)
+FastRange{T}(f::F,s::S) where {T,F,S} = FastRange{T,F,S}(f,s)
 @inline function stridedpointer(r::AbstractRange{T}) where {T}
-    FastRange{T}(ArrayInterface.static_first(r), ArrayInterface.static_step(r), One())
+    s = ArrayInterface.static_step(r)
+    FastRange{T}(ArrayInterface.static_first(r) - s, s)
 end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T}
-    ii = first(i) - r.offset
+    ii = first(i)
     f = r.f
     s = r.s
-    FastRange{T}(f + ii * s, r.s, Zero())
+    FastRange{T}(f + ii * s, s)
 end
 
-@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) - convert(T, getfield(r, :offset)))
+@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * first(i)
 
 @inline vload(r::FastRange, i::Tuple, m::Mask) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
