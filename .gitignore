@@ -9,4 +9,6 @@ tests/#*#
 *~
 *.mem
 *#*
+src/special/exp.jl
+src/special/log.jl
 

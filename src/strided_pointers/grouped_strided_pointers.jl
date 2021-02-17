@@ -19,7 +19,7 @@ end
 G is a tuple(tuple((A_ind,A's dim),(A_ind,A's dim)), ())
 it gives the groups.
 """
-@inline function grouped_strided_pointer(A::Tuple{Vararg{AbstractArray,N}}, ::Val{G}) where {N,G}
+@inline function grouped_strided_pointer(A::Tuple{Vararg{Union{AbstractArray,AbstractStridedPointer},N}}, ::Val{G}) where {N,G}
     grouped_strided_pointer(
         map(memory_reference, A),
         map(contiguous_axis, A),
@@ -59,7 +59,7 @@ end
         end
         push!(It.args, Itt)
     end
-    push!(q.args, :(GroupedStridedPointers{$P,$Ct,$Bt,$Rt,$It}($Xt, $Ot)))
+    push!(q.args, :(GroupedStridedPointers{$P,$Ct,$Bt,$Rt,$It}(ptrs, $Xt, $Ot)))
     q
 end
 
@@ -111,7 +111,6 @@ end
     for g ∈ G
         # each `g` is a tuple of (array ind, paired dim)
         ng = length(g)
-        # @show g
         for i ∈ 1:ng
             ai, di = g[i]
             # @show ai, di

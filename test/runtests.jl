@@ -445,6 +445,11 @@ include("testsetup.jl")
             if fA === fC
                 @test sizeof(gsp.strides) == 2sizeof(Int)
             end
+            ai = fA === identity
+            bi = fB === identity
+            ci = fC === identity
+            # Test to confirm that redundant strides are not stored in the grouped strided pointer
+            @test sizeof(gsp) == sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
             @test sizeof(gsp.offsets) == 0
             pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
             @test pA === stridedpointer(At)

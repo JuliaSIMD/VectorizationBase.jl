@@ -32,6 +32,7 @@
 #     SDTuple{N,mulsizeof(T, X),P}(mulsizeof(T, t.x))
 # end
 
+@inline memory_reference(A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks)
 @inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
 @inline memory_reference(::CPUPointer, A) = pointer(A)
 @inline function memory_reference(::ArrayInterface.CheckParent, A)
@@ -57,6 +58,11 @@ O: offsets
 """
 abstract type AbstractStridedPointer{T<:NativeTypes,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 
+@inline ArrayInterface.contiguous_axis(::Type{A}) where {T,N,C,A<:AbstractStridedPointer{T,N,C}} = StaticInt{C}()
+@inline ArrayInterface.contiguous_batch_size(::Type{A}) where {T,N,C,B,A<:AbstractStridedPointer{T,N,C,B}} = StaticInt{B}()
+@inline ArrayInterface.stride_rank(::Type{A}) where {T,N,C,B,R,A<:AbstractStridedPointer{T,N,C,B,R}} = StaticInt{R}()
+@inline memory_reference(A::AbstractStridedPointer) = pointer(A)
+
 @inline Base.eltype(::AbstractStridedPointer{T}) where {T} = T
 
 struct StridedPointer{T,N,C,B,R,X,O} <: AbstractStridedPointer{T,N,C,B,R,X,O}
@@ -75,11 +81,13 @@ end
 ) where {T<:NativeTypesExceptBit,C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
-@inline Base.strides(ptr::AbstractStridedPointer) = Base.getfield(ptr, :strd)
-@inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = Base.getfield(ptr, :offsets)
-@inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(StaticInt{C}(), Val{N}())
-
 @inline bytestrides(A::StridedPointer) = getfield(A, :strd)
+@inline Base.strides(ptr::StridedPointer) = Base.getfield(ptr, :strd)
+@inline ArrayInterface.strides(ptr::StridedPointer) = Base.getfield(ptr, :strd)
+@inline ArrayInterface.offsets(ptr::StridedPointer) = Base.getfield(ptr, :offsets)
+@inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(StaticInt{C}(), Val{N}())
+@inline val_stride_rank(::AbstractStridedPointer{T,N,C,B,R}) where {T,N,C,B,R} = Val{R}()
+@generated val_dense_dims(::AbstractStridedPointer{T,N}) where {T,N} = Val{ntuple(==(0), Val(N))}()
 
 @generated function zerotuple(::Val{N}) where {N}
     t = Expr(:tuple);
@@ -250,57 +258,64 @@ end
     gep(p, li)
 end
 
-struct StridedBitPointer{N,C,B,R,X,O} <: AbstractStridedPointer{Bit,N,C,B,R,X,O}
+struct StridedBitPointer{N,C,B,R,X} <: AbstractStridedPointer{Bit,N,C,B,R,X,NTuple{N,Int}}
     p::Ptr{Bit}
     strd::X
     offsets::NTuple{N,Int}
 end
-function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets::O) where {N,C,B,R,X,O}
-    StridedBitPointer{N,C,B,R,X,O}(p, strd, offsets)
+function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets) where {N,C,B,R,X}
+    StridedBitPointer{N,C,B,R,X}(p, strd, offsets)
 end
 @inline Base.pointer(p::StridedBitPointer) = p.p
 # @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
+@inline bytestrides(A::StridedBitPointer) = getfield(A, :strd)
+@inline Base.strides(ptr::StridedBitPointer) = Base.getfield(ptr, :strd)
+@inline ArrayInterface.strides(ptr::StridedBitPointer) = Base.getfield(ptr, :strd)
+@inline ArrayInterface.offsets(ptr::StridedBitPointer) = Base.getfield(ptr, :offsets)
 
 @inline function stridedpointer(
     ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
 ) where {C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
-    StridedBitPointer{N,C,B,R,X,O}(ptr, strd, offsets)
+    StridedBitPointer{N,C,B,R,X}(ptr, strd, offsets)
 end
 
-@inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (1,))
-@generated function stridedpointer(A::BitArray{N}) where {N}
-    q = quote;
-        s = size(A)
-        @assert iszero(s[1] & 7) "For performance reasons, `BitArray{N}` where `N > 1` are required to have a multiple of 8 rows.";
-    end
-    sone = :(StaticInt{1}());
-    strd = Expr(:tuple, sone, :s_2); offsets = Expr(:tuple, sone, sone);
-    last_stride = next_stride = :s_2
-    push!(q.args, :(s_2 = size(A,1))); # >>> 3
-    R = Expr(:tuple, 1, 2)
-    for n ∈ 3:N
-        next_stride = Symbol(:s_, n)
-        push!(q.args, Expr(:(=), next_stride, Expr(:call, :(*), Expr(:ref, :s, n-1), last_stride)))
-        push!(strd.args, next_stride)
-        # push!(offsets.args, :(StaticInt{1}()))
-        push!(offsets.args, 1)
-        last_stride = next_stride
-        push!(R.args, n)
-    end
-    push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), $strd, $offsets)))
-    q
-end
-@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X,O}, ptr::Ptr{Bit}) where {N,C,B,R,X,O}
-    StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), zerotuple(Val{N}()))
+# @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (1,))
+# @generated function stridedpointer(A::BitArray{N}) where {N}
+#     q = quote;
+#         s = size(A)
+#         @assert iszero(s[1] & 7) "For performance reasons, `BitArray{N}` where `N > 1` are required to have a multiple of 8 rows.";
+#     end
+#     sone = :(StaticInt{1}());
+#     strd = Expr(:tuple, sone, :s_2); offsets = Expr(:tuple, sone, sone);
+#     last_stride = next_stride = :s_2
+#     push!(q.args, :(s_2 = size(A,1)));
+#     R = Expr(:tuple, 1, 2)
+#     for n ∈ 3:N
+#         next_stride = Symbol(:s_, n)
+#         push!(q.args, Expr(:(=), next_stride, Expr(:call, :(*), Expr(:ref, :s, n-1), last_stride)))
+#         push!(strd.args, next_stride)
+#         # push!(offsets.args, :(StaticInt{1}()))
+#         push!(offsets.args, 1)
+#         last_stride = next_stride
+#         push!(R.args, n)
+#     end
+#     push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), $strd, $offsets)))
+#     q
+# end
+@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X}, ptr::Ptr{Bit}) where {N,C,B,R,X}
+    StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
 end
 
-@generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
-    quote
-        $(Expr(:meta,:inline))
-        offs = ptr.offsets
-        StridedBitPointer{$N,$C,$B,$R}(getfield(ptr, :p), getfield(ptr, :strd), Base.Cartesian.@ntuple $N n -> vsub_fast(offs[n], i[n]))
-    end
+@inline  function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
+    StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), map(vsub_fast, getfield(ptr,:offsets), i))
 end
+# @generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
+#     quote
+#         $(Expr(:meta,:inline))
+#         offs = ptr.offsets
+#         StridedBitPointer{$N,$C,$B,$R}(getfield(ptr, :p), getfield(ptr, :strd), Base.Cartesian.@ntuple $N n -> vsub_fast(offs[n], i[n]))
+#     end
+# end
 @generated function pointerforcomparison(p::StridedBitPointer{N}) where {N}
     inds = Expr(:tuple); foreach(_ -> push!(inds.args, :(Zero())), 1:N)
     Expr(:block, Expr(:meta,:inline), Expr(:call, :gep, :p, inds))
@@ -377,10 +392,16 @@ struct FastRange{T,F,S}# <: AbstractRange{T}
     s::S
 end
 FastRange{T}(f::F,s::S) where {T,F,S} = FastRange{T,F,S}(f,s)
-@inline function stridedpointer(r::AbstractRange{T}) where {T}
+@inline function memory_reference(r::AbstractRange{T}) where {T}
     s = ArrayInterface.static_step(r)
     FastRange{T}(ArrayInterface.static_first(r) - s, s)
 end
+@inline stridedpointer(fr::FastRange, ::StaticInt{1}, ::StaticInt{0}, ::Val{(1,)}, ::Tuple{X}, ::Tuple{One}) where {X<:Integer} = fr
+
+# @inline function stridedpointer(r::AbstractRange{T}) where {T}
+#     s = ArrayInterface.static_step(r)
+#     FastRange{T}(ArrayInterface.static_first(r) - s, s)
+# end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T}
     ii = first(i)
     f = r.f

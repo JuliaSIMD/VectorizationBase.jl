@@ -310,6 +310,7 @@ include("fmap.jl")
 include("alignment.jl")
 include("special/misc.jl")
 # include("special/log.jl")
+# include("special/exp.jl")
 
 demoteint(::Type{T}, W) where {T} = False()
 demoteint(::Type{UInt64}, W::StaticInt) = gt(W, pick_vector_width(UInt64))
