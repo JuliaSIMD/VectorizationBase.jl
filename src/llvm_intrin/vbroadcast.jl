@@ -22,6 +22,14 @@
         Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
     end
 end
+@generated function _vundef(::StaticInt{W}, ::Type{T}) where {W,T<:NativeTypes}
+    typ = LLVM_TYPES[T]
+    instrs = "ret <$W x $typ> undef"
+    quote
+        $(Expr(:meta,:inline))
+        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
+    end
+end
 @generated function _vbroadcast(::StaticInt{W}, s::_T, ::StaticInt{RS}) where {W,_T<:NativeTypes,RS}
     isone(W) && return :s
     if _T <: Integer && sizeof(_T) * W > RS

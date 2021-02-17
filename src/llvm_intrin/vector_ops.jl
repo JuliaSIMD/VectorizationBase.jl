@@ -87,11 +87,23 @@ end
     end
 end
 
+@inline Base.vcat(a::VecUnroll{N,W1,T,Vec{W1,T}},b::VecUnroll{N,W2,T,Vec{W2,T}}) where {N,W1,W2,T} = VecUnroll(fmap(vcat, data(a), data(b)))
+@generated function Base.hcat(a::VecUnroll{N1,W,T,V}, b::VecUnroll{N2,W,T,V}) where {N1,N2,W,T,V}
+    q = Expr(:block, Expr(:meta,:inline), :(da = data(a)), :(db = data(b)))
+    t = Expr(:tuple)
+    for (d,N) ∈ ((:da,N1),(:db,N2))
+        for n ∈ 1:N
+            push!(t.args, Expr(:call, :getfield, d, n, false))
+        end
+    end
+    push!(q.args, :(VecUnroll($t)))
+    q
+end
 
 
 function transpose_vecunroll_quote(W)
-    @assert VectorizationBase.ispow2(W)
-    log2W = VectorizationBase.intlog2(W)
+    ispow2(W) || throw(ArgumentError("Only supports powers of 2 for vector width and unrolling factor, but recieved $W = $W."))
+    log2W = intlog2(W)
     q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
     N = W # N vectors of length W
     vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
@@ -101,15 +113,14 @@ function transpose_vecunroll_quote(W)
     #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
     # end
     for n ∈ 1:N
-        push!(q.args, Expr(:(=), vectors1[n], Expr(:ref, :vud, n)))
+        push!(q.args, Expr(:(=), vectors1[n], Expr(:call, :getfield, :vud, n, false)))
     end
     Nhalf = N >>> 1
-    shuffinstr = Expr(:(.), :VectorizationBase, QuoteNode(:shufflevector))
     vecstride = 1
     partition_stride = 2
     for nsplits in 0:log2W-1
-        shuffle0 = VectorizationBase.transposeshuffle(nsplits, W, false)
-        shuffle1 = VectorizationBase.transposeshuffle(nsplits, W, true)
+        shuffle0 = transposeshuffle(nsplits, W, false)
+        shuffle1 = transposeshuffle(nsplits, W, true)
         for partition ∈ 0:(W >>> (nsplits+1))-1
             for _n1 ∈ 1:vecstride
                 n1 = partition * partition_stride + _n1
@@ -118,8 +129,8 @@ function transpose_vecunroll_quote(W)
                 v12 = vectors1[n2]
                 v21 = vectors2[n1]
                 v22 = vectors2[n2]
-                shuff1 = Expr(:call, shuffinstr, v11, v12, shuffle0)
-                shuff2 = Expr(:call, shuffinstr, v11, v12, shuffle1)
+                shuff1 = Expr(:call, :shufflevector, v11, v12, shuffle0)
+                shuff2 = Expr(:call, :shufflevector, v11, v12, shuffle1)
                 push!(q.args, Expr(:(=), v21, shuff1))
                 push!(q.args, Expr(:(=), v22, shuff2))
             end
@@ -139,10 +150,147 @@ function transpose_vecunroll_quote(W)
     push!(q.args, Expr(:call, :VecUnroll, t))
     q
 end
+function subset_tup(W, o)
+    t = Expr(:tuple)
+    for w ∈ o:W-1+o
+        push!(t.args, w)
+    end
+    Expr(:call, Expr(:curly, :Val, t))
+end
+function transpose_vecunroll_quote_W_larger(N,W)
+    (ispow2(W) & ispow2(N)) || throw(ArgumentError("Only supports powers of 2 for vector width and unrolling factor, but recieved $N and $W."))
+    log2W = intlog2(W)
+    log2N = intlog2(N)
+    q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
+    # N = W # N vectors of length W
+    vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
+    vectors2 = [Symbol(:v_, n+N) for n ∈ 0:N-1]
+    # z = Expr(:call, Expr(:curly, Expr(:(.), :VectorizationBase, QuoteNode(:MM)), W), 0)
+    # for n ∈ 1:N
+    #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
+    # end
+    for n ∈ 1:N
+        push!(q.args, Expr(:(=), vectors1[n], Expr(:call, :getfield, :vud, n, false)))
+    end
+    Nhalf = N >>> 1
+    vecstride = 1
+    partition_stride = 2
+    for nsplits in 0:log2N-1
+        shuffle0 = transposeshuffle(nsplits, W, false)
+        shuffle1 = transposeshuffle(nsplits, W, true)
+        for partition ∈ 0:(N >>> (nsplits+1))-1
+            for _n1 ∈ 1:vecstride
+                n1 = partition * partition_stride + _n1
+                n2 = n1 + vecstride
+                v11 = vectors1[n1]
+                v12 = vectors1[n2]
+                v21 = vectors2[n1]
+                v22 = vectors2[n2]
+                shuff1 = Expr(:call, :shufflevector, v11, v12, shuffle0)
+                shuff2 = Expr(:call, :shufflevector, v11, v12, shuffle1)
+                push!(q.args, Expr(:(=), v21, shuff1))
+                push!(q.args, Expr(:(=), v22, shuff2))
+            end
+        end
+        vectors1, vectors2 = vectors2, vectors1
+        vecstride <<= 1
+        partition_stride <<= 1
+        # @show vecstride <<= 1
+    end
+    # @show vecstride, partition_stride
+    t = Expr(:tuple)
+    o = 0
+    for i ∈ 1:(1 << (log2W - log2N))
+        extract = subset_tup(N, o)
+        for n ∈ 1:N
+            push!(t.args, Expr(:call, :shufflevector, vectors1[n], extract))
+        end
+        o += N
+    end
+    # for n ∈ 1:N
+    #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vstore!)), :ptrB, vectors1[n], Expr(:tuple, z, n-1))))
+    # end
+    push!(q.args, Expr(:call, :VecUnroll, t))
+    q
+end
+function transpose_vecunroll_quote_W_smaller(N,W)
+    (ispow2(W) & ispow2(N)) || throw(ArgumentError("Only supports powers of 2 for vector width and unrolling factor, but recieved $N and $W."))
+    N,W = W,N
+    log2W = intlog2(W)
+    log2N = intlog2(N)
+    q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
+    # N = W # N vectors of length W
+    vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
+    vectors2 = [Symbol(:v_, n+N) for n ∈ 0:N-1]
+    # z = Expr(:call, Expr(:curly, Expr(:(.), :VectorizationBase, QuoteNode(:MM)), W), 0)
+    # for n ∈ 1:N
+    #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
+    # end
+    vectors3 = [Symbol(:vpiece_, w) for w ∈ 0:W-1]
+    for w ∈ 1:W
+        push!(q.args, Expr(:(=), vectors3[w], Expr(:call, :getfield, :vud, w, false)))
+    end
+    Wtemp = W
+    exprs = Vector{Expr}(undef, W >>> 1)
+    initstride = W >>> (log2W - log2N)
+    while Wtemp > N
+        Wtemp >>>= 1
+        for w ∈ 1:Wtemp
+            i = w+Wtemp
+            if Wtemp+Wtemp == W
+                exprs[w] = Expr(:call, :vcat, vectors3[w], vectors3[i])
+            else
+                exprs[w] = Expr(:call, :vcat, exprs[w], exprs[i])
+            end
+        end
+    end
+    for n ∈ 1:N
+        push!(q.args, Expr(:(=), vectors1[n], exprs[n]))
+    end
+    Nhalf = N >>> 1
+    vecstride = 1
+    partition_stride = 2
+    for nsplits in 0:log2N-1
+        shuffle0 = transposeshuffle(nsplits, W, false)
+        shuffle1 = transposeshuffle(nsplits, W, true)
+        for partition ∈ 0:(N >>> (nsplits+1))-1
+            for _n1 ∈ 1:vecstride
+                n1 = partition * partition_stride + _n1
+                n2 = n1 + vecstride
+                v11 = vectors1[n1]
+                v12 = vectors1[n2]
+                v21 = vectors2[n1]
+                v22 = vectors2[n2]
+                shuff1 = Expr(:call, :shufflevector, v11, v12, shuffle0)
+                shuff2 = Expr(:call, :shufflevector, v11, v12, shuffle1)
+                push!(q.args, Expr(:(=), v21, shuff1))
+                push!(q.args, Expr(:(=), v22, shuff2))
+            end
+        end
+        vectors1, vectors2 = vectors2, vectors1
+        vecstride <<= 1
+        partition_stride <<= 1
+        # @show vecstride <<= 1
+    end
+    # @show vecstride, partition_stride
+    t = Expr(:tuple)
+    for n ∈ 1:N
+        push!(t.args, vectors1[n])
+    end
+    push!(q.args, Expr(:call, :VecUnroll, t))
+    q
+end
 @generated function transpose_vecunroll(vu::VecUnroll{N,W}) where {N,W}
-    N+1 == W || throw(ArgumentError("Transposing is currently only supported for sets of vectors of size equal to their length, but received $(N+1) vectors of length $W."))
-    W == 1 && return :vu
-    transpose_vecunroll_quote(W)
+    # N+1 == W || throw(ArgumentError("Transposing is currently only supported for sets of vectors of size equal to their length, but received $(N+1) vectors of length $W."))
+    # 1+2
+    if N+1 == W
+        W == 1 && return :vu
+        transpose_vecunroll_quote(W)
+    elseif N+1 < W
+        transpose_vecunroll_quote_W_larger(N+1, W)
+    else
+        transpose_vecunroll_quote_W_smaller(N+1, W)
+    end
     # code below lets LLVM do it.
     # q = Expr(:block, Expr(:meta,:inline), :(vud = data(vu)))
     # S = W
