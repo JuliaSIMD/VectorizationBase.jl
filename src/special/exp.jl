@@ -195,6 +195,8 @@ end
 
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
 end
+# using Remez
+# N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); N
 @inline function expm1b_kernel_4(::Val{2}, x)
     c4 = 0.6931471805599461972549081995383434692316977327912755704234013405443109498729026
     c3 = 0.2402265069131940842333497738928958607054740795078596615709864445611497846077303
@@ -204,32 +206,41 @@ end
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4)
 end
 
-@inline function vexp2_v2(x::AbstractSIMD{8,Float64})
+@inline function vexp2_v2(x::AbstractSIMD{W,Float64}) where {W}
     x16 = 16.0*x
-    # x8 = 8x
-    r =  vsreduce(x16, Val(0))
-    @fastmath  begin
-    m = x16 - r
-    # m + r = x16, r ∈ (-0.5,0.5]
-    # m/16 + r/16 = x, r ∈ (-1/32, 1/32]
-    # we must now vreduce `mfrac`
-    # return m
-    r *= 0.0625
-    m *= 0.0625
-    end
-    # expr = expm1b_kernel_4(Val(2), r)
-    expr = expm1b_kernel_5(Val(2), r)
-    inds = convert(UInt64, vsreduce(m, Val(1)) * 16.0)
-    # inds = (reinterpret(UInt64, mfrac) >> 0x000000000000002d) & 0x000000000000000f
-    # inds = (reinterpret(UInt64, mfrac) >> 0x0000000000000035) & 0x000000000000000f
-    # @show r m mfrac reinterpret(UInt64, m) reinterpret(UInt64, mfrac)
+    r = vsreduce(x16, Val(0)) * 0.0625
+    N_float = x - r
+    inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
-    # return r, mfrac, js
-    # @show js m 16mfrac r mfrac inds%Int ((inds>>1)%Int)
-    # js = 1.0
-    small_part = vfmadd(js, expr, js)
-    vscalef(small_part, m)#, r, mfrac, js, inds
+    small_part = vfmadd(js, expm1b_kernel_5(Val(2), r), js)
+    res = vscalef(small_part, N_float)
+    return res
 end
+
+# @inline function vexp2_v2(x::AbstractSIMD{8,Float64})
+#     x16 = 16.0*x
+#     # x8 = 8x
+#     r =  vsreduce(x16, Val(0)) * 0.0625
+#     @fastmath  begin
+#     m = x - r
+#     # m + r = x16, r ∈ (-0.5,0.5]
+#     # m/16 + r/16 = x, r ∈ (-1/32, 1/32]
+#     # we must now vreduce `mfrac`
+#     # return m
+#     end
+#     # expr = expm1b_kernel_4(Val(2), r)
+#     expr = expm1b_kernel_5(Val(2), r)
+#     inds = convert(UInt64, vsreduce(m, Val(1)) * 16.0)
+#     # inds = (reinterpret(UInt64, mfrac) >> 0x000000000000002d) & 0x000000000000000f
+#     # inds = (reinterpret(UInt64, mfrac) >> 0x0000000000000035) & 0x000000000000000f
+#     # @show r m mfrac reinterpret(UInt64, m) reinterpret(UInt64, mfrac)
+#     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+#     # return r, mfrac, js
+#     # @show js m 16mfrac r mfrac inds%Int ((inds>>1)%Int)
+#     # js = 1.0
+#     small_part = vfmadd(js, expr, js)
+#     vscalef(small_part, m)#, r, mfrac, js, inds
+# end
 
 # for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
 #     @eval begin
