@@ -1,3 +1,94 @@
+@generated function vgetexp(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
+    bits = 8W*sizeof(T)
+    bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
+    ltyp = LLVM_TYPES[T]
+    vtyp = "<$W x $ltyp>"
+    dors = T === Float64 ? 'd' : 's'
+    instr = "$vtyp @llvm.x86.avx512.mask.getexp.p$(dors).$bits"
+    mtyp = W == 16 ? "i16" : "i8"
+    decl = "declare $instr($vtyp, $vtyp, $mtyp, i32)"
+    instrs = "%res = call $instr($vtyp %0, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    arg_syms = [:(data(v))]
+    llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
+end
+@generated function vgetmant(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
+    bits = 8W*sizeof(T)
+    bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
+    ltyp = LLVM_TYPES[T]
+    vtyp = "<$W x $ltyp>"
+    dors = T === Float64 ? 'd' : 's'
+    instr = "$vtyp @llvm.x86.avx512.mask.getmant.p$(dors).$bits"
+    mtyp = W == 16 ? "i16" : "i8"
+    decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
+    instrs = "%res = call $instr($vtyp %0, i32 11, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    arg_syms = [:(data(v))]
+    llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
+end
+@generated function vgetmant8(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
+    bits = 8W*sizeof(T)
+    bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
+    ltyp = LLVM_TYPES[T]
+    vtyp = "<$W x $ltyp>"
+    dors = T === Float64 ? 'd' : 's'
+    instr = "$vtyp @llvm.x86.avx512.mask.getmant.p$(dors).$bits"
+    mtyp = W == 16 ? "i16" : "i8"
+    decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
+    instrs = "%res = call $instr($vtyp %0, i32 12, $vtyp undef, $mtyp -1, i32 8)\nret $vtyp %res"
+    arg_syms = [:(data(v))]
+    llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
+end
+
+@inline vgetexp(v::VecUnroll) = VecUnroll(fmap(vgetexp, getfield(v, :data)))
+@inline vgetmant(v::VecUnroll) = VecUnroll(fmap(vgetmant, getfield(v, :data)))
+@inline vgetmant8(v::VecUnroll) = VecUnroll(fmap(vgetmant8, getfield(v, :data)))
+
+
+# log2(x) =  vgetexp(x) + log2(vgetmant8(x))
+@inline function vlog(x1::VectorizationBase.AbstractSIMD{W,Float64}) where {W} # Testing if an assorted mix of operations
+    x14 = vgetmant(x1)
+    x8 = vgetexp(1.3333333333333333*x1)
+    # x2 = reinterpret(UInt64, x1)
+    # x3 = x2 >>> 0x0000000000000020
+    # greater_than_zero = x1 > zero(x1)
+    # alternative = VectorizationBase.ifelse(x1 == zero(x1), -Inf, NaN)
+    # isinf = x1 == Inf
+    # x5 = x3 + 0x0000000000095f62
+    # x6 = x5 >>> 0x0000000000000014
+    # x7 = x6 - 0x00000000000003ff
+    # x8 = convert(Float64, x7 % Int)
+    # @show x3 x5 x6 x7 x8
+    # x9 = x5 << 0x0000000000000020
+    # x10 = x9 & 0x000fffff00000000
+    # x11 = x10 + 0x3fe6a09e00000000
+    # x12 = x2 & 0x00000000ffffffff
+    # x13 = x11 | x12
+    # x14 = reinterpret(Float64, x13)
+    x15 = x14 - 1.0
+    x18 = x14 + 1.0
+    x16 = x15 * x15
+    x17 = 0.5 * x16
+    x19 = x15 / x18
+    x20 = x19 * x19
+    x21 = x20 * x20
+    x22 = vfmadd(x21, 0.15313837699209373, 0.22222198432149784)
+    x23 = vfmadd(x21, x22, 0.3999999999940942)
+    x24 = x23 * x21
+    x25 = vfmadd(x21, 0.14798198605116586, 0.1818357216161805)
+    x29 = x24 + x17
+    x26 = vfmadd(x21, x25, 0.2857142874366239)
+    x27 = vfmadd(x21, x26, 0.6666666666666735)
+    x28 = x27 * x20
+    x30 = x29 + x28
+    x31 = x8 * 1.9082149292705877e-10
+    x32 = vfmadd(x19, x30, x31)
+    x33 = x15 - x17
+    x34 = x33 + x32
+    x35 = vfmadd(x8, 0.6931471803691238, x34)
+    return x35
+    # @show x35
+    # x36 = VectorizationBase.ifelse(greater_than_zero, x35, alternative)
+    # VectorizationBase.ifelse(isinf, Inf, x36)
+end
 
 
 # @inline function Base.log(x1::AbstractSIMD{W,Float64}) where {W}
