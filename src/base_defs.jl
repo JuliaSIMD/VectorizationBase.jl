@@ -84,7 +84,13 @@ for (op, f, promote) ∈ [
         @inline $op(a::AbstractSIMD,b::NativeTypes) = ((c,d) = $promote(a,b); $f(c,d))
     end
 end
-
+for op ∈ [:(Base.:(*)), :(Base.FastMath.mul_fast)]
+    @eval begin
+        @inline $op(m::AbstractSIMD{W,B1}, v::AbstractSIMD{W,B2}) where {W,B1<:Union{Bool,Bit},B2<:Union{Bool,Bit}} = m & v
+        @inline $op(m::AbstractSIMD{W,B}, v::AbstractSIMD{W}) where {W,B<:Union{Bool,Bit}} = ifelse(m, v, zero(v))
+        @inline $op(v::AbstractSIMD{W}, m::AbstractSIMD{W,B}) where {W,B<:Union{Bool,Bit}} = ifelse(m, v, zero(v))
+    end
+end
 # copysign needs a heavy hand to avoid ambiguities
 @inline Base.copysign(a::VecUnroll,b::AbstractSIMDVector) = VecUnroll(fmap(vcopysign, a.data, b))
 @inline Base.copysign(a::VecUnroll,b::VecUnroll) = VecUnroll(fmap(vcopysign, a.data, b.data))

@@ -37,6 +37,7 @@
 @inline vsub(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(data(i), StaticInt{j}()))
 @inline vsub(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 @inline vsub(i::MM) = i * StaticInt{-1}()
+@inline vsub_fast(i::MM) = i * StaticInt{-1}()
 @inline vmul(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(vmul_fast(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
 @inline vmul(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(vmul_fast(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
 @inline vrem(i::MM{W,X,I}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = i

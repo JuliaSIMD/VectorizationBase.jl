@@ -206,13 +206,36 @@ end
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4)
 end
 
+@inline function vexp2_v4(x::AbstractSIMD{W,Float64}) where {W}
+    # r - VectorizationBase.vroundscale(r, Val(16*(4)))
+    r = VectorizationBase.vsreduce(x,Val(0))
+    rscale = VectorizationBase.vroundscale(r, Val(64))
+    rs = r - rscale
+    inds = convert(UInt, vsreduce(rscale, Val(1))*16.0)
+    expr = expm1b_kernel_5(Val(2), rs)
+    N_float = x - rs
+    # @show inds rs N_float
+    
+    js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+    small_part = vfmadd(js, expr, js)
+    res = vscalef(small_part, N_float)
+    return res
+
+end
+
 @inline function vexp2_v2(x::AbstractSIMD{W,Float64}) where {W}
     x16 = 16.0*x
     r = vsreduce(x16, Val(0)) * 0.0625
     N_float = x - r
+    expr = expm1b_kernel_5(Val(2), r)
+    
     inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
+    # @show inds r N_float
+    # @show N_float r
+    # return inds, N_float
+    # return N_float, inds
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
-    small_part = vfmadd(js, expm1b_kernel_5(Val(2), r), js)
+    small_part = vfmadd(js, expr, js)
     res = vscalef(small_part, N_float)
     return res
 end

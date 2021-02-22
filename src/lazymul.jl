@@ -70,6 +70,8 @@ end
 @inline function lazymul(::StaticInt{M}, b::LazyMulAdd{N,<:MM{W,X}}) where {M,N,W,X}
     LazyMulAdd(MM{W}(getfield(b, :data), StaticInt{M}()*StaticInt{N}()*StaticInt{X}()), StaticInt{M}()*StaticInt{N}())
 end
+
+
 @inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::StaticInt{0}) where {M,W,X} = StaticInt{0}()
 @inline lazymul(::StaticInt{0}, b::LazyMulAdd{N,<:MM{W,X}}) where {N,W,X} = StaticInt{0}()
 @inline lazymul(a::LazyMulAdd{M,<:MM{W,X}}, ::StaticInt{1}) where {M,W,X} = a
@@ -78,6 +80,16 @@ end
     LazyMulAdd(vmul_fast(getfield(a, :data), getfield(b, :data)), StaticInt{M}()*StaticInt{N}())
 end
 
+vmul_fast(::LazyMulAdd{M,O}, ::StaticInt{0}) where {M,O} = Zero()
+vmul_fast(::StaticInt{0}, ::LazyMulAdd{M,O}) where {M,O} = Zero()
+vmul_fast(a::LazyMulAdd{M,O}, ::StaticInt{1}) where {M,O} = a
+vmul_fast(::StaticInt{1}, a::LazyMulAdd{M,O}) where {M,O} = a
+@inline function vmul_fast(a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,N,O}
+    LazyMulAdd(getfield(a, :data), StaticInt{M}() * StaticInt{N}(), StaticInt{O}() * StaticInt{N}())
+end
+@inline function vmul_fast(::StaticInt{N}, a::LazyMulAdd{M,O}) where {M,N,O}
+    LazyMulAdd(getfield(a, :data), StaticInt{M}() * StaticInt{N}(), StaticInt{O}() * StaticInt{N}())
+end
 
 @inline function Base.:(>>>)(a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N}
     LazyMulAdd(getfield(a, :data), StaticInt{M}() >>> StaticInt{N}(), StaticInt{O}() >>> StaticInt{N}())
