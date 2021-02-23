@@ -269,6 +269,7 @@ end
 @inline _vfmadd_fast(a, b, c, ::True) = vfma_fast(a, b, c)
 @inline _vfmadd_fast(a, b, c, ::False) = vmuladd_fast(a, b, c)
 @inline vfmadd_fast(a, b, c) = _vfmadd_fast(a, b, c, fma_fast())
+# @inline vfnmadd_fast(a, b, c) = @fastmath c - a * b
 @inline vfnmadd_fast(a, b, c) = vfmadd_fast(Base.FastMath.sub_fast(a), b, c)
 @inline vfmsub_fast(a, b, c) = vfmadd_fast(a, b, Base.FastMath.sub_fast(c))
 @inline vfnmsub_fast(a, b, c) = Base.FastMath.sub_fast(vfmadd_fast(a, b, c))
