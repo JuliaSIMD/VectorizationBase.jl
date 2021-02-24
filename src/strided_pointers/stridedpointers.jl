@@ -76,6 +76,7 @@ end
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
 @inline Base.strides(ptr::AbstractStridedPointer) = Base.getfield(ptr, :strd)
+@inline ArrayInterface.strides(ptr::AbstractStridedPointer) = Base.getfield(ptr, :strd)
 @inline ArrayInterface.offsets(ptr::AbstractStridedPointer) = Base.getfield(ptr, :offsets)
 @inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(StaticInt{C}(), Val{N}())
 
@@ -335,6 +336,7 @@ end
 
 @inline stridedpointer(ptr::AbstractStridedPointer) = ptr
 
+
 struct FastRange{T,F,S,O}# <: AbstractRange{T}
     f::F
     s::S
@@ -342,17 +344,18 @@ struct FastRange{T,F,S,O}# <: AbstractRange{T}
 end
 FastRange{T}(f::F,s::S,o::O) where {T,F,S,O} = FastRange{T,F,S,O}(f,s,o)
 @inline function stridedpointer(r::AbstractRange{T}) where {T}
-    FastRange{T}(ArrayInterface.static_first(r), ArrayInterface.static_step(r), One())
+    FastRange{T}(ArrayInterface.static_first(r), ArrayInterface.static_step(r), -1)
 end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T}
-    ii = first(i) - r.offset
-    f = r.f
-    s = r.s
-    FastRange{T}(f + ii * s, r.s, Zero())
+    FastRange{T}(r.f, r.s, first(i) + r.offset)
 end
-@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, r.f) + convert(T, r.s) * (first(i) - convert(T, r.offset))
-@inline vload(r::FastRange, i::Tuple, m::Mask) = vload(r, i)
-@inline vload(r::FastRange, i::Tuple, m::Bool) = vload(r, i)
+@inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) + convert(T, getfield(r, :offset)))
+@inline vload(r::FastRange, i::Tuple, m::Mask) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i, _, __) = vload(r, i)
+@inline vload(r::FastRange, i, m::Mask, __, ___) = vload(r, i, m)
 # @inline Base.getindex(r::FastRange, i::Integer) = vload(r, (i,))
 @inline Base.eltype(::FastRange{T}) where {T} = T
+@inline pointerforcomparison(r::FastRange) = r.offset
+@inline pointerforcomparison(r::FastRange, i::Tuple{I}) where {I} = r.offset + first(i)
 
