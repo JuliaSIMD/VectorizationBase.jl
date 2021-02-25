@@ -49,8 +49,8 @@ end
 @generated function vconvert(::Type{Vec{W,Float64}}, v::Vec{W,Float32}) where {W}
     convert_func("fpext", Float64, W, Float32, W)
 end
-@inline vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
-# @generated function vconvert(::Type{<:Mask{W}}, v::Vec{W,Bool}) where {W}
+@inline vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
+# @generated function vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W}
 #     instrs = String[]
 #     push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
 #     zext_mask!(instrs, 'm', W, '0')
@@ -67,17 +67,17 @@ end
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
 @inline vconvert(::Type{Vec{W,T}}, s::NativeTypes) where {W,T} = vbroadcast(Val{W}(), T(s))
 @inline vconvert(::Type{Vec{W,T}}, s::IntegerTypesHW) where {W,T<:IntegerTypesHW} = _vbroadcast(StaticInt{W}(), s % T, StaticInt{W}() * static_sizeof(T))
-@inline vconvert(::Type{V}, u::VecUnroll) where {V<:AbstractSIMDVector} = VecUnroll(fmap(vconvert, V, u.data))
+@inline vconvert(::Type{V}, u::VecUnroll) where {V<:AbstractSIMDVector} = VecUnroll(fmap(vconvert, V, getfield(u, :data)))
 @inline vconvert(::Type{V}, u::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector} = u
 
 
 @inline vconvert(::Type{<:AbstractSIMDVector{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
-@inline vconvert(::Type{MM{W,X,T}}, i::MM{W,X}) where {W,X,T} = MM{W,X}(T(i.i))
+@inline vconvert(::Type{MM{W,X,T}}, i::MM{W,X}) where {W,X,T} = MM{W,X}(T(getfield(i, :i)))
 
-@inline function vconvert(::Type{V}, v::Mask{W}) where {W, T <: Union{Base.HWReal,Bool}, V <: AbstractSIMDVector{W,T}}
+@inline function vconvert(::Type{V}, v::AbstractMask{W}) where {W, T <: Union{Base.HWReal,Bool}, V <: AbstractSIMDVector{W,T}}
     vifelse(v, one(T), zero(T))
 end
-@inline vconvert(::Type{V}, v::Mask{W}) where {W, V <: AbstractSIMDVector{W,Bit}} = v
+@inline vconvert(::Type{V}, v::AbstractMask{W}) where {W, V <: AbstractSIMDVector{W,Bit}} = v
 @inline function vconvert(::Type{V}, v::Vec{W,Bool}) where {W, T <: Base.HWReal, V <: AbstractSIMDVector{W,T}}
     vifelse(v, one(T), zero(T))
 end
@@ -101,7 +101,7 @@ end
     VecUnroll{N}(vconvert(V, v))
 end
 @inline function vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N}) where {N,W,T,V}
-    VecUnroll(fmap(vconvert, V, v.data))
+    VecUnroll(fmap(vconvert, V, getfield(v, :data)))
 end
 @inline vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = v
 @generated function vconvert(::Type{VecUnroll{N,1,T,T}}, s::NativeTypes) where {N,T}
@@ -115,7 +115,7 @@ end
 # @inline vconvert(::Type{T}, v::T) where {T} = v
 
 
-@generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::Mask{L}) where {N,W,L}
+@generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::AbstractMask{L}) where {N,W,L}
     N*W == L || throw(ArgumentError("Can't split a vector of length $L into $N pieces of length $W."))
     t = Expr(:tuple, :(Mask{$W}(u)))
     s = 0
@@ -140,12 +140,12 @@ end
     Expr(:block, Expr(:meta,:inline), t)
 end
 @generated function splitvectortotuple(::StaticInt{N}, ::StaticInt{W}, v::LazyMulAdd{M,O}) where {N,W,M,O}
-    # LazyMulAdd{M,O}(splitvectortotuple(StaticInt{N}(), StaticInt{W}(), v.data))
+    # LazyMulAdd{M,O}(splitvectortotuple(StaticInt{N}(), StaticInt{W}(), getfield(v, :data)))
     t = Expr(:tuple)
     for n ∈ 1:N
         push!(t.args, :(LazyMulAdd{$M,$O}(splitdata[$n])))
     end
-    Expr(:block, Expr(:meta,:inline), :(splitdata = splitvectortotuple(StaticInt{$N}(), StaticInt{$W}(), v.data)), t)
+    Expr(:block, Expr(:meta,:inline), :(splitdata = splitvectortotuple(StaticInt{$N}(), StaticInt{$W}(), getfield(v, :data))), t)
 end
 
 @generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::AbstractSIMDVector{L}) where {N, W, T, V, L}
@@ -173,13 +173,13 @@ end
 end
 @inline vfloat(v::Vec{W,I}) where {W, I <: Integer} = _vfloat(v, register_size())
 @inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
-@inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, vu.data))
+@inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, getfield(vu, :data)))
 # @inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
 
 
 @inline vfloat_fast(v::AbstractSIMDVector{W,T}) where {W,T <: Union{Float32,Float64}} = v
 @inline vfloat_fast(vu::VecUnroll{W,T}) where {W,T<:Union{Float32,Float64}} = vu
-@inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, vu.data))
+@inline vfloat_fast(vu::VecUnroll) = VecUnroll(fmap(vfloat_fast, getfield(vu, :data)))
 
 @generated function __vfloat_fast(v::Vec{W,I}, ::StaticInt{RS}) where {W, I <: Integer, RS}
     arg = if (2W*sizeof(I) ≤ RS) || sizeof(I) ≤ 4

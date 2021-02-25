@@ -51,21 +51,26 @@ function binary_mask_op_instrs(W, op)
     push!(instrs, "ret $mtyp_input %res.1")
     join(instrs, "\n")
 end
-function binary_mask_op(W, U, op)
+function binary_mask_op(W, U, op, evl::Symbol = Symbol(""))
     instrs = binary_mask_op_instrs(W, op)
-    quote
-        $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($instrs, $U, Tuple{$U, $U}, m1.u, m2.u))
+    mask = Expr(:curly, evlmask ? :EVLMask : :Mask, W)
+    llvmc = :(llvmcall($instrs, $U, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))
+    call = Expr(:call, mask, llvmc)
+    if evl !== Symbol("")
+        push!(call.args, Expr(:call, evl, getfield(m1, :evl), getfield(m2, :evl)))
     end
+    Expr(:block, Expr(:meta,:inline), call)
 end
 
 @inline data(m::Mask) = getfield(m, :u)
-for (f,op) ∈ [
-    (:vand,"and"), (:vor,"or"), (:vxor,"xor"), (:veq,"icmp eq"), (:vne,"icmp ne")
+@inline data(m::EVLMask) = getfield(m, :u)
+@inline Base.convert(::Type{Mask{W,U}}, m::EVLMask{W,U}) where {W,U} = Mask{W,U}(getfield(m,:u))
+for (f,op,evl) ∈ [
+    (:vand,"and",:min), (:vor,"or",:max), (:vxor,"xor",Symbol("")), (:veq,"icmp eq",Symbol("")), (:vne,"icmp ne",Symbol(""))
 ]
     @eval begin
-        @generated function $f(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U}
-            binary_mask_op(W, U, $op)
+        @generated function $f(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U}
+            binary_mask_op(W, U, $op, ((m1 <: EVLMask) && (m2 <: EVLMask)) ? $(QuoteNode(evl)) : Symbol(""))
         end
     end
 end
@@ -123,31 +128,40 @@ function vadd_expr(W,U)
     %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
     %res = add <$W x i8> %uv.0, %uv.1
     ret <$W x i8> %res""")
-    Expr(:block, Expr(:meta, :inline), :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, m1.u, m2.u))))
+    Expr(:block, Expr(:meta, :inline), :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
-@generated vadd(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = vadd_expr(W,U)
+@generated vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U)
 
-@inline Base.:(&)(m::Mask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, m.u, zero(m.u)))
-@inline Base.:(&)(b::Bool, m::Mask{W}) where {W} = Mask{W}(Core.ifelse(b, m.u, zero(m.u)))
+@inline Base.:(&)(m::AbstractMask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
+@inline Base.:(&)(b::Bool, m::AbstractMask{W}) where {W} = Mask{W}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
 
-@inline Base.:(|)(m::Mask{W,U}, b::Bool) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
-@inline Base.:(|)(b::Bool, m::Mask{W,U}) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
+@inline Base.:(|)(m::AbstractMask{W,U}, b::Bool) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
+@inline Base.:(|)(b::Bool, m::AbstractMask{W,U}) where {W,U} = Core.ifelse(b, max_mask(Mask{W,U}), m)
 
-@inline Base.:(⊻)(m::Mask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, ~m.u, m.u))
-@inline Base.:(⊻)(b::Bool, m::Mask{W}) where {W} = Mask{W}(Core.ifelse(b, ~m.u, m.u))
+@inline Base.:(⊻)(m::AbstractMask{W}, b::Bool) where {W} = Mask{W}(Core.ifelse(b, ~getfield(m, :u), getfield(m, :u)))
+@inline Base.:(⊻)(b::Bool, m::AbstractMask{W}) where {W} = Mask{W}(Core.ifelse(b, ~getfield(m, :u), getfield(m, :u)))
 
-@inline vshl(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(m.u, i))
-@inline vashr(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
-@inline vlshr(m::Mask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(m.u, i))
+@inline vshl(m::AbstractMask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shl(getfield(m, :u), i))
+@inline vashr(m::AbstractMask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(getfield(m, :u), i))
+@inline vlshr(m::AbstractMask{W}, i::IntegerTypesHW) where {W} = Mask{W}(shr(getfield(m, :u), i))
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
-    @eval @inline vany(m::Mask{$W,$U}) = m.u != $(zero(U))
-    @eval @inline vall(m::Mask{$W,$U}) = m.u == $(typemax(U))
+    @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $(zero(U))
+    @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $(typemax(U))
 end
-@inline vany(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) !== zero(m.u)
-@inline vall(m::Mask{W}) where {W} = (m.u & max_mask(Val{W}()).u) === (max_mask(Val{W}()).u)
+# TODO: use vector reduction intrsincs
+@inline function vany(m::AbstractMask{W}) where {W}
+    mm = getfield(max_mask(Val{W}()),:u)
+    mu = getfield(m, :u)
+    (mu & mm) !== zero(mu)
+end
+@inline function vall(m::AbstractMask{W}) where {W}
+    mm = getfield(max_mask(Val{W}()),:u)
+    mu = getfield(m, :u)
+    mm & mu === mm
+end
 
-@generated function vnot(m::Mask{W,U}) where {W,U}
+@generated function vnot(m::AbstractMask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"
     mtyp_trunc = "i$(W)"
     instrs = String[]
@@ -158,28 +172,32 @@ end
     push!(instrs, "ret $mtyp_input %res.1")
     quote
         $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U}, m.u))
+        Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U}, getfield(m, :u)))
     end
 end
 # @inline Base.:(~)(m::Mask) = !m
 
-@inline Base.count_ones(m::Mask) = count_ones(m.u)
-@inline vadd(m::Mask, i::Integer) = i + count_ones(m)
-@inline vadd(i::Integer, m::Mask) = i + count_ones(m)
+@inline Base.count_ones(m::AbstractMask) = count_ones(getfield(m, :u))
+@inline vadd(m::AbstractMask, i::Integer) = i + count_ones(m)
+@inline vadd(i::Integer, m::AbstractMask) = i + count_ones(m)
 
-@generated function vzero(::Type{<:Mask{W}}) where {W}
+@generated function vzero(::Type{M}) where {W, M <: Mask{W}}
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), Expr(:call, :zero, mask_type_symbol(W))))
 end
+@generated function vzero(::Type{M}) where {W, M <: EVLMask{W}}
+    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :EVLMask, W), Expr(:call, :zero, mask_type_symbol(W)), 0x00000000))
+end
 @inline vzero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
-@inline Base.zero(::Type{M}) where {W,M <: Mask{W}} = vzero(M)
-@inline zero_mask(::Union{Val{W},StaticInt{W}}) where {W} = Mask{W}(zero(VectorizationBase.mask_type(Val{W}())))
+@inline vzero(::EVLMask{W,U}) where {W,U} = EVLMask{W}(zero(U), 0x00000000)
+@inline Base.zero(::Type{M}) where {W,M <: AbstractMask{W}} = vzero(M)
+@inline zero_mask(::Union{Val{W},StaticInt{W}}) where {W} = EVLMask{W}(zero(VectorizationBase.mask_type(Val{W}())), 0x00000000)
 
 @generated function max_mask(::Union{Val{W},StaticInt{W}}) where {W}
     U = mask_type(W)
-    :(Mask{$W,$U}($(one(U)<<W - one(U))))
+    :(EVLMask{$W,$U}($(one(U)<<W - one(U)), $(UInt32(W))))
 end
 @inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width(T))
-@generated max_mask(::Type{Mask{W,U}}) where {W,U} = Mask{W,U}(one(U)<<W - one(U))
+@generated max_mask(::Type{Mask{W,U}}) where {W,U} = EVLMask{W,U}(one(U)<<W - one(U), W % UInt32)
 
 @generated function valrem(::Union{Val{W},StaticInt{W}}, l) where {W}
     ex = ispow2(W) ? :(l & $(W - 1)) : :(l % $W)
@@ -188,10 +206,13 @@ end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
     # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
     M = mask_type(W)
+    Wm1 = UInt32((W%UInt32) - 0x00000001)
     quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
         $(Expr(:meta,:inline))
-        rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
-        Mask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem))
+        # evl = (l % UInt32) & $Wm1
+        evl = l % $M
+        rem = valrem(Val{$W}(), vsub(evl, one($M)))
+        EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - rem), evl)
     end
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
@@ -205,8 +226,9 @@ end
         M = mask_type_symbol(W)
         quote
             $(Expr(:meta,:inline))
-            rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
-            rem ≥ MM{$W}(0)
+            evl = l % $M
+            rem = valrem(Val{$W}(), vsub(evl, one($M)))
+            EVLMask{$W}(data(rem ≥ MM{$W}(0)), evl)
         end
     end
 end
@@ -266,7 +288,7 @@ end
 end
 Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
 
-# @inline getindexzerobased(m::Mask, i) = (m.u >>> i) % Bool
+# @inline getindexzerobased(m::Mask, i) = (getfield(m, :u) >>> i) % Bool
 # @inline function extractelement(m::Mask{W}, i::Integer) where {W}
 #     @boundscheck i > W && throw(BoundsError(m, i))
 #     getindexzerobased(m, i)
@@ -296,18 +318,18 @@ end
 # @generated function Base.isodd(i::MM{W,1}) where {W}
 #     U = mask_type(W)
 #     evenfirst = 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % U
-#     # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($oddfirst) : Mask{$W}($evenfirst)))
-#     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($evenfirst >> (i.i & 0x03))))
+#     # Expr(:block, Expr(:meta, :inline), :(isodd(getfield(i, :i)) ? Mask{$W}($oddfirst) : Mask{$W}($evenfirst)))
+#     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($evenfirst >> (getfield(i, :i) & 0x03))))
 # end
 # @generated function Base.iseven(i::MM{W,1}) where {W}
 #     U = mask_type(W)
 #     oddfirst = 0x55555555555555555555555555555555 % U
 #     # evenfirst = oddfirst << 1
-#     # Expr(:block, Expr(:meta, :inline), :(isodd(i.i) ? Mask{$W}($evenfirst) : Mask{$W}($oddfirst)))
-#     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (i.i & 0x03))))
+#     # Expr(:block, Expr(:meta, :inline), :(isodd(getfield(i, :i)) ? Mask{$W}($evenfirst) : Mask{$W}($oddfirst)))
+#     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (getfield(i, :i) & 0x03))))
 # end
-@inline Base.isodd(i::MM{W,1}) where {W} = Mask{W}((0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>> (i.i & 0x03))
-@inline Base.iseven(i::MM{W,1}) where {W} = Mask{W}((0x55555555555555555555555555555555 % mask_type(Val{W}())) >>> (i.i & 0x03))
+@inline Base.isodd(i::MM{W,1}) where {W} = Mask{W}((0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>> (getfield(i, :i) & 0x03))
+@inline Base.iseven(i::MM{W,1}) where {W} = Mask{W}((0x55555555555555555555555555555555 % mask_type(Val{W}())) >>> (getfield(i, :i) & 0x03))
 
 function cmp_quote(W, cond, vtyp, T1, T2 = T1)
     instrs = String["%m = $cond $vtyp %0, %1"]
@@ -397,7 +419,7 @@ for (op,f) ∈ [(:veq,:(==)), (:vne,:(≠))]
     end
 end
 
-@generated function vifelse(m::Mask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
+@generated function vifelse(m::AbstractMask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     selty = vtype(W, "i1")
@@ -415,13 +437,13 @@ end
 end
 
 @inline vifelse(m::Vec{W,Bool}, s1::T, s2::T) where {W,T<:NativeTypes} = vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
-@inline vifelse(m::Mask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
-@inline vifelse(m::Mask{W,U}, s1, s2) where {W,U} = ((x1,x2) = promote(s1,s2); vifelse(m, x1, x2))
-@inline vifelse(m::Mask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(vifelse, m, v1.data, v2.data))
+@inline vifelse(m::AbstractMask{W}, s1::T, s2::T) where {W,T<:NativeTypes} = vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
+@inline vifelse(m::AbstractMask{W,U}, s1, s2) where {W,U} = ((x1,x2) = promote(s1,s2); vifelse(m, x1, x2))
+@inline vifelse(m::AbstractMask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(vifelse, m, getfield(v1, :data), getfield(v2, :data)))
 
-@inline Base.Bool(m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
-@inline vconvert(::Type{Bool}, m::Mask{1,UInt8}) = (m.u & 0x01) === 0x01
-@inline vifelse(m::Mask{1}, s1::T, s2::T) where {T<:NativeTypes} = Base.ifelse(Bool(m), s1, s2)
+@inline Base.Bool(m::AbstractMask{1,UInt8}) = (getfield(m, :u) & 0x01) === 0x01
+@inline vconvert(::Type{Bool}, m::AbstractMask{1,UInt8}) = (getfield(m, :u) & 0x01) === 0x01
+@inline vifelse(m::AbstractMask{1}, s1::T, s2::T) where {T<:NativeTypes} = Base.ifelse(Bool(m), s1, s2)
 @inline vifelse(f::F, m::AbstractSIMD{W,B}, a::Vararg{NativeTypesV,K}) where {F<:Function,K,W,B<:Union{Bool,Bit}} = vifelse(m, f(a...), a[K])
 @inline vifelse(f::F, m::Bool, a::Vararg{NativeTypesV,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
 
@@ -458,9 +480,9 @@ end
 end
 @inline vifelse(b::Bool, w, x) = ((y,z) = promote(w,x); vifelse(b, y, z))
 @inline vifelse(b::Bool, w::T, x::T) where {T<:Union{NativeTypes,AbstractSIMDVector}} = Core.ifelse(b, w, x)
-@inline vifelse(b::Bool, w::T, x::T) where {T<:VecUnroll} = VecUnroll(fmap(Core.ifelse, b, w.data, x.data))
+@inline vifelse(b::Bool, w::T, x::T) where {T<:VecUnroll} = VecUnroll(fmap(Core.ifelse, b, getfield(w, :data), getfield(x, :data)))
 
-@generated function vifelse(m::Mask{W}, vu1::VecUnroll{Nm1,Wsplit}, vu2::VecUnroll{Nm1,Wsplit}) where {W,Wsplit,Nm1}
+@generated function vifelse(m::AbstractMask{W}, vu1::VecUnroll{Nm1,Wsplit}, vu2::VecUnroll{Nm1,Wsplit}) where {W,Wsplit,Nm1}
     N = Nm1 + 1
     @assert N * Wsplit == W
     U = mask_type_symbol(Wsplit)
@@ -470,9 +492,9 @@ end
     end
 end
 
-@inline vmul(v::AbstractSIMDVector, m::Mask) = vifelse(m, v, zero(v))
-@inline vmul(m::Mask, v::AbstractSIMDVector) = vifelse(m, v, zero(v))
-@inline vmul(m1::Mask, m2::Mask) = m1 & m2
+@inline vmul(v::AbstractSIMDVector, m::AbstractMask) = vifelse(m, v, zero(v))
+@inline vmul(m::AbstractMask, v::AbstractSIMDVector) = vifelse(m, v, zero(v))
+@inline vmul(m1::AbstractMask, m2::AbstractMask) = m1 & m2
 @inline vmul(v::AbstractSIMDVector, b::Bool) = b ? v : zero(v)
 @inline vmul(b::Bool, v::AbstractSIMDVector) = b ? v : zero(v)
 @inline vmul(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
@@ -570,7 +592,40 @@ end
         # args =  [:base, :(vsub(N,one($T)))]
         args =  [:base, :N]
         call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(W,8))", [typ, typ], args, true)
-        Expr(:block, Expr(:meta,:inline), :(Mask{$W}($call)))
+        Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, (N % UInt32 - base % UInt32) - 0x00000001)))
     end
-    @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), i.i, N)
+    @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), getfield(i, :i), N)
 end
+
+
+@generated function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
+    mtyp_input = "i$(max(8,W))"
+    instrs = String[]
+    truncate_mask!(instrs, '0', W, 0)
+    truncate_mask!(instrs, '1', W, 1)
+
+    W2 = W+W
+    shuffmask = Vector{String}(undef, W2)
+    for w ∈ eachindex(shuffmask)
+        shuffmask[w] = string(w-1)
+    end
+    mask = '<' * join(map(x->string("i32 ", x), shuffmask), ", ") * '>'
+    
+    # M, instrs = shufflevector_instrs(W, Bit, shuffmask, W)
+    push!(instrs, "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask")
+
+    mtyp_output = "i$(max(8,W2))"
+    zext_mask!(instrs, "combinedmask", W2, 1)
+    push!(instrs, "ret $mtyp_output %res.1")
+    instrj = join(instrs, "\n")
+    U = mask_type_symbol(W)
+    U2 = mask_type_symbol(W2)
+    Expr(:block, Expr(:meta,:inline), :(Mask{$W2}(llvmcall($instrj, $U2, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
+end
+# @inline function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
+#     U = mask_type(Val(W))
+#     u1 = data(m1) % U
+#     u2 = data(m2) % U
+#     (u1 << W) | u2
+# end
+

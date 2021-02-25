@@ -12,7 +12,7 @@
     arg_syms = [:(data(v1)), :(data(v2))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T},_Vec{$W,$T}}), vtyp, fill(vtyp, 2), arg_syms)
 end
-@generated function vscalef(m::Mask{W}, v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
+@generated function vscalef(m::AbstractMask{W}, v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
     bits = 8W*sizeof(T)
     bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
     ltyp = LLVM_TYPES[T]

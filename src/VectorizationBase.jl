@@ -32,7 +32,7 @@ end
 @inline val_dense_dims(A) = asvalbool(ArrayInterface.dense_dims(A))
 
 # doesn't export `Zero` and `One` by default, as these names could conflict with an AD library
-export Vec, Mask, MM, stridedpointer, vload, vstore!, StaticInt, True, False, Bit,
+export Vec, Mask, EVLMask, MM, stridedpointer, vload, vstore!, StaticInt, True, False, Bit,
     vbroadcast, mask, vfmadd, vfmsub, vfnmadd, vfnmsub,
     VecUnroll, Unroll, pick_vector_width
 
@@ -84,78 +84,47 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
     # end
 end
 
-# @inline (VecUnroll(data::Tuple{Vec{W,T},Vararg{Vec{W,T},N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T} = VecUnroll{N,W,T,Vec{W,T}}(data)
-# @inline (VecUnroll(data::Tuple{Mask{W,U},Vararg{Mask{W,T},N}})::VecUnroll{N,W,Bit,Mask{W,U}}) where {N,W,U} = VecUnroll{N,W,Bit,Mask{W,U}}(data)
-# @inline (VecUnroll(data::Tuple{MM{W,X,I},Vararg{MM{W,X,I},N}})::VecUnroll{N,W,I,MM{W,X,I}}) where {N,W,X,I} = VecUnroll{N,W,I,MM{W,X,I}}(data)
-
 
 @inline Base.copy(v::AbstractSIMDVector) = v
 @inline asvec(x::_Vec) = Vec(x)
 @inline asvec(x) = x
 @inline data(vu::VecUnroll) = getfield(vu, :data)
 
-# struct VecUnroll{N,W,T} <: AbstractSIMDVector{W,T}
-#     data::NTuple{N,Vec{W,T}}
-# end
-
 @inline unrolleddata(x) = x
 @inline unrolleddata(x::VecUnroll) = getfield(x, :data)
-# struct VecTile{M,N,W,T} <: AbstractSIMDVector{W,T}
-    # data::NTuple{N,VecUnroll{M,Vec{W,T}}}
-# end
-# description(::Type{T}) where {T <: NativeTypes} = (-1,-1,-1,T)
-# description(::Type{Vec{W,T}}) where {W, T <: NativeTypes} = (-1,-1,W,T)
-# description(::Type{VecUnroll{M,W,T}}) where {M, W, T <: NativeTypes} = (M,-1,W,T)
-# description(::Type{VecTile{M,N,W,T}}) where {M, W, T <: NativeTypes} = (M,N,W,T)
-# function description(::Type{T1}, ::Type{T2}) where {T1, T2}
-#     M1,N1,W1,T1 = description(T1)
-#     M2,N2,W2,T2 = description(T2)
-# end
-
 
 @inline _demoteint(::Type{T}) where {T} = T
 @inline _demoteint(::Type{Int64}) = Int32
 @inline _demoteint(::Type{UInt64}) = UInt32
 
 
-
-struct Mask{W,U<:UnsignedHW} <: AbstractSIMDVector{W,Bit}
+abstract type AbstractMask{W,U<:UnsignedHW} <: AbstractSIMDVector{W,Bit} end
+struct Mask{W,U} <: AbstractMask{W,U}
     u::U
     @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
         U2 = mask_type(Val{W}())
         new{W,U2}(u % U2)
     end
 end
-const AbstractMask{W} = Union{Mask{W}, Vec{W,Bool}}
+struct EVLMask{W,U} <: AbstractMask{W,U}
+    u::U
+    evl::UInt32
+    @inline function EVLMask{W,U}(u::Unsigned, evl) where {W,U} # ignores U...
+        U2 = mask_type(Val{W}())
+        new{W,U2}(u % U2, evl % UInt32)
+    end
+end
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
+@inline EVLMask{W}(u::U, i) where {W,U<:Unsigned} = EVLMask{W,U}(u, i)
 # Const prop is good enough; added an @inferred test to make sure.
 # Removed because confusion can cause more harm than good.
-# @inline Mask(u::U) where {U<:Unsigned} = Mask{sizeof(u)<<3,U}(u)
 
 @inline Base.broadcastable(v::AbstractSIMDVector) = Ref(v)
 
-# Vec{N,T}(x) where {N,T} = Vec(ntuple(i -> VE(T(x)), Val(N)))
-# @inline function Vec{N,T}(x::Number) where {N,T}
-    # Vec(ntuple(i -> VE(T(x)), Val(N)))
-# end
-# @inline function Vec{N,T}(x::Vararg{<:Number,N}) where {N,T}
-    # Vec(ntuple(i -> VE(T(x[i])), Val(N)))
-# end
-# @inline function Vec(v::Vec{N,T}) where {N,T}
-    # Vec{N,T}(v)
-# end
-# @inline Vec(u::Unsigned) = u # Unsigned integers are treated as vectors of bools
-# @inline Vec{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u) # Unsigned integers are treated as vectors of bools
-# @inline Vec(v::Vec{W,T}) where {W,T} = v
-# @inline Vec{W}(v::Vec{W,T}) where {W,T} = v
-# @inline Vec{W,T}(v::Vec{W,T}) where {W,T} = v
-# @inline Vec{W}(v::Vec{W,T}) where {W,T} = Vec{W,T}(v)
-# @inline vbroadcast(::Val, b::Bool) = b
 
 Vec{W,T}(x::Vararg{NativeTypes,W}) where {W,T<:NativeTypes} = Vec(ntuple(w -> Core.VecElement{T}(x[w]), Val{W}()))
 Vec{1,T}(x::Union{Float32,Float64}) where {T<:NativeTypes} = T(x)
 Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where {T<:NativeTypes} = T(x)
-# Vec{1,T}(x::Integer) where {T<:HWReal} = T(x)
 
 @inline Base.length(::AbstractSIMDVector{W}) where W = W
 @inline Base.size(::AbstractSIMDVector{W}) where W = (W,)
@@ -163,7 +132,6 @@ Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where
 @inline Base.conj(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.adjoint(v::AbstractSIMDVector) = v # so that things like dot products work.
 @inline Base.transpose(v::AbstractSIMDVector) = v # so that things like dot products work.
-# @inline Base.getindex(v::Vec, i::Integer) = v.data[i].value
 
 # Not using getindex/setindex as names to emphasize that these are generally treated as single objects, not collections.
 @generated function extractelement(v::Vec{W,T}, i::I) where {W,I <: IntegerTypesHW,T}
@@ -186,28 +154,14 @@ end
 end
 @inline (v::AbstractSIMDVector)(i::IntegerTypesHW) = extractelement(v, i - one(i))
 @inline (v::AbstractSIMDVector)(i::Integer) = extractelement(v, Int(i) - 1)
-Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = vu.data[j](i)
+Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = getfield(vu, :data)[j](i)
 
 @inline Base.Tuple(v::Vec{W}) where {W} = ntuple(v, Val{W}())
-
-# @inline function Vec{N,T}(v::Vec{N,T2}) where {N,T,T2}
-    # @inbounds Vec(ntuple(n -> Core.VecElement{T}(T(v[n])), Val(N)))
-# end
-
-# @inline Base.one(::Type{<:AbstractSIMDVector{W,T}}) where {W,T} = Vec(vbroadcast(Vec{W,T}, one(T)))
-# @inline Base.one(::AbstractSIMDVector{W,T}) where {W,T} = Vec(vbroadcast(Vec{W,T}, one(T)))
-# @inline Base.zero(::Type{<:AbstractSIMDVector{W,T}}) where {W,T} = Vec(vbroadcast(Vec{W,T}, zero(T)))
-# @inline Base.zero(::AbstractSIMDVector{W,T}) where {W,T} = Vec(vbroadcast(Vec{W,T}, zero(T)))
-
 
 # Use with care in function signatures; try to avoid the `T` to stay clean on Test.detect_unbound_args
 
 @inline data(v) = v
 @inline data(v::Vec) = getfield(v, :data)
-#@inline data(v::AbstractSIMDVector) = v.data
-# @inline extract_value(v::Vec, i) = v[i].value
-# @inline extract_value(v::Vec, i) = v.data[i].value
-
 
 function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
     name = typeof(v)
@@ -218,10 +172,14 @@ function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
     end
     print(io, ">")
 end
-Base.bitstring(m::Mask{W}) where {W} = bitstring(data(m))[end-W+1:end]
-function Base.show(io::IO, m::Mask{W}) where {W}
-    bits = m.u
-    print(io, "Mask{$W,Bool}<")
+Base.bitstring(m::AbstractMask{W}) where {W} = bitstring(data(m))[end-W+1:end]
+function Base.show(io::IO, m::AbstractMask{W}) where {W}
+    bits = data(m)
+    if m isa EVLMask
+        print(io, "EVLMask{$W,Bit}<")
+    else
+        print(io, "Mask{$W,Bit}<")
+    end
     for w ∈ 0:W-1
         print(io, bits & 1)
         bits >>= 1
@@ -229,10 +187,11 @@ function Base.show(io::IO, m::Mask{W}) where {W}
     end
     print(io, ">")
 end
-function Base.show(io::IO, vu::VecUnroll{N,W,T}) where {N,W,T}
-    println(io, "$(N+1) x Vec{$W, $T}")
+function Base.show(io::IO, vu::VecUnroll{N,W,T,V}) where {N,W,T,V}
+    println(io, "$(N+1) x $V")
+    d = data(vu)
     for n in 1:N+1
-        show(io, vu.data[n]);
+        show(io, d[n]);
         n > N || println(io)
     end
 end
@@ -247,23 +206,23 @@ struct MM{W,X,I<:Union{HWReal,StaticInt}} <: AbstractSIMDVector{W,I}
     i::I
     @inline MM{W,X}(i::T) where {W,X,T<:Union{HWReal,StaticInt}} = new{W,X::Int,T}(i)
 end
-@inline MM(i::MM{W,X}) where {W,X} = MM{W,X}(i.i)
+@inline MM(i::MM{W,X}) where {W,X} = MM{W,X}(getfield(i, :i))
 @inline MM{W}(i::Union{HWReal,StaticInt}) where {W} = MM{W,1}(i)
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = getfield(i, :i)
 
-@inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = i.i + (X % I) * (j % I)
+@inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = getfield(i, :i) + (X % I) * (j % I)
 
-# function Base.getproperty(::AbstractSIMD, s)
-#     throw("""
-# `Base.getproperty` not defined on AbstractSIMD.
-# If you wish to access the underlying data, e.g. for use with `Base.llvmcall`, use `data(v) instead.`
-# If you wish to convert to work with the data as a tuple, it is recommended to use `Tuple(v)`.
-# Accessing individual elements can be done via `v(1)` for the first element.
-# Alternatively, `VectorizationBase.extractelement(v, i)` will access the `i+1`st element (0-indexed) and
-# `VectorizationBase.insertelement(v, x, i)` will insert `x` into position `i+1` (0-indexed).
-# """)
-# end
+function Base.getproperty(::AbstractSIMD, ::Symbol)
+    throw("""
+`Base.getproperty` not defined on AbstractSIMD.
+If you wish to access the underlying data, e.g. for use with `Base.llvmcall`, use `data(v) instead.`
+If you wish to convert to work with the data as a tuple, it is recommended to use `Tuple(v)`.
+Accessing individual elements can be done via `v(1)` for the first element.
+Alternatively, `VectorizationBase.extractelement(v, i)` will access the `i+1`st element (0-indexed) and
+`VectorizationBase.insertelement(v, x, i)` will insert `x` into position `i+1` (0-indexed).
+""")
+end
 
 """
   pause()

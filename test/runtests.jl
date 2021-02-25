@@ -103,13 +103,13 @@ include("testsetup.jl")
     @time @testset "masks.jl" begin
         # @test Mask{8,UInt8}(0x0f) === @inferred Mask(0x0f)
         # @test Mask{16,UInt16}(0x0f0f) === @inferred Mask(0x0f0f)
-        @test Mask{8,UInt8}(0xff) === mask(Val(8), 0)
-        @test Mask{8,UInt8}(0xff) === mask(Val(8), 8)
-        @test Mask{8,UInt8}(0xff) === mask(Val(8), 16)
-        @test Mask{8,UInt8}(0xff) === mask(Val(8), VectorizationBase.StaticInt(0))
-        @test Mask{16,UInt16}(0xffff) === mask(Val(16), 0)
-        @test Mask{16,UInt16}(0xffff) === mask(Val(16), 16)
-        @test Mask{16,UInt16}(0xffff) === mask(Val(16), 32)
+        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), 0)
+        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), 8)
+        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), 16)
+        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), VectorizationBase.StaticInt(0))
+        @test EVLMask{16,UInt16}(0xffff) === mask(Val(16), 0)
+        @test EVLMask{16,UInt16}(0xffff) === mask(Val(16), 16)
+        @test EVLMask{16,UInt16}(0xffff) === mask(Val(16), 32)
         @test all(w -> VectorizationBase.mask_type(w) === UInt8, 1:8)
         @test all(w -> VectorizationBase.mask_type(w) === UInt16, 9:16)
         @test all(w -> VectorizationBase.mask_type(w) === UInt32, 17:32)
@@ -144,23 +144,23 @@ include("testsetup.jl")
         @test VectorizationBase.vbroadcast(Val(8), true) === Vec(true, true, true, true, true, true, true, true)
 
         @test !VectorizationBase.vall(Mask{8}(0xfc))
-        @test !VectorizationBase.vall(Mask{4}(0xfc))
-        @test VectorizationBase.vall(Mask{8}(0xff))
+        @test !VectorizationBase.vall(EVLMask{4}(0xfc))
+        @test VectorizationBase.vall(EVLMask{8}(0xff))
         @test VectorizationBase.vall(Mask{4}(0xcf))
 
-        @test VectorizationBase.vany(Mask{8}(0xfc))
+        @test VectorizationBase.vany(EVLMask{8}(0xfc))
         @test VectorizationBase.vany(Mask{4}(0xfc))
         @test !VectorizationBase.vany(Mask{8}(0x00))
-        @test !VectorizationBase.vany(Mask{4}(0xf0))
+        @test !VectorizationBase.vany(EVLMask{4}(0xf0))
 
-        @test VectorizationBase.vall(Mask{8}(0xfc) + Mask{8}(0xcf) == Vec(0x01,0x01,0x02,0x02,0x01,0x01,0x02,0x02))
-        @test VectorizationBase.vall(Mask{4}(0xfc) + Mask{4}(0xcf) == Vec(0x01,0x01,0x02,0x02))
+        @test VectorizationBase.vall(EVLMask{8}(0xfc) + Mask{8}(0xcf) == Vec(0x01,0x01,0x02,0x02,0x01,0x01,0x02,0x02))
+        @test VectorizationBase.vall(Mask{4}(0xfc) + EVLMask{4}(0xcf) == Vec(0x01,0x01,0x02,0x02))
 
-        @test VectorizationBase.vall(Mask{8}(0xec) != Mask{8}(0x13))
+        @test VectorizationBase.vall(EVLMask{8}(0xec) != EVLMask{8}(0x13))
         @test VectorizationBase.vall((!Mask{8}(0xac) & Mask{8}(0xac)) == Mask{8}(0x00))
-        @test !VectorizationBase.vany((!Mask{8}(0xac) & Mask{8}(0xac)))
-        @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)) == Mask{8}(0xff))
-        @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)))
+        @test !VectorizationBase.vany((!EVLMask{8}(0xac) & EVLMask{8}(0xac)))
+        @test VectorizationBase.vall((!EVLMask{8}(0xac) | EVLMask{8}(0xac)) == EVLMask{8}(0xff))
+        @test VectorizationBase.vall((!Mask{8}(0xac) | EVLMask{8}(0xac)))
 
         @test VectorizationBase.vall(VectorizationBase.splitint(0xb53a5d6426a9d29d, Int8) == Vec{8,Int8}(-99, -46, -87, 38, 100, 93, 58, -75))
         # other splitint tests for completeness sake
@@ -170,7 +170,16 @@ include("testsetup.jl")
             VectorizationBase.splitint(0x47766b9a9509d175acd77ff497236795, Int8) != Vec{16,Int8}(-107, 103, 35, -105, -12, 127, -41, -84, 117, -47, 9, -107, -102, 107, 118, 71)
         )
 
+        @test (EVLMask{8}(0x1f) | EVLMask{8}(0x03)) === EVLMask{8}(0x1f)
+        @test (Mask{8}(0x1f) | EVLMask{8}(0x03)) === Mask{8}(0x1f)
+        @test (EVLMask{8}(0x1f) | Mask{8}(0x03)) === Mask{8}(0x1f)
+        @test (Mask{8}(0x1f) | Mask{8}(0x03)) === Mask{8}(0x1f)
 
+        @test (EVLMask{8}(0x1f) & EVLMask{8}(0x03)) === EVLMask{8}(0x03)
+        @test (Mask{8}(0x1f) & EVLMask{8}(0x03)) === Mask{8}(0x03)
+        @test (EVLMask{8}(0x1f) & Mask{8}(0x03)) === Mask{8}(0x03)
+        @test (Mask{8}(0x1f) & Mask{8}(0x03)) === Mask{8}(0x03)
+        
         @test (Mask{8}(0xac) | false) === Mask{8}(0xac)
         @test (Mask{8}(0xac) | true) === Mask{8}(0xff)
         @test (false | Mask{8}(0xac)) === Mask{8}(0xac)
@@ -984,6 +993,7 @@ include("testsetup.jl")
         x12 = x2 & 0x00000000ffffffff
         x13 = x11 | x12
         x14 = reinterpret(Float64, x13)
+        
         x15 = x14 - 1.0
         x16 = x15 * x15
         x17 = 0.5 * x16

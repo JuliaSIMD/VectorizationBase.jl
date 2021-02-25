@@ -233,16 +233,29 @@ function transpose_vecunroll_quote_W_smaller(N,W)
     Wtemp = W
     exprs = Vector{Expr}(undef, W >>> 1)
     initstride = W >>> (log2W - log2N)
-    while Wtemp > N
-        Wtemp >>>= 1
-        for w ∈ 1:Wtemp
-            i = w+Wtemp
-            if Wtemp+Wtemp == W
-                exprs[w] = Expr(:call, :vcat, vectors3[w], vectors3[i])
-            else
-                exprs[w] = Expr(:call, :vcat, exprs[w], exprs[i])
+    
+    Ntemp = N;
+    # Wtemp = W >>> 1
+    Wratio_init = W ÷ N
+    Wratio = Wratio_init
+    1,3
+    2,4
+    vcat( vcat( 1, 3 ), vcat( 5, 7 ) )
+    vcat( vcat( 2, 4 ), vcat( 6, 8 ) )
+    while Wratio > 1
+        Wratioh = Wratio >>> 1
+        for w ∈ 0:(Wratioh)-1
+            i = (2N)*w
+            j = i + N
+            for n ∈ 1:N
+                exprs[n + N*w] = if Wratio == Wratio_init
+                    Expr(:call, :vcat, vectors3[i+n], vectors3[j+n])
+                else
+                    Expr(:call, :vcat, exprs[i+n], exprs[j+n])
+                end
             end
         end
+        Wratio = Wratioh
     end
     for n ∈ 1:N
         push!(q.args, Expr(:(=), vectors1[n], exprs[n]))
@@ -288,7 +301,7 @@ end
         transpose_vecunroll_quote(W)
     elseif N+1 < W
         transpose_vecunroll_quote_W_larger(N+1, W)
-    else
+    else# N+1 > W
         transpose_vecunroll_quote_W_smaller(N+1, W)
     end
     # code below lets LLVM do it.
@@ -322,4 +335,5 @@ end
     # push!(q.args, Expr(:call, :VecUnroll, t))
     # q
 end
+
 

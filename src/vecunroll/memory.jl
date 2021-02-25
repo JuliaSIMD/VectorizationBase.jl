@@ -43,14 +43,14 @@ function vload_unroll_quote(
         gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u)))
     end
     if vecunrollmask
-        push!(q.args, :(masktup = data(m)))
+        push!(q.args, :(masktup = data(vm)))
     end
     for n in 1:N
         l = Expr(:call, :vload, :gptr, inds[n])
         if vecunrollmask
             push!(l.args, :(getfield(masktup, $n, false)))
-        else
-            (mask && (M % Bool)) && push!(l.args, :m)
+        elseif mask && (M % Bool)
+            push!(l.args, :sm)
         end
         push!(l.args, alignval, rsexpr)
         M >>= 1
@@ -81,7 +81,7 @@ end
 # Index would be `(MM{W,3}(1),)`
 # so we have `AU == AV == 1`, but also `X == N == F`.
 function shuffle_load_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int, mask::Bool
 ) where {T,I}
     IT, ind_type, _W, _X, M, O = index_summary(I)
     # we don't require vector indices for `Unroll`s...
@@ -94,7 +94,6 @@ function shuffle_load_quote(
     Wfull = W * UN
     T_sym = JULIA_TYPES[T]
     I_sym = JULIA_TYPES[IT]
-    mask = false
     vloadexpr = vload_quote_llvmcall(
         T_sym, I_sym, ind_type, Wfull, size_T, M, O, mask, align, rs, :(_Vec{$Wfull,$T_sym})
     )
@@ -102,8 +101,9 @@ function shuffle_load_quote(
         $(Expr(:meta,:inline))
         ptr = pointer(sptr)
         i = data(u)
-        v = $vloadexpr
     end
+    mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), $UN * getfield(sm, :evl))))
+    push!(q.args, :(v = $vloadexpr))
     vut = Expr(:tuple)
     for n ∈ 0:UN-1
         shufftup = Expr(:tuple)
@@ -187,7 +187,7 @@ function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
                 # transposing mask does what?
                 loadq = :(vload(gptr, $ind))
                 if n != npartial
-                    push!(loadq.args, :(Mask{$n}( $mask )))
+                    push!(loadq.args, :(EVLMask{$n}( $mask )))
                 end
                 push!(loadq.args, alignval, rsexpr)
                 push!(t.args, loadq)
@@ -227,7 +227,7 @@ end
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T))
     end
-    maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS)
+    maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS, false)
     # `maybeshufflequote` for now requires `mask` to be `false`
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
@@ -246,11 +246,30 @@ end
         vload_unroll_quote(N, AU, F, UN, AV, W, M, UX, false, A === True, RS, false)
     end
 end
-@generated function _vload_unroll(sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::Mask{W}, ::A, ::StaticInt{RS}) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX}
-    vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, false)
+@generated function _vload_unroll(
+    sptr::AbstractStridedPointer{T,D,C,B}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::EVLMask{W}, ::A, ::StaticInt{RS}, ::StaticInt{X}
+) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,X,C,B}
+    1+2
+    align = A === True
+    maybeshufflequote = shuffle_load_quote(T, D, C, B, AU, F, N, AV, W, X, I, align, RS, true)
+    maybeshufflequote === nothing || return maybeshufflequote
+    vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, RS, false)
 end
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::AbstractMask{W}, ::A, ::StaticInt{RS}, ::Any
+) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX}
+    vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, false)
+end
+# @generated function _vload_unroll(
+#     sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}, ::StaticInt{X}
+# ) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,Nm1,B<:Union{Bool,Bit},X}
+#     Nm1+1 == N || throw(ArgumentError("Nm1 + 1 = $(Nm1 + 1) ≠ $N = N"))
+#     maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS, 2)
+#     maybeshufflequote === nothing || return maybeshufflequote
+#     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, true)
+# end
+@generated function _vload_unroll(
+    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}, ::Any
 ) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,Nm1,B<:Union{Bool,Bit}}
     Nm1+1 == N || throw(ArgumentError("Nm1 + 1 = $(Nm1 + 1) ≠ $N = N"))
     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, true)
@@ -261,17 +280,17 @@ end
     sptr = similar_no_offset(ptr, p)
     _vload_unroll(sptr, li, A(), StaticInt{RS}(), staticunrolledvectorstride(strides(ptr), u))
 end
-@inline function vload(ptr::AbstractStridedPointer, u::Unroll, m::Mask, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer, u::Unroll, m::AbstractMask, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
     p, li = linear_index(ptr, u)
     sptr = similar_no_offset(ptr, p)
-    _vload_unroll(sptr, li, m, A(), StaticInt{RS}())
+    _vload_unroll(sptr, li, m, A(), StaticInt{RS}(), staticunrolledvectorstride(strides(ptr), u))
 end
 @inline function vload(
     ptr::AbstractStridedPointer, u::Unroll, m::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}
 ) where {A<:StaticBool,RS,Nm1,W,B<:Union{Bool,Bit}}
     p, li = linear_index(ptr, u)
     sptr = similar_no_offset(ptr, p)
-    _vload_unroll(sptr, li, m, A(), StaticInt{RS}())
+    _vload_unroll(sptr, li, m, A(), StaticInt{RS}(), staticunrolledvectorstride(strides(ptr), u))
 end
 
 function vstore_unroll_quote(
@@ -282,7 +301,7 @@ function vstore_unroll_quote(
     q = quote
         $(Expr(:meta, :inline))
         gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u)))
-        # gptr = gesp(sptr, u.i)
+        # gptr = gesp(sptr, getfield(u, :i))
         t = data(vu)
     end
     alignval = Expr(:call, align ? :True : :False)
@@ -290,14 +309,14 @@ function vstore_unroll_quote(
     nontemporalval = Expr(:call, nontemporal ? :True : :False)
     rsexpr = Expr(:call, Expr(:curly, :StaticInt, rs))
     if vecunrollmask
-        push!(q.args, :(masktup = data(m)))
+        push!(q.args, :(masktup = data(vm)))
     end
     for n in 1:N
         l = Expr(:call, :vstore!, :gptr, Expr(:ref, :t, n), inds[n])
         if vecunrollmask
             push!(l.args, :(getfield(masktup, $n, false)))
-        else
-            (mask && (M % Bool)) && push!(l.args, :m)
+        elseif mask && (M % Bool)
+            push!(l.args, :sm)
         end
         push!(l.args, alignval, noaliasval, nontemporalval, rsexpr)
         M >>= 1
@@ -307,7 +326,7 @@ function vstore_unroll_quote(
 end
 
 function shuffle_store_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int, mask::Bool
 ) where {T,I}
     IT, ind_type, _W, _X, M, O = index_summary(I)
     # we don't require vector indices for `Unroll`s...
@@ -323,7 +342,7 @@ function shuffle_store_quote(
 
     T_sym = JULIA_TYPES[T]
     I_sym = JULIA_TYPES[IT]
-    mask = false
+    # mask = false
     vstoreexpr = vstore_quote(
         T_sym, I_sym, ind_type, Wfull, size_T, M, O,
         mask, align, alias, notmp, rs, :(_Vec{$Wfull,$T_sym})
@@ -366,6 +385,7 @@ function shuffle_store_quote(
             push!(shufftup.args, W*n + w)
         end
     end
+    mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), $UN * getfield(sm, :evl))))
     push!(q.args, Expr(:(=), :v, Expr(:call, :shufflevector, syms[1], syms[2], Expr(:call, Expr(:curly, :Val, shufftup)))))
     push!(q.args, vstoreexpr)
     q
@@ -460,7 +480,7 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym)
                 # transposing mask does what?
                 storeq = :(vstore!(gptr, getfield($dname, $w, false), $ind))
                 if n != npartial
-                    push!(storeq.args, :(Mask{$n}( $mask )))
+                    push!(storeq.args, :(EVLMask{$n}( $mask )))
                 end
                 # if mask# & (M % Bool)
                 #     Mtemp = (~M) & ((one(UInt) << n) - one(UInt))
@@ -493,8 +513,7 @@ end
         # `shuffle_store_quote` actually hold.
         return vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T])
     end
-    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS)
-    # `maybeshufflequote` for now requires `mask` to be `false`
+    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS, false)
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
         vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T])
@@ -517,14 +536,26 @@ end
     end
 end
 @generated function _vstore_unroll!(
-    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::EVLMask{W},
+    ::A, ::S, ::NT, ::StaticInt{RS},::StaticInt{X}
+) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar,X,B,C}
+    N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
+    align =  A === True
+    alias =  S === True
+    notmp = NT === True
+    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS, true)
+    maybeshufflequote === nothing || return maybeshufflequote
+    vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, alias, notmp, RS, false)
+end
+@generated function _vstore_unroll!(
+    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Any
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A===True, S===True, NT===True, RS, false)
 end
 # TODO: add `m::VecUnroll{Nm1,W,Bool}`
 @generated function _vstore_unroll!(
-    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, m::VecUnroll{Nm1,W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,B<:Union{Bit,Bool},VUT,VUV<:VecOrScalar}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
     vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A===True, S===True, NT===True, RS, true)
@@ -538,11 +569,11 @@ end
     _vstore_unroll!(sptr, vu, li, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,AU,F,N,AV,W,Nm1}
     p, li = linear_index(ptr, u)
     sptr = similar_no_offset(ptr, p)
-    _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}())
+    _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
 end
 @inline function vstore!(
     ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, m::VecUnroll{Nm1,W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
@@ -558,7 +589,7 @@ end
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, v), u, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer, v::V, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer, v::V, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,AbstractMask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T,V<:AbstractSIMDVector{W,T},AU,F,N,AV}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, v), u, m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -569,7 +600,7 @@ end
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, x), u, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer{T}, x::NativeTypes, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T}, x::NativeTypes, u::Unroll{AU,F,N,AV,W}, m::Union{Bool,AbstractMask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W,T<:NativeTypes,AU,F,N,AV}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),W,T,Vec{W,T}}, x), u, m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -579,7 +610,7 @@ end
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    sptr::AbstractStridedPointer{T}, v::NativeTypes, u::Unroll{AU,F,N,-1,1}, m::Union{Bool,Mask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
+    sptr::AbstractStridedPointer{T}, v::NativeTypes, u::Unroll{AU,F,N,-1,1}, m::Union{Bool,AbstractMask,VecUnroll}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N}
     vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, m, A(), S(), NT(), StaticInt{RS}())
 end
@@ -609,18 +640,15 @@ function vload_double_unroll_quote(
                 inds = sparse_index_tuple(D, AUI, ui*FI)
                 loadq = :(_vload_unroll(gesp(gptr, $inds), $unroll)) # VecUnroll($tup)
             end
-            maskiter = mask & (MI % Bool)
-            if maskiter
+            if mask & (MI % Bool)
                 push!(loadq.args, :m)
             end
             MI >>>= 1
             push!(loadq.args, aexpr, rsexpr)
-            if !maskiter
-                if svus == typemax(Int)
-                    push!(loadq.args, nothing)
-                else
-                    push!(loadq.args, :(StaticInt{$svus}()))
-                end
+            if svus == typemax(Int)
+                push!(loadq.args, nothing)
+            else
+                push!(loadq.args, :(StaticInt{$svus}()))
             end
             vds[ui+1] = vul = Symbol(:vul_, ui)
             push!(q.args, Expr(:(=), vul, :(getfield($loadq, 1))))
@@ -646,18 +674,15 @@ function vload_double_unroll_quote(
                 inds = sparse_index_tuple(D, AUO, uo*FO)
                 loadq = :(_vload_unroll(gesp(gptr, $inds), $unroll))
             end
-            maskiter = mask & (MO % Bool)
-            if maskiter
+            if mask & (MO % Bool)
                 push!(loadq.args, :m)
             end
             MO >>>= 1
             push!(loadq.args, aexpr, rsexpr)
-            if !maskiter
-                if svus == typemax(Int)
-                    push!(loadq.args, nothing)
-                else
-                    push!(loadq.args, :(StaticInt{$svus}()))
-                end
+            if svus == typemax(Int)
+                push!(loadq.args, nothing)
+            else
+                push!(loadq.args, :(StaticInt{$svus}()))
             end
             push!(tup.args, loadq)
         end
@@ -666,23 +691,37 @@ function vload_double_unroll_quote(
     return q
 end
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D,C}, u::Unroll{AUO,FO,NO,AV,W,MO,X,Unroll{AUI,FI,NI,AV,W,MI,X,I}}, ::A, ::StaticInt{RS}, ::StaticInt{SVUS}
-) where {AUO,FO,NO,AV,W,MO,X,AUI,FI,NI,MI,I, T, A<:StaticBool,RS, D,C, SVUS}
-    1+1
+    sptr::AbstractStridedPointer{T,D,C}, u::UU, ::A, ::StaticInt{RS}, ::StaticInt{SVUS}
+) where {T, A<:StaticBool,RS, D,C, SVUS, UU <: NestedUnroll}
+    # 1+1
+    AUO,FO,NO,AV,W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,W,MI,X,I = unroll_params( U)
     vload_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, false, A === True, RS, SVUS)
 end
 
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D,C}, u::Unroll{AUO,FO,NO,AV,W,MO,X,Unroll{AUI,FI,NI,AV,W,MI,X,I}}, ::A, ::StaticInt{RS}, ::Nothing
-) where {AUO,FO,NO,AV,W,MO,X,AUI,FI,NI,MI,I, T, A<:StaticBool,RS, D,C}
-    1+1
+    sptr::AbstractStridedPointer{T,D,C}, u::UU, ::A, ::StaticInt{RS}, ::Nothing
+) where {T, A<:StaticBool,RS, D,C, UU <: NestedUnroll}
+    # 1+1
+    AUO,FO,NO,AV,W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,W,MI,X,I = unroll_params( U)
     vload_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, false, A === True, RS, typemax(Int))
 end
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D,C}, u::Unroll{AUO,FO,NO,AV,W,MO,X,Unroll{AUI,FI,NI,AV,W,MI,X,I}}, m::Mask{W}, ::A, ::StaticInt{RS}
-) where {AUO,FO,NO,AV,W,MO,X,AUI,FI,NI,MI,I, T, A<:StaticBool,RS, D,C}
+    sptr::AbstractStridedPointer{T,D,C}, u::UU, m::AbstractMask{W}, ::A, ::StaticInt{RS}, ::StaticInt{SVUS}
+) where {W, T, A<:StaticBool,RS, D,C, SVUS, UU <: NestedUnroll{W}}
+    1+1
+    AUO,FO,NO,AV,_W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,_W,MI,X,I = unroll_params( U)
+    vload_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, true, A === True, RS, SVUS)
+end
+@generated function _vload_unroll(
+    sptr::AbstractStridedPointer{T,D,C}, u::UU, m::AbstractMask{W}, ::A, ::StaticInt{RS}, ::Nothing
+) where {W, T, A<:StaticBool,RS, D,C, SVUS, UU <: NestedUnroll{W}}
     # 1+1
-    vload_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, true, A === True, RS, 0)
+    AUO,FO,NO,AV,_W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,_W,MI,X,I = unroll_params( U)
+    vload_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, true, A === True, RS, typemax(Int))
 end
 
 # Unroll{AU,F,N,AV,W,M,X,I}
@@ -724,18 +763,15 @@ function vstore_double_unroll_quote(
                 inds = sparse_index_tuple(D, AUI, ui*FI)
                 storeq = :(_vstore_unroll!(gesp(gptr, $inds), VecUnroll($tup), $unroll))
             end
-            maskiter = mask & (MI % Bool)
-            if maskiter
+            if mask & (MI % Bool)
                 push!(storeq.args, :m)
             end
             MI >>>= 1
             push!(storeq.args, aexpr, sexpr, ntexpr, rsexpr)
-            if !maskiter
-                if svus == typemax(Int)
-                    push!(storeq.args, nothing)
-                else
-                    push!(storeq.args, :(StaticInt{$svus}()))
-                end
+            if svus == typemax(Int)
+                push!(storeq.args, nothing)
+            else
+                push!(storeq.args, :(StaticInt{$svus}()))
             end
             push!(q.args, storeq)
         end
@@ -748,18 +784,15 @@ function vstore_double_unroll_quote(
                 inds = sparse_index_tuple(D, AUO, uo*FO)
                 storeq = :(_vstore_unroll!(gesp(gptr, $inds), getfield(vd, $(uo+1), false), $unroll))
             end
-            maskiter = mask & (MO % Bool)
-            if maskiter
+            if mask & (MO % Bool)
                 push!(storeq.args, :m)
             end
             MO >>>= 1
             push!(storeq.args, aexpr, sexpr, ntexpr, rsexpr)
-            if !maskiter
-                if svus == typemax(Int)
-                    push!(storeq.args, nothing)
-                else
-                    push!(storeq.args, :(StaticInt{$svus}()))
-                end
+            if svus == typemax(Int)
+                push!(storeq.args, nothing)
+            else
+                push!(storeq.args, :(StaticInt{$svus}()))
             end
             push!(q.args, storeq)
         end
@@ -769,25 +802,40 @@ end
 
 @generated function _vstore_unroll!(
     sptr::AbstractStridedPointer{T,D,C}, v::VecUnroll{<:Any,W,T,<:VecUnroll{<:Any,W,T,Vec{W,T}}},
-    u::Unroll{AUO,FO,NO,AV,W,MO,X,Unroll{AUI,FI,NI,AV,W,MI,X,I}}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{SVUS}
-) where {AUO,FO,NO,AV,W,MO,X,AUI,FI,NI,MI,I, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C, SVUS}
+    u::UU, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{SVUS}
+) where {W, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C, SVUS, UU <: NestedUnroll{W}}
     1+1
+    AUO,FO,NO,AV,_W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,_W,MI,X,I = unroll_params( U)
     vstore_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, false, A === True, S === True, NT === True, RS, SVUS)
 end
 
 @generated function _vstore_unroll!(
     sptr::AbstractStridedPointer{T,D,C}, v::VecUnroll{<:Any,W,T,<:VecUnroll{<:Any,W,T,Vec{W,T}}},
-    u::Unroll{AUO,FO,NO,AV,W,MO,X,Unroll{AUI,FI,NI,AV,W,MI,X,I}}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
-) where {AUO,FO,NO,AV,W,MO,X,AUI,FI,NI,MI,I, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C}
+    u::UU, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
+) where {W, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C, UU <: NestedUnroll{W}}
     1+1
+    AUO,FO,NO,AV,_W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,_W,MI,X,I = unroll_params( U)
     vstore_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, false, A === True, S === True, NT === True, RS, typemax(Int))
 end
 @generated function _vstore_unroll!(
     sptr::AbstractStridedPointer{T,D,C}, v::VecUnroll{<:Any,W,T,<:VecUnroll{<:Any,W,T,Vec{W,T}}},
-    u::Unroll{AUO,FO,NO,AV,W,MO,X,Unroll{AUI,FI,NI,AV,W,MI,X,I}}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {AUO,FO,NO,AV,W,MO,X,AUI,FI,NI,MI,I, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C}
+    u::UU, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{SVUS}
+) where {W, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C, SVUS, UU <: NestedUnroll{W}}
     # 1+1
-    vstore_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, true, A === True, S === True, NT === True, RS, 0)
+    AUO,FO,NO,AV,_W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,_W,MI,X,I = unroll_params( U)
+    vstore_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, true, A === True, S === True, NT === True, RS, SVUS)
+end
+@generated function _vstore_unroll!(
+    sptr::AbstractStridedPointer{T,D,C}, v::VecUnroll{<:Any,W,T,<:VecUnroll{<:Any,W,T,Vec{W,T}}},
+    u::UU, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
+) where {W, T, A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS, D,C, UU <: NestedUnroll{W}}
+    # 1+1
+    AUO,FO,NO,AV,_W,MO,X,U = unroll_params(UU)
+    AUI,FI,NI,AV,_W,MI,X,I = unroll_params( U)
+    vstore_double_unroll_quote(D, NO, NI, AUO, FO, AV, W, MO, X, C, AUI, FI, MI, true, A === True, S === True, NT === True, RS, typemax(Int))
 end
 
 function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, rs::Int, mask::Bool)
@@ -823,7 +871,7 @@ end
     vstore_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, RS, false)
 end
 @generated function vstore!(
-    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::Ptr{T}, v::VecUnroll{Nm1,Wsplit}, i::VectorIndex{W}, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS}
     vstore_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, RS, true)
 end
@@ -851,14 +899,14 @@ function vstorebit_unroll_i_quote(Nm1::Int, Wsplit::Int, W::Int, A::Bool, S::Boo
     q
 end
 @generated function vstore!(
-    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool, RS}
+    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,M}, i::MM{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool, RS, M <: AbstractMask{Wsplit}}
     # 1 + 1
     vstorebit_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, RS, false)
 end
 @generated function vstore!(
-    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,Mask{Wsplit,UInt8}}, i::MM{W}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool, RS}
+    ptr::Ptr{Bit}, v::VecUnroll{Nm1,Wsplit,Bit,M}, i::MM{W}, m::Mask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {Nm1,Wsplit,W,S<:StaticBool,A<:StaticBool,NT<:StaticBool, RS, M <: AbstractMask{Wsplit}}
     vstorebit_unroll_i_quote(Nm1, Wsplit, W, A===True, S===True, NT===True, RS, true)
 end
 
@@ -906,10 +954,10 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
     ispow2(W) || throw(ArgumentError("Horizontal store requires power-of-2 vector widths."))
     if N > 1
         if N < Ntotal
-            push!(q.args, :(gptr = gesp(ptr, u.i)))
+            push!(q.args, :(gptr = gesp(ptr, getfield(u, :i))))
             push!(q.args, :(bptr = pointer(gptr)))
         else
-            push!(q.args, :(bptr = gep(ptr, u.i)))
+            push!(q.args, :(bptr = gep(ptr, getfield(u, :i))))
         end
         extractblock = Expr(:block)
         vectors = [Symbol(:v_, n) for n ∈ 0:N-1]
@@ -960,7 +1008,7 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
             ncomp += minWN
         end
     else
-        push!(q.args, :(gptr = gesp(ptr, u.i)))
+        push!(q.args, :(gptr = gesp(ptr, getfield(u, :i))))
     end
     if N < Ntotal
         zeroexpr = Expr(:call, Expr(:curly, :StaticInt, 0))
@@ -1034,12 +1082,12 @@ end
     lazymulunroll_load_quote(1,0,N,false,false,A === True,RS)
 end
 @generated function vload(
-    ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}
-) where {T,N,W,I,V,A<:StaticBool,U,RS}
+    ptr::Ptr{T}, um::VecUnroll{N,W,I,V}, m::VecUnroll{N,W,Bit,M}, ::A, ::StaticInt{RS}
+) where {T,N,W,I,V,A<:StaticBool,U,RS,M<:AbstractMask{W,U}}
     lazymulunroll_load_quote(1,0,N,true,false,A===True,RS)
 end
 @generated function vload(
-    ptr::Ptr{T}, um::VecUnroll{N,W1,I,V}, m::Mask{W2,U}, ::A, ::StaticInt{RS}
+    ptr::Ptr{T}, um::VecUnroll{N,W1,I,V}, m::AbstractMask{W2,U}, ::A, ::StaticInt{RS}
 ) where {T,N,W1,W2,I,V,A<:StaticBool,U,RS}
     if W1 == W2
         lazymulunroll_load_quote(1,0,N,false,true,A===True,RS)
@@ -1056,12 +1104,12 @@ end
     lazymulunroll_load_quote(M,O,N,false,false,A===True,RS)
 end
 @generated function vload(
-    ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,Mask{W,U}}, ::A, ::StaticInt{RS}
-) where {T,M,O,N,W,I,V,A<:StaticBool,U,RS}
+    ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W,I,V}}, m::VecUnroll{N,W,Bit,MSK}, ::A, ::StaticInt{RS}
+) where {T,M,O,N,W,I,V,A<:StaticBool,U,RS,MSK<:AbstractMask{W,U}}
     lazymulunroll_load_quote(M,O,N,true,false,A===True,RS)
 end
 @generated function vload(
-    ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W1,I,V}}, m::Mask{W2}, ::A, ::StaticInt{RS}
+    ptr::Ptr{T}, um::LazyMulAdd{M,O,VecUnroll{N,W1,I,V}}, m::AbstractMask{W2}, ::A, ::StaticInt{RS}
 ) where {T,M,O,N,W1,W2,I,V,A<:StaticBool,RS}
     if W1 == W2
         lazymulunroll_load_quote(M,O,N,false,true,A===True,RS)
@@ -1075,7 +1123,7 @@ end
     end
 end
 function lazymulunroll_store_quote(M,O,N,mask,align,noalias,nontemporal,rs)
-    q = Expr(:block, Expr(:meta, :inline), :(u = um.data.data), :(v = vm.data.data))
+    q = Expr(:block, Expr(:meta, :inline), :(u = getfield(getfield(um, :data), :data)), :(v = getfield(getfield(vm, :data), :data)))
     alignval = Expr(:call, align ? :True : :False)
     noaliasval = Expr(:call, noalias ? :True : :False)
     nontemporalval = Expr(:call, nontemporal ? :True : :False)
@@ -1103,7 +1151,7 @@ end
     push!(q.args, :(VecUnroll($t)))
     q
 end
-@generated function vload(r::FastRange{T}, i::Unroll{1,W,N,1,W,M,X,Tuple{I}}, m::Mask{W}) where {T,I,W,N,M,X}
+@generated function vload(r::FastRange{T}, i::Unroll{1,W,N,1,W,M,X,Tuple{I}}, m::AbstractMask{W}) where {T,I,W,N,M,X}
     q = quote
         $(Expr(:meta,:inline))
         s = vload(r, data(i))

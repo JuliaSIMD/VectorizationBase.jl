@@ -124,8 +124,8 @@ end
 @inline vsub_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(i, j)
 @inline vsub_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, j)
 # Multiplication
-@inline vmul(i::MM{W}, j::Mask{W}) where {W} = Vec(i) * j
-@inline vmul(i::Mask{W}, j::MM{W}) where {W} = i * Vec(j)
+@inline vmul(i::MM{W}, j::AbstractMask{W}) where {W} = Vec(i) * j
+@inline vmul(i::AbstractMask{W}, j::MM{W}) where {W} = i * Vec(j)
 @inline vmul(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = Vec(i) * j
 @inline vmul(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = i * Vec(j)
 @inline vmul(i::MM{W}, j::MM{W}) where {W} = vmul_fast(Vec(i), Vec(j))
@@ -137,8 +137,8 @@ end
 
 # Multiplication without promotion
 @inline vmul_no_promote(a, b) = vmul_fast(a, b)
-@inline vmul_no_promote(a::MM{W}, b) where {W} = MM{W}(vmul_fast(a.i, b))
-@inline vmul_no_promote(a, b::MM{W}) where {W} = MM{W}(vmul_fast(a, b.i))
+@inline vmul_no_promote(a::MM{W}, b) where {W} = MM{W}(vmul_fast(getfield(a, :i), b))
+@inline vmul_no_promote(a, b::MM{W}) where {W} = MM{W}(vmul_fast(a, getfield(b, :i)))
 @inline vmul_no_promote(a::MM{W}, b::MM{W}) where {W} = vmul_fast(a, b) # must promote
 vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 
@@ -146,7 +146,7 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @generated _floattype(::Union{StaticInt{R},Val{R}}) where {R} = R ≥ 8 ? :Float64 : :Float32
 @inline floattype(::Val{W}) where {W} = _floattype(register_size() ÷ StaticInt{W}())
 
-@inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(i.i % pick_integer(Val{W}(),I))))
+@inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(getfield(i, :i) % pick_integer(Val{W}(),I))))
 @inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline vfdiv(j::T, i::MM) where {T<:Real} = j / float(i)
 
@@ -157,13 +157,13 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @inline vfdiv(vu::VecUnroll, m::MM) = vu * inv(m)
 @inline vfdiv(m::MM, vu::VecUnroll) = Vec(m) / vu
 
-@inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i << j, StaticInt{X}() << j)
-@inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >> j, StaticInt{X}() >> j)
-@inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
+@inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(getfield(i, :i) << j, StaticInt{X}() << j)
+@inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(getfield(i, :i) >> j, StaticInt{X}() >> j)
+@inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:IntegerTypes} = MM{W}(getfield(i, :i) >>> j, StaticInt{X}() >>> j)
 
-@inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(i.i << j, StaticInt{X}() << j)
-@inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(i.i >> j, StaticInt{X}() >> j)
-@inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(i.i >>> j, StaticInt{X}() >>> j)
+@inline Base.:(<<)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(getfield(i, :i) << j, StaticInt{X}() << j)
+@inline Base.:(>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(getfield(i, :i) >> j, StaticInt{X}() >> j)
+@inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(getfield(i, :i) >>> j, StaticInt{X}() >>> j)
 
 
 for (f,op) ∈ [

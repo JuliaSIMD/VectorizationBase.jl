@@ -97,7 +97,7 @@ end
 @inline staticmul(::Type{T}, i::Tuple{I}) where {T,I} = @inbounds (vmul_fast(i[1], sizeof(T)),)
 @inline staticmul(::Type{T}, i::Tuple{I1,I2}) where {T,I1,I2} = @inbounds (vmul_fast(sizeof(T), i[1]), vmul_fast(sizeof(T), i[2]))
 @inline staticmul(::Type{T}, i::Tuple{I1,I2,I3,Vararg}) where {T,I1,I2,I3} = @inbounds (vmul_fast(sizeof(T), i[1]), staticmul(T, Base.tail(i))...)
-for T ∈ [:VecUnroll, :Mask, :MM]
+for T ∈ [:VecUnroll, :AbstractMask, :MM]
     @eval begin
         @inline Base.:(+)(x::$T, ::Zero) = x
         @inline Base.:(+)(::Zero, x::$T) = x
@@ -108,8 +108,8 @@ for T ∈ [:VecUnroll, :Mask, :MM]
         @inline Base.:(*)(::Zero, ::$T) = Zero()
     end
 end
-@inline Base.:(+)(m::Mask{W}, ::StaticInt{N}) where {N,W} = m + vbroadcast(Val{W}(), N)
-@inline Base.:(+)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) + m
+@inline Base.:(+)(m::AbstractMask{W}, ::StaticInt{N}) where {N,W} = m + vbroadcast(Val{W}(), N)
+@inline Base.:(+)(::StaticInt{N}, m::AbstractMask{W}) where {N,W} = vbroadcast(Val{W}(), N) + m
 # @inline Base.:(*)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) * m
 @inline vadd_fast(x::VecUnroll, ::Zero) = x
 @inline vadd_fast(::Zero, x::VecUnroll) = x

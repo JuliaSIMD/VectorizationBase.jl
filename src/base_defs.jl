@@ -92,12 +92,12 @@ for op ∈ [:(Base.:(*)), :(Base.FastMath.mul_fast)]
     end
 end
 # copysign needs a heavy hand to avoid ambiguities
-@inline Base.copysign(a::VecUnroll,b::AbstractSIMDVector) = VecUnroll(fmap(vcopysign, a.data, b))
-@inline Base.copysign(a::VecUnroll,b::VecUnroll) = VecUnroll(fmap(vcopysign, a.data, b.data))
-@inline Base.copysign(a::AbstractSIMDVector,b::VecUnroll) = VecUnroll(fmap(vcopysign, a, b.data))
+@inline Base.copysign(a::VecUnroll,b::AbstractSIMDVector) = VecUnroll(fmap(vcopysign, getfield(a, :data), b))
+@inline Base.copysign(a::VecUnroll,b::VecUnroll) = VecUnroll(fmap(vcopysign, getfield(a, :data), getfield(b, :data)))
+@inline Base.copysign(a::AbstractSIMDVector,b::VecUnroll) = VecUnroll(fmap(vcopysign, a, getfield(b, :data)))
 @inline Base.copysign(a::AbstractSIMDVector,b::AbstractSIMDVector) = vcopysign(a,b)
-@inline Base.copysign(a::NativeTypes,b::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(vcopysign, vbroadcast(Val{W}(), a), b.data))
-@inline Base.copysign(a::VecUnroll{N,W},b::Base.HWReal) where {N,W} = VecUnroll(fmap(vcopysign, a.data, vbroadcast(Val{W}(), b)))
+@inline Base.copysign(a::NativeTypes,b::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap(vcopysign, vbroadcast(Val{W}(), a), getfield(b, :data)))
+@inline Base.copysign(a::VecUnroll{N,W},b::Base.HWReal) where {N,W} = VecUnroll(fmap(vcopysign, getfield(a, :data), vbroadcast(Val{W}(), b)))
 @inline Base.copysign(a::IntegerTypesHW,b::AbstractSIMDVector) = vcopysign(a,b)
 @inline Base.copysign(a::AbstractSIMDVector,b::Base.HWReal) = vcopysign(a,b)
 for T ∈ [:Rational, :SignedHW, :Float32, :Float64]
@@ -107,7 +107,7 @@ for T ∈ [:Rational, :SignedHW, :Float32, :Float64]
             vcopysign(v1, v2)
         end
         @inline Base.copysign(a::$T, b::AbstractSIMDVector{W,T}) where {W,T <: UnsignedHW} = vbroadcast(Val{W}(), abs(a))
-        @inline Base.copysign(a::$T, b::VecUnroll) = VecUnroll(fmap(copysign, a, b.data))
+        @inline Base.copysign(a::$T, b::VecUnroll) = VecUnroll(fmap(copysign, a, getfield(b, :data)))
     end
 end
 for (op, f) ∈ [

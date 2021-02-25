@@ -46,7 +46,7 @@
 @inline veq(x::AbstractIrrational, i::MM{W}) where {W} = x == Vec(i)
 @inline veq(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
 @inline veq(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
-                   
+
 @inline function vsub(i::NativeTypes, j::MM{W,X}) where {W,X}
     MM(StaticInt{W}(), vsub(i, data(j)), -StaticInt{X}())
 end

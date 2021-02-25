@@ -138,7 +138,7 @@ end
     p, li = linear_index(ptr, i)
     vload(p, li, A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m::Union{Mask,Bool}, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     vload(p, li, m, A(), StaticInt{RS}())
 end
@@ -146,7 +146,7 @@ end
     p, li = tdot(ptr, i, strides(ptr))
     vload(p, li, A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
     p, li = tdot(ptr, i, strides(ptr))
     vload(p, li, m, A(), StaticInt{RS}())
 end
@@ -155,7 +155,7 @@ end
     p, li = linear_index(ptr, i)
     vload(p, li, A(), StaticInt{RS}())
 end
-@inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
+@inline function vload(ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}) where {T,I,A<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     vload(p, li, m, A(), StaticInt{RS}())
 end
@@ -168,7 +168,7 @@ end
     vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,N,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
@@ -180,7 +180,7 @@ end
     vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     p, li = tdot(ptr, i, strides(ptr))
     vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
@@ -192,7 +192,7 @@ end
     vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
@@ -206,7 +206,7 @@ end
     vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    f::F, ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::AbstractStridedPointer{T,N}, v, i::Tuple{Vararg{Any,N}}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,N,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
@@ -218,7 +218,7 @@ end
     vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     p, li = tdot(ptr, i, strides(ptr))
     vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
@@ -230,7 +230,7 @@ end
     vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function vstore!(
-    f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{Mask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
@@ -411,10 +411,10 @@ end
 
 @inline vload(r::FastRange{T}, i::Tuple{I}) where {T,I} = convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * first(i)
 
-@inline vload(r::FastRange, i::Tuple, m::Mask) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i::Tuple, m::AbstractMask) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i, _, __) = vload(r, i)
-@inline vload(r::FastRange, i, m::Mask, __, ___) = vload(r, i, m)
+@inline vload(r::FastRange, i, m::AbstractMask, __, ___) = vload(r, i, m)
 # discard unnueeded align/reg size info
 # @inline vload(r::FastRange, i, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i)
 # @inline vload(r::FastRange, i, m, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i,m)

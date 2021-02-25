@@ -201,14 +201,14 @@ end
 @inline vcopysign(x::Float64, v::Vec{W}) where {W} = vcopysign(vbroadcast(Val{W}(), x), v)
 @inline vcopysign(x::Float32, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = vcopysign(vbroadcast(Val{W}(), x), v)
 @inline vcopysign(x::Float64, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = vcopysign(vbroadcast(Val{W}(), x), v)
-@inline vcopysign(v::Vec, u::VecUnroll) = VecUnroll(fmap(vcopysign, v, u.data))
+@inline vcopysign(v::Vec, u::VecUnroll) = VecUnroll(fmap(vcopysign, v, getfield(u, :data)))
 @inline vcopysign(v::Vec{W,T}, x::NativeTypes) where {W,T} = vcopysign(v, Vec{W,T}(x))
 @inline vcopysign(v1::Vec{W,T}, v2::Vec{W}) where {W,T} = vcopysign(v1, convert(Vec{W,T}, v2))
 @inline vcopysign(v1::Vec{W,T}, ::Vec{W,<:Unsigned}) where {W,T} = vabs(v1)
 @inline vcopysign(s::IntegerTypesHW, v::Vec{W}) where {W} = vcopysign(vbroadcast(Val{W}(), s), v)
 @inline vcopysign(v::Vec, s::UnsignedHW) = vabs(v)
 @inline vcopysign(v::VecUnroll, s::UnsignedHW) = vabs(v)
-@inline vcopysign(v::VecUnroll{N,W,T}, s::NativeTypes) where {N,W,T} = VecUnroll(fmap(vcopysign, v.data, vbroadcast(Val{W}(), s)))
+@inline vcopysign(v::VecUnroll{N,W,T}, s::NativeTypes) where {N,W,T} = VecUnroll(fmap(vcopysign, getfield(v, :data), vbroadcast(Val{W}(), s)))
 
 for f ∈ [:vmax, :vmax_fast, :vmin, :vmin_fast]
     @eval begin
@@ -473,7 +473,7 @@ end
 @inline vifelse(::typeof(vfmsub231), m, a, b, c, ::False)  = vifelse(vfmsub, m, a, b, c)
 @inline vifelse(::typeof(vfnmsub231), m, a, b, c, ::False)  = vifelse(vfnmsub, m, a, b, c)
 
-@generated function vifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
+@generated function vifelse(::typeof(vfmadd231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
     typ = LLVM_TYPES[T]
     suffix = T == Float32 ? "ps" : "pd"                    
     vfmaddmask_str = """%res = call <$W x $(typ)> asm "vfmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
@@ -483,7 +483,7 @@ end
         Vec(llvmcall($vfmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
-@generated function vifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
+@generated function vifelse(::typeof(vfnmadd231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
     typ = LLVM_TYPES[T]
     suffix = T == Float32 ? "ps" : "pd"                    
     vfnmaddmask_str = """%res = call <$W x $(typ)> asm "vfnmadd231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
@@ -493,7 +493,7 @@ end
         Vec(llvmcall($vfnmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
-@generated function vifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
+@generated function vifelse(::typeof(vfmsub231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
     typ = LLVM_TYPES[T]
     suffix = T == Float32 ? "ps" : "pd"                    
     vfmsubmask_str = """%res = call <$W x $(typ)> asm "vfmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
@@ -503,7 +503,7 @@ end
         Vec(llvmcall($vfmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
-@generated function vifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
+@generated function vifelse(::typeof(vfnmsub231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
     typ = LLVM_TYPES[T]
     suffix = T == Float32 ? "ps" : "pd"                    
     vfnmsubmask_str = """%res = call <$W x $(typ)> asm "vfnmsub231$(suffix) \$3, \$2, \$1 {\$4}", "=v,0,v,v,^Yk"(<$W x $(typ)> %2, <$W x $(typ)> %1, <$W x $(typ)> %0, i$W %3)
@@ -533,16 +533,16 @@ end
     vfnmsub231(a, b, c, use_asm_fma(StaticInt{W}(), T))
 end
 
-@inline function vifelse(::typeof(vfmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
+@inline function vifelse(::typeof(vfmadd231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
     vifelse(vfmadd231, m, a, b, c, use_asm_fma(StaticInt{W}(), T) & has_feature(Val(:x86_64_avx512bw)))
 end
-@inline function vifelse(::typeof(vfnmadd231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
+@inline function vifelse(::typeof(vfnmadd231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
     vifelse(vfnmadd231, m, a, b, c, use_asm_fma(StaticInt{W}(), T) & has_feature(Val(:x86_64_avx512bw)))
 end
-@inline function vifelse(::typeof(vfmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
+@inline function vifelse(::typeof(vfmsub231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
     vifelse(vfmsub231, m, a, b, c, use_asm_fma(StaticInt{W}(), T) & has_feature(Val(:x86_64_avx512bw)))
 end
-@inline function vifelse(::typeof(vfnmsub231), m::Mask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
+@inline function vifelse(::typeof(vfnmsub231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W, T<:Union{Float32, Float64}, U}
     vifelse(vfnmsub231, m, a, b, c, use_asm_fma(StaticInt{W}(), T) & has_feature(Val(:x86_64_avx512bw)))
 end
 
@@ -554,7 +554,7 @@ end
     Useful for special funcion implementations.
     """
 @inline inv_approx(x) = inv(x)
-@inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, v.data))
+@inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, getfield(v, :data)))
 
 @inline vinv_fast(v) = vinv(v)
 @inline vinv_fast(v::AbstractSIMD{<:Any,<:Integer}) = vinv_fast(float(v))
