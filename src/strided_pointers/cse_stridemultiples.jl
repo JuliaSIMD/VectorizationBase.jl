@@ -12,6 +12,7 @@ end
 @inline ArrayInterface.offsets(p::OffsetPrecalc) = offsets(getfield(p, :ptr))
 
 @inline Base.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
+@inline ArrayInterface.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 
 @inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}) where {T}
     OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
