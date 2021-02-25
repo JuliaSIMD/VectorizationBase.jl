@@ -30,6 +30,7 @@ function unrolled_indicies(D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, X::
     inds
 end
 
+# This creates a generic expression that simply calls `vload` for each of the specified `Unroll`s without any fanciness.
 function vload_unroll_quote(
     D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, X::Int, mask::Bool, align::Bool, rs::Int, vecunrollmask::Bool
 )
@@ -81,11 +82,16 @@ end
 # Index would be `(MM{W,3}(1),)`
 # so we have `AU == AV == 1`, but also `X == N == F`.
 function shuffle_load_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int, mask::Bool
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int, M::UInt
 ) where {T,I}
     IT, ind_type, _W, _X, M, O = index_summary(I)
     # we don't require vector indices for `Unroll`s...
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
+    mask = M ≠ zero(UInt)
+    if mask && ((M & ((one(UInt) << UN) - one(UInt))) ≠ ((one(UInt) << UN) - one(UInt)))
+        return nothing
+        # throw(ArgumentError("`shuffle_load_quote` currently requires masking either all or none of the unrolled loads."))
+    end
     size_T = sizeof(T)
     # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
     ((AV > 0) && interleave_memory_access(AU, C, F, X, UN, size_T, B)) || return nothing
@@ -115,13 +121,58 @@ function shuffle_load_quote(
     push!(q.args, Expr(:call, :VecUnroll, vut))
     q
 end
-function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
+function init_transpose_memop_masking!(q::Expr, M::UInt, N::Int, evl::Bool)
+    domask = M ≠ zero(UInt)
+    if domask
+        if (M & ((one(UInt) << N) - one(UInt))) ≠ ((one(UInt) << N) - one(UInt))
+            throw(ArgumentError("`vload_transpose_quote` currently requires masking either all or none of the unrolled loads."))
+        end
+        if evl
+            push!(q.args, :(_evl = getfield(sm, :evl)))
+        else
+            push!(q.args, :(u_1 = getfield(sm, :u)))
+        end
+    end
+    domask
+end
+function push_transpose_mask!(q::Expr, mq::Expr, domask::Bool, n::Int, npartial::Int, w::Int, W::Int, evl::Bool, RS::Int, mask::UInt)
+    if domask
+        Utyp = mask_type_symbol(n)
+        mw_w = Symbol(:mw_,w)
+        if evl
+            mm_evl_cmp = Symbol(:mm_evl_cmp_,n)
+            if w == 1
+                isym = integer_of_bytes_symbol(min(4, RS ÷ n), true)
+                vmmtyp = :(VectorizationBase._vrange(Val{$n}(), $isym, Val{0}(), Val{1}()))
+                push!(q.args, :($mm_evl_cmp = $vmmtyp))
+                push!(q.args, :($mw_w = _evl*$(UInt32(n)) > $mm_evl_cmp))
+            else
+                push!(q.args, :($mw_w = (_evl*$(UInt32(n)) - $(UInt32(n*(w-1)))) > $mm_evl_cmp))
+            end
+            if n == npartial
+                push!(mq.args, :(Mask{$n}( $mw_w )))
+            else
+                push!(mq.args, :(Mask{$n}( ($mask % $Utyp) & $mw_w )))
+            end
+        else
+            push!(q.args, :($mw_w = Core.ifelse($(Symbol(:u_,w)) % Bool, $mask % $Utyp, zero($Utyp))))
+            if w < W
+                push!(q.args, Expr(:(=), Symbol(:u_,w+1), Expr(:call, :(>>>), Symbol(:u_,w), 1)))
+            end
+            push!(mq.args, :(Mask{$n}( $mw_w )))
+        end
+    elseif n ≠ npartial
+        push!(mq.args, :(Mask{$n}( $mask )))
+    end
+    nothing
+end
+
+function vload_transpose_quote(D::Int,AU::Int,F::Int,N::Int,AV::Int,W::Int,X::Int,align::Bool,RS::Int,st::Int,M::UInt,evl::Bool)
     ispow2(W) || throw(ArgumentError("Vector width must be a power of 2, but recieved $W."))
     isone(F) || throw(ArgumentError("No point to doing a transposed store if unroll step factor $F != 1"))
     C = AU # the point of tranposing
-    q = Expr(
-        :block, Expr(:meta,:inline), :(gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u))))
-    )
+    q = Expr(:block, Expr(:meta,:inline), :(gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u)))))
+    domask = init_transpose_memop_masking!(q, M, N, evl)
     alignval = Expr(:call, align ? :True : :False)
     rsexpr = Expr(:call, Expr(:curly, :StaticInt, RS))
     vut = Expr(:tuple)
@@ -130,8 +181,9 @@ function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
     #     vds[n] = vdn = Symbol(:vd_,n)
     #     push!(q.args, :($vdn = getfield(vd, $n, false)))
     # end
+    # AU = 1, AV = 2, N = 3, W = 8, M = 0x7 (<1,1,1,0>), mask unknown, hypothetically 0x1f <1 1 1 1 1 0 0 0>
+    # load 5 vetors of length 3, replace last 3 with undef
     i = 0
-    # Use `trailing_zeros` to decompose unroll amount, `N`, into a sum of powers-of-2
     Wmax = RS ÷ st
     while N > 0
         # for store, we do smaller unrolls first.
@@ -143,15 +195,15 @@ function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
         # to do beforehand. This also immediately frees up registers for use while transposing, in case of register pressure.
         if N ≥ Wmax
             npartial = n = Wmax
-            mask = ~zero(UInt)
+            mask = -1 % UInt
         else
             npartial = N
             n = nextpow2(npartial)
-            if npartial == n
-                mask = ~zero(UInt)
-            else
-                mask = (one(UInt) << (npartial)) - one(UInt)
-            end
+            # if npartial == n
+            #     mask = -1 % UInt
+            # else
+            mask = (one(UInt) << (npartial)) - one(UInt)
+            # end
         end
         N -= npartial
         if n == 1
@@ -167,6 +219,8 @@ function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
                 end
             end
             loadq = :(vload(gptr, $ind))
+            # we're not shuffling when `n == 1`, so we just push the mask
+            domask && push!(loadq.args, :sm)
             push!(loadq.args, alignval, rsexpr)
             push!(q.args, :(vl_1 = $loadq))
             push!(vut.args, :vl_1)
@@ -174,6 +228,7 @@ function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
             # dname is a `VecUnroll{(W-1),N}`
             t = Expr(:tuple)
             for w ∈ 1:W
+                # if domask, these get masked
                 ind = Expr(:tuple)
                 for d ∈ 1:D
                     if AU == d
@@ -183,12 +238,10 @@ function vload_transpose_quote(D,AU,F,N,AV,W,X,align,RS,st)
                     else
                         push!(ind.args, :(StaticInt{0}()))
                     end
-                end                
+                end
                 # transposing mask does what?
                 loadq = :(vload(gptr, $ind))
-                if n != npartial
-                    push!(loadq.args, :(EVLMask{$n}( $mask )))
-                end
+                push_transpose_mask!(q, loadq, domask, n, npartial, w, W, evl, RS, mask)
                 push!(loadq.args, alignval, rsexpr)
                 push!(t.args, loadq)
             end
@@ -219,19 +272,25 @@ end
     end
 end
 
+function should_transpose_memop(F,C,AU,AV,UN,M)
+    (F == 1) & (C == AU) & (C ≠ AV) || return false
+    max_mask = (one(UInt) << UN) - one(UInt)
+    (M == zero(UInt)) | ((max_mask & M) == max_mask)
+end
+
 @generated function _vload_unroll(
     sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::StaticInt{X}
 ) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:IndexNoUnroll,A<:StaticBool,RS,X}
     align = A === True
-    should_transpose = (F == 1) & (C == AU) & (C ≠ AV)
+    should_transpose = should_transpose_memop(F,C,AU,AV,UN,M)
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
-        return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T))
+        return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
     end
-    maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS, false)
+    maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS, zero(UInt))
     # `maybeshufflequote` for now requires `mask` to be `false`
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
-        vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T))
+        vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
     else
         vload_unroll_quote(N, AU, F, UN, AV, W, M, UX, false, align, RS, false)
     end
@@ -239,9 +298,9 @@ end
 @generated function _vload_unroll(
     sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::Nothing
 ) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:IndexNoUnroll,A<:StaticBool,RS}
-    should_transpose = (F == 1) & (C == AU) & (C ≠ AV)
+    should_transpose = should_transpose_memop(F,C,AU,AV,UN,M)
     if should_transpose
-        vload_transpose_quote(N,AU,F,UN,AV,W,UX,A === True,RS,sizeof(T))
+        vload_transpose_quote(N,AU,F,UN,AV,W,UX,A === True,RS,sizeof(T),zero(UInt),false)
     else
         vload_unroll_quote(N, AU, F, UN, AV, W, M, UX, false, A === True, RS, false)
     end
@@ -250,15 +309,27 @@ end
     sptr::AbstractStridedPointer{T,D,C,B}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::EVLMask{W}, ::A, ::StaticInt{RS}, ::StaticInt{X}
 ) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,X,C,B}
     1+2
+    should_transpose = should_transpose_memop(F,C,AU,AV,N,M)
     align = A === True
-    maybeshufflequote = shuffle_load_quote(T, D, C, B, AU, F, N, AV, W, X, I, align, RS, true)
+    if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
+        return vload_transpose_quote(N,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
+    end
+    maybeshufflequote = shuffle_load_quote(T, D, C, B, AU, F, N, AV, W, X, I, align, RS, M)
     maybeshufflequote === nothing || return maybeshufflequote
+    if should_transpose
+        return vload_transpose_quote(N,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
+    end
     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, RS, false)
 end
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::AbstractMask{W}, ::A, ::StaticInt{RS}, ::Any
+    sptr::AbstractStridedPointer{T,D,C}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::AbstractMask{W}, ::A, ::StaticInt{RS}, ::Any
 ) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX}
-    vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, false)
+    align = A === True
+    if should_transpose_memop(F,C,AU,AV,N,M)
+        isevl = sm <: EVLMask
+        return vload_transpose_quote(N,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,isevl)
+    end
+    vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, RS, false)
 end
 # @generated function _vload_unroll(
 #     sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}, ::StaticInt{X}
@@ -401,7 +472,7 @@ function sparse_index_tuple(N, d, o)
     end
     t
 end
-function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym)
+function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym,M,evl)
     ispow2(W) || throw(ArgumentError("Vector width must be a power of 2, but recieved $W."))
     isone(F) || throw(ArgumentError("No point to doing a transposed store if unroll step factor $F != 1"))
     C = AU # the point of tranposing
@@ -413,6 +484,8 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym)
     aliasval = Expr(:call, alias ? :True : :False)
     notmpval = Expr(:call, notmp ? :True : :False)
     rsexpr = Expr(:call, Expr(:curly, :StaticInt, RS))
+    domask = init_transpose_memop_masking!(q, M, N, evl)
+    
     vds = Vector{Symbol}(undef, N)
     for n ∈ 1:N
         vds[n] = vdn = Symbol(:vd_,n)
@@ -447,10 +520,7 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym)
                 end
             end
             storeq = :(vstore!(gptr, $(vds[1]), $ind))
-            # if mask & (M % Bool)
-            #     push!(storeq.args, :m)
-            # end
-            # M >>>= 1
+            domask && push!(storeq.args, :sm)
             push!(storeq.args, alignval, aliasval, notmpval, rsexpr)
             push!(q.args, storeq)
         # elseif n < W
@@ -476,19 +546,13 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym)
                     else
                         push!(ind.args, :(StaticInt{0}()))
                     end
-                end                
+                end
                 # transposing mask does what?
                 storeq = :(vstore!(gptr, getfield($dname, $w, false), $ind))
-                if n != npartial
-                    push!(storeq.args, :(EVLMask{$n}( $mask )))
-                end
-                # if mask# & (M % Bool)
-                #     Mtemp = (~M) & ((one(UInt) << n) - one(UInt))
-                #     push!(storeq.args, Mask{$n}($Mtemp))
-                # end
+                push_transpose_mask!(q, storeq, domask, n, npartial, w, W, evl, RS, mask)
                 push!(storeq.args, alignval, aliasval, notmpval, rsexpr)
                 push!(q.args, storeq)
-                
+
             end
         end
         # M >>>= 1
@@ -505,19 +569,19 @@ end
     align =  A === True
     alias =  S === True
     notmp = NT === True
-    should_transpose = (F == 1) & (C == AU) & (C ≠ AV)
+    should_transpose = should_transpose_memop(F,C,AU,AV,N,M)
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         # should transpose means we'll transpose, but we'll only prefer it over the
         # `shuffle_store_quote` implementation if W == N, and we're using the entire register.
         # Otherwise, llvm's shuffling is probably more clever/efficient when the conditions for
         # `shuffle_store_quote` actually hold.
-        return vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T])
+        return vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
     end
     maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS, false)
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
-        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T])
-    else        
+        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
+    else
         vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, false, align, alias, notmp, RS, false)
     end
 end
@@ -528,9 +592,8 @@ end
     alias =  S === True
     notmp = NT === True
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
-    should_transpose = (F == 1) & (C == AU) & (C ≠ AV)
-    if should_transpose
-        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T])
+    if should_transpose_memop(F,C,AU,AV,N,M)
+        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
     else
         vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, false, align, alias, notmp, RS, false)
     end
@@ -543,15 +606,30 @@ end
     align =  A === True
     alias =  S === True
     notmp = NT === True
+    should_transpose = should_transpose_memop(F,C,AU,AV,N,M)
+    if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
+        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,true)
+    end
     maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS, true)
     maybeshufflequote === nothing || return maybeshufflequote
-    vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, alias, notmp, RS, false)
+    if should_transpose
+        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,true)
+    else
+        vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, alias, notmp, RS, false)
+    end
 end
 @generated function _vstore_unroll!(
     sptr::AbstractStridedPointer{T,D}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Any
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar}
     N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
-    vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A===True, S===True, NT===True, RS, false)
+    align =  A === True
+    alias =  S === True
+    notmp = NT === True
+    if should_transpose_memop(F,C,AU,AV,N,M)
+        vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,sm<:EVLMask)
+    else
+        vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A===True, S===True, NT===True, RS, false)
+    end
 end
 # TODO: add `m::VecUnroll{Nm1,W,Bool}`
 @generated function _vstore_unroll!(
@@ -1192,4 +1270,3 @@ end
     push!(q.args, :(VecUnroll($t)))
     q
 end
-
