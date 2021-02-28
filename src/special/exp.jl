@@ -1,4 +1,20 @@
 
+# `_vscalef` for architectures without `vscalef`.
+# magic rounding constant: 1.5*2^52 Adding, then subtracting it from a float rounds it to an Int.
+MAGIC_ROUND_CONST(::Type{Float64}) = 6.755399441055744e15
+MAGIC_ROUND_CONST(::Type{Float32}) = 1.2582912f7
+@inline function _vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}) where {T<:Union{Float32,Float64}}
+    __vscalef(x, floor(y))
+end
+@inline function __vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}) where {T<:Union{Float32,Float64}}
+    N = reinterpret(Base.uinttype(T), y + MAGIC_ROUND_CONST(T))
+    k = N# >>> 0x00000008
+    
+    small_part = reinterpret(Base.uinttype(T), x)
+    twopk = (k % Base.uinttype(T)) << 0x0000000000000034
+    reinterpret(Float64, twopk + small_part)
+end
+
 @generated function vscalef(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
     bits = 8W*sizeof(T)
     bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
