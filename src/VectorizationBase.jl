@@ -116,6 +116,7 @@ struct EVLMask{W,U} <: AbstractMask{W,U}
 end
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 @inline EVLMask{W}(u::U, i) where {W,U<:Unsigned} = EVLMask{W,U}(u, i)
+@inline Mask(m::EVLMask{W,U}) where {W,U} = Mask{W,U}(getfield(m,:u))
 # Const prop is good enough; added an @inferred test to make sure.
 # Removed because confusion can cause more harm than good.
 
@@ -214,14 +215,21 @@ end
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = getfield(i, :i) + (X % I) * (j % I)
 
 function Base.getproperty(::AbstractSIMD, ::Symbol)
-    throw("""
+    throw(ErrorException("""
 `Base.getproperty` not defined on AbstractSIMD.
-If you wish to access the underlying data, e.g. for use with `Base.llvmcall`, use `data(v) instead.`
-If you wish to convert to work with the data as a tuple, it is recommended to use `Tuple(v)`.
-Accessing individual elements can be done via `v(1)` for the first element.
-Alternatively, `VectorizationBase.extractelement(v, i)` will access the `i+1`st element (0-indexed) and
-`VectorizationBase.insertelement(v, x, i)` will insert `x` into position `i+1` (0-indexed).
-""")
+If you wish to work with the data as a tuple, it is recommended to use `Tuple(v)`. Once you have an ordinary tuple, you can access
+individual elements normally. Alternatively, you can index using parenthesis, e.g. `v(1)` indexes the first element.
+Parenthesis are used instead of `getindex`/square brackets because `AbstractSIMD` objects represent a single number, and
+for `x::Number`, `x[1] === x`.
+
+If you wish to perform a reduction on the collection, the naming convention is prepending the base function with a `v`. These functions
+are not overloaded, because for `x::Number`, `sum(x) === x`. Functions include `vsum`, `vprod`, `vmaximum`, `vminimum`, `vany`, and `vall`.
+
+If you wish to define a new operation applied to the entire vector, do not define it in terms of operations on the individual eleemnts.
+This will often lead to bad code generation -- bad in terms of both performance, and often silently producing incorrect results!
+Instead, implement them in terms of existing functions defined on `::AbstractSIMD`. Please feel free to file an issue if you would like
+clarification, and especially if you think the function may be useful for others and should be included in `VectorizationBase.jl`.
+"""))
 end
 
 """

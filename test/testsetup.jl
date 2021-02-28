@@ -13,7 +13,7 @@ function tovector(u::VectorizationBase.VecUnroll{_N,W,_T}) where {_N,W,_T}
     N = _N + 1; i = 0
     x = Vector{T}(undef, N * W)
     for n ∈ 1:N
-        v = u.data[n]
+        v = VectorizationBase.data(u)[n]
         for w ∈ 0:W-1
             x[(i += 1)] = VectorizationBase.extractelement(v, w)
         end
@@ -23,8 +23,8 @@ end
 tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} = [VectorizationBase.extractelement(v,w) for w ∈ 0:W-1]
 tovector(v::VectorizationBase.LazyMulAdd) = tovector(VectorizationBase._materialize(v))
 tovector(x) = x
-tovector(i::MM{W,X}) where {W,X} = collect(range(i.i, step = X, length = W))
-tovector(i::MM{W,X,I}) where {W,X,I<:Union{Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64}} = collect(range(i.i, step = I(X), length = I(W)))
+tovector(i::MM{W,X}) where {W,X} = collect(range(data(i), step = X, length = W))
+tovector(i::MM{W,X,I}) where {W,X,I<:Union{Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64}} = collect(range(data(i), step = I(X), length = I(W)))
 A = randn(13, 17); L = length(A); M, N = size(A);
 
 trunc_int(x::Integer, ::Type{T}) where {T} = x % T

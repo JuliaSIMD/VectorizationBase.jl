@@ -134,3 +134,8 @@ for V ∈ [:AbstractSIMD, :MM]
     end
 end
 
+
+@inline vload(::StaticInt{N}, args...) where {N} = StaticInt{N}()
+@inline stridedpointer(::StaticInt{N}) where {N} = StaticInt{N}()
+@inline zero_offsets(::StaticInt{N}) where {N} = StaticInt{N}()
+

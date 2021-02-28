@@ -35,28 +35,30 @@ include("testsetup.jl")
         @test Vec{1,Int}(1) === 1
 
         vu = Vec(collect(1.0:16.0)...) + 2
-        @test vu(1,1) === vu.data[1](1)
-        @test vu(2,1) === vu.data[1](2)
-        @test vu(1,2) === vu.data[2](1)
-        @test vu(2,2) === vu.data[2](2)
+        @test_throws ErrorException vu.data
+
+        @test vu(1,1) === VectorizationBase.data(vu)[1](1)
+        @test vu(2,1) === VectorizationBase.data(vu)[1](2)
+        @test vu(1,2) === VectorizationBase.data(vu)[2](1)
+        @test vu(2,2) === VectorizationBase.data(vu)[2](2)
         if W64 == 8
-            @test vu.data[1] === Vec(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
-            @test vu.data[2] === Vec(11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0)
+            @test VectorizationBase.data(vu)[1] === Vec(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
+            @test VectorizationBase.data(vu)[2] === Vec(11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0)
         elseif W64 == 4
-            @test vu.data[1] === Vec(3.0, 4.0, 5.0, 6.0)
-            @test vu.data[2] === Vec(7.0, 8.0, 9.0, 10.0)
-            @test vu.data[3] === Vec(11.0, 12.0, 13.0, 14.0)
-            @test vu.data[4] === Vec(15.0, 16.0, 17.0, 18.0)
+            @test VectorizationBase.data(vu)[1] === Vec(3.0, 4.0, 5.0, 6.0)
+            @test VectorizationBase.data(vu)[2] === Vec(7.0, 8.0, 9.0, 10.0)
+            @test VectorizationBase.data(vu)[3] === Vec(11.0, 12.0, 13.0, 14.0)
+            @test VectorizationBase.data(vu)[4] === Vec(15.0, 16.0, 17.0, 18.0)
             @test Vec(1.2, 3.4, 3.4) === Vec(1.2, 3.4, 3.4, 0.0)
         elseif W64 == 2
-            @test vu.data[1] === Vec(3.0, 4.0)
-            @test vu.data[2] === Vec(5.0, 6.0)
-            @test vu.data[3] === Vec(7.0, 8.0)
-            @test vu.data[4] === Vec(9.0, 10.0)
-            @test vu.data[5] === Vec(11.0, 12.0)
-            @test vu.data[6] === Vec(13.0, 14.0)
-            @test vu.data[7] === Vec(15.0, 16.0)
-            @test vu.data[8] === Vec(17.0, 18.0)
+            @test VectorizationBase.data(vu)[1] === Vec(3.0, 4.0)
+            @test VectorizationBase.data(vu)[2] === Vec(5.0, 6.0)
+            @test VectorizationBase.data(vu)[3] === Vec(7.0, 8.0)
+            @test VectorizationBase.data(vu)[4] === Vec(9.0, 10.0)
+            @test VectorizationBase.data(vu)[5] === Vec(11.0, 12.0)
+            @test VectorizationBase.data(vu)[6] === Vec(13.0, 14.0)
+            @test VectorizationBase.data(vu)[7] === Vec(15.0, 16.0)
+            @test VectorizationBase.data(vu)[8] === Vec(17.0, 18.0)
         end
 
     end
@@ -103,13 +105,13 @@ include("testsetup.jl")
     @time @testset "masks.jl" begin
         # @test Mask{8,UInt8}(0x0f) === @inferred Mask(0x0f)
         # @test Mask{16,UInt16}(0x0f0f) === @inferred Mask(0x0f0f)
-        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), 0)
-        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), 8)
-        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), 16)
-        @test EVLMask{8,UInt8}(0xff) === mask(Val(8), VectorizationBase.StaticInt(0))
-        @test EVLMask{16,UInt16}(0xffff) === mask(Val(16), 0)
-        @test EVLMask{16,UInt16}(0xffff) === mask(Val(16), 16)
-        @test EVLMask{16,UInt16}(0xffff) === mask(Val(16), 32)
+        @test EVLMask{8,UInt8}(0xff,8) === mask(Val(8), 0)
+        @test EVLMask{8,UInt8}(0xff,8) === mask(Val(8), 8)
+        @test EVLMask{8,UInt8}(0xff,8) === mask(Val(8), 16)
+        @test EVLMask{8,UInt8}(0xff,8) === mask(Val(8), VectorizationBase.StaticInt(0))
+        @test EVLMask{16,UInt16}(0xffff,16) === mask(Val(16), 0)
+        @test EVLMask{16,UInt16}(0xffff,16) === mask(Val(16), 16)
+        @test EVLMask{16,UInt16}(0xffff,16) === mask(Val(16), 32)
         @test all(w -> VectorizationBase.mask_type(w) === UInt8, 1:8)
         @test all(w -> VectorizationBase.mask_type(w) === UInt16, 9:16)
         @test all(w -> VectorizationBase.mask_type(w) === UInt32, 17:32)
@@ -144,23 +146,26 @@ include("testsetup.jl")
         @test VectorizationBase.vbroadcast(Val(8), true) === Vec(true, true, true, true, true, true, true, true)
 
         @test !VectorizationBase.vall(Mask{8}(0xfc))
-        @test !VectorizationBase.vall(EVLMask{4}(0xfc))
-        @test VectorizationBase.vall(EVLMask{8}(0xff))
+        @test !VectorizationBase.vall(Mask{4}(0xfc))
+        @test VectorizationBase.vall(EVLMask{8}(0xff,8))
+        @test !VectorizationBase.vall(EVLMask{8}(0x1f,5))
         @test VectorizationBase.vall(Mask{4}(0xcf))
 
-        @test VectorizationBase.vany(EVLMask{8}(0xfc))
+        @test VectorizationBase.vany(Mask{8}(0xfc))
         @test VectorizationBase.vany(Mask{4}(0xfc))
         @test !VectorizationBase.vany(Mask{8}(0x00))
-        @test !VectorizationBase.vany(EVLMask{4}(0xf0))
+        @test !VectorizationBase.vany(Mask{4}(0xf0))
 
-        @test VectorizationBase.vall(EVLMask{8}(0xfc) + Mask{8}(0xcf) == Vec(0x01,0x01,0x02,0x02,0x01,0x01,0x02,0x02))
-        @test VectorizationBase.vall(Mask{4}(0xfc) + EVLMask{4}(0xcf) == Vec(0x01,0x01,0x02,0x02))
+        @test VectorizationBase.vall(Mask{8}(0xfc) + Mask{8}(0xcf) == Vec(0x01,0x01,0x02,0x02,0x01,0x01,0x02,0x02))
+        @test VectorizationBase.vall(Mask{4}(0xfc) + Mask{4}(0xcf) == Vec(0x01,0x01,0x02,0x02))
+        @test VectorizationBase.vall(Mask{8}(0xcf) + EVLMask{8}(0x1f,5) == Vec(0x02, 0x02, 0x02, 0x02, 0x01, 0x00, 0x01, 0x01))
+        
 
-        @test VectorizationBase.vall(EVLMask{8}(0xec) != EVLMask{8}(0x13))
+        @test VectorizationBase.vall(Mask{8}(0xec) != Mask{8}(0x13))
         @test VectorizationBase.vall((!Mask{8}(0xac) & Mask{8}(0xac)) == Mask{8}(0x00))
-        @test !VectorizationBase.vany((!EVLMask{8}(0xac) & EVLMask{8}(0xac)))
-        @test VectorizationBase.vall((!EVLMask{8}(0xac) | EVLMask{8}(0xac)) == EVLMask{8}(0xff))
-        @test VectorizationBase.vall((!Mask{8}(0xac) | EVLMask{8}(0xac)))
+        @test !VectorizationBase.vany((!Mask{8}(0xac) & Mask{8}(0xac)))
+        @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)) == Mask{8}(0xff))
+        @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)))
 
         @test VectorizationBase.vall(VectorizationBase.splitint(0xb53a5d6426a9d29d, Int8) == Vec{8,Int8}(-99, -46, -87, 38, 100, 93, 58, -75))
         # other splitint tests for completeness sake
@@ -170,14 +175,14 @@ include("testsetup.jl")
             VectorizationBase.splitint(0x47766b9a9509d175acd77ff497236795, Int8) != Vec{16,Int8}(-107, 103, 35, -105, -12, 127, -41, -84, 117, -47, 9, -107, -102, 107, 118, 71)
         )
 
-        @test (EVLMask{8}(0x1f) | EVLMask{8}(0x03)) === EVLMask{8}(0x1f)
-        @test (Mask{8}(0x1f) | EVLMask{8}(0x03)) === Mask{8}(0x1f)
-        @test (EVLMask{8}(0x1f) | Mask{8}(0x03)) === Mask{8}(0x1f)
+        @test (EVLMask{8}(0x1f,5) | EVLMask{8}(0x03,3)) === EVLMask{8}(0x1f,5)
+        @test (Mask{8}(0x1f) | EVLMask{8}(0x03,3)) === Mask{8}(0x1f)
+        @test (EVLMask{8}(0x1f,5) | Mask{8}(0x03)) === Mask{8}(0x1f)
         @test (Mask{8}(0x1f) | Mask{8}(0x03)) === Mask{8}(0x1f)
 
-        @test (EVLMask{8}(0x1f) & EVLMask{8}(0x03)) === EVLMask{8}(0x03)
-        @test (Mask{8}(0x1f) & EVLMask{8}(0x03)) === Mask{8}(0x03)
-        @test (EVLMask{8}(0x1f) & Mask{8}(0x03)) === Mask{8}(0x03)
+        @test (EVLMask{8}(0x1f,5) & EVLMask{8}(0x03,3)) === EVLMask{8}(0x03,3)
+        @test (Mask{8}(0x1f) & EVLMask{8}(0x03,3)) === Mask{8}(0x03)
+        @test (EVLMask{8}(0x1f,5) & Mask{8}(0x03)) === Mask{8}(0x03)
         @test (Mask{8}(0x1f) & Mask{8}(0x03)) === Mask{8}(0x03)
         
         @test (Mask{8}(0xac) | false) === Mask{8}(0xac)
@@ -360,9 +365,9 @@ include("testsetup.jl")
                             vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))))
                         end
                     end
-                    @test v1 === vu.data[1]
-                    @test v2 === vu.data[2]
-                    @test v3 === vu.data[3]
+                    @test v1 === VectorizationBase.data(vu)[1]
+                    @test v2 === VectorizationBase.data(vu)[2]
+                    @test v3 === VectorizationBase.data(vu)[3]
 
                     ir = 0:(AV == 1 ? W64-1 : 0); jr = 0:(AV == 2 ? W64-1 : 0); kr = 0:(AV == 3 ? W64-1 : 0)
                     x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
@@ -383,9 +388,9 @@ include("testsetup.jl")
                     end
                     x3 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
 
-                    @test x1 == tovector(vu.data[1])
-                    @test x2 == tovector(vu.data[2])
-                    @test x3 == tovector(vu.data[3])
+                    @test x1 == tovector(VectorizationBase.data(vu)[1])
+                    @test x2 == tovector(VectorizationBase.data(vu)[2])
+                    @test x3 == tovector(VectorizationBase.data(vu)[3])
 
                 end
                 v1 = randnvec(); v2 = randnvec(); v3 = randnvec(); v4 = randnvec(); v5 = randnvec()
@@ -400,36 +405,37 @@ include("testsetup.jl")
         x = Vector{Int}(undef, 100);
         i = MM{1}(0)
         for j ∈ 1:25
-            vstore!(pointer(x), j, (i * VectorizationBase.static_sizeof(Int)))
+            VectorizationBase.__vstore!(pointer(x), j, (i * VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 26:50
-            vstore!(pointer(x), j, (VectorizationBase.static_sizeof(Int) * i), Mask{1}(0xff))
+            VectorizationBase.__vstore!(pointer(x), j, (VectorizationBase.static_sizeof(Int) * i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 51:75
-            vstore!(pointer(x), j, VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)))
+            VectorizationBase.__vstore!(pointer(x), j, VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 76:100
-            vstore!(pointer(x), j, VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i), Mask{1}(0xff))
+            VectorizationBase.__vstore!(pointer(x), j, VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         @test x == 1:100
 
         xf64 = rand(100);
-        vxtu = @inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)));
-        @test vxtu isa VectorizationBase.VecUnroll
-        vxtutv = tovector(vxtu);
-        vxtutvmult = 3.5 .* vxtutv;
-        @inferred(vstore!(stridedpointer(xf64), 3.5 * vxtu, (MM{4W64}(1),)));
-        @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == vxtutvmult
-        mbig = Mask{4W64}(rand(UInt32)); # TODO: update if any arches support >512 bit vectors
-        mbigtv = tovector(mbig);
-        @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),), mbig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
-        @inferred(vstore!(stridedpointer(xf64), -11 * vxtu, (MM{4W64}(1),), mbig));
-        @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == ifelse.(mbigtv, -11 .* vxtutv, vxtutvmult)
-
+        GC.@preserve xf64 begin
+            vxtu = @inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)));
+            @test vxtu isa VectorizationBase.VecUnroll
+            vxtutv = tovector(vxtu);
+            vxtutvmult = 3.5 .* vxtutv;
+            @inferred(vstore!(stridedpointer(xf64), 3.5 * vxtu, (MM{4W64}(1),)));
+            @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == vxtutvmult
+            mbig = Mask{4W64}(rand(UInt32)); # TODO: update if any arches support >512 bit vectors
+            mbigtv = tovector(mbig);
+            @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),), mbig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
+            @inferred(vstore!(stridedpointer(xf64), -11 * vxtu, (MM{4W64}(1),), mbig));
+            @test tovector(@inferred(vload(stridedpointer(xf64), (MM{4W64}(1),)))) == ifelse.(mbigtv, -11 .* vxtutv, vxtutvmult)
+        end
         colors = [(R = rand(), G = rand(), B = rand()) for i ∈ 1:100];
         colormat = reinterpret(reshape, Float64, colors)
         sp = stridedpointer(colormat)
@@ -445,25 +451,27 @@ include("testsetup.jl")
     @time @testset "Grouped Strided Pointers" begin
         M, K, N = 4, 5, 6
         A = rand(M, K); B = rand(K, N); C = rand(M, N);
-        fs = [identity, adjoint]
-        for fA ∈ fs, fB ∈ fs, fC ∈ fs
-            At = fA === identity ? A : copy(A')'
-            Bt = fB === identity ? B : copy(B')'
-            Ct = fC === identity ? C : copy(C')'
-            gsp = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
-            if fA === fC
-                @test sizeof(gsp.strides) == 2sizeof(Int)
+        GC.@preserve A B C begin
+            fs = [identity, adjoint]
+            for fA ∈ fs, fB ∈ fs, fC ∈ fs
+                At = fA === identity ? A : copy(A')'
+                Bt = fB === identity ? B : copy(B')'
+                Ct = fC === identity ? C : copy(C')'
+                gsp = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
+                if fA === fC
+                    @test sizeof(gsp.strides) == 2sizeof(Int)
+                end
+                ai = fA === identity
+                bi = fB === identity
+                ci = fC === identity
+                # Test to confirm that redundant strides are not stored in the grouped strided pointer
+                @test sizeof(gsp) == sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
+                @test sizeof(gsp.offsets) == 0
+                pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
+                @test pA === stridedpointer(At)
+                @test pB === stridedpointer(Bt)
+                @test pC === stridedpointer(Ct)
             end
-            ai = fA === identity
-            bi = fB === identity
-            ci = fC === identity
-            # Test to confirm that redundant strides are not stored in the grouped strided pointer
-            @test sizeof(gsp) == sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
-            @test sizeof(gsp.offsets) == 0
-            pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
-            @test pA === stridedpointer(At)
-            @test pB === stridedpointer(Bt)
-            @test pC === stridedpointer(Ct)
         end
     end
 
@@ -599,8 +607,8 @@ include("testsetup.jl")
                 m1 = VectorizationBase.VecUnroll((MM{WI}(I1(7)), MM{WI}(I1(1)), MM{WI}(I1(13)), MM{WI}(I1(32%last(srange)))));
                 m2 = VectorizationBase.VecUnroll((MM{WI,2}(I2(3)), MM{WI,2}(I2(8)), MM{WI,2}(I2(39%last(srange))), MM{WI,2}(I2(17))));
                 xi1 = tovector(vi1); xi2 = tovector(vi2);
-                xi3 =  mapreduce(tovector, vcat, m1.data);
-                xi4 =  mapreduce(tovector, vcat, m2.data);
+                xi3 =  mapreduce(tovector, vcat, VectorizationBase.data(m1));
+                xi4 =  mapreduce(tovector, vcat, VectorizationBase.data(m2));
                 I3 = promote_type(I1,I2);
                 # I4 = sizeof(I1) < sizeof(I2) ? I1 : (sizeof(I1) > sizeof(I2) ? I2 : I3)
                 for f ∈ [

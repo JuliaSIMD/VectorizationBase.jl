@@ -27,6 +27,14 @@ end
     $(llvmcall_expr("declare void @llvm.assume(i1)", "%b = trunc i8 %0 to i1\ncall void @llvm.assume(i1 %b)\nret void", :Cvoid, :(Tuple{Bool}), "void", ["i8"], [:b]))
 end
 
+@generated function bitreverse(i::I) where {I<:Base.BitInteger}
+    typ = string('i', 8sizeof(I))
+    f = "$typ @llvm.bitreverse.$(typ)"
+    decl = "declare $f($typ)"
+    instr = "%res = call $f($(typ) %0)\nret $(typ) %res"
+    llvmcall_expr(decl, instr, JULIA_TYPES[I], :(Tuple{$I}), typ, [typ], [:i])
+end
+
 # Doesn't work, presumably because the `noalias` doesn't propagate outside the function boundary.
 # @generated function noalias!(ptr::Ptr{T}) where {T <: NativeTypes}
 #     Base.libllvm_version ≥ v"11" || return :ptr
