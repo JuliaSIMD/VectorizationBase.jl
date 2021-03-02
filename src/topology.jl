@@ -77,7 +77,7 @@ function redefine_attr_count()
     for (v, f, attr) ∈ iter
         ref = count_attr(attr)
         if ref ≠ v
-            @info "Redefining attr count $f = $ref."
+            @debug "Redefining attr count $f = $ref."
             define_attr_count(f, ref)
         end
     end
@@ -202,7 +202,7 @@ function redefine_cache(N)
     )
     correct = dynamic_cache_summary(N)
     if c !== correct
-        @info "Redefining cache $N."
+        @debug "Redefining cache $N."
         define_cache(N, correct)
     end
     nothing

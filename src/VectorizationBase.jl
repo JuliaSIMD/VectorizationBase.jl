@@ -375,7 +375,7 @@ function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
     if unwrap(cpu_name()) !== Symbol(Sys.CPU_NAME::String)
-        @info "Defining CPU name."
+        @debug "Defining CPU name."
         define_cpu_name()
     end
     safe_topology_load!()
