@@ -78,6 +78,8 @@ has_opmask_registers() = has_feature(Val(:x86_64_avx512f))
 register_size(::Type{T}) where {T} = register_size()
 register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = simd_integer_register_size()
 
+fast_int64_to_double() = has_feature(Val(:x86_64_avx512dq))
+
 function define_cpu_name()
     cpu = QuoteNode(Symbol(Sys.CPU_NAME::String))
     @eval cpu_name() = Val{$cpu}()

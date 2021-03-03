@@ -41,7 +41,7 @@ F - static multiplicative factor
     """
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
+        Vec($LLVMCALL($instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
     end
 end
 @inline function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
@@ -60,7 +60,7 @@ end
     """
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, i))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$T}, i))
     end
 end
 # @generated function vrangemul(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
@@ -80,7 +80,7 @@ end
 #     """
 #     quote
 #         $(Expr(:meta,:inline))
-#         Vec(llvmcall(instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
+#         Vec($LLVMCALL(instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
 #     end
 # end
 # @generated function vrangemul(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
@@ -96,7 +96,7 @@ end
 #     """
 #     quote
 #         $(Expr(:meta,:inline))
-#         Vec(llvmcall(instrs, _Vec{$W,$T}, Tuple{$T}, i))
+#         Vec($LLVMCALL(instrs, _Vec{$W,$T}, Tuple{$T}, i))
 #     end
 # end
 

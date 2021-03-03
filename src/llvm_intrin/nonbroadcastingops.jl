@@ -8,7 +8,7 @@
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
+        Vec($LLVMCALL( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
     end
 end
 @generated function addscalar(v::Vec{W,T}, s::T) where {W, T <: FloatingTypes}
@@ -20,7 +20,7 @@ end
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
+        Vec($LLVMCALL( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
     end
 end
 
@@ -33,7 +33,7 @@ end
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
+        Vec($LLVMCALL( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
     end
 end
 @generated function mulscalar(v::Vec{W,T}, s::T) where {W, T <: FloatingTypes}
@@ -45,7 +45,7 @@ end
     push!(instrs, "ret $vtyp %v")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
+        Vec($LLVMCALL( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
     end
 end
 
@@ -90,14 +90,14 @@ end
     instrs = scalar_maxmin(W, T, true)
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
+        Vec($LLVMCALL( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
     end
 end
 @generated function minscalar(v::Vec{W,T}, s::T) where {W, T <: NativeTypes}
     instrs = scalar_maxmin(W, T, false)
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
+        Vec($LLVMCALL( $(join(instrs,"\n")), NTuple{$W,Core.VecElement{$T}}, Tuple{NTuple{$W,Core.VecElement{$T}},$T}, data(v), s ))
     end
 end
 for (f,op) ∈ [(:addscalar,:(+)), (:mulscalar,:(*)), (:maxscalar,:max), (:minscalar,:min)]

@@ -9,7 +9,7 @@ function convert_func(op, T1, W1, T2, W2 = W1)
     """
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$W1,$T1}, Tuple{_Vec{$W2,$T2}}, data(v)))
+        Vec($LLVMCALL($instrs, _Vec{$W1,$T1}, Tuple{_Vec{$W2,$T2}}, data(v)))
     end
 end
 # For bitcasting between signed and unsigned integers (LLVM does not draw a distinction, but they're separate in Julia)
@@ -20,7 +20,7 @@ function identity_func(W, T1, T2)
     """
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T1}, Tuple{_Vec{$W,$T2}}, data(v)))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T1}, Tuple{_Vec{$W,$T2}}, data(v)))
     end
 end
 
@@ -58,7 +58,7 @@ end
 #     U = mask_type_symbol(W);
 #     quote
 #         $(Expr(:meta,:inline))
-#         Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
+#         Mask{$W}($LLVMCALL($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
 #     end
 # end
 @inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Mask{W}, v)

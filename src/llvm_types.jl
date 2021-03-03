@@ -213,7 +213,7 @@ end
             }
         """
         # attributes #0 = { alwaysinline }
-        call = Expr(:call, :llvmcall, (mod, "entry"), ret, args)
+        call = Expr(:call, LLVMCALL, (mod, "entry"), ret, args)
         foreach(arg -> push!(call.args, arg), arg_syms)
         call = Expr(:(::), call, ret)
         if first(lret) === '<'
@@ -227,7 +227,7 @@ else
     function llvmcall_expr(
         decl::String, instr::String, ret::Union{Symbol,Expr}, args::Expr, lret::String, largs::Vector{String}, arg_syms::Vector, callonly::Bool = false
     )
-        call = Expr(:call, :llvmcall, (decl, instr), ret, args)
+        call = Expr(:call, LLVMCALL, (decl, instr), ret, args)
         foreach(arg -> push!(call.args, arg), arg_syms)
         if first(lret) === '<'
             call = Expr(:call, :Vec, call)

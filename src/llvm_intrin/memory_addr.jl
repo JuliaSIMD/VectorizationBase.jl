@@ -334,8 +334,9 @@ function vload_quote(
         end
     end
     jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
-    jtyp_expr = Expr(:(.), :Base, QuoteNode(jtyp)) # reduce latency, hopefully
-    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp_expr)
+    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp)
+    # jtyp_expr = Expr(:(.), :Base, QuoteNode(jtyp)) # reduce latency, hopefully
+    # vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp_expr)
 end
 function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::Int, T_sym::Symbol)
     D, r1 = divrem(W * sizeof_T, rs)
@@ -376,7 +377,7 @@ end
 end
 
 function vload_quote_llvmcall(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Expr
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
 )
     if mask && W == 1
         if M == O == 0
@@ -391,6 +392,16 @@ function vload_quote_llvmcall(
             end
         end
     end
+
+    decl, instrs, args, lret, largs, arg_syms = vload_quote_llvmcall_core(
+        T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs
+    )
+    
+    return llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true)
+end
+function vload_quote_llvmcall_core(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
+)
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
 
     reverse_load = ((W > 1) & (X == -sizeof_T)) & (ind_type !== :Vec)
@@ -500,10 +511,10 @@ function vload_quote_llvmcall(
         push!(args.args, mask_type(W))
         push!(largs, "i$(max(8,nextpow2(W)))")
     end
-    return llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, true)
+    return decl, join(instrs, "\n"), args, lret, largs, arg_syms
 end
 function vload_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Expr
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
 )
     call = vload_quote_llvmcall(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, ret)
     if (W > 1) & (T_sym === :Bit)
@@ -630,14 +641,8 @@ function vstore_quote(
     vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs)
 end
 function vstore_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
-)
-    jtyp = W > 1 ? :(_Vec{$W,$T_sym}) : :(Base.$T_sym)
-    vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs, jtyp)
-end
-function vstore_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
-    mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int, jtyp::Expr
+    mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     sizeof_I = JULIA_TYPE_SIZE[I_sym]

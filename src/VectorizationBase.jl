@@ -37,6 +37,7 @@ export Vec, Mask, EVLMask, MM, stridedpointer, vload, vstore!, StaticInt, True, 
     VecUnroll, Unroll, pick_vector_width
 
 using Base: llvmcall, VecElement, HWReal, tail
+const LLVMCALL = GlobalRef(Base, :llvmcall)
 
 const FloatingTypes = Union{Float32, Float64} # Float16
 
@@ -141,7 +142,7 @@ Vec{1,T}(x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}) where
         %res = extractelement <$W x $typ> %0, i$(8sizeof(I)) %1
         ret $typ %res
     """
-    call = :(llvmcall($instrs, $T, Tuple{_Vec{$W,$T},$I}, data(v), i))
+    call = :($LLVMCALL($instrs, $T, Tuple{_Vec{$W,$T},$I}, data(v), i))
     Expr(:block, Expr(:meta, :inline), call)
 end
 @generated function insertelement(v::Vec{W,T}, x::T, i::I) where {W,I <: IntegerTypesHW,T}
@@ -150,7 +151,7 @@ end
         %res = insertelement <$W x $typ> %0, $typ %1, i$(8sizeof(I)) %2
         ret <$W x $typ> %res
     """
-    call = :(Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T},$T,$I}, data(v), x, i)))
+    call = :(Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T},$T,$I}, data(v), x, i)))
     Expr(:block, Expr(:meta, :inline), call)
 end
 @inline (v::AbstractSIMDVector)(i::IntegerTypesHW) = extractelement(v, i - one(i))
@@ -299,7 +300,7 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
         push!(Tup.args, T)
     end
     push!(instrs, "ret <$Wfull x $ty> %v$_W")
-    llvmc = :(llvmcall($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup))
+    llvmc = :($LLVMCALL($(join(instrs,"\n")), _Vec{$Wfull,$T}, $Tup))
     trunc ? push!(llvmc.args, :(y % $T)) : push!(llvmc.args, :y)
     for w ∈ 1:_W
         ref = Expr(:ref, :x, w)

@@ -28,14 +28,14 @@ end
     M, instrs = shufflevector_instrs(W, T, I, W2)
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}, _Vec{$W2,$T}}, data(v1), data(v2)))
+        Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}, _Vec{$W2,$T}}, data(v1), data(v2)))
     end
 end
 @generated function shufflevector(v1::Vec{W,T}, ::Val{I}) where {W,T,I}
     M, instrs = shufflevector_instrs(W, T, I, 0)
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}}, data(v1)))
+        Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}}, data(v1)))
     end
 end
 @generated function vresize(::Union{StaticInt{W},Val{W}}, v::Vec{L,T}) where {W,L,T}
@@ -47,7 +47,7 @@ end
     """
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$L,$T}}, data(v)))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$L,$T}}, data(v)))
     end
 end
 @generated function vresize(::Union{StaticInt{W},Val{W}}, v::T) where {W,T<:NativeTypes}
@@ -59,7 +59,7 @@ end
     """
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, v))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$T}, v))
     end
 end
 @generated function shufflevector(i::MM{W,X}, ::Val{I}) where {W,X,I}
@@ -83,7 +83,7 @@ end
     M, instrs = shufflevector_instrs(W1, T, mask, W2)
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$M,$T}, Tuple{_Vec{$W1,$T}, _Vec{$W2,$T}}, data(a), data(b)))
+        Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W1,$T}, _Vec{$W2,$T}}, data(a), data(b)))
     end
 end
 

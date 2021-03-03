@@ -421,7 +421,7 @@ function shuffle_store_quote(
     # mask = false
     vstoreexpr = vstore_quote(
         T_sym, I_sym, ind_type, Wfull, size_T, M, O,
-        mask, align, alias, notmp, rs, :(_Vec{$Wfull,$T_sym})
+        mask, align, alias, notmp, rs
     )
     q = quote
         $(Expr(:meta,:inline))

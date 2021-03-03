@@ -9,8 +9,8 @@ function _precompile_()
 
                             
     precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int))
-    precompile(vload_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int, Expr))
-    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int, Expr))
+    precompile(vload_quote_llvmcall_core, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int))
+    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int))
 
     precompile(reset_features!, ())
     precompile(safe_topology_load!, ())

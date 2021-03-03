@@ -158,13 +158,13 @@
     """
     return quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall(($str, "entry"), _Vec{$W,Float64}, Tuple{_Vec{$W,Float64}}, data(v)))
+        Vec(Base.llvmcall(($str, "entry"), _Vec{$W,Float64}, Tuple{_Vec{$W,Float64}}, data(v)))
     end
 end
 @inline _verf(v::Vec{4,Float64}, ::False) = __verf(v, has_feature(Val(:x86_64_avx)))
 __verf(v::Vec{4,Float64}, ::False) = throw("`__verf` with `Vec{4,Float64}` requires a CPU that supports AVX instructions.")
 @inline function __verf(v::Vec{4,Float64}, ::True)
-    Vec(llvmcall(("""
+    Vec(Base.llvmcall(("""
     attributes #0 = { alwaysinline nounwind readnone }
     declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double>) #0
     declare i32 @llvm.x86.avx.vtestz.pd.256(<4 x double>, <4 x double>) #0
@@ -301,7 +301,7 @@ end
 @inline _verf(v::Vec{2,Float64}, ::False) = __verf(v, has_feature(Val(Symbol("x86_64_sse4.1"))))
 __verf(v::Vec{2,Float64}, ::False) = throw("`__verf` with `Vec{2,Float64}` requires a CPU that supports SSE 4.1 instructions.")
 @inline function __verf(v::Vec{2,Float64}, ::True)
-    Vec(llvmcall(("""
+    Vec(Base.llvmcall(("""
         attributes #0 = { alwaysinline nounwind readnone }
         declare <2 x double> @llvm.fmuladd.v2f64(<2 x double>, <2 x double>, <2 x double>) #0
         declare <2 x double> @llvm.x86.sse41.round.pd(<2 x double>, i32) #0
@@ -522,7 +522,7 @@ end
 end
 
 @inline function _verf(v::Vec{8,Float32}, ::True)
-    Vec(llvmcall(("""
+    Vec(Base.llvmcall(("""
         attributes #0 = { alwaysinline }
         declare <8 x float> @llvm.fma.v8f32(<8 x float>, <8 x float>, <8 x float>) #0
         declare i32 @llvm.x86.avx.vtestz.ps.256(<8 x float>, <8 x float>) #0

@@ -49,11 +49,11 @@ end
         if !iszero(length(Xₙ.parameters))
             xₙ = Symbol(:x_,n)
             oₙ = Symbol(:o_,n)
-            push!(q.args, Expr(:(=), xₙ, Expr(:ref, :x, n)))
-            push!(q.args, Expr(:(=), oₙ, Expr(:ref, :o, n)))
+            push!(q.args, Expr(:(=), xₙ, Expr(:call, GlobalRef(Core, :getfield), :x, n, false)))
+            push!(q.args, Expr(:(=), oₙ, Expr(:call, GlobalRef(Core, :getfield), :o, n, false)))
             for j ∈ 1:length(Xₙ.parameters)
-                push!(Xt.args, Expr(:ref, xₙ, j))
-                push!(Ot.args, Expr(:ref, oₙ, j))
+                push!(Xt.args, Expr(:call, GlobalRef(Core, :getfield), xₙ, j, false))
+                push!(Ot.args, Expr(:call, GlobalRef(Core, :getfield), oₙ, j, false))
                 push!(Itt.args, (i += 1))
             end
         end
@@ -183,12 +183,12 @@ end
                 end
                 if !match
                     if xₙ_oₙ_not_extracted
-                        push!(q.args, Expr(:(=), xₙ, Expr(:ref, :x, n)))
-                        push!(q.args, Expr(:(=), oₙ, Expr(:ref, :o, n)))
+                        push!(q.args, Expr(:(=), xₙ, Expr(:call, GlobalRef(Core, :getfield), :x, n, false)))
+                        push!(q.args, Expr(:(=), oₙ, Expr(:call, GlobalRef(Core, :getfield), :o, n, false)))
                         xₙ_oₙ_not_extracted = false
                     end
-                    push!(Xt.args, Expr(:ref, xₙ, j))
-                    push!(Ot.args, Expr(:ref, oₙ, j))
+                    push!(Xt.args, Expr(:call, GlobalRef(Core, :getfield), xₙ, j, false))
+                    push!(Ot.args, Expr(:call, GlobalRef(Core, :getfield), oₙ, j, false))
                     push!(Itt.args, (i += 1))
                 end
             end

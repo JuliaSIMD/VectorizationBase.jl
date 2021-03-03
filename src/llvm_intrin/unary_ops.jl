@@ -4,7 +4,7 @@ function sub_quote(W, @nospecialize(T), fast::Bool)
     instrs = "%res = fneg $(fast_flags(fast)) $vtyp %0\nret $vtyp %res"
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T}}, data(v)))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T}}, data(v)))
     end
 end
 

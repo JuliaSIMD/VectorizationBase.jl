@@ -20,7 +20,7 @@ function ifmahi_quote(W)
         ret $t64 %res
     """
     jt = W > 1 ? :(_Vec{$W,UInt64}) : :UInt64
-    call = :(llvmcall($instrs, $jt, Tuple{$jt,$jt,$jt}, data(v1), data(v2), data(v3)))
+    call = :($LLVMCALL($instrs, $jt, Tuple{$jt,$jt,$jt}, data(v1), data(v2), data(v3)))
     W > 1 && (call = Expr(:call, :Vec, call))
     Expr(:block, Expr(:meta,:inline), call)
 end

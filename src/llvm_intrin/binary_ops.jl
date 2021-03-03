@@ -8,7 +8,7 @@ function binary_op(op, W, @nospecialize(T))
         V = NTuple{W,VecElement{T}}
     end
     instrs = "%res = $op $ty %0, %1\nret $ty %res"
-    call = :(llvmcall($instrs, $V, Tuple{$V,$V}, data(v1), data(v2)))
+    call = :($LLVMCALL($instrs, $V, Tuple{$V,$V}, data(v1), data(v2)))
     W > 1 && (call = Expr(:call, :Vec, call))
     Expr(:block, Expr(:meta, :inline), call)
 end

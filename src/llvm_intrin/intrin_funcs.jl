@@ -441,7 +441,7 @@ end
                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($vfmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+        Vec($LLVMCALL($vfmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
     end
 end
 @generated function vfnmadd231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}, ::True) where {W, T <: Union{Float32,Float64}}
@@ -451,7 +451,7 @@ end
                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($vfnmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+        Vec($LLVMCALL($vfnmadd_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
     end
 end
 @generated function vfmsub231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}, ::True) where {W, T <: Union{Float32,Float64}}
@@ -461,7 +461,7 @@ end
                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($vfmsub_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+        Vec($LLVMCALL($vfmsub_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
     end
 end
 @generated function vfnmsub231(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}, ::True) where {W, T <: Union{Float32,Float64}}
@@ -471,7 +471,7 @@ end
                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta, :inline))
-        Vec(llvmcall($vfnmsub_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
+        Vec($LLVMCALL($vfnmsub_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T}}, data(a), data(b), data(c)))
     end
 end
 
@@ -488,7 +488,7 @@ end
                                             ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($vfmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+        Vec($LLVMCALL($vfmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
 @generated function vifelse(::typeof(vfnmadd231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
@@ -498,7 +498,7 @@ end
                                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($vfnmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+        Vec($LLVMCALL($vfnmaddmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
 @generated function vifelse(::typeof(vfmsub231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
@@ -508,7 +508,7 @@ end
                                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($vfmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+        Vec($LLVMCALL($vfmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
 @generated function vifelse(::typeof(vfnmsub231), m::AbstractMask{W,U}, a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T},::True) where {W,U<:Unsigned,T<:Union{Float32,Float64}}
@@ -518,7 +518,7 @@ end
                                         ret <$W x $(typ)> %res"""
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($vfnmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
+        Vec($LLVMCALL($vfnmsubmask_str, _Vec{$W,$T}, Tuple{_Vec{$W,$T},_Vec{$W,$T},_Vec{$W,$T},$U}, data(a), data(b), data(c), data(m)))
     end
 end
 

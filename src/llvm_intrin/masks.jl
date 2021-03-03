@@ -54,7 +54,9 @@ end
 function binary_mask_op(W, U, op, evl::Symbol = Symbol(""))
     instrs = binary_mask_op_instrs(W, op)
     mask = Expr(:curly, evl === Symbol("") ? :Mask : :EVLMask, W)
-    llvmc = :(llvmcall($instrs, $U, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))
+    gf1 = Expr(:call, GlobalRef(Core, :getfield), :m1, 1, false)
+    gf2 = Expr(:call, GlobalRef(Core, :getfield), :m2, 1, false)
+    llvmc = Expr(:call, GlobalRef(Base, :llvmcall), instrs, U, :(Tuple{$U, $U}), gf1, gf2)
     call = Expr(:call, mask, llvmc)
     if evl !== Symbol("")
         push!(call.args, Expr(:call, evl, :(getfield(m1, :evl)), :(getfield(m2, :evl))))
@@ -98,7 +100,7 @@ end
     """
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$S}, i))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$S}, i))
     end
 end
 @generated function fuseint(v::Vec{W,I}) where {W, I <: Union{Bool,Base.BitInteger}}
@@ -115,7 +117,7 @@ end
     """
     quote
         $(Expr(:meta,:inline))
-        llvmcall($instrs, $T, Tuple{_Vec{$W,$I}}, data(v))
+        $LLVMCALL($instrs, $T, Tuple{_Vec{$W,$I}}, data(v))
     end
 end
 
@@ -128,7 +130,7 @@ function vadd_expr(W,U)
     %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
     %res = add <$W x i8> %uv.0, %uv.1
     ret <$W x i8> %res""")
-    Expr(:block, Expr(:meta, :inline), :(Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
+    Expr(:block, Expr(:meta, :inline), :(Vec($LLVMCALL($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
 @generated vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U)
 
@@ -186,7 +188,7 @@ end
     push!(instrs, "ret $mtyp_input %res.1")
     quote
         $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs,"\n")), $U, Tuple{$U}, getfield(m, :u)))
+        Mask{$W}($LLVMCALL($(join(instrs,"\n")), $U, Tuple{$U}, getfield(m, :u)))
     end
 end
 # @inline Base.:(~)(m::Mask) = !m
@@ -284,7 +286,7 @@ end
     push!(instrs, "ret i$(usize) %res.0")
     quote
         $(Expr(:meta, :inline))
-        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
+        Mask{$W}($LLVMCALL($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
     end
 end
 @inline tomask(v::AbstractSIMDVector{W,Bool}) where {W} = tomask(vconvert(Vec{W,Bool}, data(v)))
@@ -299,7 +301,7 @@ end
     push!(instrs, "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($(join(instrs, "\n")), _Vec{$W,$I}, Tuple{$U}, data(m)))
+        Vec($LLVMCALL($(join(instrs, "\n")), _Vec{$W,$I}, Tuple{$U}, data(m)))
     end
 end
 Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
@@ -315,7 +317,7 @@ Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
     push!(instrs, "%res1 = extractelement <$W x i1> %mask.0, i$(8sizeof(I)) %1")
     push!(instrs, "%res8 = zext i1 %res1 to i8\nret i8 %res8")
     instrs_string = join(instrs, "\n")
-    call = :(llvmcall($instrs_string, Bool, Tuple{$U,$I}, data(v), i))
+    call = :($LLVMCALL($instrs_string, Bool, Tuple{$U,$I}, data(v), i))
     Expr(:block, Expr(:meta, :inline), call)
 end
 @generated function insertelement(v::Mask{W,U}, x::T, i::I) where {W, T, U, I <: Union{Bool,IntegerTypesHW}}
@@ -326,7 +328,7 @@ end
     zext_mask!(instrs, "bitvec", W, 1)
     push!(instrs, "ret $(mtyp_input) %res.1")
     instrs_string = join(instrs, "\n")
-    call = :(Mask{$W}(llvmcall($instrs_string, $U, Tuple{$U,$T,$I}, data(v), x, i)))
+    call = :(Mask{$W}($LLVMCALL($instrs_string, $U, Tuple{$U,$T,$I}, data(v), x, i)))
     Expr(:block, Expr(:meta, :inline), call)
 end
 
@@ -354,7 +356,7 @@ function cmp_quote(W, cond, vtyp, T1, T2 = T1)
     U = mask_type_symbol(W);
     quote
         $(Expr(:meta,:inline))
-        Mask{$W}(llvmcall($(join(instrs, "\n")), $U, Tuple{_Vec{$W,$T1},_Vec{$W,$T2}}, data(v1), data(v2)))
+        Mask{$W}($LLVMCALL($(join(instrs, "\n")), $U, Tuple{_Vec{$W,$T1},_Vec{$W,$T2}}, data(v1), data(v2)))
     end
 end
 function icmp_quote(W, cond, bytes, T1, T2 = T1)
@@ -448,7 +450,7 @@ end
     push!(instrs, "%res = $f $selty %mask.0, $vtyp %1, $vtyp %2\nret $vtyp %res")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
+        Vec($LLVMCALL($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
 
@@ -491,7 +493,7 @@ end
     push!(instrs, "%res = $f $selty %mask.0, $vtyp %1, $vtyp %2\nret $vtyp %res")
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
+        Vec($LLVMCALL($(join(instrs,"\n")), _Vec{$W,$T}, Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}}, data(m), data(v1), data(v2)))
     end
 end
 @inline vifelse(b::Bool, w, x) = ((y,z) = promote(w,x); vifelse(b, y, z))
@@ -636,7 +638,7 @@ end
     instrj = join(instrs, "\n")
     U = mask_type_symbol(W)
     U2 = mask_type_symbol(W2)
-    Expr(:block, Expr(:meta,:inline), :(Mask{$W2}(llvmcall($instrj, $U2, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
+    Expr(:block, Expr(:meta,:inline), :(Mask{$W2}($LLVMCALL($instrj, $U2, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
 # @inline function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
 #     U = mask_type(Val(W))

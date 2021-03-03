@@ -19,7 +19,7 @@
     instrs = "ret <$W x $typ> zeroinitializer"
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{}))
     end
 end
 @generated function _vundef(::StaticInt{W}, ::Type{T}) where {W,T<:NativeTypes}
@@ -27,7 +27,7 @@ end
     instrs = "ret <$W x $typ> undef"
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{}))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{}))
     end
 end
 @generated function _vbroadcast(::StaticInt{W}, s::_T, ::StaticInt{RS}) where {W,_T<:NativeTypes,RS}
@@ -62,7 +62,7 @@ end
     """
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
+        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
     end
 end
 @inline vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T} = _vzero(StaticInt{W}(), T, register_size(T))
@@ -86,7 +86,7 @@ end
     """
     quote
         $(Expr(:meta,:inline))
-        Vec(llvmcall( $instrs, _Vec{$W,$T}, Tuple{Ptr{$T}}, ptr ))
+        Vec($LLVMCALL( $instrs, _Vec{$W,$T}, Tuple{Ptr{$T}}, ptr ))
     end
 end
 

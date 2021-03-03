@@ -37,13 +37,14 @@ c = b .* [3, 5, 7, 9]
 """
 @generated function lazymul(::StaticInt{I}, b, c::Tuple{Vararg{Any,N}}) where {I,N}
     Is = (I - 1) >> 1
-    if (isodd(I) && 1 ≤ Is ≤ N) && (c.parameters[Is] !== nothing)
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :getfield, :c, Is, false))
+    ex = if (isodd(I) && 1 ≤ Is ≤ N) && (c.parameters[Is] !== nothing)
+        Expr(:call, GlobalRef(Core, :getfield), :c, Is, false)
     elseif (I ∈ (6, 10) && (I >> 2 ≤ N)) && (c.parameters[I >> 2] !== nothing)
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, 2)), Expr(:call, :getfield, :c, I >> 2, false)))
+        Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, 2)), Expr(:call, GlobalRef(Core, :getfield), :c, I >> 2, false))
     else
-        Expr(:block, Expr(:meta,:inline), Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, I)), :b))
+        Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, I)), :b)
     end
+    Expr(:block, Expr(:meta,:inline), ex)
 end
 @inline lazymul(a, b, c) = lazymul(a, b)
 @inline lazymul(a::StaticInt, b, ::Nothing) = lazymul(a, b)
@@ -65,7 +66,7 @@ function precalc_quote_from_descript(descript, contig, X)
             if Xᵢ === nothing
                 anydynamicprecals = true
                 pstride_i = Symbol(:pstride_, i)
-                push!(pstrideextracts.args, Expr(:(=), pstride_i, Expr(:ref, :pstride, i)))
+                push!(pstrideextracts.args, Expr(:(=), pstride_i, Expr(:call, GlobalRef(Core, :getfield), :pstride, i, false)))
                 foreach(u -> push!(t.args, Expr(:call, :vmul_fast, u, pstride_i)), 3:2:uf)
             else
                 foreach(u -> push!(t.args, u * Xᵢ), 3:2:uf)
