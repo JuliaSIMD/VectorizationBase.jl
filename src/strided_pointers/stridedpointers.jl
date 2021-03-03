@@ -111,7 +111,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T<:Nu
 # end
 
 @inline vload(ptr::AbstractStridedPointer) = vload(pointer(ptr))
-@inline vstore!(ptr::AbstractStridedPointer{T}, v::T) where {T} = vstore!(pointer(ptr), v)
+@inline vstore!(ptr::AbstractStridedPointer{T}, v::T) where {T<:Number} = vstore!(pointer(ptr), v)
 
 @generated function nopromote_axis_indicator(::AbstractStridedPointer{<:Any,N}) where {N}
     t = Expr(:tuple); foreach(n -> push!(t.args, True()), 1:N)
