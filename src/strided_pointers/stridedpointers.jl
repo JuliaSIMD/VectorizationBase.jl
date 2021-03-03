@@ -55,7 +55,7 @@ R: rank of strides
 X: strides
 O: offsets
 """
-abstract type AbstractStridedPointer{T<:NativeTypes,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
+abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 
 @inline Base.eltype(::AbstractStridedPointer{T}) where {T} = T
 
@@ -104,7 +104,7 @@ end
 end
 
 @inline Base.pointer(ptr::StridedPointer) = Base.getfield(ptr, :p)
-Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = pointer(ptr)
+Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T<:Number} = pointer(ptr)
 # Shouldn't need to special case Array
 # function stridedpointer(A::Array{T,N}) where {T,N}
 #     StridedPointer{T,1,0,ntuple(identity,Val{N}()),ntuple(n -> isone(n) ? 1 : -1, Val{N}()), N, N-1}(pointer(A), Base.tail(strides(A)))
