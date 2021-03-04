@@ -159,7 +159,7 @@ function dynamic_cache_inclusivity()::NTuple{4,Bool}
 end
 
 
-nothing_cache_summary() = (size = nothing, linesize = 64, associativity = nothing, type = nothing, inclusive = nothing)
+nothing_cache_summary() = (size = 0, linesize = 64, associativity = nothing, type = nothing, inclusive = nothing)
 function dynamic_cache_summary(N)
     topology = TOPOLOGY.topology
     cache_name = (:L1Cache, :L2Cache, :L3Cache, :L4Cache)[N]
@@ -175,13 +175,15 @@ function dynamic_cache_summary(N)
         inclusive = dynamic_cache_inclusivity()[N]
     )
 end
-cache_size(_) = nothing
+cache_size(_) = StaticInt{0}()
 cache_linesize(_) = StaticInt{64}() # assume...
 cache_associativity(_) = nothing
 cache_type(_) = nothing
 cache_inclusive(_) = nothing
 function define_cache(N, c = dynamic_cache_summary(N))
-    c === nothing_cache_summary() && return
+    c === nothing_cache_summary() || _define_cache(N, c)
+end
+function _define_cache(N, c)
     @eval begin
         cache_size(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.size)}()
         cache_linesize(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.linesize)}()
@@ -199,7 +201,7 @@ function redefine_cache(N)
     t = cache_type(StaticInt(N))
     i = cache_inclusive(StaticInt(N))
     c = (
-        size = s === nothing ? nothing : Int(s)::Int,
+        size = Int(s)::Int,
         linesize = l === nothing ? nothing : Int(l)::Int,
         associativity = a === nothing ? nothing : Int(a)::Int,
         type = t === nothing ? nothing : unwrap(t)::Symbol,
@@ -208,7 +210,7 @@ function redefine_cache(N)
     correct = dynamic_cache_summary(N)
     if c !== correct
         @info "Redefining cache $N."
-        define_cache(N, correct)
+        _define_cache(N, correct)
     end
     nothing
 end
