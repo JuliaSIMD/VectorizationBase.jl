@@ -116,6 +116,16 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
 # function stridedpointer(A::Array{T,N}) where {T,N}
 #     StridedPointer{T,1,0,ntuple(identity,Val{N}()),ntuple(n -> isone(n) ? 1 : -1, Val{N}()), N, N-1}(pointer(A), Base.tail(strides(A)))
 # end
+# function llvmptr_comp_quote(cmp, Tsym)
+#     pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
+#     Expr(:block, Expr(:meta,:inline), :(llvmcall("%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8", Bool, Tuple{$pt,$pt}, p1, p2)))
+# end
+# for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
+#     @eval @generated function $f(p1::Core.LLVMPtr{T,0}, p2::Core.LLVMPtr{T,0}) where {T}
+#         llvmptr_comp_quote($cmp, JULIA_TYPES[T])
+#     end
+# end
+
 
 @inline vstore!(ptr::AbstractStridedPointer{T}, v) where {T} = __vstore!(pointer(ptr), convert(T,v), False(), False(), False(), register_size())
 
