@@ -56,7 +56,7 @@ R: rank of strides
 X: strides
 O: offsets
 """
-abstract type AbstractStridedPointer{T<:NativeTypes,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
+abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 
 @inline ArrayInterface.contiguous_axis(::Type{A}) where {T,N,C,A<:AbstractStridedPointer{T,N,C}} = StaticInt{C}()
 @inline ArrayInterface.contiguous_batch_size(::Type{A}) where {T,N,C,B,A<:AbstractStridedPointer{T,N,C,B}} = StaticInt{B}()
@@ -128,6 +128,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
 
 
 @inline vstore!(ptr::AbstractStridedPointer{T}, v) where {T} = __vstore!(pointer(ptr), convert(T,v), False(), False(), False(), register_size())
+
 
 @generated function nopromote_axis_indicator(::AbstractStridedPointer{<:Any,N}) where {N}
     t = Expr(:tuple); foreach(n -> push!(t.args, True()), 1:N)
