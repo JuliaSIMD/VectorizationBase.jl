@@ -4,11 +4,11 @@ struct OffsetPrecalc{T,N,C,B,R,X,M,P<:AbstractStridedPointer{T,N,C,B,R,X,M},I} <
 end
 @inline Base.pointer(ptr::OffsetPrecalc) = pointer(getfield(ptr, :ptr))
 @inline Base.similar(ptr::OffsetPrecalc, p::Ptr) = OffsetPrecalc(similar(getfield(ptr, :ptr), p), getfield(ptr, :precalc))
-@inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(getfield(p, :ptr))
+# @inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(getfield(p, :ptr))
 # @inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
 @inline offsetprecalc(x, ::Any) = x
-@inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
-@inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
+# @inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
+# @inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
 @inline ArrayInterface.offsets(p::OffsetPrecalc) = offsets(getfield(p, :ptr))
 
 @inline Base.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))

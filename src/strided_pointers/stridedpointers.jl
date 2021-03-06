@@ -1,4 +1,3 @@
-
 # @generated function static_tuple(t::SDTuple{N,X,P}) where {N,X,P}
 #     i = 0
 #     sdt = Expr(:tuple)
@@ -32,9 +31,13 @@
 #     SDTuple{N,mulsizeof(T, X),P}(mulsizeof(T, t.x))
 # end
 
-@inline memory_reference(A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks)
+@inline memory_reference(A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks), A.chunks
 @inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
-@inline memory_reference(::CPUPointer, A) = pointer(A)
+@inline memory_reference(::CPUPointer, A) = pointer(A), preserve_buffer(A)
+@inline function memory_reference(::ArrayInterface.CPUTuple, A)
+    r = Ref(A)
+    Base.unsafe_convert(Ptr{eltype(A)}, r), r
+end
 @inline function memory_reference(::ArrayInterface.CheckParent, A)
     P = parent(A)
     if P === A
@@ -61,7 +64,7 @@ abstract type AbstractStridedPointer{T<:NativeTypes,N,C,B,R,X<:Tuple{Vararg{Any,
 @inline ArrayInterface.contiguous_axis(::Type{A}) where {T,N,C,A<:AbstractStridedPointer{T,N,C}} = StaticInt{C}()
 @inline ArrayInterface.contiguous_batch_size(::Type{A}) where {T,N,C,B,A<:AbstractStridedPointer{T,N,C,B}} = StaticInt{B}()
 @inline ArrayInterface.stride_rank(::Type{A}) where {T,N,C,B,R,A<:AbstractStridedPointer{T,N,C,B,R}} = StaticInt{R}()
-@inline memory_reference(A::AbstractStridedPointer) = pointer(A)
+@inline memory_reference(A::AbstractStridedPointer) = pointer(A), nothing
 
 @inline Base.eltype(::AbstractStridedPointer{T}) where {T} = T
 
@@ -74,7 +77,12 @@ end
 @inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 
 @inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
-    stridedpointer(memory_reference(A), contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A))
+    p, r = memory_reference(A)
+    stridedpointer(p, contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A))
+end
+@inline function stridedpointer_preserve(A::AbstractArray{T}) where {T <: NativeTypes}
+    p, r = memory_reference(A)
+    stridedpointer(p, contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A)), r
 end
 @inline function stridedpointer(
     ptr::Ptr{T}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
@@ -96,7 +104,7 @@ end
     end
     Expr(:block, Expr(:meta,:inline), t)
 end
-
+@inline center(p::AbstractStridedPointer{T,N}) where {T,N} = gesp(p, zerotuple(Val(N)))
 @inline function zero_offsets(sptr::StridedPointer{T,N,C,B,R}) where {T,N,C,B,R}
     StridedPointer{T,N,C,B,R}(getfield(sptr, :p), getfield(sptr, :strd), zerotuple(Val{N}()))
 end
@@ -115,15 +123,6 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
 # Shouldn't need to special case Array
 # function stridedpointer(A::Array{T,N}) where {T,N}
 #     StridedPointer{T,1,0,ntuple(identity,Val{N}()),ntuple(n -> isone(n) ? 1 : -1, Val{N}()), N, N-1}(pointer(A), Base.tail(strides(A)))
-# end
-# function llvmptr_comp_quote(cmp, Tsym)
-#     pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
-#     Expr(:block, Expr(:meta,:inline), :(llvmcall("%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8", Bool, Tuple{$pt,$pt}, p1, p2)))
-# end
-# for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
-#     @eval @generated function $f(p1::Core.LLVMPtr{T,0}, p2::Core.LLVMPtr{T,0}) where {T}
-#         llvmptr_comp_quote($cmp, JULIA_TYPES[T])
-#     end
 # end
 
 
@@ -335,16 +334,16 @@ end
 #         StridedBitPointer{$N,$C,$B,$R}(getfield(ptr, :p), getfield(ptr, :strd), Base.Cartesian.@ntuple $N n -> vsub_fast(offs[n], i[n]))
 #     end
 # end
-@generated function pointerforcomparison(p::StridedBitPointer{N}) where {N}
-    inds = Expr(:tuple); foreach(_ -> push!(inds.args, :(Zero())), 1:N)
-    Expr(:block, Expr(:meta,:inline), Expr(:call, :gep, :p, inds))
-end
+# @generated function pointerforcomparison(p::StridedBitPointer{N}) where {N}
+#     inds = Expr(:tuple); foreach(_ -> push!(inds.args, :(Zero())), 1:N)
+#     Expr(:block, Expr(:meta,:inline), Expr(:call, :gep, :p, inds))
+# end
 # @inline tdot(ptr::StridedBitPointer, a, b, c) = tdot(Bool, a, b, c) >>> StaticInt(3)
 
 # There is probably a smarter way to do indexing adjustment here.
 # The reasoning for the current approach of geping for Zero() on extracted inds
 # and for offsets otherwise is best demonstrated witht his motivational example:
-# 
+#
 # A = OffsetArray(rand(10,11), 6:15, 5:15);
 # for i in 6:15
     # s += A[i,i]
@@ -420,7 +419,7 @@ FastRange{T}(f::F,s::S,::False) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,I
 
 @inline function memory_reference(r::AbstractRange{T}) where {T}
     s = ArrayInterface.static_step(r)
-    FastRange{T}(ArrayInterface.static_first(r) - s, s)
+    FastRange{T}(ArrayInterface.static_first(r) - s, s), nothing
 end
 
 @inline stridedpointer(fr::FastRange, ::StaticInt{1}, ::StaticInt{0}, ::Val{(1,)}, ::Tuple{X}, ::Tuple{One}) where {X<:Integer} = fr
@@ -442,8 +441,8 @@ end
 
 # `FastRange{<:FloatingTypes}` must use an integer offset because `ptrforcomparison` needs to be exact/integral.
 
-@inline pointerforcomparison(r::FastRange) = getfield(r, :o)
-@inline pointerforcomparison(r::FastRange, i::Tuple{I}) where {I} = getfield(r, :o) + first(i)
+# @inline pointerforcomparison(r::FastRange) = getfield(r, :o)
+# @inline pointerforcomparison(r::FastRange, i::Tuple{I}) where {I} = getfield(r, :o) + first(i)
 
 
 @inline vload(r::FastRange, i::Tuple, m::AbstractMask) = (v = vload(r, i); ifelse(m, v, zero(v)))
@@ -457,7 +456,7 @@ end
 @inline Base.eltype(::FastRange{T}) where {T} = T
 
 # @generated function vload(r::FastRange{T}, i::Unroll{AU,F,N,AV,W,M,X,I}) where {T,I}
-    
+
 # end
 
 """
@@ -522,3 +521,26 @@ BenchmarkTools.Trial:
 @inline preserve_buffer(A::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint}) = preserve_buffer(parent(A))
 @inline preserve_buffer(x) = x
 
+# function llvmptr_comp_quote(cmp, Tsym)
+#     pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
+#     instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
+#     Expr(:block, Expr(:meta,:inline), :(llvmcall($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
+# end
+# for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
+#     @eval begin
+#         @generated function $f(p1::Pointer{T}, p2::Pointer{T}) where {T}
+#             llvmptr_comp_quote($cmp, JULIA_TYPES[T])
+#         end
+#         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptr(p1), llvmptr(p2))
+#         @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
+#         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
+#     end
+# end
+
+for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
+    @eval begin
+        @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
+        @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(pointer(center(p1)), pointer(center(p2)))
+        @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
+    end
+end
