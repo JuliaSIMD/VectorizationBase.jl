@@ -3,18 +3,19 @@ struct OffsetPrecalc{T,N,C,B,R,X,M,P<:AbstractStridedPointer{T,N,C,B,R,X,M},I} <
     precalc::I
 end
 @inline Base.pointer(ptr::OffsetPrecalc) = pointer(getfield(ptr, :ptr))
-@inline Base.similar(ptr::OffsetPrecalc, p::Ptr) = OffsetPrecalc(similar(getfield(ptr, :ptr), p), getfield(ptr, :precalc))
-@inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(getfield(p, :ptr))
+@inline llvmptr(ptr::OffsetPrecalc) = llvmptr(getfield(ptr, :ptr))
+@inline Base.similar(ptr::OffsetPrecalc, p::Pointer) = OffsetPrecalc(similar(getfield(ptr, :ptr), p), getfield(ptr, :precalc))
+# @inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(getfield(p, :ptr))
 # @inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
 @inline offsetprecalc(x, ::Any) = x
-@inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
-@inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
+# @inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
+# @inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
 @inline ArrayInterface.offsets(p::OffsetPrecalc) = offsets(getfield(p, :ptr))
 
 @inline Base.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 @inline ArrayInterface.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 
-@inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}) where {T}
+@inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Pointer{T}) where {T}
     OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
 end
 
@@ -90,6 +91,6 @@ end
     precalc_quote_from_descript(descript, C, X.parameters)
 end
 
-@inline tdot(ptr::OffsetPrecalc{T}, a, b) where {T} = tdot(pointer(ptr), a, b, getfield(ptr, :precalc))
-@inline tdot(ptr::OffsetPrecalc, ::Tuple{}, ::Tuple{}) = (pointer(ptr), Zero())
+@inline tdot(ptr::OffsetPrecalc{T}, a, b) where {T} = tdot(llvmptr(ptr), a, b, getfield(ptr, :precalc))
+@inline tdot(ptr::OffsetPrecalc, ::Tuple{}, ::Tuple{}) = (llvmptr(ptr), Zero())
 

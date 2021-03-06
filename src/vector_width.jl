@@ -14,7 +14,7 @@
 @inline MM(::Union{Val{W},StaticInt{W}}, i) where {W} = MM{W}(i)
 @inline MM(::Union{Val{W},StaticInt{W}}, i::AbstractSIMDVector{W}) where {W} = i
 @inline MM(::StaticInt{W}, i, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
-@inline gep(ptr::Ptr, i::MM) = gep(ptr, data(i))
+@inline gep(ptr::Pointer, i::MM) = gep(ptr, data(i))
 
 @inline Base.one(::Type{MM{W,X,I}}) where {W,X,I} = one(I)
 @inline staticm1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vsub_fast(data(i), one(I)))

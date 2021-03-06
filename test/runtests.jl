@@ -405,19 +405,19 @@ include("testsetup.jl")
         x = Vector{Int}(undef, 100);
         i = MM{1}(0)
         for j ∈ 1:25
-            VectorizationBase.__vstore!(pointer(x), j, (i * VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.llvmptr(x), j, (i * VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 26:50
-            VectorizationBase.__vstore!(pointer(x), j, (VectorizationBase.static_sizeof(Int) * i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.llvmptr(x), j, (VectorizationBase.static_sizeof(Int) * i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 51:75
-            VectorizationBase.__vstore!(pointer(x), j, VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.llvmptr(x), j, VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 76:100
-            VectorizationBase.__vstore!(pointer(x), j, VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.llvmptr(x), j, VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         @test x == 1:100
@@ -457,7 +457,7 @@ include("testsetup.jl")
                 At = fA === identity ? A : copy(A')'
                 Bt = fB === identity ? B : copy(B')'
                 Ct = fC === identity ? C : copy(C')'
-                gsp = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
+                gsp, r = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
                 if fA === fC
                     @test sizeof(gsp.strides) == 2sizeof(Int)
                 end

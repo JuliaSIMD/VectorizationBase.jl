@@ -98,7 +98,7 @@ end
 # The approach with `add_indices` is that we try and make `vadd_fast` behave well
 # but for `i` and `j` type combinations where it's difficult,
 # we can add specific `add_indices` methods that increment the pointer.
-@inline function add_indices(p::Ptr, i, j) # generic fallback
+@inline function add_indices(p::Pointer, i, j) # generic fallback
     p, vadd_fast(i, j)
 end
 @inline vadd_fast(i::LazyMulAdd, ::Zero) = i
@@ -115,12 +115,12 @@ end
 @inline vadd_fast(::Zero, a::LazyMulAdd{M,O,MM{W,X,I}}) where {M,O,W,X,I} = a
 
 # because we should hit this instead:
-@inline add_indices(p::Ptr, b::Integer, a::LazyMulAdd{M,O}) where {M,O} = (p + b, a)
-@inline add_indices(p::Ptr, a::LazyMulAdd{M,O}, b::Integer) where {M,O} = (p + b, a)
+@inline add_indices(p::Pointer, b::Integer, a::LazyMulAdd{M,O}) where {M,O} = (gep(p, b), a)
+@inline add_indices(p::Pointer, a::LazyMulAdd{M,O}, b::Integer) where {M,O} = (gep(p, b), a)
 # but in the case of `VecUnroll`s, which skip the `add_indices`, it's useful to still have the former two definitions.
 # However, this also forces us to write:
-@inline add_indices(p::Ptr, ::StaticInt{N}, a::LazyMulAdd{M,O}) where {M,O,N} = (p, vadd_fast(a, StaticInt{N}()))
-@inline add_indices(p::Ptr, a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N} = (p, vadd_fast(a, StaticInt{N}()))
+@inline add_indices(p::Pointer, ::StaticInt{N}, a::LazyMulAdd{M,O}) where {M,O,N} = (p, vadd_fast(a, StaticInt{N}()))
+@inline add_indices(p::Pointer, a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N} = (p, vadd_fast(a, StaticInt{N}()))
 
 @inline function vadd_fast(::StaticInt{N}, a::LazyMulAdd{M,O}) where {N,M,O}
     LazyMulAdd(getfield(a, :data), StaticInt{M}(), StaticInt{O}()+StaticInt{N}())
@@ -139,22 +139,22 @@ end
     LazyMulAdd(vadd_fast(getfield(a, :data), getfield(b, :data)), StaticInt{M}(), StaticInt{O}()+StaticInt{A}())
 end
 
-@inline add_indices(p::Ptr, a::LazyMulAdd{M,O,V}, b::LazyMulAdd{N,P,J}) where {M,O,V<:AbstractSIMDVector,N,P,J<:IntegerTypes} = (gep(p, b), a)
-@inline add_indices(p::Ptr, b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,V}) where {M,O,V<:AbstractSIMDVector,N,P,J<:IntegerTypes} = (gep(p, b), a)
-@inline add_indices(p::Ptr, a::LazyMulAdd{M,O,V}, b::LazyMulAdd{M,P,J}) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_fast(a, b))
-@inline add_indices(p::Ptr, b::LazyMulAdd{M,P,J}, a::LazyMulAdd{M,O,V}) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_fast(a, b))
+@inline add_indices(p::Pointer, a::LazyMulAdd{M,O,V}, b::LazyMulAdd{N,P,J}) where {M,O,V<:AbstractSIMDVector,N,P,J<:IntegerTypes} = (gep(p, b), a)
+@inline add_indices(p::Pointer, b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,V}) where {M,O,V<:AbstractSIMDVector,N,P,J<:IntegerTypes} = (gep(p, b), a)
+@inline add_indices(p::Pointer, a::LazyMulAdd{M,O,V}, b::LazyMulAdd{M,P,J}) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_fast(a, b))
+@inline add_indices(p::Pointer, b::LazyMulAdd{M,P,J}, a::LazyMulAdd{M,O,V}) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_fast(a, b))
 
 
-@inline add_indices(p::Ptr, a::AbstractSIMDVector, b::LazyMulAdd{M,O,I}) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
-@inline add_indices(p::Ptr, b::LazyMulAdd{M,O,I}, a::AbstractSIMDVector) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
-@inline function add_indices(p::Ptr, ::MM{W,X,StaticInt{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:IntegerTypes,A,W,X}
+@inline add_indices(p::Pointer, a::AbstractSIMDVector, b::LazyMulAdd{M,O,I}) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
+@inline add_indices(p::Pointer, b::LazyMulAdd{M,O,I}, a::AbstractSIMDVector) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
+@inline function add_indices(p::Pointer, ::MM{W,X,StaticInt{A}}, a::LazyMulAdd{M,O,T}) where {M,O,T<:IntegerTypes,A,W,X}
     gep(p, a), MM{W,X}(StaticInt{A}())
 end
-@inline function add_indices(p::Ptr, a::LazyMulAdd{M,O,T}, ::MM{W,X,StaticInt{A}}) where {M,O,T<:IntegerTypes,A,W,X}
+@inline function add_indices(p::Pointer, a::LazyMulAdd{M,O,T}, ::MM{W,X,StaticInt{A}}) where {M,O,T<:IntegerTypes,A,W,X}
     gep(p, a), MM{W,X}(StaticInt{A}())
 end
 
-@generated function add_indices(p::Ptr, a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:IntegerTypes}
+@generated function add_indices(p::Pointer, a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:IntegerTypes}
     d, r = divrem(M, N)
     if iszero(r)
         quote
@@ -168,7 +168,7 @@ end
         end
     end
 end
-@inline add_indices(p::Ptr, b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}) where {M,O,W,X,I,N,P,J<:IntegerTypes} = add_indices(p, a, b)
+@inline add_indices(p::Pointer, b::LazyMulAdd{N,P,J}, a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}) where {M,O,W,X,I,N,P,J<:IntegerTypes} = add_indices(p, a, b)
 @generated function vadd_fast(a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}}, b::LazyMulAdd{N,P,J}) where {M,O,W,X,I,N,P,J<:IntegerTypes}
     d, r = divrem(M, N)
     if iszero(r)

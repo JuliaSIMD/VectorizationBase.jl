@@ -86,7 +86,7 @@ function _get_alignment(W::Int, sym::Symbol)::Int
 end
 
     
-const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
+# const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
 vtype(W, typ::String) = isone(abs(W)) ? typ : "<$W x $typ>"
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])
@@ -110,7 +110,8 @@ ptr_suffix(T) = "p0" * suffix(T)
 ptr_suffix(W, T) = suffix(W, ptr_suffix(T))
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
 suffix(W::Int, T) = suffix(W, suffix(T))
-suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
+# suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
+suffix(::Type{Pointer{T}}) where {T} = "p0" * suffix(T)
 suffix_jlsym(W::Int, s::Symbol) = suffix(W, suffix(T))
 function suffix(T::Symbol)::String
     if T === :Float64

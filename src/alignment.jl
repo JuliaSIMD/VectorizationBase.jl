@@ -8,6 +8,8 @@ function align end
 @inline align(x::Integer) = vadd_fast(x, Int(register_size()-One())) & Int(-register_size())
 @inline align(x::Ptr{T}, arg) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x), arg))
 @inline align(x::Ptr{T}) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x)))
+@inline align(x::Pointer{T}, arg) where {T} = reinterpret(Pointer{T}, align(reinterpret(UInt, x), arg))
+@inline align(x::Pointer{T}) where {T} = reinterpret(Pointer{T}, align(reinterpret(UInt, x)))
 @inline align(x::Integer, n) = (nm1 = n - One(); (x + nm1) & -n)
 @inline align(x::Integer, ::StaticInt{N}) where {N} = (nm1 = N - 1; (x + nm1) & -N)
 @inline align(x::Integer, ::Type{T}) where {T} = align(x, register_size() ÷ static_sizeof(T))

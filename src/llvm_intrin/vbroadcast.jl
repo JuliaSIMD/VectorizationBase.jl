@@ -71,25 +71,33 @@ end
     VecUnroll(fmap(_vbroadcast, StaticInt{W}(), data(vu), StaticInt{RS}()))
 end
 
-@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ptr::Ptr{T}) where {W, T}
+@generated function vbroadcast(::Union{Val{W},StaticInt{W}}, ptr::Pointer{T}) where {W, T}
     isone(W) && return Expr(:block, Expr(:meta, :inline), :(vload(ptr)))
     typ = LLVM_TYPES[T]
-    ptyp = JULIAPOINTERTYPE
     vtyp = "<$W x $typ>"
     alignment = Base.datatype_alignment(T)
-    instrs = """
-        %ptr = inttoptr $ptyp %0 to $typ*
-        %res = load $typ, $typ* %ptr, align $alignment
-        %ie = insertelement $vtyp undef, $typ %res, i32 0
-        %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
-        ret $vtyp %v
-    """
+    if T <: Integer && sizeof(T) === 1        
+        instrs = """
+            %res = load i8, i8* %0, align $alignment
+            %ie = insertelement $vtyp undef, i8 %res, i32 0
+            %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+            ret $vtyp %v
+        """
+    else
+        instrs = """
+            %ptr = bitcast i8* %0 to $typ*
+            %res = load $typ, $typ* %ptr, align $alignment
+            %ie = insertelement $vtyp undef, $typ %res, i32 0
+            %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
+            ret $vtyp %v
+        """
+    end
     quote
         $(Expr(:meta,:inline))
         Vec($LLVMCALL( $instrs, _Vec{$W,$T}, Tuple{Ptr{$T}}, ptr ))
     end
 end
-
+@inline vbroadcast(::Union{Val{W},StaticInt{W}}, p::Ptr) where {W} = vbroadcast(StaticInt(W), llvmptr(p))
 @inline vbroadcast(::Union{Val{W},StaticInt{W}}, v::AbstractSIMDVector{W}) where {W} = v
 
 @generated function vbroadcast(::Union{Val{W},StaticInt{W}}, v::V) where {W,L,T,V<:AbstractSIMDVector{L,T}}

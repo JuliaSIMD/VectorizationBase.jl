@@ -38,6 +38,7 @@ export Vec, Mask, EVLMask, MM, stridedpointer, vload, vstore!, StaticInt, True, 
 
 using Base: llvmcall, VecElement, HWReal, tail
 const LLVMCALL = GlobalRef(Base, :llvmcall)
+const Pointer{T} = Core.LLVMPtr{T,0}
 
 const FloatingTypes = Union{Float32, Float64} # Float16
 

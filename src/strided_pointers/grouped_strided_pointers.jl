@@ -15,21 +15,31 @@ end
     GroupedStridedPointers{P,C,B,R,I,X,O}(ptrs, strides, offsets)
 end
 
+@inline function map_mem_ref(A::Tuple{P}) where {P}
+    p, r = memory_reference(first(A))
+    (p,), (r,)
+end
+@inline function map_mem_ref(A::Tuple{P,T,Vararg}) where {P,T}
+    p, r = memory_reference(first(A))
+    pt, rt = map_mem_ref(Base.tail(A))
+    (p, pt...), (r, rt...)
+end
+
 """
 G is a tuple(tuple((A_ind,A's dim),(A_ind,A's dim)), ())
 it gives the groups.
 """
 @inline function grouped_strided_pointer(A::Tuple{Vararg{Union{AbstractArray,AbstractStridedPointer},N}}, ::Val{G}) where {N,G}
+    m, r = map_mem_ref(A)
     grouped_strided_pointer(
-        map(memory_reference, A),
-        map(contiguous_axis, A),
+        m, map(contiguous_axis, A),
         map(contiguous_batch_size, A),
         map(val_stride_rank, A),
         map(bytestrides, A),
         map(offsets, A),
         map(val_dense_dims, A),
         Val{G}()
-    )
+    ), r
 end
 
 @generated function grouped_strided_pointer(
@@ -201,18 +211,19 @@ end
 
 @generated function stridedpointers(gsp::GroupedStridedPointers{P,C,B,R,I,X,O}) where {P,C,B,R,X,O,I}
     t = Expr(:tuple)
+    gf = GlobalRef(Core, :getfield)
     for i ∈ eachindex(I)
         Iᵢ = I[i]
         Nᵢ = length(Iᵢ)
-        p = Expr(:ref, :ptrs, i)
+        p = Expr(:call, gf, :ptrs, i, false)
         # curly = Expr(:curly, :StridedPointer, )
         x = Expr(:tuple); o = Expr(:tuple)
         for j ∈ Iᵢ
-            push!(x.args, Expr(:ref, :strds, j))
-            push!(o.args, Expr(:ref, :offs, j))
+            push!(x.args, Expr(:call, gf, :strds, j, false))
+            push!(o.args, Expr(:call, gf, :offs, j, false))
         end
         push!(t.args, Expr(:call, :stridedpointer, p, :(StaticInt{$(C[i])}()), :(StaticInt{$(B[i])}()), :(Val{$(R[i])}()), x, o))
     end
-    Expr(:block, Expr(:meta,:inline), :(ptrs = gsp.ptrs), :(strds = gsp.strides), :(offs = gsp.offsets), t)
+    Expr(:block, Expr(:meta,:inline), :(ptrs = $gf(gsp, :ptrs)), :(strds = $gf(gsp, :strides)), :(offs = $gf(gsp, :offsets)), t)
 end
 
