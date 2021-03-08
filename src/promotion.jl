@@ -17,6 +17,8 @@ ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: Integer, T2 <: In
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1 <: FloatingTypes, T2<:FloatingTypes,W} = _ff_promote_rule(T1,T2,Val{W}())
 
 Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:AbstractSIMDVector{W,T1}} = Vec{W,ff_promote_rule(T1,T2,Val{W}())}
+Base.promote_rule(::Type{V}, ::Type{Bool}) where {V<:AbstractMask} = V
+
 
 _assemble_vec_unroll(::Val{N}, ::Type{V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}
 _assemble_vec_unroll(::Val{N}, ::Type{T}) where {N,T<:NativeTypes} = VecUnroll{N,1,T,T}

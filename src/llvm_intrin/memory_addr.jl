@@ -311,7 +311,13 @@ end
     gep_quote(T, :Vec, I, W, 1, M, O, true, RS)
 end
 @inline gep(ptr::Ptr, i) = _gep(ptr, i, register_size())
-@inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
+# @inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
+@inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{IntegerIndex}})
+    similar_no_offset(ptr, gep(ptr, i))
+end
+@inline  function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{IntegerIndex,N}}) where {N,C,B,R}
+    StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), map(vsub_fast, getfield(ptr,:offsets), i))
+end
 
 
 function vload_quote(

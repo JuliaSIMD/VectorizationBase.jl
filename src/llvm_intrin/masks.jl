@@ -258,7 +258,6 @@ end
 @generated mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W, L} = mask(StaticInt(W), L)
 @inline mask(::Type{T}, l::Integer) where {T} = mask(pick_vector_width(T), l)
 
-
 # @generated function masktable(::Union{Val{W},StaticInt{W}}, rem::Integer) where {W}
 #     masks = Expr(:tuple)
 #     for w ∈ 0:W-1
@@ -464,6 +463,9 @@ end
 @inline vifelse(m::AbstractMask{1}, s1::T, s2::T) where {T<:NativeTypes} = Base.ifelse(Bool(m), s1, s2)
 @inline vifelse(f::F, m::AbstractSIMD{W,B}, a::Vararg{NativeTypesV,K}) where {F<:Function,K,W,B<:Union{Bool,Bit}} = vifelse(m, f(a...), a[K])
 @inline vifelse(f::F, m::Bool, a::Vararg{NativeTypesV,K}) where {F<:Function,K} = ifelse(m, f(a...), a[K])
+
+@inline vconvert(::Type{EVLMask{W,U}}, b::Bool) where {W,U} = b & max_mask(StaticInt{W}())
+
 
 @inline Base.isnan(v::AbstractSIMD) = v != v
 @inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)

@@ -125,7 +125,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = 
 #     StridedPointer{T,1,0,ntuple(identity,Val{N}()),ntuple(n -> isone(n) ? 1 : -1, Val{N}()), N, N-1}(pointer(A), Base.tail(strides(A)))
 # end
 
-@inline vstore!(ptr::AbstractStridedPointer{T}, v) where {T<:Number} = __vstore!(pointer(ptr), convert(T,v), False(), False(), False(), register_size())
+@inline vstore!(ptr::AbstractStridedPointer{T}, v::Number) where {T<:Number} = __vstore!(pointer(ptr), convert(T,v), False(), False(), False(), register_size())
 
 @generated function nopromote_axis_indicator(::AbstractStridedPointer{<:Any,N}) where {N}
     t = Expr(:tuple); foreach(n -> push!(t.args, True()), 1:N)
@@ -323,9 +323,6 @@ end
     StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
 end
 
-@inline  function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
-    StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), map(vsub_fast, getfield(ptr,:offsets), i))
-end
 # @generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
 #     quote
 #         $(Expr(:meta,:inline))
@@ -403,39 +400,47 @@ end
 end
 
 @inline stridedpointer(ptr::AbstractStridedPointer) = ptr
+@inline stridedpointer_preserve(ptr::AbstractStridedPointer) = (ptr,nothing)
 
-struct FastRange{T,F,S,O}# <: AbstractRange{T}
+struct FastRange{T,F,S,O}# <: AbstractStridedPointer{T,1,1,0,(1,),Tuple{S},Tuple{O}}# <: AbstractRange{T}
     f::F
     s::S
     o::O
 end
 FastRange{T}(f::F,s::S) where {T<:Integer,F,S} = FastRange{T,Zero,S,F}(Zero(),s,f)
+FastRange{T}(f::F,s::S,o::O) where {T,F,S,O} = FastRange{T,F,S,O}(f,s,o)
 
 FastRange{T}(f,s) where {T<:FloatingTypes} = FastRange{T}(f,s,fast_int64_to_double())
 FastRange{T}(f::F,s::S,::True) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,Int}(f,s,0)
 FastRange{T}(f::F,s::S,::False) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,Int32}(f,s,zero(Int32))
 
-
 @inline function memory_reference(r::AbstractRange{T}) where {T}
     s = ArrayInterface.static_step(r)
     FastRange{T}(ArrayInterface.static_first(r) - s, s), nothing
 end
+@inline memory_reference(r::FastRange) = (r,nothing)
+@inline bytestrides(::FastRange{T}) where {T} = (static_sizeof(T),)
+@inline ArrayInterface.offsets(::FastRange) = (One(),)
+@inline val_stride_rank(::FastRange) = Val{(1,)}()
+@inline val_dense_dims(::FastRange) = Val{(true,)}()
+@inline ArrayInterface.contiguous_axis(::FastRange) = One()
+@inline ArrayInterface.contiguous_batch_size(::FastRange) = Zero()
 
 @inline stridedpointer(fr::FastRange, ::StaticInt{1}, ::StaticInt{0}, ::Val{(1,)}, ::Tuple{X}, ::Tuple{One}) where {X<:Integer} = fr
 
 
 # `FastRange{<:Integer}` can ignore the offset
+@inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Integer,I} = convert(T, getfield(r, :o)) + convert(T, getfield(r, :s)) * first(i)
+
+@inline function vload(r::FastRange{T}, i::Tuple{I}) where {T<:FloatingTypes,I}
+    convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) + convert(T, getfield(r, :o)))
+end
 @inline function gesp(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer}
     s = getfield(r, :s)
     FastRange{T}(Zero(), s, first(i)*s + getfield(r, :o))
 end
-@inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Integer,I} = convert(T, getfield(r, :o)) + convert(T, getfield(r, :s)) * first(i)
-
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T<:FloatingTypes}
     FastRange{T}(getfield(r, :f), getfield(r, :s), first(i) + getfield(r, :o))
-end
-@inline function vload(r::FastRange{T}, i::Tuple{I}) where {T<:FloatingTypes,I}
-    convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) + convert(T, getfield(r, :o)))
 end
 
 # `FastRange{<:FloatingTypes}` must use an integer offset because `ptrforcomparison` needs to be exact/integral.

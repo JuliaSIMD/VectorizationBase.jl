@@ -299,6 +299,12 @@ end
     if N+1 == W
         W == 1 && return :vu
         transpose_vecunroll_quote(W)
+    elseif W == 1
+        v = Expr(:call, :Vec)
+        for n ∈ 0:N
+            push!(v.args, Expr(:call, GlobalRef(Core,:getfield), :vud, n+1, false))
+        end
+        Expr(:block, Expr(:meta,:inline), :(vud = data(vu)), v)
     elseif N+1 < W
         transpose_vecunroll_quote_W_larger(N+1, W)
     else# N+1 > W
@@ -308,9 +314,10 @@ end
     # q = Expr(:block, Expr(:meta,:inline), :(vud = data(vu)))
     # S = W
     # syms = Vector{Symbol}(undef, W)
+    # gf = GlobalRef(Core, :getfield)
     # for w ∈ 1:W
     #     syms[w] = v = Symbol(:v_, w)
-    #     push!(q.args, Expr(:(=), v, Expr(:ref, :vud, w)))
+    #     push!(q.args, Expr(:(=), v, Expr(:call, gf, :vud, w, false)))
     # end
     # while S > 1
     #     S >>>= 1

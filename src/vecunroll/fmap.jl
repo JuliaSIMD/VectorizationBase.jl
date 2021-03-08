@@ -23,13 +23,14 @@ fmap(f::F, x::Tuple, y::Tuple) where {F} = throw("Dimension mismatch.")
     call = Expr(:call, :f)
     syms = Vector{Symbol}(undef, N)
     istup = Vector{Bool}(undef, N)
+    gf = GlobalRef(Core, :getfield)
     for n ∈ 1:N
         syms[n] = xₙ = Symbol(:x_, n)
-        push!(q.args, Expr(:(=), xₙ, Expr(:ref, :x, n)))
+        push!(q.args, Expr(:(=), xₙ, Expr(:call, gf, :x, n, false)))
         istup[n] = ist = (x[n] <: Tuple)
         if ist
             U = length(x[n].parameters)
-            push!(call.args, Expr(:ref, xₙ, 1))
+            push!(call.args, Expr(:call, gf, xₙ, 1, false))
         else
             push!(call.args, xₙ)
         end
@@ -40,7 +41,7 @@ fmap(f::F, x::Tuple, y::Tuple) where {F} = throw("Dimension mismatch.")
         for n ∈ 1:N
             xₙ = syms[n]
             if istup[n]
-                push!(call.args, Expr(:ref, xₙ, u))
+                push!(call.args, Expr(:call, gf, xₙ, u, false))
             else
                 push!(call.args, xₙ)
             end
@@ -130,19 +131,19 @@ end
 @inline function vifelse(v1::Vec{W,Bool}, v2::Union{NativeTypes,AbstractSIMDVector,StaticInt}, v3::VecUnroll{N,W,T}) where {N,W,T}
     VecUnroll(fmap(vifelse, Vec{W,T}(v1), Vec{W,T}(v2), getfield(v3, :data)))
 end
-@inline function vifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W,T}, v3::Union{NativeTypes,AbstractSIMDVector,StaticInt}) where {N,W,T}
+@inline function vifelse(v1::VecUnroll{N,WB,<:Boolean}, v2::VecUnroll{N,W,T}, v3::Union{NativeTypes,AbstractSIMDVector,StaticInt}) where {N,W,WB,T}
     VecUnroll(fmap(vifelse, getfield(v1, :data), getfield(v2, :data), Vec{W,T}(v3)))
 end
-@inline function vifelse(v1::VecUnroll{N,W,<:Boolean}, v2::Union{NativeTypes,AbstractSIMDVector,StaticInt}, v3::VecUnroll{N,W,T}) where {N,W,T}
+@inline function vifelse(v1::VecUnroll{N,WB,<:Boolean}, v2::Union{NativeTypes,AbstractSIMDVector,StaticInt}, v3::VecUnroll{N,W,T}) where {N,W,WB,T}
     VecUnroll(fmap(vifelse, getfield(v1, :data), Vec{W,T}(v2), getfield(v3, :data)))
 end
 @inline function vifelse(v1::Vec{W,Bool}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T}
     VecUnroll(fmap(vifelse, Vec{W,T}(v1), getfield(v2, :data), getfield(v3, :data)))
 end
-@inline function vifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,T}
+@inline function vifelse(v1::VecUnroll{N,WB,<:Boolean}, v2::VecUnroll{N,W,T}, v3::VecUnroll{N,W,T}) where {N,W,WB,T}
     VecUnroll(fmap(vifelse, getfield(v1, :data), getfield(v2, :data), getfield(v3, :data)))
 end
-@inline function vifelse(v1::VecUnroll{N,W,<:Boolean}, v2::VecUnroll{N,W}, v3::VecUnroll{N,W}) where {N,W}
+@inline function vifelse(v1::VecUnroll{N,WB,<:Boolean}, v2::VecUnroll{N,W}, v3::VecUnroll{N,W}) where {N,W,WB}
     v4, v5 = promote(v2, v3)
     VecUnroll(fmap(vifelse, getfield(v1, :data), getfield(v4, :data), getfield(v5, :data)))
 end
@@ -217,6 +218,13 @@ end
 @inline vminimum(vu::VecUnroll) = VecUnroll(fmap(vminimum, data(vu)))
 @inline vall(vu::VecUnroll) = VecUnroll(fmap(vall, data(vu)))
 @inline vany(vu::VecUnroll) = VecUnroll(fmap(vany, data(vu)))
+
+@inline collapse_add(x) = x
+@inline collapse_mul(x) = x
+@inline collapse_max(x) = x
+@inline collapse_min(x) = x
+@inline collapse_and(x) = x
+@inline collapse_or(x) = x
 # @inline vsum(vu::VecUnroll) = vsum(collapse_add(vu))
 # @inline vsum(s, vu::VecUnroll) = vsum(s, collapse_add(vu))
 # @inline vprod(vu::VecUnroll) = vprod(collapse_mul(vu))
