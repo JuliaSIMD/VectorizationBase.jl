@@ -540,11 +540,11 @@ BenchmarkTools.Trial:
 #         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
 #     end
 # end
-
+linearize(p::StridedBitPointer) = -sum(map(*, Base.getfield(p, :strd), Base.getfield(p, :offsets)))
 for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
     @eval begin
         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
-        @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(pointer(center(p1)), pointer(center(p2)))
+        @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
     end
 end

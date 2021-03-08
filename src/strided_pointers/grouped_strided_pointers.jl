@@ -25,6 +25,7 @@ end
     (p, pt...), (r, rt...)
 end
 
+grouped_strided_pointer(::Tuple{}, ::Val{()}) = ((),())
 """
 G is a tuple(tuple((A_ind,A's dim),(A_ind,A's dim)), ())
 it gives the groups.
