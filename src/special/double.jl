@@ -45,15 +45,15 @@ function sub_ieee!(ex)
         if _f isa Symbol
             f::Symbol = _f
             if f === :(+)
-                ex.args[1] = :(SLEEFPirates.add_ieee)
+                ex.args[1] = :(VectorizationBase.add_ieee)
             elseif f === :(-)
-                ex.args[1] = :(SLEEFPirates.sub_ieee)
+                ex.args[1] = :(VectorizationBase.sub_ieee)
             elseif f === :(*)
-                ex.args[1] = :(SLEEFPirates.mul_ieee)
+                ex.args[1] = :(VectorizationBase.mul_ieee)
             elseif f === :(/)
-                ex.args[1] = :(SLEEFPirates.fdiv_ieee)
+                ex.args[1] = :(VectorizationBase.fdiv_ieee)
             elseif f === :(%)
-                ex.args[1] = :(SLEEFPirates.rem_ieee)
+                ex.args[1] = :(VectorizationBase.rem_ieee)
             end
         end
     end
