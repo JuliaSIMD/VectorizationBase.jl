@@ -62,5 +62,8 @@ maxi_fast(a,b) = Base.FastMath.max_fast(a,b)
 mini_fast(a,b) = Base.FastMath.min_fast(a,b)
 maxi_fast(a::Base.BitInteger, b::Base.BitInteger) = maxi(a, b)
 mini_fast(a::Base.BitInteger, b::Base.BitInteger) = mini(a, b)
+
+include("accuracy.jl")
+
 nothing
 

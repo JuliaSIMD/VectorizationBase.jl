@@ -457,7 +457,7 @@ include("testsetup.jl")
                 At = fA === identity ? A : copy(A')'
                 Bt = fB === identity ? B : copy(B')'
                 Ct = fC === identity ? C : copy(C')'
-                gsp = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
+                gsp, pres = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
                 if fA === fC
                     @test sizeof(gsp.strides) == 2sizeof(Int)
                 end
@@ -1039,6 +1039,27 @@ include("testsetup.jl")
         @test VectorizationBase.saturated_add(2_000_000_000 % Int32, 1_000_000_000 % Int32) === typemax(Int32)
         v = Vec(ntuple(_ -> rand(typemax(UInt)>>1+one(UInt):typemax(UInt)), VectorizationBase.pick_vector_width(UInt))...)
         @test VectorizationBase.saturated_add(v, v) === vbroadcast(VectorizationBase.pick_vector_width(UInt), typemax(UInt))
+    end
+
+    println("Special Functions")
+    @time @testset "Special Functions" begin
+        let T = Float64
+            min_non_denormal = nextfloat(abs(reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))))
+            l2mnd = log2(min_non_denormal)
+            xx = collect(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
+            test_acc(exp2, exp2, T, xx, 3)
+
+            lemnd = log(min_non_denormal)
+            xx .= range(0.8lemnd, 0.8abs(lemnd), length = 2^20);
+            test_acc(exp, exp, T, xx, 3)
+            
+            l10mnd = log10(min_non_denormal)
+            xx .= range(0.8l10mnd, 0.8abs(l10mnd), length = 2^20);
+            test_acc(exp10, exp10, T, xx, 3)
+
+            xx .= exp2.(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
+            test_acc(VectorizationBase.vlog2, log2, T, xx, 3)
+        end
     end
     # end
 end # @testset VectorizationBase

@@ -71,6 +71,9 @@ end
 @inline vgetmant12(v::VecUnroll) = VecUnroll(fmap(vgetmant12, getfield(v, :data)))
 @inline vroundscale(v::VecUnroll,::Union{StaticInt{N},Val{N}}) where {N} = VecUnroll(fmap(vroundscale, getfield(v, :data), StaticInt{N}()))
 
+@inline Base.significand(v::AbstractSIMD) = vgetmant12(v)
+@inline Base.exponent(v::AbstractSIMD) = vgetexp(v)
+@inline Base.ldexp(v::AbstractSIMD, e::AbstractSIMD) = vscalef(v, e, has_feature(Val(:x86_64_avx512f)))
 
 # log2(x) =  vgetexp(x) + log2(vgetmant8(x))
 @inline function vlog_v1(x1::VectorizationBase.AbstractSIMD{W,Float64}) where {W} # Testing if an assorted mix of operations
@@ -272,7 +275,7 @@ end
 end
 
 # Probably the best
-@inline function vlog2(a::AbstractSIMD{W,Float64}) where {W}
+@inline function vlog2_fast(a::AbstractSIMD{W,Float64}) where {W}
     # log2(vgetmant(a, Val(8))) + vgetexp(a) == log2(a)
     m = vgetmant(a, Val(8)) # m ∈ [1,2)
     e = vgetexp(a)
@@ -285,10 +288,10 @@ end
     # log(r+1) = log(m) + log(y₀)
     # log(m) = log(1+r) - log(y₀)
     r = vfmsub(m, y₀, 1.0) 
-    # logr = logkern_5(r)
-    # logr = logkern_6(r)
-    logr = logkern_7(r)
-    # logr = logkern_8(r)
+    # log1pr = logkern_5(r)
+    # log1pr = logkern_6(r)
+    log1pr = logkern_7(r)
+    # log1pr = logkern_8(r)
     y₀notone = y₀ ≠ 1.0
     inds = (reinterpret(UInt, y₀) >>> 48) & 0x0f
     # @show y₀ inds r
@@ -297,8 +300,8 @@ end
     # @show r y₀ e
     # return r, m, y₀, logy₀, e
     # logkern_5(r) - logy₀ + e
-    # logm = ifelse(y₀isone, logr, logr - logy₀)
-    logm = ifelse(y₀notone, logr - logy₀, logr)
+    # logm = ifelse(y₀isone, log1pr, log1pr - logy₀)
+    logm = ifelse(y₀notone, log1pr - logy₀, log1pr)
     logm + e
 end
 @inline function log2_kern_5_256(x)
@@ -327,8 +330,8 @@ const LOG2_TABLE_128 = Float64[log2(x) for x ∈  range(big"0.5", step = 1/256, 
     # log(r+1) = log(m) + log(y₀)
     # log(m) = log(1+r) - log(y₀)
     r = vfmsub(m, y₀, 1.0)
-    # logr = logkern_5(r)
-    logr = log2_kern_5_256(r)
+    # log1pr = logkern_5(r)
+    log1pr = log2_kern_5_256(r)
     y₀notone = y₀ ≠ 1.0
     inds = (reinterpret(Int, y₀) >> 45) & 0xff
     # inds = (reinterpret(UInt, y₀) >>> 48) & 0x0f
@@ -338,12 +341,12 @@ const LOG2_TABLE_128 = Float64[log2(x) for x ∈  range(big"0.5", step = 1/256, 
     # @show r y₀ e
     # return r, m, y₀, logy₀, e
     # logkern_5(r) - logy₀ + e
-    # logm = ifelse(y₀isone, logr, logr - logy₀)
-    logm = ifelse(y₀notone, logr - logy₀, logr)
+    # logm = ifelse(y₀isone, log1pr, log1pr - logy₀)
+    logm = ifelse(y₀notone, log1pr - logy₀, log1pr)
     logm + e
 end
-@inline vlog(x::T) where {T} = vlog2(x) * convert(T, 0.6931471805599453)
-@inline vlog10(x::T) where {T} = vlog2(x) * convert(T, 0.3010299956639812)
+@inline vlog_fast(x::T) where {T} = vlog2_fast(x) * convert(T, 0.6931471805599453)
+@inline vlog10_fast(x::T) where {T} = vlog2_fast(x) * convert(T, 0.3010299956639812)
 # @inline function Base.log(x1::AbstractSIMD{W,Float64}) where {W}
 # @inline function vlog(x1::Float64)
 # @inline Base.log(v::AbstractSIMD) = log(float(v))

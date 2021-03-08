@@ -3,10 +3,10 @@
 # magic rounding constant: 1.5*2^52 Adding, then subtracting it from a float rounds it to an Int.
 MAGIC_ROUND_CONST(::Type{Float64}) = 6.755399441055744e15
 MAGIC_ROUND_CONST(::Type{Float32}) = 1.2582912f7
-@inline function _vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}) where {T<:Union{Float32,Float64}}
-    __vscalef(x, floor(y))
+@inline function vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}, ::False) where {T<:Union{Float32,Float64}}
+    _vscalef(x, floor(y))
 end
-@inline function __vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}) where {T<:Union{Float32,Float64}}
+@inline function _vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}) where {T<:Union{Float32,Float64}}
     N = reinterpret(Base.uinttype(T), y + MAGIC_ROUND_CONST(T))
     k = N# >>> 0x00000008
     
@@ -14,8 +14,10 @@ end
     twopk = (k % Base.uinttype(T)) << 0x0000000000000034
     reinterpret(Float64, twopk + small_part)
 end
-
-@generated function vscalef(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
+@inline vscalef(v1::T,v2::T) where {T<:AbstractSIMD} = vscalef(v1,v2,has_feature(Val(:x86_64_avx512f)))
+@inline vscalef(v1::T,v2::T) where {T<:Union{Float32,Float64}} = vscalef(v1,v2,False())
+@inline vscalef(v1,v2) = ((v3,v4) = promote(v1,v2); vscalef(v3,v4))
+@generated function vscalef(v1::Vec{W,T}, v2::Vec{W,T}, ::True) where {W,T<:Union{Float32,Float64}}
     bits = 8W*sizeof(T)
     bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
     ltyp = LLVM_TYPES[T]
@@ -28,7 +30,7 @@ end
     arg_syms = [:(data(v1)), :(data(v2))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T},_Vec{$W,$T}}), vtyp, fill(vtyp, 2), arg_syms)
 end
-@generated function vscalef(m::AbstractMask{W}, v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
+@generated function vscalef(m::AbstractMask{W}, v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}, ::True) where {W,T<:Union{Float32,Float64}}
     bits = 8W*sizeof(T)
     bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
     ltyp = LLVM_TYPES[T]
@@ -172,32 +174,22 @@ const TABLE_EXP_64_1= Vec(ntuple(j -> Core.VecElement(Float64(2.0^(big(j+7)/16))
     add_ieee(d.hi, d.lo)
 end
 
-@inline function vexp2_v3(x::AbstractSIMD{W,Float64}) where {W}
-    x256 = 256.0*x
-    r = vsreduce(x256, Val(0)) * 0.00390625
-    N_float = x - r
-    inds = convert(UInt, vsreduce(N_float, Val(1))*256.0)
-    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (inds,))
-    small_part = vfmadd(js, expm1b_kernel(Val(2), r), js)
-    res = vscalef(small_part, N_float)
-    return res
-end
 
-@inline function vexp2_v1(x::AbstractSIMD{8,Float64})
-    x16 = x
-    # x16 = 16x
-    r =  vsreduce(x16, Val(4))
-    m = x16 - r
-    mfrac = m
-    inds = (reinterpret(UInt64, mfrac) >> 0x000000000000002d) & 0x000000000000000f
-    # @show r m mfrac reinterpret(UInt64, m) reinterpret(UInt64, mfrac)
-    # js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
-    # @show m mfrac r
-    small_part = expm1b_kernel(Val(2), r) + 1.0
-    # js = 1.0
-    # small_part = vfmadd(js, expm1b_kernel(Val(2), r), js)
-    vscalef(small_part, mfrac)
-end
+# @inline function vexp2_v1(x::AbstractSIMD{8,Float64})
+#     x16 = x
+#     # x16 = 16x
+#     r =  vsreduce(x16, Val(4))
+#     m = x16 - r
+#     mfrac = m
+#     inds = (reinterpret(UInt64, mfrac) >> 0x000000000000002d) & 0x000000000000000f
+#     # @show r m mfrac reinterpret(UInt64, m) reinterpret(UInt64, mfrac)
+#     # js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+#     # @show m mfrac r
+#     small_part = expm1b_kernel(Val(2), r) + 1.0
+#     # js = 1.0
+#     # small_part = vfmadd(js, expm1b_kernel(Val(2), r), js)
+#     vscalef(small_part, mfrac)
+# end
 
 @inline function expm1b_kernel_5(::Val{2}, x)
     c5 = 0.6931471805599457533351827593325319924753473772859614915719486459595837313933663
@@ -209,50 +201,138 @@ end
 
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
 end
-# using Remez
-# N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); N
-@inline function expm1b_kernel_4(::Val{2}, x)
-    c4 = 0.6931471805599461972549081995383434692316977327912755704234013405443109498729026
-    c3 = 0.2402265069131940842333497738928958607054740795078596615709864445611497846077303
-    c2 = 0.05550410865300270379171299778517151376504051870524903806295523325435530249981495
-    c1 = 0.009618317140648284298097106744730186251913149278152053357630395863210686828434175
-    c0 = 0.001333381881551676348461495248002642715422207072457864472267417920610122672570108
-    x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4)
-end
+# # using Remez
+# # N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); N
+# @inline function expm1b_kernel_4(::Val{2}, x)
+#     c4 = 0.6931471805599461972549081995383434692316977327912755704234013405443109498729026
+#     c3 = 0.2402265069131940842333497738928958607054740795078596615709864445611497846077303
+#     c2 = 0.05550410865300270379171299778517151376504051870524903806295523325435530249981495
+#     c1 = 0.009618317140648284298097106744730186251913149278152053357630395863210686828434175
+#     c0 = 0.001333381881551676348461495248002642715422207072457864472267417920610122672570108
+#     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4)
+# end
 
-@inline function vexp2_v4(x::AbstractSIMD{W,Float64}) where {W}
-    # r - VectorizationBase.vroundscale(r, Val(16*(4)))
-    r = VectorizationBase.vsreduce(x,Val(0))
-    rscale = VectorizationBase.vroundscale(r, Val(64))
-    rs = r - rscale
-    inds = convert(UInt, vsreduce(rscale, Val(1))*16.0)
-    expr = expm1b_kernel_5(Val(2), rs)
-    N_float = x - rs
-    # @show inds rs N_float
+# @inline function vexp2_v4(x::AbstractSIMD{W,Float64}) where {W}
+#     # r - VectorizationBase.vroundscale(r, Val(16*(4)))
+#     r = VectorizationBase.vsreduce(x,Val(0))
+#     rscale = VectorizationBase.vroundscale(r, Val(64))
+#     rs = r - rscale
+#     inds = convert(UInt, vsreduce(rscale, Val(1))*16.0)
+#     expr = expm1b_kernel_5(Val(2), rs)
+#     N_float = x - rs
+#     # @show inds rs N_float
     
-    js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
-    small_part = vfmadd(js, expr, js)
-    res = vscalef(small_part, N_float)
-    return res
+#     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+#     small_part = vfmadd(js, expr, js)
+#     res = vscalef(small_part, N_float)
+#     return res
 
-end
+# end
 
-@inline function vexp2_v2(x::AbstractSIMD{W,Float64}) where {W}
+####################################################################################################
+################################## Non-AVX512 implementation #######################################
+####################################################################################################
+
+# With AVX512, we use a tiny look-up table of just 16 numbers for `Float64`,
+# because we can perform the lookup using `vpermi2pd`, which is much faster than gather.
+# To compensate, we need a larger polynomial.
+
+# Because of the larger polynomial, this implementation works better on systems with 2 FMA units.
+
+@inline function vexp2(x::AbstractSIMD{8,Float64}, ::True)
     x16 = 16.0*x
     r = vsreduce(x16, Val(0)) * 0.0625
     N_float = x - r
     expr = expm1b_kernel_5(Val(2), r)
     
     inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
-    # @show inds r N_float
-    # @show N_float r
-    # return inds, N_float
-    # return N_float, inds
+
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
     small_part = vfmadd(js, expr, js)
     res = vscalef(small_part, N_float)
     return res
 end
+# @inline vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
+# @inline vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
+
+# TODO: Implement `vexp` and `vexp10` for AVX512
+@inline vexp(x, ::True) = vexp(x, False())
+@inline vexp10(x, ::True) = vexp10(x, False())
+
+@inline Base.exp(v::AbstractSIMD{W,Float64}) where {W} = vexp(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.exp2(v::AbstractSIMD{W,Float64}) where {W} = vexp2(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.exp10(v::AbstractSIMD{W,Float64}) where {W} = vexp10(v, has_feature(Val(:x86_64_avx512f)))
+
+# The `vpermi2pd` table requires the full `W = 8`. Therefore, without it, we use the full table with
+# 256 entries. For now, we use an AVX-512 specific implementation.
+# TODO: abstract out `vsreduce` and `vscalef` so that the split between arches happens there.
+@inline function vexp2(x::AbstractSIMD{W,Float64}, ::True) where {W}
+    x256 = 256.0*x
+    r = vsreduce(x256, Val(0)) * 0.00390625
+    N_float = x - r
+    inds = convert(UInt, vsreduce(N_float, Val(1))*256.0)
+    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (inds,))
+    small_part = vfmadd(js, expm1b_kernel(Val(2), r), js)
+    res = vscalef(small_part, N_float)
+    return res
+end
+
+
+####################################################################################################
+################################## Non-AVX512 implementation #######################################
+####################################################################################################
+
+
+
+for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
+    func_unchecked = Symbol(func, :_unchecked)
+    @eval begin
+        @inline function $func_unchecked(x::AbstractSIMD{W,Float64}) where {W}
+            N_float = muladd(x, LogBo256INV($base, Float64), MAGIC_ROUND_CONST(Float64))
+            N = target_trunc(reinterpret(UInt64, N_float))
+            N_float = N_float - MAGIC_ROUND_CONST(Float64)
+            r = fast_fma(N_float, LogBo256U($base, Float64), x, fma_fast())
+            r = fast_fma(N_float, LogBo256L($base, Float64), r, fma_fast())
+            # @show (N & 0x000000ff) % Int
+            js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
+            k = N >>> 0x00000008
+            small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel($base, r), js))
+            # return reinterpret(Float64, small_part), r, k, N_float, js
+            twopk = (k % UInt64) << 0x0000000000000034
+            res = reinterpret(Float64, twopk + small_part)
+            return res
+        end
+        @inline function $func(x::AbstractSIMD{W,Float64}, ::False) where {W}
+            res = $func_unchecked(x)
+            res = ifelse(x >= MAX_EXP($base, Float64), Inf, res)
+            res = ifelse(x <= MIN_EXP($base, Float64), 0.0, res)
+            res = ifelse(isnan(x), x, res)
+            return res
+        end
+        
+        @inline function $func_unchecked(x::AbstractSIMD{W,Float32}) where {W}
+            N_float = vfmadd(x, LogBINV($base, Float32), MAGIC_ROUND_CONST(Float32))
+            N = reinterpret(UInt32, N_float)
+            N_float = (N_float - MAGIC_ROUND_CONST(Float32))
+
+            r = fast_fma(N_float, LogBU($base, Float32), x, fma_fast())
+            r = fast_fma(N_float, LogBL($base, Float32), r, fma_fast())
+            
+            small_part = reinterpret(UInt32, expb_kernel($base, r))
+            twopk = N << 0x00000017
+            res = reinterpret(Float32, twopk + small_part)
+            return res
+        end
+        @inline function $func(x::AbstractSIMD{W,Float32}) where {W}
+            res = $func_unchecked(x)
+            res = ifelse(x >= MAX_EXP($base, Float32), Inf32, res)
+            res = ifelse(x <= MIN_EXP($base, Float32), 0.0f0, res)
+            res = ifelse(isnan(x), x, res)
+            return res
+        end
+    end
+end
+
 
 # @inline function vexp2_v2(x::AbstractSIMD{8,Float64})
 #     x16 = 16.0*x
