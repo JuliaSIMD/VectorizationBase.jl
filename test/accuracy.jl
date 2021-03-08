@@ -80,7 +80,7 @@ function ulp(x::Union{<:VectorizationBase.AbstractSIMD{<:Any,T},T}) where {T<:Ab
 end
 
 countulp(x::T, y::T) where {T <: AbstractFloat} = countulp(T, x, y)
-countulp(x::VectorizationBase.AbstractSIMD{W,T}, y::VectorizationBase.AbstractSIMD{W,T}) where {T <: AbstractFloat} = countulp(T, x, y)
+countulp(x::VectorizationBase.AbstractSIMD{W,T}, y::VectorizationBase.AbstractSIMD{W,T}) where {W,T <: AbstractFloat} = countulp(T, x, y)
 
 
 # test the accuracy of a function where fun_table is a Dict mapping the function you want

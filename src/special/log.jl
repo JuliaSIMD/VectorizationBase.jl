@@ -244,6 +244,19 @@ end
     c0 = 0.1606521926313221723948643034905571707676419356400609690156705532267686492918868
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5),x,c6),x,c7),x,c8)
 end
+@inline function logkern_9(x)
+    c9 = 1.442695040888963407587958876357516873223860332904434711906078224014586198339343
+    c8 = -0.7213475204444817057711203479236040464424888160067823280588699959470059217833771
+    c7 = 0.480898346962976128170017519528240603877475137860740135494448418612334521964808
+    c6 = -0.3606737602222044528926485178925468152698544632914287402177742224438034341355266
+    c5 = 0.2885390082734153359755295484533201676037233143490110170185338945645707433116462
+    c4 = -0.2404491736638805517094434611266213341107664043116792359649609367170386448753448
+    c3 = 0.2060990174486639706727491347594731948792605354335332681880496880277396108033051
+    c2 = -0.1803364995021978052782243890647317433194251060644842283875753942662516598663569
+    c1 = 0.1606200865414345528500280443621751155379142697854250695344975262087060612426921
+    c0 = -0.1446222903636375678552838798467050326611974502493221959482776774515654211467748
+    x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5),x,c6),x,c7),x,c8),x,c9)
+end
 @inline function logkern_7(x)
     c7 = 1.442695040888962266311320415441181965256745101864924017704730474290825179713386
     c6 = -0.7213475204444734849561916107798427186725025515630934214552341603017790847666743
@@ -291,19 +304,34 @@ end
     # log1pr = logkern_5(r)
     # log1pr = logkern_6(r)
     log1pr = logkern_7(r)
+    # log1pr = logkern_9(r)
+    # @show r log1pr m
     # log1pr = logkern_8(r)
     y₀notone = y₀ ≠ 1.0
     inds = (reinterpret(UInt, y₀) >>> 48) & 0x0f
     # @show y₀ inds r
     # logy₀ = vpermi2pd(inds, LOG2_TABLE_1, LOG2_TABLE_2)
     logy₀ = vpermi2pd(inds, LOG2_TABLE_1, LOG2_TABLE_2)
+    # emlogy₀ = e - logy₀
+    emlogy₀ = ifelse(y₀notone, e - logy₀, e)
+    log1pr + emlogy₀ 
+    # logm = ifelse(y₀notone, log1pr - logy₀, log1pr)
     # @show r y₀ e
     # return r, m, y₀, logy₀, e
     # logkern_5(r) - logy₀ + e
     # logm = ifelse(y₀isone, log1pr, log1pr - logy₀)
-    logm = ifelse(y₀notone, log1pr - logy₀, log1pr)
-    logm + e
+    # log1pr += e
+    
+    # logm = ifelse(y₀notone, log1pr - logy₀, log1pr)
+    # @show logm log1pr logy₀ e
+    # logm + e
 end
+@inline vlog_fast(x::T) where {T} = vlog2_fast(x) * convert(T, 0.6931471805599453)
+@inline vlog10_fast(x::T) where {T} = vlog2_fast(x) * convert(T, 0.3010299956639812)
+# @inline Base.FastMath.log_fast(v::AbstractSIMD) = vlog_fast(float(v))
+# @inline Base.FastMath.log2_fast(v::AbstractSIMD) = vlog2_fast(float(v))
+# @inline Base.FastMath.log10_fast(v::AbstractSIMD) = vlog10_fast(float(v))
+
 @inline function log2_kern_5_256(x)
     c5 = 1.442695040888963430242018860033667730529246266516984575206349078995811595149434
     c4 = -0.7213475204444818238116304451613321925305725926194819917643836452178866375548279
@@ -338,15 +366,11 @@ const LOG2_TABLE_128 = Float64[log2(x) for x ∈  range(big"0.5", step = 1/256, 
     # @show y₀ inds r
     # logy₀ = vpermi2pd(inds, LOG2_TABLE_1, LOG2_TABLE_2)
     logy₀ = vload(zstridedpointer(LOG2_TABLE_128), (inds,))
-    # @show r y₀ e
-    # return r, m, y₀, logy₀, e
-    # logkern_5(r) - logy₀ + e
-    # logm = ifelse(y₀isone, log1pr, log1pr - logy₀)
-    logm = ifelse(y₀notone, log1pr - logy₀, log1pr)
-    logm + e
+
+    emlogy₀ = ifelse(y₀notone, e - logy₀, e)
+    log1pr + emlogy₀ 
 end
-@inline vlog_fast(x::T) where {T} = vlog2_fast(x) * convert(T, 0.6931471805599453)
-@inline vlog10_fast(x::T) where {T} = vlog2_fast(x) * convert(T, 0.3010299956639812)
+
 # @inline function Base.log(x1::AbstractSIMD{W,Float64}) where {W}
 # @inline function vlog(x1::Float64)
 # @inline Base.log(v::AbstractSIMD) = log(float(v))

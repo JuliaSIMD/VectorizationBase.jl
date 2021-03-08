@@ -279,7 +279,7 @@ include("vecunroll/fmap.jl")
 include("base_defs.jl")
 include("alignment.jl")
 include("special/misc.jl")
-include("special/log.jl")
+# include("special/log.jl")
 include("special/exp.jl")
 
 demoteint(::Type{T}, W) where {T} = False()

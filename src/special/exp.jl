@@ -259,9 +259,15 @@ end
 @inline vexp(x, ::True) = vexp(x, False())
 @inline vexp10(x, ::True) = vexp10(x, False())
 
-@inline Base.exp(v::AbstractSIMD{W,Float64}) where {W} = vexp(v, has_feature(Val(:x86_64_avx512f)))
-@inline Base.exp2(v::AbstractSIMD{W,Float64}) where {W} = vexp2(v, has_feature(Val(:x86_64_avx512f)))
-@inline Base.exp10(v::AbstractSIMD{W,Float64}) where {W} = vexp10(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.exp(v::AbstractSIMD{W}) where {W} = vexp(float(v))
+@inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
+@inline Base.exp10(v::AbstractSIMD{W}) where {W} = vexp10(float(v))
+@inline vexp(v::AbstractSIMD{W,Float64}) where {W} = vexp(v, has_feature(Val(:x86_64_avx512f)))
+@inline vexp2(v::AbstractSIMD{W,Float64}) where {W} = vexp2(v, has_feature(Val(:x86_64_avx512f)))
+@inline vexp10(v::AbstractSIMD{W,Float64}) where {W} = vexp10(v, has_feature(Val(:x86_64_avx512f)))
+@inline vexp(v::Float64) = vexp(v, False())
+@inline vexp2(v::Float64) = vexp2(v, False())
+@inline vexp10(v::Float64) = vexp10(v, False())
 
 # The `vpermi2pd` table requires the full `W = 8`. Therefore, without it, we use the full table with
 # 256 entries. For now, we use an AVX-512 specific implementation.
@@ -287,7 +293,7 @@ end
 for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
     func_unchecked = Symbol(func, :_unchecked)
     @eval begin
-        @inline function $func_unchecked(x::AbstractSIMD{W,Float64}) where {W}
+        @inline function $func_unchecked(x::Union{Float64,AbstractSIMD{<:Any,Float64}})
             N_float = muladd(x, LogBo256INV($base, Float64), MAGIC_ROUND_CONST(Float64))
             N = target_trunc(reinterpret(UInt64, N_float))
             N_float = N_float - MAGIC_ROUND_CONST(Float64)
@@ -302,7 +308,7 @@ for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
             res = reinterpret(Float64, twopk + small_part)
             return res
         end
-        @inline function $func(x::AbstractSIMD{W,Float64}, ::False) where {W}
+        @inline function $func(x::Union{Float64,AbstractSIMD{<:Any,Float64}}, ::False)
             res = $func_unchecked(x)
             res = ifelse(x >= MAX_EXP($base, Float64), Inf, res)
             res = ifelse(x <= MIN_EXP($base, Float64), 0.0, res)
@@ -310,7 +316,7 @@ for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
             return res
         end
         
-        @inline function $func_unchecked(x::AbstractSIMD{W,Float32}) where {W}
+        @inline function $func_unchecked(x::Union{Float32,AbstractSIMD{<:Any,Float32}})
             N_float = vfmadd(x, LogBINV($base, Float32), MAGIC_ROUND_CONST(Float32))
             N = reinterpret(UInt32, N_float)
             N_float = (N_float - MAGIC_ROUND_CONST(Float32))
@@ -323,7 +329,7 @@ for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
             res = reinterpret(Float32, twopk + small_part)
             return res
         end
-        @inline function $func(x::AbstractSIMD{W,Float32}) where {W}
+        @inline function $func(x::Union{Float32,AbstractSIMD{<:Any,Float32}})
             res = $func_unchecked(x)
             res = ifelse(x >= MAX_EXP($base, Float32), Inf32, res)
             res = ifelse(x <= MIN_EXP($base, Float32), 0.0f0, res)

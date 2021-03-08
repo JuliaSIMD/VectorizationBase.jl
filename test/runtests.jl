@@ -1057,8 +1057,8 @@ include("testsetup.jl")
             xx .= range(0.8l10mnd, 0.8abs(l10mnd), length = 2^20);
             test_acc(exp10, exp10, T, xx, 3)
 
-            xx .= exp2.(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
-            test_acc(VectorizationBase.vlog2, log2, T, xx, 3)
+            # xx .= exp2.(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
+            # test_acc(VectorizationBase.vlog2, log2, T, xx, 7)
         end
     end
     # end
