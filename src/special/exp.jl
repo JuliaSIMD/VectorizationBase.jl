@@ -216,6 +216,16 @@ end
 
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
 end
+# @inline function expm1b_kernel_6(::Val{2}, x)
+#     c6 = 0.6931471805599453094157857128856867906777808839530204388709017060018142940776171
+#     c5 = 0.2402265069591008469523412357777710806331204676211882505524452303635329805655358
+#     c4 = 0.05550410866482161698117481145997657675888637052903928922860089114193615876343007
+#     c3 = 0.009618129106525681209446910869436511674612664593938506025921861852732097374219765
+#     c2 = 0.001333355814485111028814491629997422287837080138262113640339762815224264878390602
+#     c1 = 0.0001540375624549508734984308915404920724081959405205139643458055193131059150331185
+#     c0 = 1.525295744513115862409484203574886089068776710280414076942740530839031792795809e-05
+#     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5),x,c6)
+# end
 # # using Remez
 # # N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); N
 # @inline function expm1b_kernel_4(::Val{2}, x)
@@ -259,6 +269,7 @@ end
     r = vsreduce(x16, Val(0)) * 0.0625
     N_float = x - r
     expr = expm1b_kernel_5(Val(2), r)
+    # expr = expm1b_kernel_6(Val(2), r)
     
     inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
 
@@ -267,8 +278,10 @@ end
     res = vscalef(small_part, N_float)
     return res
 end
-# @inline vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
-# @inline vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
+# @inline _vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
+# @inline _vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
+# @inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
+# @inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
 
 # TODO: Implement `vexp` and `vexp10` for AVX512
 @inline vexp(x, ::True) = vexp(x, False())
@@ -370,8 +383,13 @@ end
     dors = T === Float64 ? 'd' : 's'
     instr = "$vtyp @llvm.x86.avx512.mask.getexp.p$(dors).$bits"
     mtyp = W == 16 ? "i16" : "i8"
-    decl = "declare $instr($vtyp, $vtyp, $mtyp, i32)"
-    instrs = "%res = call $instr($vtyp %0, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    if bits == 512
+        decl = "declare $instr($vtyp, $vtyp, $mtyp, i32)"
+        instrs = "%res = call $instr($vtyp %0, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    else
+        decl = "declare $instr($vtyp, $vtyp, $mtyp)"
+        instrs = "%res = call $instr($vtyp %0, $vtyp undef, $mtyp -1)\nret $vtyp %res"
+    end
     arg_syms = [:(data(v))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
 end
@@ -383,8 +401,13 @@ end
     dors = T === Float64 ? 'd' : 's'
     instr = "$vtyp @llvm.x86.avx512.mask.getmant.p$(dors).$bits"
     mtyp = W == 16 ? "i16" : "i8"
-    decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
-    instrs = "%res = call $instr($vtyp %0, i32 11, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    if bits == 512
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
+        instrs = "%res = call $instr($vtyp %0, i32 11, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    else
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp)"
+        instrs = "%res = call $instr($vtyp %0, i32 11, $vtyp undef, $mtyp -1)\nret $vtyp %res"
+    end
     arg_syms = [:(data(v))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
 end
@@ -396,8 +419,13 @@ end
     dors = T === Float64 ? 'd' : 's'
     instr = "$vtyp @llvm.x86.avx512.mask.getmant.p$(dors).$bits"
     mtyp = W == 16 ? "i16" : "i8"
-    decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
-    instrs = "%res = call $instr($vtyp %0, i32 $N, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    if bits == 512
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
+        instrs = "%res = call $instr($vtyp %0, i32 $N, $vtyp undef, $mtyp -1, i32 12)\nret $vtyp %res"
+    else
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp)"
+        instrs = "%res = call $instr($vtyp %0, i32 $N, $vtyp undef, $mtyp -1)\nret $vtyp %res"
+    end
     arg_syms = [:(data(v))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
 end
@@ -409,8 +437,13 @@ end
     dors = T === Float64 ? 'd' : 's'
     instr = "$vtyp @llvm.x86.avx512.mask.getmant.p$(dors).$bits"
     mtyp = W == 16 ? "i16" : "i8"
-    decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
-    instrs = "%res = call $instr($vtyp %0, i32 12, $vtyp undef, $mtyp -1, i32 8)\nret $vtyp %res"
+    if bits == 512
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
+        instrs = "%res = call $instr($vtyp %0, i32 12, $vtyp undef, $mtyp -1, i32 8)\nret $vtyp %res"
+    else
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp)"
+        instrs = "%res = call $instr($vtyp %0, i32 12, $vtyp undef, $mtyp -1)\nret $vtyp %res"
+    end
     arg_syms = [:(data(v))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
 end
@@ -423,8 +456,13 @@ end
     dors = T === Float64 ? 'd' : 's'
     instr = "$vtyp @llvm.x86.avx512.mask.rndscale.p$(dors).$bits"
     mtyp = W == 16 ? "i16" : "i8"
-    decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
-    instrs = "%res = call $instr($vtyp %0, i32 $N, $vtyp undef, $mtyp -1, i32 4)\nret $vtyp %res"
+    if bits == 512
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp, i32)"
+        instrs = "%res = call $instr($vtyp %0, i32 $N, $vtyp undef, $mtyp -1, i32 4)\nret $vtyp %res"
+    else
+        decl = "declare $instr($vtyp, i32, $vtyp, $mtyp)"
+        instrs = "%res = call $instr($vtyp %0, i32 $N, $vtyp undef, $mtyp -1)\nret $vtyp %res"
+    end
     arg_syms = [:(data(v))]
     llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)    
 end
