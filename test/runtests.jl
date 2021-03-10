@@ -606,6 +606,8 @@ include("testsetup.jl")
                 i = rand(srange); j = rand(I1);
                 m1 = VectorizationBase.VecUnroll((MM{WI}(I1(7)), MM{WI}(I1(1)), MM{WI}(I1(13)), MM{WI}(I1(32%last(srange)))));
                 m2 = VectorizationBase.VecUnroll((MM{WI,2}(I2(3)), MM{WI,2}(I2(8)), MM{WI,2}(I2(39%last(srange))), MM{WI,2}(I2(17))));
+                @test typeof(m1 + I1(11)) === typeof(m1)
+                @test typeof(m2 + I1(11)) === typeof(m2)
                 xi1 = tovector(vi1); xi2 = tovector(vi2);
                 xi3 =  mapreduce(tovector, vcat, VectorizationBase.data(m1));
                 xi4 =  mapreduce(tovector, vcat, VectorizationBase.data(m2));

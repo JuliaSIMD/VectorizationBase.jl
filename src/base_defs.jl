@@ -83,8 +83,10 @@ for (op, f, promote) ∈ [
     @eval begin
         # @inline $op(a::AbstractSIMD,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
         @inline $op(a::AbstractSIMD,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
-        @inline $op(a::NativeTypes,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
-        @inline $op(a::AbstractSIMD,b::NativeTypes) = ((c,d) = $promote(a,b); $f(c,d))
+        @inline $op(a::NativeTypes,b::AbstractSIMDVector) = ((c,d) = $promote(a,b); $f(c,d))
+        @inline $op(a::AbstractSIMDVector,b::NativeTypes) = ((c,d) = $promote(a,b); $f(c,d))
+        @inline $op(a::NativeTypes,b::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap($op, a, getfield(b,:data)))
+        @inline $op(a::VecUnroll{N,W},b::NativeTypes) where {N,W} = VecUnroll(fmap($op, getfield(a,:data), b))
     end
 end
 for op ∈ [:(Base.:(*)), :(Base.FastMath.mul_fast)]
