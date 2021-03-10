@@ -55,3 +55,30 @@ end
 
 @inline Base.clamp(x::AbstractSIMD{<:Any,<:Integer}, r::AbstractUnitRange{<:Integer}) =
     clamp(x, first(r), last(r))
+
+function Base.gcd(a::AbstractSIMDVector{W,I}, b::AbstractSIMDVector{W,I}) where {W,I<:Base.HWReal}
+    aiszero = a == zero(a)
+    biszero = b == zero(b)
+    absa = abs(a)
+    absb = abs(b)
+    za = trailing_zeros(a)
+    zb = ifelse(biszero, zero(b), trailing_zeros(b))
+    k = min(za,zb)
+    u = unsigned(ifelse(biszero, zero(a), abs(a >> za)))
+    v = unsigned(ifelse(aiszero, zero(b), abs(b >> zb)))
+    ne = u ≠ v
+    while vany(ne)
+        ulev = (u > v) & ne
+        t = u
+        u = ifelse(ulev, v, u)
+        v = ifelse(ulev, t, v)
+        d = v - u
+        v = ifelse(ne, d >> trailing_zeros(d), v)
+        ne = u ≠ v
+    end
+    ifelse(aiszero, absb, ifelse(biszero, absa, (u << k) % I))
+end
+gcd(a::VecUnroll, b) = VecUnroll(fmap(gcd, data(a), b))
+gcd(a, b::VecUnroll) = VecUnroll(fmap(gcd, a, data(b)))
+gcd(a::VecUnroll, b::VecUnroll) = VecUnroll(fmap(gcd, data(a), data(b)))
+

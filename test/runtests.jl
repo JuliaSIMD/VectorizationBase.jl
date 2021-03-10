@@ -691,6 +691,8 @@ include("testsetup.jl")
             @test VectorizationBase.vdivrem.(1:30, 1:30') == divrem.(1:30, 1:30')
             @test VectorizationBase.vcld.(1:30, 1:30') == cld.(1:30, 1:30')
             @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
+
+            @test gcd(Vec(42,64,0,-37), Vec(18,96,-38,0)) === Vec(6,32,38,37)
         end
     end
     println("Ternary Functions")
