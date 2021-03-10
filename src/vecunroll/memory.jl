@@ -82,13 +82,13 @@ end
 # Index would be `(MM{W,3}(1),)`
 # so we have `AU == AV == 1`, but also `X == N == F`.
 function shuffle_load_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int, M::UInt
+    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int, MASKFLAG::UInt
 ) where {T,I}
     IT, ind_type, _W, _X, M, O = index_summary(I)
     # we don't require vector indices for `Unroll`s...
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
-    mask = M ≠ zero(UInt)
-    if mask && ((M & ((one(UInt) << UN) - one(UInt))) ≠ ((one(UInt) << UN) - one(UInt)))
+    mask = MASKFLAG ≠ zero(UInt)
+    if mask && ((MASKFLAG & ((one(UInt) << UN) - one(UInt))) ≠ ((one(UInt) << UN) - one(UInt)))
         return nothing
         # throw(ArgumentError("`shuffle_load_quote` currently requires masking either all or none of the unrolled loads."))
     end
