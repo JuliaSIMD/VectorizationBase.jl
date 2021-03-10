@@ -245,7 +245,7 @@ end
         quote
             $(Expr(:meta,:inline))
             evl = valrem(Val{$W}(), vsub(l % $M, one($M)))
-            EVLMask{$W}(data(rem ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
+            EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
         end
     end
 end
