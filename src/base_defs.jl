@@ -85,8 +85,10 @@ for (op, f, promote) ∈ [
         @inline $op(a::AbstractSIMD,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
         @inline $op(a::NativeTypes,b::AbstractSIMDVector) = ((c,d) = $promote(a,b); $f(c,d))
         @inline $op(a::AbstractSIMDVector,b::NativeTypes) = ((c,d) = $promote(a,b); $f(c,d))
-        @inline $op(a::NativeTypes,b::VecUnroll{N,W}) where {N,W} = VecUnroll(fmap($op, a, getfield(b,:data)))
-        @inline $op(a::VecUnroll{N,W},b::NativeTypes) where {N,W} = VecUnroll(fmap($op, getfield(a,:data), b))
+        @inline $op(a::NativeTypes,b::VecUnroll{N,W}) where {N,W} = ((c,d) = $promote(a,b); $f(c,d))
+        @inline $op(a::VecUnroll{N,W},b::NativeTypes) where {N,W} = ((c,d) = $promote(a,b); $f(c,d))
+        @inline $op(a::IntegerTypesHW,b::VecUnroll{N,W,T,MM{W,X,T}}) where {N,W,T<:IntegerTypesHW,X} = VecUnroll(fmap($op, a, getfield(b,:data)))
+        @inline $op(a::VecUnroll{N,W,T,MM{W,X,T}},b::IntegerTypesHW) where {N,W,T<:IntegerTypesHW,X} = VecUnroll(fmap($op, getfield(a,:data), b))
     end
 end
 for op ∈ [:(Base.:(*)), :(Base.FastMath.mul_fast)]
@@ -124,8 +126,8 @@ for (op, f) ∈ [
     (:(Base.FastMath.mul_fast), :vmul_fast)
 ]
     @eval begin
-        @inline $op(m::MM, j::NativeTypes) = $f(m, j)
-        @inline $op(j::NativeTypes, m::MM) = $f(j, m)
+        @inline $op(m::MM, j::NativeTypes) = ($f(m,j))
+        @inline $op(j::NativeTypes, m::MM) = ($f(j,m))
         @inline $op(m::MM, ::StaticInt{N}) where {N} = $f(m, StaticInt{N}())
         @inline $op(::StaticInt{N}, m::MM) where {N} = $f(StaticInt{N}(), m)
     end
