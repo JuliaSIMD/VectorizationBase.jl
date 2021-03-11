@@ -78,7 +78,14 @@ function Base.gcd(a::AbstractSIMDVector{W,I}, b::AbstractSIMDVector{W,I}) where 
     end
     ifelse(aiszero, absb, ifelse(biszero, absa, (u << k) % I))
 end
-gcd(a::VecUnroll, b) = VecUnroll(fmap(gcd, data(a), b))
-gcd(a, b::VecUnroll) = VecUnroll(fmap(gcd, a, data(b)))
-gcd(a::VecUnroll, b::VecUnroll) = VecUnroll(fmap(gcd, data(a), data(b)))
+Base.gcd(a::VecUnroll, b) = VecUnroll(fmap(gcd, data(a), b))
+Base.gcd(a, b::VecUnroll) = VecUnroll(fmap(gcd, a, data(b)))
+Base.gcd(a::VecUnroll, b::VecUnroll) = VecUnroll(fmap(gcd, data(a), data(b)))
+function Base.lcm(a::AbstractSIMD, b::AbstractSIMD)
+    z = zero(a)
+    isz = (a == z) | (b == z)
+    ifelse(isz, z, (b ÷ gcd(b, a)) * a)
+end
+Base.lcm(a::AbstractSIMD, b) = ((c,d) = promote(a,b); lcm(c,d))
+Base.lcm(a, b::AbstractSIMD) = ((c,d) = promote(a,b); lcm(c,d))
 

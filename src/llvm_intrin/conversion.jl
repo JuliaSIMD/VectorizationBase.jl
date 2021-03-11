@@ -174,6 +174,11 @@ end
 @inline vfloat(v::Vec{W,I}) where {W, I <: Integer} = _vfloat(v, register_size())
 @inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
 @inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, getfield(vu, :data)))
+@inline vfloat(x::Union{Float32,Float64}) = x
+@inline vfloat(x::UInt64) = Base.uitofp(Float64, x)
+@inline vfloat(x::Int64) = Base.sitofp(Float64, x)
+@inline vfloat(x::Union{UInt8,UInt16,UInt32}) = Base.uitofp(Float32, x)
+@inline vfloat(x::Union{Int8,Int16,Int32}) = Base.sitofp(Float32, x)
 # @inline vfloat(v::Vec{W,I}) where {W, I <: Union{UInt64, Int64}} = Vec{W,Float64}(v)
 
 
@@ -201,6 +206,9 @@ end
 
 @inline vfloat_fast(v::Vec) = _vfloat_fast(v, has_feature(Val(:x86_64_avx512dq)))
 
+@inline vreinterpret(::Type{T}, x::S) where {T,S<:NativeTypes} = reinterpret(T,x)
+@inline vrem(x::NativeTypes, ::Type{T}) where {T} = x % T
+@inline vmul(a::NativeTypes,b::NativeTypes) = a*b
 @generated function vreinterpret(::Type{T1}, v::Vec{W2,T2}) where {W2, T1 <: NativeTypes, T2}
     W1 = W2 * sizeof(T2) ÷ sizeof(T1)
     Expr(:block, Expr(:meta, :inline), :(vreinterpret(Vec{$W1,$T1}, v)))

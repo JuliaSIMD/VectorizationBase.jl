@@ -693,6 +693,7 @@ include("testsetup.jl")
             @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
 
             @test gcd(Vec(42,64,0,-37), Vec(18,96,-38,0)) === Vec(6,32,38,37)
+            @test lcm(Vec(24,16,42,0),Vec(18,12,18,17)) === Vec(72, 48, 126, 0)
         end
     end
     println("Ternary Functions")
