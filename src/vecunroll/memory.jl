@@ -142,12 +142,12 @@ function push_transpose_mask!(q::Expr, mq::Expr, domask::Bool, n::Int, npartial:
         if evl
             mm_evl_cmp = Symbol(:mm_evl_cmp_,n)
             if w == 1
-                isym = integer_of_bytes_symbol(min(4, RS ÷ n), true)
+                isym = integer_of_bytes_symbol(min(4, RS ÷ n))
                 vmmtyp = :(VectorizationBase._vrange(Val{$n}(), $isym, Val{0}(), Val{1}()))
                 push!(q.args, :($mm_evl_cmp = $vmmtyp))
                 push!(q.args, :($mw_w = _evl*$(UInt32(n)) > $mm_evl_cmp))
             else
-                push!(q.args, :($mw_w = ((_evl*$(UInt32(n)) - $(UInt32(n*(w-1))))%Int32) > ($mm_evl_cmp % Int32)))
+                push!(q.args, :($mw_w = ((_evl*$(UInt32(n)) - $(UInt32(n*(w-1))))%Int32) > ($mm_evl_cmp)))
             end
             if n == npartial
                 push!(mq.args, mw_w )
@@ -317,12 +317,12 @@ end
     should_transpose = should_transpose_memop(F,C,AU,AV,N,M)
     align = A === True
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
-        return vload_transpose_quote(N,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
+        return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
     end
     maybeshufflequote = shuffle_load_quote(T, D, C, B, AU, F, N, AV, W, X, I, align, RS, M)
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
-        return vload_transpose_quote(N,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
+        return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
     end
     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, RS, false)
 end
@@ -332,7 +332,7 @@ end
     align = A === True
     if should_transpose_memop(F,C,AU,AV,N,M)
         isevl = sm <: EVLMask
-        return vload_transpose_quote(N,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,isevl)
+        return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,isevl)
     end
     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, align, RS, false)
 end
