@@ -206,7 +206,7 @@ end
 #     vscalef(small_part, mfrac)
 # end
 
-@inline function expm1b_kernel_5(::Val{2}, x)
+@inline function expm1b_kernel_16(::Val{2}, x)
     c5 = 0.6931471805599457533351827593325319924753473772859614915719486459595837313933663
     c4 = 0.2402265069591009431089489060897837825648676480621950809556237945205562267112511
     c3 = 0.05550410865663929372911461843767669974316894963735870580154522796380984673567634
@@ -216,6 +216,25 @@ end
 
     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
 end
+@inline function expm1b_kernel_16(::Val{ℯ}, x)
+    c5 = 1.000000000000000640438225946852982701258391604480638275588427888399057119915227
+    c4 = 0.5000000000000004803287542332217715766116071510522583538834274474935075866898906
+    c3 = 0.1666666666420970554527207281834431226735741940161719645985080160507073865025253
+    c2 = 0.04166666666018301921665935823120024420659933010915524936059730214858712998209511
+    c1 = 0.008333472974984405879148046293292753978131598285368755170712233472964279745777974
+    c0 = 0.001388912162496018623851591184688043066476532389093553363939521815388727152058955
+    x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
+end
+@inline function expm1b_kernel_16(::Val{10}, x)
+    c5 = 2.302585092994047158681503503460480873860999793973827515869365761962430703319599
+    c4 = 2.650949055239201551934947671858339219424413336755573194223955910456821842421188
+    c3 = 2.034678591993528625083054018110717593492391962926107057414972651492780932119609
+    c2 = 1.171255148730010832148986815739840479496404930758611797062000621828706728750671
+    c1 = 0.5393919676343165962473794696403862709895176169091768718271240564783020989456929
+    c0 = 0.2069993173257113377172910397724414085027323868592924170210484263853229417141011
+    x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
+end
+
 # @inline function expm1b_kernel_6(::Val{2}, x)
 #     c6 = 0.6931471805599453094157857128856867906777808839530204388709017060018142940776171
 #     c5 = 0.2402265069591008469523412357777710806331204676211882505524452303635329805655358
@@ -227,7 +246,7 @@ end
 #     x * vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(vmuladd_fast(c0,x,c1),x,c2),x,c3),x,c4),x,c5),x,c6)
 # end
 # # using Remez
-# # N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); N
+# # N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); @show(E); N
 # @inline function expm1b_kernel_4(::Val{2}, x)
 #     c4 = 0.6931471805599461972549081995383434692316977327912755704234013405443109498729026
 #     c3 = 0.2402265069131940842333497738928958607054740795078596615709864445611497846077303
@@ -268,24 +287,78 @@ end
     x16 = 16.0*x
     r = vsreduce(x16, Val(0)) * 0.0625
     N_float = x - r
-    expr = expm1b_kernel_5(Val(2), r)
+    expr = expm1b_kernel_16(Val(2), r)
     # expr = expm1b_kernel_6(Val(2), r)
     
     inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
 
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
     small_part = vfmadd(js, expr, js)
+    m = N_float
+    j = vsreduce(N_float, Val(1))
+    # @show r m j
     res = vscalef(small_part, N_float)
     return res
 end
-# @inline _vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
-# @inline _vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
-# @inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
-# @inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
+# @inline function vexp2_v2(x::AbstractSIMD{8,Float64}, ::True)#, ::Val{N}) where {N}
+#     r1 = vsreduce(x, Val(0))
+#     m = x - r1
+#     r = vfmsub(vsreduce(r1 * 16.0, Val(1)), 0.0625, 0.5)
+#     j = r1 - r
+#     js = vpermi2pd(convert(UInt, j), TABLE_EXP_64_0, TABLE_EXP_64_1)
+    
+#     expr = expm1b_kernel_5(Val(2), r) # 2^r - 1
+    
+#     small_part = vfmadd(js, expr, js)
+#     # @show r m j
+#     vscalef(small_part, m)
+# end
+# @inline function vexp_v3(x::AbstractSIMD{8,Float64}, ::True)#, ::Val{N}) where {N}
+#     xl2e = mul_ieee(1.4426950408889634, x)
+#     r1 = vsreduce(xl2e, Val(0))
+#     m = xl2e - r1
+#     r = vfmsub(vsreduce(r1 * 16.0, Val(1)), 0.0625, 0.5)
+#     j = r1 - r
+#     js = vpermi2pd(convert(UInt, j), TABLE_EXP_64_0, TABLE_EXP_64_1)
+#     rs = vfnmadd(0.6931471805599453094172321214581765680755001343602552541206800094933936219696955, m+j, x)
+#     expr = expm1b_kernel_5(Val(ℯ), r) # 2^r - 1
+    
+#     small_part = vfmadd(js, expr, js)
+#     @show r m j
+#     vscalef(small_part, m)
+# end
 
-# TODO: Implement `vexp` and `vexp10` for AVX512
-@inline vexp(x, ::True) = vexp(x, False())
-@inline vexp10(x, ::True) = vexp10(x, False())
+_log2(::Val{ℯ}) = 1.4426950408889634
+invlog2hi(::Val{ℯ}) = 0.6931471805599453094172321214581765680755001343602552541206800094933936219696955
+invlog2lo(::Val{ℯ}) = -2.319046813846299615494855463875478650412068000949339362196969553467383712860567e-17
+_log2(::Val{10}) = 3.321928094887362347870319429489390175864831393024580612054756395815934776608624
+invlog2hi(::Val{10}) = 0.3010299956639811952137388947244930267681898814621085413104274611271081892744238
+invlog2lo(::Val{10}) = 2.803728127785170339013117338996875833689572538872891810725576172209659522828247e-18
+
+# # hi16(::Val{ℯ}) = 23.083120654223414
+# # lo16(::Val{ℯ}) = 3.2568437985489653e-16
+@inline function vexp_avx512(x::AbstractSIMD{8,Float64}, ::Val{B}) where {B}
+    xl2e = mul_ieee(_log2(Val{B}()), x)
+    x16 = 16.0*xl2e
+    N_float = vfnmadd(0.0625, vsreduce(x16, Val(0)), xl2e )
+    ra = fma(invlog2lo(Val{B}()), N_float, vfnmadd(invlog2hi(Val{B}()), N_float, x)) # hilo
+    expr = expm1b_kernel_16(Val(B), ra)
+    j = vsreduce(N_float, Val(1))
+    inds = convert(UInt, j*16.0)
+    js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+    small_part = vfmadd(js, expr, js)
+    res = vscalef(small_part, N_float)
+    return res
+end
+
+# @inline _vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
+@inline _vexp(x, ::True) = vexp2( mul_ieee(1.4426950408889634, x), True() )
+@inline _vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
+@inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
+@inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
+
+@inline vexp(x, ::True) = vexp_avx512(x, Val(ℯ))
+@inline vexp10(x, ::True) = vexp_avx512(x, Val(10))
 
 @inline Base.exp(v::AbstractSIMD{W}) where {W} = vexp(float(v))
 @inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
@@ -323,54 +396,51 @@ end
 ####################################################################################################
 
 
+@inline function vexp_generic_core(x::Union{Float64,AbstractSIMD{<:Any,Float64}}, ::Val{B}) where {B}
+    N_float = muladd(x, LogBo256INV(Val{B}(), Float64), MAGIC_ROUND_CONST(Float64))
+    N = target_trunc(reinterpret(UInt64, N_float))
+    N_float = N_float - MAGIC_ROUND_CONST(Float64)
+    r = fast_fma(N_float, LogBo256U(Val{B}(), Float64), x, fma_fast())
+    r = fast_fma(N_float, LogBo256L(Val{B}(), Float64), r, fma_fast())
+    # @show (N & 0x000000ff) % Int
+    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
+    k = N >>> 0x00000008
+    small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
+    # return reinterpret(Float64, small_part), r, k, N_float, js
+    twopk = (k % UInt64) << 0x0000000000000034
+    res = reinterpret(Float64, twopk + small_part)
+    return res
+end
+@inline function vexp_generic(x::Union{Float64,AbstractSIMD{<:Any,Float64}}, ::Val{B}) where {B}
+    res = vexp_generic_core(x, Val{B}())
+    res = ifelse(x >= MAX_EXP(Val{B}(), Float64), Inf, res)
+    res = ifelse(x <= MIN_EXP(Val{B}(), Float64), 0.0, res)
+    res = ifelse(isnan(x), x, res)
+    return res
+end
 
+@inline function vexp_generic_core(x::Union{Float32,AbstractSIMD{<:Any,Float32}}, ::Val{B}) where {B}
+    N_float = vfmadd(x, LogBINV(Val{B}(), Float32), MAGIC_ROUND_CONST(Float32))
+    N = reinterpret(UInt32, N_float)
+    N_float = (N_float - MAGIC_ROUND_CONST(Float32))
+
+    r = fast_fma(N_float, LogBU(Val{B}(), Float32), x, fma_fast())
+    r = fast_fma(N_float, LogBL(Val{B}(), Float32), r, fma_fast())
+    
+    small_part = reinterpret(UInt32, expb_kernel(Val{B}(), r))
+    twopk = N << 0x00000017
+    res = reinterpret(Float32, twopk + small_part)
+    return res
+end
+@inline function vexp_generic(x::Union{Float32,AbstractSIMD{<:Any,Float32}}, ::Val{B}) where {B}
+    res = vexp_generic_core(x, Val{B}())
+    res = ifelse(x >= MAX_EXP(Val{B}(), Float32), Inf32, res)
+    res = ifelse(x <= MIN_EXP(Val{B}(), Float32), 0.0f0, res)
+    res = ifelse(isnan(x), x, res)
+    return res
+end
 for (func, base) in (:vexp2=>Val(2), :vexp=>Val(ℯ), :vexp10=>Val(10))
-    func_unchecked = Symbol(func, :_unchecked)
-    @eval begin
-        @inline function $func_unchecked(x::Union{Float64,AbstractSIMD{<:Any,Float64}})
-            N_float = muladd(x, LogBo256INV($base, Float64), MAGIC_ROUND_CONST(Float64))
-            N = target_trunc(reinterpret(UInt64, N_float))
-            N_float = N_float - MAGIC_ROUND_CONST(Float64)
-            r = fast_fma(N_float, LogBo256U($base, Float64), x, fma_fast())
-            r = fast_fma(N_float, LogBo256L($base, Float64), r, fma_fast())
-            # @show (N & 0x000000ff) % Int
-            js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
-            k = N >>> 0x00000008
-            small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel($base, r), js))
-            # return reinterpret(Float64, small_part), r, k, N_float, js
-            twopk = (k % UInt64) << 0x0000000000000034
-            res = reinterpret(Float64, twopk + small_part)
-            return res
-        end
-        @inline function $func(x::Union{Float64,AbstractSIMD{<:Any,Float64}}, ::False)
-            res = $func_unchecked(x)
-            res = ifelse(x >= MAX_EXP($base, Float64), Inf, res)
-            res = ifelse(x <= MIN_EXP($base, Float64), 0.0, res)
-            res = ifelse(isnan(x), x, res)
-            return res
-        end
-        
-        @inline function $func_unchecked(x::Union{Float32,AbstractSIMD{<:Any,Float32}})
-            N_float = vfmadd(x, LogBINV($base, Float32), MAGIC_ROUND_CONST(Float32))
-            N = reinterpret(UInt32, N_float)
-            N_float = (N_float - MAGIC_ROUND_CONST(Float32))
-
-            r = fast_fma(N_float, LogBU($base, Float32), x, fma_fast())
-            r = fast_fma(N_float, LogBL($base, Float32), r, fma_fast())
-            
-            small_part = reinterpret(UInt32, expb_kernel($base, r))
-            twopk = N << 0x00000017
-            res = reinterpret(Float32, twopk + small_part)
-            return res
-        end
-        @inline function $func(x::Union{Float32,AbstractSIMD{<:Any,Float32}})
-            res = $func_unchecked(x)
-            res = ifelse(x >= MAX_EXP($base, Float32), Inf32, res)
-            res = ifelse(x <= MIN_EXP($base, Float32), 0.0f0, res)
-            res = ifelse(isnan(x), x, res)
-            return res
-        end
-    end
+    @eval @inline $func(x, ::False) = vexp_generic(x, $base)
 end
 
 
