@@ -132,7 +132,8 @@ function vadd_expr(W,U)
     ret <$W x i8> %res""")
     Expr(:block, Expr(:meta, :inline), :(Vec($LLVMCALL($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
-@generated vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U)
+@generated vadd_fast(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U)
+@inline vadd(m1::AbstractMask, m2::AbstractMask) = vadd_fast(m1,m2)
 
 @inline Base.:(&)(m::AbstractMask{W,U}, b::Bool) where {W,U} = Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
 @inline Base.:(&)(b::Bool, m::AbstractMask{W,U}) where {W,U} = Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
