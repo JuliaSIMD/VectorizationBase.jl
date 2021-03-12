@@ -122,18 +122,18 @@ end
 end
 
 
-function vadd_expr(W,U)
+function vadd_expr(W,U,instr)
     instrs = String[]
     truncate_mask!(instrs, '0', W, 0)
     truncate_mask!(instrs, '1', W, 1)
     push!(instrs, """%uv.0 = zext <$W x i1> %mask.0 to <$W x i8>
     %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
-    %res = add <$W x i8> %uv.0, %uv.1
+    %res = $instr <$W x i8> %uv.0, %uv.1
     ret <$W x i8> %res""")
     Expr(:block, Expr(:meta, :inline), :(Vec($LLVMCALL($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
-@generated vadd_fast(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U)
-@inline vadd(m1::AbstractMask, m2::AbstractMask) = vadd_fast(m1,m2)
+@generated vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U,"add")
+@generated vsub(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U,"sub")
 
 @inline Base.:(&)(m::AbstractMask{W,U}, b::Bool) where {W,U} = Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
 @inline Base.:(&)(b::Bool, m::AbstractMask{W,U}) where {W,U} = Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
