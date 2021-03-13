@@ -362,13 +362,13 @@ end
 @inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
 @inline Base.exp10(v::AbstractSIMD{W}) where {W} = vexp10(float(v))
 @static if Base.libllvm_version ≥ v"11"
-    @inline vexp(v::AbstractSIMD) where {W} = vexp(v, has_feature(Val(:x86_64_avx512f)))
-    @inline vexp2(v::AbstractSIMD) where {W} = vexp2(v, has_feature(Val(:x86_64_avx512f)))
-    @inline vexp10(v::AbstractSIMD) where {W} = vexp10(v, has_feature(Val(:x86_64_avx512f)))
+    @inline vexp(v::AbstractSIMD) = vexp(v, has_feature(Val(:x86_64_avx512f)))
+    @inline vexp2(v::AbstractSIMD) = vexp2(v, has_feature(Val(:x86_64_avx512f)))
+    @inline vexp10(v::AbstractSIMD) = vexp10(v, has_feature(Val(:x86_64_avx512f)))
 else
-    @inline vexp(v::AbstractSIMD) where {W} = vexp(v, False())
-    @inline vexp2(v::AbstractSIMD) where {W} = vexp2(v, False())
-    @inline vexp10(v::AbstractSIMD) where {W} = vexp10(v, False())
+    @inline vexp(v::AbstractSIMD) = vexp(v, False())
+    @inline vexp2(v::AbstractSIMD) = vexp2(v, False())
+    @inline vexp10(v::AbstractSIMD) = vexp10(v, False())
 end
 @inline vexp(v::Union{Float32,Float64}) = vexp(v, False())
 @inline vexp2(v::Union{Float32,Float64}) = vexp2(v, False())
