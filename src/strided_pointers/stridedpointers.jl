@@ -90,9 +90,9 @@ end
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
 @inline bytestrides(A::StridedPointer) = getfield(A, :strd)
-@inline Base.strides(ptr::StridedPointer) = Base.getfield(ptr, :strd)
-@inline ArrayInterface.strides(ptr::StridedPointer) = Base.getfield(ptr, :strd)
-@inline ArrayInterface.offsets(ptr::StridedPointer) = Base.getfield(ptr, :offsets)
+@inline Base.strides(ptr::StridedPointer) = getfield(ptr, :strd)
+@inline ArrayInterface.strides(ptr::StridedPointer) = getfield(ptr, :strd)
+@inline ArrayInterface.offsets(ptr::StridedPointer) = getfield(ptr, :offsets)
 @inline ArrayInterface.contiguous_axis_indicator(ptr::AbstractStridedPointer{T,N,C}) where {T,N,C} = contiguous_axis_indicator(StaticInt{C}(), Val{N}())
 @inline val_stride_rank(::AbstractStridedPointer{T,N,C,B,R}) where {T,N,C,B,R} = Val{R}()
 @generated val_dense_dims(::AbstractStridedPointer{T,N}) where {T,N} = Val{ntuple(==(0), Val(N))}()
@@ -118,7 +118,7 @@ end
     StridedPointer{T,N,C,B,R,X}(ptr, getfield(sptr, :strd), zerotuple(Val{N}()))
 end
 
-@inline Base.pointer(ptr::StridedPointer) = Base.getfield(ptr, :p)
+@inline Base.pointer(ptr::StridedPointer) = getfield(ptr, :p)
 Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = pointer(ptr)
 # Shouldn't need to special case Array
 # function stridedpointer(A::Array{T,N}) where {T,N}
@@ -286,9 +286,9 @@ end
 @inline Base.pointer(p::StridedBitPointer) = p.p
 # @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
 @inline bytestrides(A::StridedBitPointer) = getfield(A, :strd)
-@inline Base.strides(ptr::StridedBitPointer) = Base.getfield(ptr, :strd)
-@inline ArrayInterface.strides(ptr::StridedBitPointer) = Base.getfield(ptr, :strd)
-@inline ArrayInterface.offsets(ptr::StridedBitPointer) = Base.getfield(ptr, :offsets)
+@inline Base.strides(ptr::StridedBitPointer) = getfield(ptr, :strd)
+@inline ArrayInterface.strides(ptr::StridedBitPointer) = getfield(ptr, :strd)
+@inline ArrayInterface.offsets(ptr::StridedBitPointer) = getfield(ptr, :offsets)
 
 @inline function stridedpointer(
     ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
@@ -540,7 +540,7 @@ BenchmarkTools.Trial:
 #         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
 #     end
 # end
-linearize(p::StridedBitPointer) = -sum(map(*, Base.getfield(p, :strd), Base.getfield(p, :offsets)))
+linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
 for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
     @eval begin
         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))

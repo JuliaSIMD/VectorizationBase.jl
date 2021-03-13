@@ -468,7 +468,7 @@ function vload_quote_llvmcall_core(
         push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" * LOAD_SCOPE_TBAA_FLAGS)
     end
     if isbit
-        lret = string('i', max(8,W))
+        lret = string('i', max(8,nextpow2(W)))
         if W > 1
             if reverse_load
                 # isbit means mask is set to false, so we definitely need to declare `bitreverse`
@@ -482,8 +482,12 @@ function vload_quote_llvmcall_core(
             if W < 8
                 push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
                 push!(instrs, "%resfinal = zext i$(W) %resint to i8")
-            else
+            elseif ispow2(W)
                 push!(instrs, "%resfinal = bitcast <$W x i1> %$(resbit) to i$(W)")
+            else
+                Wpow2 = nextpow2(W)
+                push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
+                push!(instrs, "%resfinal = zext i$(W) %resint to i$(Wpow2)")
             end
         else
             push!(instrs, "%resfinal = zext i1 %res to i8")
@@ -514,7 +518,7 @@ function vload_quote_llvmcall_core(
     end
     if mask
         push!(arg_syms, :(data(m)))
-        push!(args.args, mask_type(W))
+        push!(args.args, mask_type(nextpow2(W)))
         push!(largs, "i$(max(8,nextpow2(W)))")
     end
     return decl, join(instrs, "\n"), args, lret, largs, arg_syms

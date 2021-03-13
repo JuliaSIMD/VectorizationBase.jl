@@ -54,13 +54,12 @@ end
 function binary_mask_op(W, U, op, evl::Symbol = Symbol(""))
     instrs = binary_mask_op_instrs(W, op)
     mask = Expr(:curly, evl === Symbol("") ? :Mask : :EVLMask, W)
-    gf1 = Expr(:call, GlobalRef(Core, :getfield), :m1, 1, false)
-    gf2 = Expr(:call, GlobalRef(Core, :getfield), :m2, 1, false)
+    gf = GlobalRef(Core, :getfield)
+    gf1 = Expr(:call, gf, :m1, 1, false)
+    gf2 = Expr(:call, gf, :m2, 1, false)
     llvmc = Expr(:call, GlobalRef(Base, :llvmcall), instrs, U, :(Tuple{$U, $U}), gf1, gf2)
     call = Expr(:call, mask, llvmc)
-    if evl !== Symbol("")
-        push!(call.args, Expr(:call, evl, :(getfield(m1, :evl)), :(getfield(m2, :evl))))
-    end
+    evl === Symbol("") || push!(call.args, Expr(:call, evl, :($gf(m1, :evl)), :($gf(m2, :evl))))
     Expr(:block, Expr(:meta,:inline), call)
 end
 

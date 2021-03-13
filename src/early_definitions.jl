@@ -17,14 +17,14 @@ pick_vector_width(::Type{T}) where {T} = register_size(T) ÷ static_sizeof(T)
     _max_W = smin(max_W, pick_vector_width(T))
     _pick_vector_width(min_W, _max_W, S, args...)
 end
-@inline function _pick_vector_width(min_W, max_W, ::Type{Bit}, ::Type{S}, args::Vararg{Any,K}) where {K,S}
-    _pick_vector_width(StaticInt{8}(), max_W, S, args...)
-end
+# @inline function _pick_vector_width(min_W, max_W, ::Type{Bit}, ::Type{S}, args::Vararg{Any,K}) where {K,S}
+#     _pick_vector_width(StaticInt{8}(), max_W, S, args...)
+# end
 @inline function _pick_vector_width(min_W, max_W, ::Type{T}) where {T}
     _max_W = smin(max_W, pick_vector_width(T))
     smax(min_W, _max_W)
 end
-@inline _pick_vector_width(min_W, max_W, ::Type{Bit}) = smax(StaticInt{8}(), max_W)
+# @inline _pick_vector_width(min_W, max_W, ::Type{Bit}) = smax(StaticInt{8}(), max_W)
 @inline function pick_vector_width(::Type{T}, ::Type{S}, args::Vararg{Any,K}) where {T,S,K}
     _pick_vector_width(One(), register_size(), T, S, args...)
 end
@@ -127,7 +127,11 @@ mask_type(::Union{Val{2},StaticInt{2}}) = UInt8
 mask_type(::Union{Val{4},StaticInt{4}}) = UInt8
 mask_type(::Union{Val{8},StaticInt{8}}) = UInt8
 mask_type(::Union{Val{16},StaticInt{16}}) = UInt16
+mask_type(::Union{Val{24},StaticInt{24}}) = UInt32
 mask_type(::Union{Val{32},StaticInt{32}}) = UInt32
+mask_type(::Union{Val{40},StaticInt{40}}) = UInt64
+mask_type(::Union{Val{48},StaticInt{48}}) = UInt64
+mask_type(::Union{Val{56},StaticInt{56}}) = UInt64
 mask_type(::Union{Val{64},StaticInt{64}}) = UInt64
 
 @generated _mask_type(::StaticInt{W}) where {W} = mask_type_symbol(W)

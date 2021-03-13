@@ -104,7 +104,7 @@ abstract type AbstractMask{W,U<:UnsignedHW} <: AbstractSIMDVector{W,Bit} end
 struct Mask{W,U} <: AbstractMask{W,U}
     u::U
     @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
-        U2 = mask_type(Val{W}())
+        U2 = mask_type(StaticInt{W}())
         new{W,U2}(u % U2)
     end
 end

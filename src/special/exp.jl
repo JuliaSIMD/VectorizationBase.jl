@@ -350,10 +350,10 @@ invlog2lo(::Val{10}) = 2.8037281277851703390131173389968758336895725388728918107
 end
 
 # @inline _vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
-@inline _vexp(x, ::True) = vexp2( mul_ieee(1.4426950408889634, x), True() )
-@inline _vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
-@inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
-@inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
+# @inline _vexp(x, ::True) = vexp2( mul_ieee(1.4426950408889634, x), True() )
+# @inline _vexp10(x, ::True) = vexp2( 3.321928094887362 * x, True() )
+# @inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
+# @inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
 
 @inline vexp(x, ::True) = vexp_avx512(x, Val(ℯ))
 @inline vexp10(x, ::True) = vexp_avx512(x, Val(10))
@@ -362,17 +362,17 @@ end
 @inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
 @inline Base.exp10(v::AbstractSIMD{W}) where {W} = vexp10(float(v))
 @static if Base.libllvm_version ≥ v"11"
-    @inline vexp(v::AbstractSIMD{W,Float64}) where {W} = vexp(v, has_feature(Val(:x86_64_avx512f)))
-    @inline vexp2(v::AbstractSIMD{W,Float64}) where {W} = vexp2(v, has_feature(Val(:x86_64_avx512f)))
-    @inline vexp10(v::AbstractSIMD{W,Float64}) where {W} = vexp10(v, has_feature(Val(:x86_64_avx512f)))
+    @inline vexp(v::AbstractSIMD) where {W} = vexp(v, has_feature(Val(:x86_64_avx512f)))
+    @inline vexp2(v::AbstractSIMD) where {W} = vexp2(v, has_feature(Val(:x86_64_avx512f)))
+    @inline vexp10(v::AbstractSIMD) where {W} = vexp10(v, has_feature(Val(:x86_64_avx512f)))
 else
-    @inline vexp(v::AbstractSIMD{W,Float64}) where {W} = vexp(v, False())
-    @inline vexp2(v::AbstractSIMD{W,Float64}) where {W} = vexp2(v, False())
-    @inline vexp10(v::AbstractSIMD{W,Float64}) where {W} = vexp10(v, False())
+    @inline vexp(v::AbstractSIMD) where {W} = vexp(v, False())
+    @inline vexp2(v::AbstractSIMD) where {W} = vexp2(v, False())
+    @inline vexp10(v::AbstractSIMD) where {W} = vexp10(v, False())
 end
-@inline vexp(v::Float64) = vexp(v, False())
-@inline vexp2(v::Float64) = vexp2(v, False())
-@inline vexp10(v::Float64) = vexp10(v, False())
+@inline vexp(v::Union{Float32,Float64}) = vexp(v, False())
+@inline vexp2(v::Union{Float32,Float64}) = vexp2(v, False())
+@inline vexp10(v::Union{Float32,Float64}) = vexp10(v, False())
 
 # The `vpermi2pd` table requires the full `W = 8`. Therefore, without it, we use the full table with
 # 256 entries. For now, we use an AVX-512 specific implementation.
