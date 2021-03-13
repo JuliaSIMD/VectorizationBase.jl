@@ -4,11 +4,11 @@ using Documenter
 makedocs(;
     modules=[VectorizationBase],
     authors="Chris Elrod",
-    repo="https://github.com/chriselrod/VectorizationBase.jl/blob/{commit}{path}#L{line}",
+    repo="https://github.com/JuliaSIMD/VectorizationBase.jl/blob/{commit}{path}#L{line}",
     sitename="VectorizationBase.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://chriselrod.github.io/VectorizationBase.jl",
+        canonical="https://JuliaSIMD.github.io/VectorizationBase.jl",
     ),
     pages=[
         "Home" => "index.md",
@@ -17,5 +17,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/chriselrod/VectorizationBase.jl",
+    repo="github.com/JuliaSIMD/VectorizationBase.jl",
 )
