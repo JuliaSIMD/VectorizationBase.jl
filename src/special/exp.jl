@@ -355,8 +355,13 @@ end
 # @inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
 # @inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
 
-@inline vexp(x, ::True) = vexp_avx512(x, Val(ℯ))
-@inline vexp10(x, ::True) = vexp_avx512(x, Val(10))
+@inline vexp(x::AbstractSIMD{8,Float64}, ::True) = vexp_avx512(x, Val(ℯ))
+@inline vexp10(x::AbstractSIMD{8,Float64}, ::True) = vexp_avx512(x, Val(10))
+@inline vexp(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_generic(x, Val(ℯ))
+@inline vexp10(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_generic(x, Val(10))
+@inline vexp(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(ℯ))
+@inline vexp2(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(2))
+@inline vexp10(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(10))
 
 @inline Base.exp(v::AbstractSIMD{W}) where {W} = vexp(float(v))
 @inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
