@@ -57,11 +57,15 @@ abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
 struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
     data::Tuple{V,Vararg{V,N}}
+    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = new{N,W,T,V}(data)
+    @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}) where {N,T<:NativeTypes} = new{N,1,T,T}(data)
+    # # following two definitions are for checking that you aren't accidentally creating `VecUnroll{0}`s.
+    # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = (@assert(N > 0); new{N,W,T,V}(data))
+    # @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}) where {N,T<:NativeTypes} = (@assert(N > 0); new{N,1,T,T}(data))
+    
     # @inline VecUnroll{N,W,T,V}(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
     # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
-    @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = new{N,W,T,V}(data)
     # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
-    @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}) where {N,T<:NativeTypes} = new{N,1,T,T}(data)
 end
 # @inline VecUnroll(data::Tuple) = VecUnroll(promote(data))
 # const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}

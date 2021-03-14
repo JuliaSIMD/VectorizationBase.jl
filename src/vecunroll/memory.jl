@@ -225,36 +225,26 @@ function vload_transpose_quote(D::Int,AU::Int,F::Int,N::Int,AV::Int,W::Int,X::In
             push!(loadq.args, alignval, rsexpr)
             push!(q.args, :(vl_1 = $loadq))
             push!(vut.args, :vl_1)
+        elseif W == 1
+            loadq = loadq_expr!(q,D,AU,AV,n,i,X,W,W,domask,npartial,evl,RS,mask,alignval,rsexpr)
+            loadsym = Symbol(:vloadw1_, i, :_, n)
+            push!(q.args, Expr(:(=), loadsym, loadq))
+            for nn ∈ 1:npartial
+                push!(vut.args, :(extractelement($loadsym, $(nn-1))))
+            end
         else
             # dname is a `VecUnroll{(W-1),N}`
             t = Expr(:tuple)
+            dname = Symbol(:vud_,i,:_,n)
             for w ∈ 1:W
                 # if domask, these get masked
-                ind = Expr(:tuple)
-                for d ∈ 1:D
-                    if AU == d
-                        push!(ind.args, :(MM{$n}(StaticInt{$i}())))
-                    elseif AV == d
-                        push!(ind.args, :(StaticInt{$(X*(w-1))}()))
-                    else
-                        push!(ind.args, :(StaticInt{0}()))
-                    end
-                end
-                # transposing mask does what?
-                loadq = :(_vload(gptr, $ind))
-                push_transpose_mask!(q, loadq, domask, n, npartial, w, W, evl, RS, mask)
-                push!(loadq.args, alignval, rsexpr)
+                loadq = loadq_expr!(q,D,AU,AV,n,i,X,w,W,domask,npartial,evl,RS,mask,alignval,rsexpr)
                 push!(t.args, loadq)
             end
-            dname = Symbol(:vud_,i,:_,n)
             push!(q.args, :($dname = data(transpose_vecunroll(VecUnroll($t)))))
             for nn ∈ 1:npartial
                 extract = :(getfield($dname, $nn, false))
-                if W == 1
-                    push!(vut.args, :(extractelement($extract,0)))
-                else
-                    push!(vut.args, extract)
-                end
+                push!(vut.args, extract)
             end
         end
         # M >>>= 1
@@ -262,6 +252,23 @@ function vload_transpose_quote(D::Int,AU::Int,F::Int,N::Int,AV::Int,W::Int,X::In
     end
     push!(q.args, :(VecUnroll($vut)))
     q
+end
+function loadq_expr!(q,D,AU,AV,n,i,X,w,W,domask,npartial,evl,RS,mask,alignval,rsexpr)
+    ind = Expr(:tuple)
+    for d ∈ 1:D
+        if AU == d
+            push!(ind.args, :(MM{$n}(StaticInt{$i}())))
+        elseif AV == d
+            push!(ind.args, :(StaticInt{$(X*(w-1))}()))
+        else
+            push!(ind.args, :(StaticInt{0}()))
+        end
+    end
+    # transposing mask does what?
+    loadq = :(_vload(gptr, $ind))
+    push_transpose_mask!(q, loadq, domask, n, npartial, w, W, evl, RS, mask)
+    push!(loadq.args, alignval, rsexpr)
+    loadq
 end
 
 # @inline staticunrolledvectorstride(_, __) = nothing
@@ -305,7 +312,7 @@ end
 @generated function _vload_unroll(
     sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::StaticInt{X}
 ) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:IndexNoUnroll,A<:StaticBool,RS,X}
-    # 1+2
+    1+2
     if T === Bit
         bitlq = bitload(AU,W,AV,F,UN,RS,false)
         bitlq === nothing || return bitlq
@@ -327,7 +334,8 @@ end
 @generated function _vload_unroll(
     sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::Nothing
 ) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:IndexNoUnroll,A<:StaticBool,RS}
-    1+2
+    # 1+2
+    # @show AU,F,UN,AV,W,M,UX,I
     if T === Bit
         bitlq = bitload(AU,W,AV,F,UN,RS,false)
         bitlq === nothing || return bitlq

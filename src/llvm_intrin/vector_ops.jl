@@ -342,5 +342,11 @@ end
     # push!(q.args, Expr(:call, :VecUnroll, t))
     # q
 end
-
+@generated function vec_to_vecunroll(v::AbstractSIMDVector{W}) where {W}
+    t = Expr(:tuple)
+    for w ∈ 0:W-1
+        push!(t.args, :(extractelement(v, $w)))
+    end
+    Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
+end
 
