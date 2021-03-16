@@ -361,10 +361,9 @@ end
 # @inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
 # @inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
 
-@inline vexp(x::AbstractSIMD{8,Float64}, ::True) = vexp_avx512(x, Val(ℯ))
-@inline vexp10(x::AbstractSIMD{8,Float64}, ::True) = vexp_avx512(x, Val(10))
-@inline vexp(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_generic(x, Val(ℯ))
-@inline vexp10(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_generic(x, Val(10))
+@inline vexp(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_avx512(x, Val(ℯ))
+@inline vexp2(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_avx512(x, Val(2))
+@inline vexp10(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_avx512(x, Val(10))
 @inline vexp(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(ℯ))
 @inline vexp2(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(2))
 @inline vexp10(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(10))
@@ -385,19 +384,25 @@ end
 @inline vexp2(v::Union{Float32,Float64}) = vexp2(v, False())
 @inline vexp10(v::Union{Float32,Float64}) = vexp10(v, False())
 
-# The `vpermi2pd` table requires the full `W = 8`. Therefore, without it, we use the full table with
-# 256 entries. For now, we use an AVX-512 specific implementation.
-# TODO: abstract out `vsreduce` and `vscalef` so that the split between arches happens there.
-@inline function vexp2(x::AbstractSIMD{W,Float64}, ::True) where {W}
-    r = vsreduce(256.0*x, Val(0)) * 0.00390625
-    N_float = x - r
-    inds = convert(UInt, vsreduce(N_float, Val(1))*256.0)
-    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (inds,))
-    small_part = vfmadd(js, expm1b_kernel(Val(2), r), js)
-    res = vscalef(small_part, N_float)
+
+@inline function vexp_avx512(x::AbstractSIMD{W,Float64}, ::Val{B}) where {W,B}
+    N_float = muladd(x, LogBo256INV(Val{B}(), Float64), MAGIC_ROUND_CONST(Float64))
+    N = target_trunc(reinterpret(UInt64, N_float))
+    N_float = N_float - MAGIC_ROUND_CONST(Float64)
+    r = fma(N_float, LogBo256U(Val{B}(), Float64), x)
+    r = fma(N_float, LogBo256L(Val{B}(), Float64), r)
+    # @show (N & 0x000000ff) % Int
+    # @show N N & 0x000000ff
+    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
+    # k = N >>> 0x00000008
+    # small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
+    small_part = vfmadd(js, expm1b_kernel(Val{B}(), r), js)
+    # return reinterpret(Float64, small_part), r, k, N_float, js
+    res = vscalef(small_part, 0.00390625*N_float)
+    # twopk = (k % UInt64) << 0x0000000000000034
+    # res = reinterpret(Float64, twopk + small_part)
     return res
 end
-
 
 ####################################################################################################
 ################################## Non-AVX512 implementation #######################################
@@ -411,7 +416,6 @@ end
     r = fast_fma(N_float, LogBo256U(Val{B}(), Float64), x, fma_fast())
     r = fast_fma(N_float, LogBo256L(Val{B}(), Float64), r, fma_fast())
     # @show (N & 0x000000ff) % Int
-    @show N N & 0x000000ff
     js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
     k = N >>> 0x00000008
     small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
