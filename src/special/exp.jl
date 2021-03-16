@@ -117,6 +117,9 @@ MIN_EXP(::Val{10}, ::Type{Float32}) = -37.9297794795476f0      # log10 2^-127 *(
 LogBo256INV(::Val{2}, ::Type{Float64})    = 256.
 LogBo256INV(::Val{ℯ}, ::Type{Float64})    = 369.3299304675746
 LogBo256INV(::Val{10}, ::Type{Float64})   = 850.4135922911647
+LogBo16INV(::Val{2}, ::Type{Float64})    = 16.
+LogBo16INV(::Val{ℯ}, ::Type{Float64})    = 23.083120654223414
+LogBo16INV(::Val{10}, ::Type{Float64})   = 53.150849518197795
 # -log(base, 2)/256 in upper and lower bits
 LogBo256U(::Val{2}, ::Type{Float64})      = -0.00390625
 LogBo256U(::Val{ℯ}, ::Type{Float64})      = -0.0027076061740622863
@@ -124,6 +127,16 @@ LogBo256U(::Val{10}, ::Type{Float64})     = -0.0011758984205624266
 LogBo256L(base::Val{2}, ::Type{Float64})  =  0.
 LogBo256L(base::Val{ℯ}, ::Type{Float64})  = -9.058776616587108e-20
 LogBo256L(base::Val{10}, ::Type{Float64}) = 1.0952062999160822e-20
+
+LogBo16U(::Val{2}, ::Type{Float64})      = -0.0625
+LogBo16U(::Val{ℯ}, ::Type{Float64})      = -0.04332169878499658183857700759113603550471875839751595338254250059333710137310597
+LogBo16U(::Val{10}, ::Type{Float64})     = -0.01881437472899882470085868092028081417301186759138178383190171632044426182965149
+LogBo16L(base::Val{2}, ::Type{Float64})  = Zero()
+LogBo16L(base::Val{ℯ}, ::Type{Float64})  = -1.4494042586539372e-18
+LogBo16L(base::Val{10}, ::Type{Float64}) = 1.7523300798657315e-19
+
+
+
 
 # 1/log(base, 2) (For Float32 reductions)
 LogBINV(::Val{2}, ::Type{Float32})    =  1f0
@@ -284,19 +297,13 @@ end
 # Because of the larger polynomial, this implementation works better on systems with 2 FMA units.
 
 @inline function vexp2(x::AbstractSIMD{8,Float64}, ::True)
-    x16 = 16.0*x
-    r = vsreduce(x16, Val(0)) * 0.0625
+    r = vsreduce(16.0x, Val(0)) * 0.0625
     N_float = x - r
     expr = expm1b_kernel_16(Val(2), r)
-    # expr = expm1b_kernel_6(Val(2), r)
-    
     inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
-
+    # inds = ((trunc(Int, 16.0*N_float)%UInt)) & 0x0f
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
     small_part = vfmadd(js, expr, js)
-    m = N_float
-    j = vsreduce(N_float, Val(1))
-    # @show r m j
     res = vscalef(small_part, N_float)
     return res
 end
@@ -328,24 +335,23 @@ end
 #     vscalef(small_part, m)
 # end
 
-_log2(::Val{ℯ}) = 1.4426950408889634
-invlog2hi(::Val{ℯ}) = 0.6931471805599453094172321214581765680755001343602552541206800094933936219696955
-invlog2lo(::Val{ℯ}) = -2.319046813846299615494855463875478650412068000949339362196969553467383712860567e-17
-_log2(::Val{10}) = 3.321928094887362347870319429489390175864831393024580612054756395815934776608624
-invlog2hi(::Val{10}) = 0.3010299956639811952137388947244930267681898814621085413104274611271081892744238
-invlog2lo(::Val{10}) = 2.803728127785170339013117338996875833689572538872891810725576172209659522828247e-18
+# _log2(::Val{ℯ}) = 1.4426950408889634
+# invlog2hi(::Val{ℯ}) = 0.6931471805599453094172321214581765680755001343602552541206800094933936219696955
+# invlog2lo(::Val{ℯ}) = -2.319046813846299615494855463875478650412068000949339362196969553467383712860567e-17
+# _log2(::Val{10}) = 3.321928094887362347870319429489390175864831393024580612054756395815934776608624
+# invlog2hi(::Val{10}) = 0.3010299956639811952137388947244930267681898814621085413104274611271081892744238
+# invlog2lo(::Val{10}) = 2.803728127785170339013117338996875833689572538872891810725576172209659522828247e-18
+
 
 @inline function vexp_avx512(x::AbstractSIMD{8,Float64}, ::Val{B}) where {B}
-    xl2e = mul_ieee(_log2(Val{B}()), x)
-    x16 = 16.0*xl2e
-    N_float = vfnmadd(0.0625, vsreduce(x16, Val(0)), xl2e )
-    ra = fma(invlog2lo(Val{B}()), N_float, vfnmadd(invlog2hi(Val{B}()), N_float, x)) # hilo
-    expr = expm1b_kernel_16(Val(B), ra)
-    j = vsreduce(N_float, Val(1))
-    inds = convert(UInt, j*16.0)
+    N_float = round(x*LogBo16INV(Val(B), Float64))
+    r = muladd(N_float, LogBo16U(Val(B), Float64), x)
+    r = muladd(N_float, LogBo16L(Val(B), Float64), r)
+    inds = ((trunc(Int, N_float)%UInt)) & 0x0f
+    expr = expm1b_kernel_16(Val(B), r)
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
     small_part = vfmadd(js, expr, js)
-    res = vscalef(small_part, N_float)
+    res = vscalef(small_part, 0.0625*N_float)
     return res
 end
 
@@ -383,8 +389,7 @@ end
 # 256 entries. For now, we use an AVX-512 specific implementation.
 # TODO: abstract out `vsreduce` and `vscalef` so that the split between arches happens there.
 @inline function vexp2(x::AbstractSIMD{W,Float64}, ::True) where {W}
-    x256 = 256.0*x
-    r = vsreduce(x256, Val(0)) * 0.00390625
+    r = vsreduce(256.0*x, Val(0)) * 0.00390625
     N_float = x - r
     inds = convert(UInt, vsreduce(N_float, Val(1))*256.0)
     js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (inds,))
@@ -406,6 +411,7 @@ end
     r = fast_fma(N_float, LogBo256U(Val{B}(), Float64), x, fma_fast())
     r = fast_fma(N_float, LogBo256L(Val{B}(), Float64), r, fma_fast())
     # @show (N & 0x000000ff) % Int
+    @show N N & 0x000000ff
     js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
     k = N >>> 0x00000008
     small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
