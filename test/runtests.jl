@@ -508,6 +508,9 @@ include("testsetup.jl")
     println("Unary Functions")
     @time @testset "Unary Functions" begin
         for T ∈ (Float32,Float64)
+            for f ∈ [floatmin,floatmax,typemin,typemax]
+                @test f(Vec{Int(pick_vector_width(T)),T}) === Vec(ntuple(_ -> f(T), pick_vector_width(T))...)
+            end
             v = let W = VectorizationBase.pick_vector_width(T)
                 VectorizationBase.VecUnroll((
                     Vec(ntuple(_ -> (randn(T)), W)...),

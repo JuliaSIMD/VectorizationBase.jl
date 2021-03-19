@@ -272,3 +272,8 @@ for (vf,f) ∈ [
         @inline Base.$f(m::AbstractSIMD{<:Any,<:Union{Bool,Bit}}) = $vf(m)
     end
 end
+
+for f ∈ [:typemin, :typemax, :floatmin, :floatmax]
+    @eval @inline Base.$f(::Type{V}) where {W,T,V <: AbstractSIMD{W,T}} = convert(V, $f(T))
+end
+
