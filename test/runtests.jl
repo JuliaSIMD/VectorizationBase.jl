@@ -1070,6 +1070,19 @@ include("testsetup.jl")
             # test_acc(VectorizationBase.vlog2, log2, T, xx, 7)
         end
     end
+
+    # fix the stackoverflow error in `vmax_fast`, `vmax`, `vmin` and `vmin_fast` for floating types
+    @time @testset "fix stackoverflow for `vmax_fast` et al." begin
+        @test VectorizationBase.vmax_fast(1.0,3.0) === 3.0
+        @test VectorizationBase.vmax_fast(1,3) === 3
+        @test VectorizationBase.vmin_fast(1,3) === 1
+        @test VectorizationBase.vmin_fast(1.0,3.0) === 1.0
+        @test VectorizationBase.vmax(1.0,3.0) === 3.0
+        @test VectorizationBase.vmax(1,3) === 3
+        @test VectorizationBase.vmin(1,3) === 1
+        @test VectorizationBase.vmin(1.0,3.0) === 1.0
+    end
+
     # end
 end # @testset VectorizationBase
 
