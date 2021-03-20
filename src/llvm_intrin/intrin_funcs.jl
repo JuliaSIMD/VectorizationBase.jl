@@ -218,7 +218,7 @@ end
 @inline vcopysign(v::VecUnroll, s::UnsignedHW) = vabs(v)
 @inline vcopysign(v::VecUnroll{N,W,T}, s::NativeTypes) where {N,W,T} = VecUnroll(fmap(vcopysign, getfield(v, :data), vbroadcast(Val{W}(), s)))
 
-for f ∈ [:vmax, :vmax_fast, :vmin, :vmin_fast]
+for (f, fl) ∈ [(:vmax, :max), (:vmax_fast, :max_fast), (:vmin, :min), (:vmin_fast, :min_fast)]
     @eval begin
         @inline function $f(a::Union{FloatingTypes,Vec{<:Any,<:FloatingTypes}}, b::Union{FloatingTypes,Vec{<:Any,<:FloatingTypes}})
             c, d = promote(a, b)
@@ -234,6 +234,8 @@ for f ∈ [:vmax, :vmax_fast, :vmin, :vmin_fast]
         end
         @inline $f(v::Vec{W,<:IntegerTypesHW}, s::IntegerTypesHW) where {W} = $f(v, vbroadcast(Val{W}(), s))
         @inline $f(s::IntegerTypesHW, v::Vec{W,<:IntegerTypesHW}) where {W} = $f(vbroadcast(Val{W}(), s), v)
+        @inline $f(a::FloatingTypes, b::FloatingTypes) = Base.FastMath.$fl(a, b)
+        @inline $f(a::Integer, b::Integer) = Base.FastMath.$fl(a, b)
     end
 end
 
