@@ -2,7 +2,7 @@
 # We use these definitions because when we have other SIMD operations with masks
 # LLVM optimizes the masks better.
 function truncate_mask!(instrs, input, W, suffix, reverse_load::Bool = false)
-    mtyp_input = "i$(max(8,W))"
+    mtyp_input = "i$(max(8,nextpow2(W)))"
     mtyp_trunc = "i$(W)"
     if reverse_load
         bitreverse = "i$(W) @llvm.bitreverse.i$(W)"
@@ -32,7 +32,7 @@ function truncate_mask!(instrs, input, W, suffix, reverse_load::Bool = false)
     decl
 end
 function zext_mask!(instrs, input, W, suffix)
-    mtyp_input = "i$(max(8,W))"
+    mtyp_input = "i$(max(8,nextpow2(W)))"
     mtyp_trunc = "i$(W)"
     str = if mtyp_input == mtyp_trunc
         "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input"

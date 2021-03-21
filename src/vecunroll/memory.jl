@@ -354,7 +354,7 @@ end
         bitlq = bitload(AU,W,AV,F,N,RS,true)
         bitlq === nothing || return bitlq
     end
-    # 1+2
+    1+2
     should_transpose = should_transpose_memop(F,C,AU,AV,N,M)
     align = A === True
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
