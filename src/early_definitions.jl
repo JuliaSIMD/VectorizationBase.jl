@@ -70,9 +70,9 @@ end
     if RS ≥ sizeof(T2) * W
         return :(Vec{$W,$T2})
     elseif T2 <: Signed
-        return :(Vec{$W,$(integer_of_bytes_symbol(SIRS ÷ W, false))})
+        return :(Vec{$W,$(integer_of_bytes_symbol(max(1,SIRS ÷ W), false))})
     elseif T2 <: Unsigned
-        return :(Vec{$W,$(integer_of_bytes_symbol(SIRS ÷ W, true))})
+        return :(Vec{$W,$(integer_of_bytes_symbol(max(1,SIRS ÷ W), true))})
     else
         return :(Vec{$W,$T2})
     end

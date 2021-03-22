@@ -42,7 +42,7 @@ function zext_mask!(instrs, input, W, suffix)
     push!(instrs, str)
 end
 function binary_mask_op_instrs(W, op)
-    mtyp_input = "i$(max(8,W))"
+    mtyp_input = "i$(max(8,nextpow2(W)))"
     instrs = String[]
     truncate_mask!(instrs, '0', W, 0)
     truncate_mask!(instrs, '1', W, 1)
@@ -235,7 +235,7 @@ end
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
     # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
-    if Base.libllvm_version ≥ v"11"
+    if (Base.libllvm_version ≥ v"11") && (W ≤ 16)
         quote
             $(Expr(:meta,:inline))
             mask(Val{$W}(), zero(l), ((l - one(l)) & $(I(W-1))))
@@ -247,7 +247,7 @@ end
             evl = valrem(Val{$W}(), vsub(l % $M, one($M)))
             EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
         end
-    end
+    # end
 end
 
 @inline function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W, I <: Integer}
@@ -320,7 +320,7 @@ Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
     Expr(:block, Expr(:meta, :inline), call)
 end
 @generated function insertelement(v::Mask{W,U}, x::T, i::I) where {W, T, U, I <: Union{Bool,IntegerTypesHW}}
-    mtyp_input = "i$(max(8,W))"
+    mtyp_input = "i$(max(8,nextpow2(W)))"
     instrs = String["%bit = trunc i$(8sizeof(T)) %1 to i1"]
     truncate_mask!(instrs, '0', W, 0)
     push!(instrs, "%bitvec = insertelement <$W x i1> %mask.0, i1 %bit, i$(8sizeof(I)) %2")
@@ -351,7 +351,7 @@ end
 function cmp_quote(W, cond, vtyp, T1, T2 = T1)
     instrs = String["%m = $cond $vtyp %0, %1"]
     zext_mask!(instrs, 'm', W, '0')
-    push!(instrs, "ret i$(max(8,W)) %res.0")
+    push!(instrs, "ret i$(max(8,nextpow2(W))) %res.0")
     U = mask_type_symbol(W);
     quote
         $(Expr(:meta,:inline))
@@ -609,10 +609,10 @@ end
         decl = "declare <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ), $(typ))"
         instrs = ["%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)"]
         zext_mask!(instrs, 'm', W, 0)
-        push!(instrs, "ret i$(max(W,8)) %res.0")
+        push!(instrs, "ret i$(max(nextpow2(W),8)) %res.0")
         # args =  [:base, :(vsub(N,one($T)))]
         args =  [:base, :N]
-        call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(W,8))", [typ, typ], args, true)
+        call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(nextpow2(W),8))", [typ, typ], args, true)
         Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, vadd_fast(vsub_fast(N % UInt32, base % UInt32), 0x00000001))))
     end
     @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), getfield(i, :i), N)
@@ -620,7 +620,7 @@ end
 
 
 @generated function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
-    mtyp_input = "i$(max(8,W))"
+    mtyp_input = "i$(max(8,nextpow2(W)))"
     instrs = String[]
     truncate_mask!(instrs, '0', W, 0)
     truncate_mask!(instrs, '1', W, 1)
@@ -635,7 +635,7 @@ end
     # M, instrs = shufflevector_instrs(W, Bit, shuffmask, W)
     push!(instrs, "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask")
 
-    mtyp_output = "i$(max(8,W2))"
+    mtyp_output = "i$(max(8,nextpow2(W2)))"
     zext_mask!(instrs, "combinedmask", W2, 1)
     push!(instrs, "ret $mtyp_output %res.1")
     instrj = join(instrs, "\n")
