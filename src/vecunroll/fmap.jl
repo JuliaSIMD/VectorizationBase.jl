@@ -154,7 +154,7 @@ end
 
 @inline vunsafe_trunc(::Type{T}, v::VecUnroll) where {T<:Real} = VecUnroll(fmap(vunsafe_trunc, T, getfield(v, :data)))
 @inline vrem(v::VecUnroll, ::Type{T}) where {T<:Real} = VecUnroll(fmap(vrem, getfield(v, :data), T))
-@inline vrem(v::VecUnroll{N,W}, ::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V} = VecUnroll(fmap(vrem, getfield(v, :data), V))
+@inline vrem(v::VecUnroll{N,W1}, ::Type{VecUnroll{N,W2,T,V}}) where {N,W1,W2,T,V} = VecUnroll(fmap(vrem, getfield(v, :data), V))
 
 @inline (::Type{VecUnroll{N,W,T,V}})(vu::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = vu
 @inline function (::Type{VecUnroll{N,W,T,VT}})(vu::VecUnroll{N,W,S,VS})  where {N,W,T,VT<:AbstractSIMDVector{W,T},S,VS<:AbstractSIMDVector{W,S}}
