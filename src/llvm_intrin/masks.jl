@@ -247,7 +247,7 @@ end
             evl = valrem(Val{$W}(), vsub(l % $M, one($M)))
             EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
         end
-    # end
+    end
 end
 
 @inline function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W, I <: Integer}
