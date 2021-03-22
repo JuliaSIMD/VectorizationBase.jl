@@ -73,6 +73,7 @@ end
         Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
     end
 end
+@inline _vbroadcast(::StaticInt{W}, m::EVLMask{W}, ::StaticInt{RS}) where {W,RS} = Mask(m)
 @inline vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T} = _vzero(StaticInt{W}(), T, register_size(T))
 @inline vbroadcast(::Union{Val{W},StaticInt{W}}, s::T) where {W,T} = _vbroadcast(StaticInt{W}(), s, register_size(T))
 @inline function _vbroadcast(::StaticInt{W}, vu::VecUnroll{N, 1, T, T}, ::StaticInt{RS}) where {W,N,T,RS}

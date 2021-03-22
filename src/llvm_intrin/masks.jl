@@ -466,6 +466,7 @@ end
 
 @inline vconvert(::Type{EVLMask{W,U}}, b::Bool) where {W,U} = b & max_mask(StaticInt{W}())
 
+@inline vifelse(m::AbstractMask{W}, a::AbstractMask{W}, b::AbstractMask{W}) where {W} = bitselect(m,b,a)
 
 @inline Base.isnan(v::AbstractSIMD) = v != v
 @inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)

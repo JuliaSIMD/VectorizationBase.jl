@@ -336,7 +336,8 @@ end
 
 for (f,f_to,op,reduce,twoarg) ∈ [
     (:reduced_add,:reduce_to_add,:+,:vsum,true),(:reduced_prod,:reduce_to_prod,:*,:vprod,true),
-    (:reduced_max,:reduce_to_max,:max,:vmaximum,false),(:reduced_min,:reduce_to_min,:min,:vminimum,false)
+    (:reduced_max,:reduce_to_max,:max,:vmaximum,false),(:reduced_min,:reduce_to_min,:min,:vminimum,false),
+    (:reduced_all,:reduce_to_all,:(&),:vall,false),(:reduced_any,:reduce_to_any,:(|),:vany,false)
 ]
     @eval begin
         @inline $f_to(x::NativeTypes, y::NativeTypes) = x
