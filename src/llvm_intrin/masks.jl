@@ -191,6 +191,7 @@ end
         Mask{$W}($LLVMCALL($(join(instrs,"\n")), $U, Tuple{$U}, getfield(m, :u)))
     end
 end
+@inline vnot(x::Bool) = Base.not_int(x)
 # @inline Base.:(~)(m::Mask) = !m
 
 @inline Base.count_ones(m::AbstractMask) = count_ones(getfield(m, :u))
