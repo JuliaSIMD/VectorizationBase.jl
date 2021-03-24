@@ -783,13 +783,35 @@ end
     vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
     _vstore!(sptr, vb, u, A(), S(), NT(), StaticInt{RS}())
 end
-for M ∈ [:Bool, :AbstractMask, :(VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}})]
-    @eval @inline function _vstore!(
-        sptr::AbstractStridedPointer{T}, vs::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,W}, m::$M, ::A, ::S, ::NT, ::StaticInt{RS}
-    ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV}
-        vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
-        _vstore!(sptr, vb, u, m, A(), S(), NT(), StaticInt{RS}())
+for M ∈ [:Bool, :AbstractMask]
+    @eval begin
+        @inline function _vstore!(
+            sptr::AbstractStridedPointer{T}, vs::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,W}, m::$M, ::A, ::S, ::NT, ::StaticInt{RS}
+        ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV}
+            vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
+            _vstore!(sptr, vb, u, m, A(), S(), NT(), StaticInt{RS}())
+        end
+        @inline function _vstore!(
+            ptr::AbstractStridedPointer{T}, vu::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,1,M}, m::$M, ::A, ::S, ::NT, ::StaticInt{RS}
+        ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV,M}
+            p, li = linear_index(ptr, u)
+            sptr = similar_no_offset(ptr, p)
+            _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
+        end
     end
+end
+@inline function _vstore!(
+    sptr::AbstractStridedPointer{T}, vs::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,W}, m::VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV}
+    vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
+    _vstore!(sptr, vb, u, m, A(), S(), NT(), StaticInt{RS}())
+end
+@inline function _vstore!(
+    ptr::AbstractStridedPointer{T}, vu::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,1,M}, m::VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV,M}
+    p, li = linear_index(ptr, u)
+    sptr = similar_no_offset(ptr, p)
+    _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 
 function vload_double_unroll_quote(
