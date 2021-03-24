@@ -793,7 +793,7 @@ for M ∈ [:Bool, :AbstractMask]
         end
         @inline function _vstore!(
             ptr::AbstractStridedPointer{T}, vu::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,1,M}, m::$M, ::A, ::S, ::NT, ::StaticInt{RS}
-        ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV,M}
+        ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,AV,M}
             p, li = linear_index(ptr, u)
             sptr = similar_no_offset(ptr, p)
             _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
@@ -808,7 +808,7 @@ end
 end
 @inline function _vstore!(
     ptr::AbstractStridedPointer{T}, vu::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,1,M}, m::VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV,M}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,AV,M}
     p, li = linear_index(ptr, u)
     sptr = similar_no_offset(ptr, p)
     _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}())
