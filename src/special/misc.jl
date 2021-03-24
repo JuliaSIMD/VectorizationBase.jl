@@ -53,6 +53,8 @@ for (X,L,H) in Iterators.product(fill([:Any, :Missing, :AbstractSIMD], 3)...)
     end
 end
 
+@inline Base.FastMath.hypot_fast(x::AbstractSIMD, y::AbstractSIMD) = sqrt(Base.FastMath.add_fast(Base.FastMath.mul_fast(x,x),Base.FastMath.mul_fast(y,y)))
+
 @inline Base.clamp(x::AbstractSIMD{<:Any,<:Integer}, r::AbstractUnitRange{<:Integer}) =
     clamp(x, first(r), last(r))
 

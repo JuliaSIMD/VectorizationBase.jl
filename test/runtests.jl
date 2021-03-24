@@ -652,7 +652,7 @@ include("testsetup.jl")
             vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
             xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
             a = randn();
-            for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast]
+            for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast, Base.FastMath.hypot_fast]
                 # @show f
                 @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
                 @test tovector(@inferred(f(a, vf1))) ≈ f.(a, xf1)
@@ -697,6 +697,8 @@ include("testsetup.jl")
 
             @test gcd(Vec(42,64,0,-37), Vec(18,96,-38,0)) === Vec(6,32,38,37)
             @test lcm(Vec(24,16,42,0),Vec(18,12,18,17)) === Vec(72, 48, 126, 0)
+
+            
         end
     end
     println("Ternary Functions")
