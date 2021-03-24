@@ -783,6 +783,13 @@ end
     vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
     _vstore!(sptr, vb, u, A(), S(), NT(), StaticInt{RS}())
 end
+@inline function _vstore!(
+    ptr::AbstractStridedPointer{T}, vu::VecUnroll{Nm1,1}, u::Unroll{AU,F,N,AV,1}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,AV}
+    p, li = linear_index(ptr, u)
+    sptr = similar_no_offset(ptr, p)
+    _vstore_unroll!(sptr, vu, li, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
+end
 for M ∈ [:Bool, :AbstractMask]
     @eval begin
         @inline function _vstore!(
