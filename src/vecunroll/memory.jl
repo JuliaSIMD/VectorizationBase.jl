@@ -777,6 +777,21 @@ end
     _vstore!(sptr, vconvert(VecUnroll{Int(StaticInt{N}()-One()),1,T,T}, v), u, m, A(), S(), NT(), StaticInt{RS}())
 end
 
+@inline function _vstore!(
+    sptr::AbstractStridedPointer{T}, vs::VecUnroll{Nm1,1}, u::Unroll{AU,F,N,AV,W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV}
+    vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
+    _vstore!(sptr, vb, u, A(), S(), NT(), StaticInt{RS}())
+end
+for M ∈ [:Bool, :AbstractMask, :(VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}})]
+    @eval @inline function _vstore!(
+        sptr::AbstractStridedPointer{T}, vs::VecUnroll{Nm1,1,T,T}, u::Unroll{AU,F,N,AV,W}, m::$M, ::A, ::S, ::NT, ::StaticInt{RS}
+    ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,T<:NativeTypes,AU,F,N,Nm1,W,AV}
+        vb = _vbroadcast(StaticInt{W}(), vs, StaticInt{RS}())
+        _vstore!(sptr, vb, u, m, A(), S(), NT(), StaticInt{RS}())
+    end
+end
+
 function vload_double_unroll_quote(
     D::Int, NO::Int, NI::Int, AUO::Int, FO::Int, AV::Int, W::Int, MO::UInt,
     X::Int, C::Int, AUI::Int, FI::Int, MI::UInt, mask::Bool, A::Bool, RS::Int, svus::Int
