@@ -1057,18 +1057,18 @@ include("testsetup.jl")
         for T ∈ [Float32,Float64]
             min_non_denormal = nextfloat(abs(reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))))
             l2mnd = log2(min_non_denormal)
-            xx = collect(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
+            xx = collect(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^20));
             test_acc(exp2, exp2, T, xx, 3)
 
             lemnd = log(min_non_denormal)
-            xx .= range(0.8lemnd, 0.8abs(lemnd), length = 2^20);
+            xx .= range(T(0.8)*lemnd, T(0.8)*abs(lemnd), length = 2^20);
             test_acc(exp, exp, T, xx, 3)
             
             l10mnd = log10(min_non_denormal)
-            xx .= range(0.8l10mnd, 0.8abs(l10mnd), length = 2^20);
+            xx .= range(T(0.8)*l10mnd, T(0.8)*abs(l10mnd), length = 2^20);
             test_acc(exp10, exp10, T, xx, 3)
 
-            # xx .= exp2.(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
+            # xx .= exp2.(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^20));
             # test_acc(VectorizationBase.vlog2, log2, T, xx, 7)
         end
         @test exp(VecUnroll((1.1,2.3))) === VecUnroll((3.0041660239464334, 9.97418245481472))

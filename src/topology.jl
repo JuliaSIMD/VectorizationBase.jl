@@ -83,7 +83,7 @@ function redefine_attr_count()
             define_attr_count(f, ref)
         end
     end
-    if sys_thread != Threads.nthreads()
+    if sys_thread > Threads.nthreads()
         @eval num_threads() = StaticInt{$(Threads.nthreads())}()
     end
     nothing
