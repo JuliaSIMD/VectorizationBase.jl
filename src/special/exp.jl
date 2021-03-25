@@ -6,13 +6,15 @@ MAGIC_ROUND_CONST(::Type{Float32}) = 1.2582912f7
 @inline function vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}, ::False) where {T<:Union{Float32,Float64}}
     _vscalef(x, floor(y))
 end
+@inline signif_bits(::Type{Float32}) = 0x00000017 # 23
+@inline signif_bits(::Type{Float64}) = 0x0000000000000034 # 52
 @inline function _vscalef(x::Union{T,AbstractSIMD{<:Any,T}}, y::Union{T,AbstractSIMD{<:Any,T}}) where {T<:Union{Float32,Float64}}
     N = reinterpret(Base.uinttype(T), y + MAGIC_ROUND_CONST(T))
     k = N# >>> 0x00000008
     
     small_part = reinterpret(Base.uinttype(T), x)
-    twopk = (k % Base.uinttype(T)) << 0x0000000000000034
-    reinterpret(Float64, twopk + small_part)
+    twopk = (k % Base.uinttype(T)) << signif_bits(T)
+    reinterpret(T, twopk + small_part)
 end
 @inline vscalef(v1::T,v2::T) where {T<:AbstractSIMD} = vscalef(v1,v2,has_feature(Val(:x86_64_avx512f)))
 @inline vscalef(v1::T,v2::T) where {T<:Union{Float32,Float64}} = vscalef(v1,v2,False())
@@ -361,12 +363,12 @@ end
 # @inline _vexp(x) = _vexp(x, has_feature(Val(:x86_64_avx512f)))
 # @inline _vexp10(x) = _vexp10(x, has_feature(Val(:x86_64_avx512f)))
 
-@inline vexp(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_avx512(x, Val(ℯ))
-@inline vexp2(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_avx512(x, Val(2))
-@inline vexp10(x::AbstractSIMD{W,Float64}, ::True) where {W} = vexp_avx512(x, Val(10))
-@inline vexp(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(ℯ))
-@inline vexp2(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(2))
-@inline vexp10(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(10))
+@inline vexp(x::AbstractSIMD, ::True) = vexp_avx512(x, Val(ℯ))
+@inline vexp2(x::AbstractSIMD, ::True) = vexp_avx512(x, Val(2))
+@inline vexp10(x::AbstractSIMD, ::True) = vexp_avx512(x, Val(10))
+# @inline vexp(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(ℯ))
+# @inline vexp2(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(2))
+# @inline vexp10(x::AbstractSIMD{W,Float32}, ::True) where {W} = vexp_generic(x, Val(10))
 
 @inline Base.exp(v::AbstractSIMD{W}) where {W} = vexp(float(v))
 @inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
@@ -401,6 +403,20 @@ end
     res = vscalef(small_part, 0.00390625*N_float)
     # twopk = (k % UInt64) << 0x0000000000000034
     # res = reinterpret(Float64, twopk + small_part)
+    return res
+end
+@inline function vexp_avx512(x::Union{Float32,AbstractSIMD{<:Any,Float32}}, ::Val{B}) where {B}
+    N_float = vfmadd(x, LogBINV(Val{B}(), Float32), MAGIC_ROUND_CONST(Float32))
+    N = reinterpret(UInt32, N_float)
+    N_float = (N_float - MAGIC_ROUND_CONST(Float32))
+
+    r = fast_fma(N_float, LogBU(Val{B}(), Float32), x, fma_fast())
+    r = fast_fma(N_float, LogBL(Val{B}(), Float32), r, fma_fast())
+    
+    small_part = expb_kernel(Val{B}(), r)
+    res = vscalef(small_part, N_float)
+    # twopk = N << 0x00000017
+    # res = reinterpret(Float32, twopk + small_part)
     return res
 end
 

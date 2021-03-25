@@ -2,7 +2,7 @@
 @inline vzero(::Val{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @inline vzero(::StaticInt{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @generated function _vzero(::StaticInt{W}, ::Type{T}, ::StaticInt{RS}) where {W,T<:NativeTypes,RS}
-    # isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
+    isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
     if W * sizeof(T) > RS
         d, r1 = divrem(sizeof(T) * W, RS)
         Wnew, r2 = divrem(W, d)
@@ -128,7 +128,11 @@ end
 @inline Vec(s::T) where {T<:NativeTypes} = vbroadcast(pick_vector_width(T), s)
 
 @generated function _vzero(::Type{VecUnroll{N,W,T,V}}, ::StaticInt{RS}) where {N,W,T,V,RS}
-    t = Expr(:tuple); foreach(_ -> push!(t.args, :(_vzero(StaticInt{$W}(), $T, StaticInt{$RS}()))), 0:N)    
+    t = Expr(:tuple);
+    z = W == 1 ? :(zero($T)) : :(_vzero(StaticInt{$W}(), $T, StaticInt{$RS}()))
+    for _ ∈ 0:N
+        push!(t.args, z)
+    end
     Expr(:block, Expr(:meta, :inline), :(VecUnroll($t)))
 end
 @inline Base.zero(::Type{VecUnroll{N,W,T,V}}) where {N,W,T,V} = _vzero(VecUnroll{N,W,T,V}, register_size())

@@ -135,7 +135,6 @@ end
     reinterpret(Vec{N,Float32}, reinterpret(Vec{N,UInt32}, x) & convert(Vec{N,UInt32}, 0xffff_f000)) # clear lowest 12 bits (leave upper 12 bits)
 end
 
-
 @inline function splitprec(x::vIEEEFloat)
     hx = trunclo(x)
     hx, x - hx

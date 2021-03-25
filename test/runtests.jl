@@ -1054,7 +1054,7 @@ include("testsetup.jl")
 
     println("Special Functions")
     @time @testset "Special Functions" begin
-        let T = Float64
+        for T ∈ [Float32,Float64]
             min_non_denormal = nextfloat(abs(reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))))
             l2mnd = log2(min_non_denormal)
             xx = collect(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
@@ -1071,6 +1071,8 @@ include("testsetup.jl")
             # xx .= exp2.(range(0.8l2mnd, 0.8abs(l2mnd), length = 2^20));
             # test_acc(VectorizationBase.vlog2, log2, T, xx, 7)
         end
+        @test exp(VecUnroll((1.1,2.3))) === VecUnroll((3.0041660239464334, 9.97418245481472))
+        @test exp(VecUnroll((1,2))) === VecUnroll((2.7182818284590455,7.3890560989306495))
     end
 
     # fix the stackoverflow error in `vmax_fast`, `vmax`, `vmin` and `vmin_fast` for floating types

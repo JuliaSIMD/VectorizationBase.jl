@@ -258,6 +258,7 @@ end
 @inline vfma_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) = fma(a,b,c)
 @inline vmuladd_fast(a::Float32, b::Float32, c::Float32) =  Base.FastMath.add_float_fast(Base.FastMath.mul_float_fast(a,b),c)
 @inline vmuladd_fast(a::Float64, b::Float64, c::Float64) =  Base.FastMath.add_float_fast(Base.FastMath.mul_float_fast(a,b),c)
+@inline vmuladd_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) = Base.FastMath.add_fast(Base.FastMath.mul_fast(a,b),c)
 @inline vfma(a, b, c) = fma(a,b,c)
 @inline vmuladd(a, b, c) = muladd(a,b,c)
 @inline vfma_fast(a, b, c) = fma(a,b,c)

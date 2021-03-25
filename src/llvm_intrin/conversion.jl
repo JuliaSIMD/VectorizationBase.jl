@@ -207,6 +207,7 @@ end
 @inline vfloat_fast(v::Vec) = _vfloat_fast(v, has_feature(Val(:x86_64_avx512dq)))
 
 @inline vreinterpret(::Type{T}, x::S) where {T,S<:NativeTypes} = reinterpret(T,x)
+@inline vreinterpret(::Type{Vec{1,T}}, x::S) where {T,S<:NativeTypes} = reinterpret(T,x)
 @inline vrem(x::NativeTypes, ::Type{T}) where {T} = x % T
 @inline vmul(a::NativeTypes,b::NativeTypes) = a*b
 @generated function vreinterpret(::Type{T1}, v::Vec{W2,T2}) where {W2, T1 <: NativeTypes, T2}

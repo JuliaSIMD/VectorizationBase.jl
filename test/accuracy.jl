@@ -74,7 +74,8 @@ DENORMAL_MIN(::Type{Float32}) = 2f0^-149
 
 function ulp(x::Union{<:VectorizationBase.AbstractSIMD{<:Any,T},T}) where {T<:AbstractFloat}
     e = exponent(x)
-    ulpc = max(VectorizationBase.vscalef(T(1.0), e - significand_bits(T)), DENORMAL_MIN(T))
+    # ulpc = max(VectorizationBase.vscalef(T(1.0), e - significand_bits(T)), DENORMAL_MIN(T))
+    ulpc = max(ldexp(T(1.0), e - significand_bits(T)), DENORMAL_MIN(T))
     ulpc = VectorizationBase.ifelse(x == T(0.0), DENORMAL_MIN(T), ulpc)
     return ulpc
 end
