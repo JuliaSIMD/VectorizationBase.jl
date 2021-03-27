@@ -385,6 +385,9 @@ end
 @inline vexp(v::Union{Float32,Float64}) = vexp(v, False())
 @inline vexp2(v::Union{Float32,Float64}) = vexp2(v, False())
 @inline vexp10(v::Union{Float32,Float64}) = vexp10(v, False())
+@inline vexp(v::AbstractSIMD{2,Float32}) = vexp(v, False())
+@inline vexp2(v::AbstractSIMD{2,Float32}) = vexp2(v, False())
+@inline vexp10(v::AbstractSIMD{2,Float32}) = vexp10(v, False())
 
 
 @inline function vexp_avx512(x::AbstractSIMD{W,Float64}, ::Val{B}) where {W,B}
