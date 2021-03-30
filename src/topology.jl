@@ -22,6 +22,9 @@ function count_attr(topology::Hwloc.Object, attr::Symbol)
     for t ∈ topology
         count += t.type_ == attr
     end
+    if ((Sys.ARCH === :aarch64) && Sys.isapple()) && (attr === :Core)
+        count >>>= one(count) # FIXME: how to actually identify big cores???
+    end
     count
 end
 
@@ -217,4 +220,3 @@ end
 foreach(define_cache, 1:4)
 
 cache_linesize() = cache_linesize(Val(1))
-

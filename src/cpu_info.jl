@@ -1,11 +1,10 @@
-
 using Libdl
 function feature_string()
     llvmlib_path = VERSION ≥ v"1.6.0-DEV.1429" ? Base.libllvm_path() : only(filter(lib->occursin(r"LLVM\b", basename(lib)), Libdl.dllist()))
     libllvm = Libdl.dlopen(llvmlib_path)
     gethostcpufeatures = Libdl.dlsym(libllvm, :LLVMGetHostCPUFeatures)
     features_cstring = ccall(gethostcpufeatures, Cstring, ())
-    features = filter(ext -> (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2 ), split(unsafe_string(features_cstring), ','))
+    features = filter(ext -> (ext ≠ "" && (m = match(r"\d", ext); isnothing(m) ? true : m.offset != 2)), split(unsafe_string(features_cstring), ','))
     features, features_cstring
 end
 
@@ -67,11 +66,19 @@ simd_integer_register_size() = ifelse(
         StaticInt{8}()
     )
 )
-fma_fast() = has_feature(Val(:x86_64_fma)) | has_feature(Val(:x86_64_fma4))
+if Sys.ARCH === :i686 || Sys.ARCH === :x86_64
+    fma_fast() = has_feature(Val(:x86_64_fma)) | has_feature(Val(:x86_64_fma4))
+else
+    fma_fast() = True()
+end
 if Sys.ARCH === :i686
     register_count() = StaticInt{8}()
-else
+elseif Sys.ARCH === :x86_64
     register_count() = ifelse(has_feature(Val(:x86_64_avx512f)), StaticInt{32}(), StaticInt{16}())
+elseif Sys.ARCH === :aarch64
+    register_count() = StaticInt{32}()
+else
+    register_count() = StaticInt{16}()
 end
 has_opmask_registers() = has_feature(Val(:x86_64_avx512f))
 
@@ -85,4 +92,3 @@ function define_cpu_name()
     @eval cpu_name() = Val{$cpu}()
 end
 define_cpu_name()
-
