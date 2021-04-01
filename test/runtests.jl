@@ -19,8 +19,8 @@ include("testsetup.jl")
     @test W64S == W64
     println("Struct-Wrapped Vec")
     @time @testset "Struct-Wrapped Vec" begin
-        @test data(zero(Vec{4,Float64})) === (VE(0.0),VE(0.0),VE(0.0),VE(0.0)) === data(Vec{4,Float64}(0.0))
-        @test data(one(Vec{4,Float64})) === (VE(1.0),VE(1.0),VE(1.0),VE(1.0)) === data(Vec{4,Float64}(1.0)) === data(data(Vec{4,Float64}(1.0)))
+        @test data(zero(Vec{W64,Float64})) === ntuple(VE ∘ zero ∘ float, Val(W64)) === data(Vec{W64,Float64}(0.0))
+        @test data(one(Vec{W64,Float64})) === ntuple(VE ∘ one ∘ float, Val(W64)) === data(Vec{W64,Float64}(1.0)) === data(data(Vec{W64,Float64}(1.0)))
         v = Vec((VE(1.0),VE(2.0),VE(3.0),VE(4.0)))
         @test v === Vec{4,Float64}(1, 2, 3, 4) === conj(v) === v' === Vec{4,Float64}(v)
         @test length(v) == 4 == first(size(v))
@@ -354,6 +354,7 @@ include("testsetup.jl")
         println("VecUnroll Loads/Stores")
         @time @testset "VecUnroll Loads/Stores" begin
             for AU ∈ 1:3, B ∈ (A, P, O), i ∈ (StaticInt(1),2,StaticInt(2)), j ∈ (StaticInt(1),3,StaticInt(3)), k ∈ (StaticInt(1),4,StaticInt(4))
+                # @show AU, typeof(B), i, j, k
                 for AV ∈ 1:3
                     v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
                     GC.@preserve B begin
@@ -677,7 +678,7 @@ include("testsetup.jl")
                 Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32))
             ))
             vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
-            if Bool(VectorizationBase.has_feature(Val(:x86_64_avx2)))
+            if VectorizationBase.simd_integer_register_size() == VectorizationBase.register_size()
                 @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
                 @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
                 @test vf2 === v2f32
@@ -820,24 +821,27 @@ include("testsetup.jl")
         @test @inferred(VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2)))
         @test 4.0 == @inferred(VectorizationBase.addscalar(2.0, 2.0))
 
-        v3 = Vec(0, 1, 2, 3); vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
-        v4 = Vec(0.0, 1.0, 2.0, 3.0)
-        v5 = Vec(0f0, 1f0, 2f0, 3f0, 4f0, 5f0, 6f0, 7f0)
-        @test @inferred(VectorizationBase.vmaximum(v3)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, 2)))
-        @test @inferred(VectorizationBase.vmaximum(v3 % UInt)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, 2 % UInt)))
-        @test @inferred(VectorizationBase.vmaximum(v4)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(3.0))))
-        @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(3.0)))) == nextfloat(3.0)
-        @test @inferred(VectorizationBase.vmaximum(v5)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(7f0)))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(7f0), v5))
-        @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(7f0)))) == @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(7f0), v5))) == nextfloat(7f0)
-
-        @test VectorizationBase.maxscalar(v3, 2) === Vec(2, 1, 2, 3)
+        
+        v3 = Vec(ntuple(Base.Fix2(-,1), W64)...)
+        vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
+        v4 = Vec(ntuple(Base.Fix2(-,1.0), W64)...)
+        v5 = Vec(ntuple(Base.Fix2(-,1f0), W32)...)
+        @test @inferred(VectorizationBase.vmaximum(v3)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, W64-2)))
+        @test @inferred(VectorizationBase.vmaximum(v3 % UInt)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, (W64-2) % UInt)))
+        @test @inferred(VectorizationBase.vmaximum(v4)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(W64-1.0))))
+        @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(W64-1.0)))) == nextfloat(W64-1.0)
+        @test @inferred(VectorizationBase.vmaximum(v5)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(W32-1f0)))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(W32 - 1f0), v5))
+        @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(W32-1f0)))) == @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(W32-1f0), v5))) == nextfloat(W32-1f0)
+        
+        @test VectorizationBase.maxscalar(v3, 2)(1) === 2
+        @test (VectorizationBase.maxscalar(v3, 2) ≠ v3) === Mask{W64}(0x01)
         @test VectorizationBase.maxscalar(v3, -1) === v3
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)) === -1 % UInt
-        @test VectorizationBase.maxscalar(v4, 1e-16) === Vec(1e-16, 1.0, 2.0, 3.0)
+        @test VectorizationBase.maxscalar(v4, 1e-16) === VectorizationBase.insertelement(v4, 1e-16, 0)
         @test VectorizationBase.maxscalar(v4, -1e-16) === v4
-        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(vu3)) == 3
-        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,2))) == 3
-        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,4))) == 4
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(vu3)) == W64-1
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,W64-2))) == W64-1
+        @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3,W64))) == W64
         @test VectorizationBase.vminimum(VectorizationBase.collapse_min(vu3)) == -1
         @test VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3,0))) == -1
         @test VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3,-2))) == VectorizationBase.vminimum(VectorizationBase.collapse_min(VectorizationBase.minscalar(-2,vu3))) == -2

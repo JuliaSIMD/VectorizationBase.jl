@@ -36,6 +36,8 @@ function set_features!()
 end
 set_features!()
 
+
+
 function reset_features!()
     features, features_cstring = feature_string()
     for ext ∈ features
@@ -48,44 +50,8 @@ function reset_features!()
     Libc.free(features_cstring)
 end
 
-register_size() = ifelse(
-    has_feature(Val(:x86_64_avx512f)),
-    StaticInt{64}(),
-    ifelse(
-        has_feature(Val(:x86_64_avx)),
-        StaticInt{32}(),
-        StaticInt{16}()
-    )
-)
-simd_integer_register_size() = ifelse(
-    has_feature(Val(:x86_64_avx2)),
-    register_size(),
-    ifelse(
-        has_feature(Val(:x86_64_sse2)),
-        StaticInt{16}(),
-        StaticInt{8}()
-    )
-)
-if Sys.ARCH === :i686 || Sys.ARCH === :x86_64
-    fma_fast() = has_feature(Val(:x86_64_fma)) | has_feature(Val(:x86_64_fma4))
-else
-    fma_fast() = True()
-end
-if Sys.ARCH === :i686
-    register_count() = StaticInt{8}()
-elseif Sys.ARCH === :x86_64
-    register_count() = ifelse(has_feature(Val(:x86_64_avx512f)), StaticInt{32}(), StaticInt{16}())
-elseif Sys.ARCH === :aarch64
-    register_count() = StaticInt{32}()
-else
-    register_count() = StaticInt{16}()
-end
-has_opmask_registers() = has_feature(Val(:x86_64_avx512f))
-
 register_size(::Type{T}) where {T} = register_size()
 register_size(::Type{T}) where {T<:Union{Signed,Unsigned}} = simd_integer_register_size()
-
-fast_int64_to_double() = has_feature(Val(:x86_64_avx512dq))
 
 function define_cpu_name()
     cpu = QuoteNode(Symbol(Sys.CPU_NAME::String))

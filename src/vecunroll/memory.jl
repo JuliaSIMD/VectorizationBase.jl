@@ -1206,7 +1206,17 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
                 v0 = v0new
                 Wt = Wh
             end
-            push!(q.args, Expr(:call, :__vstore!, :bptr, v0, falseexpr, aliasexpr, falseexpr, rsexpr))
+            if ncomp == 0
+                storeexpr = Expr(:call, :__vstore!, :bptr, v0)
+            else
+                storeexpr = Expr(:call, :_vstore!, :gptr, v0)
+                zeroexpr = Expr(:call, Expr(:curly, :StaticInt, 0))
+                ind = Expr(:tuple); foreach(_ -> push!(ind.args, zeroexpr), 1:D)
+                ind.args[AU] = Expr(:call, Expr(:curly, :StaticInt, F*ncomp))
+                push!(storeexpr.args, ind)
+            end
+            push!(storeexpr.args, falseexpr, aliasexpr, falseexpr, rsexpr)
+            push!(q.args, storeexpr)
             ncomp += minWN
         end
     else
@@ -1229,6 +1239,7 @@ end
 ) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS,X}
     _vstore!(ptr, vu, u, A(), S(), NT(), StaticInt{RS}())
 end
+# function _vstore!(
 @generated function _vstore!(
     ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,1,M,X,I}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS,X}

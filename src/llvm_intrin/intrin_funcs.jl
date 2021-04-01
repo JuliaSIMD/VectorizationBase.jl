@@ -327,6 +327,11 @@ for (op,f,S) ∈ [
         build_llvmcall_expr($op, -1, TS, [W], [TS])
     end
 end
+if Sys.ARCH == :aarch64 # TODO: maybe the default definition will stop segfaulting some day?
+    for I ∈ (:Int64, :UInt64), (f,op) ∈ ((:vmaximum,:max),(:vminimum,:min))
+        @eval @inline $f(v::Vec{W,$I}) where {W} = ArrayInterface.reduce_tup($op, Tuple(v))
+    end
+end
 
 #         W += W
 #     end

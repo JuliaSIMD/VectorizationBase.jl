@@ -255,6 +255,13 @@ include("static.jl")
 include("cartesianvindex.jl")
 include("topology.jl")
 include("cpu_info.jl")
+if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
+    include("cpu_info_x86.jl")
+elseif Sys.ARCH === :aarch64
+    include("cpu_info_aarch64.jl")
+else
+    include("cpu_info_generic.jl")
+end
 # include("cache_inclusivity.jl")
 include("early_definitions.jl")
 include("promotion.jl")
@@ -353,6 +360,7 @@ _precompile_()
 function __init__()
     ccall(:jl_generating_output, Cint, ()) == 1 && return
     reset_features!()
+    reset_extra_features!()
     if unwrap(cpu_name()) !== Symbol(Sys.CPU_NAME::String)
         @info "Defining CPU name."
         define_cpu_name()
