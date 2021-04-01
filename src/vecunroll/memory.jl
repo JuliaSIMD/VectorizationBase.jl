@@ -1155,12 +1155,8 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
     ispow2(W) || throw(ArgumentError("Horizontal store requires power-of-2 vector widths."))
     gf = GlobalRef(Core, :getfield)
     if N > 1
-        if N < Ntotal
-            push!(q.args, :(gptr = gesp(ptr, $gf(u, :i))))
-            push!(q.args, :(bptr = pointer(gptr)))
-        else
-            push!(q.args, :(bptr = gep(ptr, $gf(u, :i))))
-        end
+        push!(q.args, :(gptr = gesp(ptr, $gf(u, :i))))
+        push!(q.args, :(bptr = pointer(gptr)))
         extractblock = Expr(:block)
         vectors = [Symbol(:v_, n) for n ∈ 0:N-1]
         for n ∈ 1:N
