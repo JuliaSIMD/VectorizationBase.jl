@@ -7,8 +7,9 @@ else
     @noinline vscale() = ccall("llvm.vscale.i32", llvmcall, Int32, ())
 end
 
-
-_dynamic_register_size() = _has_aarch64_sve() ? 16vscale() : 16
+# TODO: find actually support SVE
+# _dynamic_register_size() = _has_aarch64_sve() ? 16vscale() : 16
+_dynamic_register_size() = 16
 
 function _set_sve_vector_width!(bytes = _dynamic_register_size())
     @eval begin
