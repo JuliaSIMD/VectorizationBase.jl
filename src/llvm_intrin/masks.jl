@@ -82,6 +82,17 @@ for f ∈ [:vne, :veq] # Here we truncate.
     @eval @inline $f(a::Vec{W,Bool}, b::Vec{W,Bool}) where {W} = convert(Bool, $f(convert(Bit, a), convert(Bit, b)))
 end
 
+@generated function vconvert(::Type{Vec{W,I}}, m::AbstractMask{W,U}) where {W,I<:IntegerTypesHW,U<:Union{UInt8,UInt16,UInt32,UInt64}}
+    bits = 8sizeof(I)
+    instrs = String[]
+    truncate_mask!(instrs, '0', W, 0)
+    push!(instrs, "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res")
+    gf = Expr(:call, GlobalRef(Core, :getfield), :m, 1, false)
+    llvmc = Expr(:call, GlobalRef(Base, :llvmcall), join(instrs,"\n"), :(_Vec{$W,$I}), :(Tuple{$U}), gf)
+    Expr(:block, Expr(:meta,:inline), Expr(:call, :Vec, llvmc))
+end
+
+
 @generated function splitint(i::S, ::Type{T}) where {S <: Base.BitInteger, T <: Union{Bool,Base.BitInteger}}
     sizeof_S = sizeof(S)
     sizeof_T = sizeof(T)

@@ -833,7 +833,7 @@ include("testsetup.jl")
         @test @inferred(VectorizationBase.vmaximum(v5)) === @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, prevfloat(W32-1f0)))) === VectorizationBase.vmaximum(VectorizationBase.maxscalar(prevfloat(W32 - 1f0), v5))
         @test @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v5, nextfloat(W32-1f0)))) == @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(nextfloat(W32-1f0), v5))) == nextfloat(W32-1f0)
         
-        @test VectorizationBase.maxscalar(v3, 2)(1) === 2
+        @test VectorizationBase.maxscalar(v3, 2)(1) == 2
         @test (VectorizationBase.maxscalar(v3, 2) ≠ v3) === Mask{W64}(0x01)
         @test VectorizationBase.maxscalar(v3, -1) === v3
         @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)) === -1 % UInt
