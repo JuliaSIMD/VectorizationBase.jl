@@ -892,29 +892,29 @@ for (store,align,alias,nontemporal) ∈ [
     (:vnoaliasstorent!,True(),True(),True())
 ]
     @eval begin
-        @inline function $store(ptr::AbstractStridedPointer, v::Number)
+        @inline function $store(ptr::AbstractStridedPointer, v)
             __vstore!(ptr, v, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(ptr::AbstractStridedPointer, v::Number, i::Union{Tuple,Unroll})
+        @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll})
             _vstore!(ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(ptr::AbstractStridedPointer, v::Number, i::Union{Tuple,Unroll}, m::AbstractMask)
+        @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, m::AbstractMask)
             _vstore!(ptr, v, i, m, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(ptr::AbstractStridedPointer, v::Number, i::Union{Tuple,Unroll}, b::Bool)
+        @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, b::Bool)
             b && _vstore!(ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
 
-        @inline function $store(f::F, ptr::AbstractStridedPointer, v::Number) where {F<:Function}
+        @inline function $store(f::F, ptr::AbstractStridedPointer, v) where {F<:Function}
             __vstore!(f, ptr, v, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(f::F, ptr::AbstractStridedPointer, v::Number, i::Union{Tuple,Unroll}) where {F<:Function}
+        @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}) where {F<:Function}
             _vstore!(f, ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(f::F, ptr::AbstractStridedPointer, v::Number, i::Union{Tuple,Unroll}, m::AbstractMask) where {F<:Function}
+        @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, m::AbstractMask) where {F<:Function}
             _vstore!(f, ptr, v, i, m, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(f::F, ptr::AbstractStridedPointer, v::Number, i::Union{Tuple,Unroll}, b::Bool) where {F<:Function}
+        @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, b::Bool) where {F<:Function}
             b && _vstore!(f, ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
     end
@@ -1009,4 +1009,19 @@ end
     llvmcall_expr(decl, join(instrs,"\n"), :(_Vec{$W,$T}), :(Tuple{Ptr{$T}, $U}), vtyp, [JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:ptr, :(data(mask))])
 end
 
+# fallback definitions
+@generated function __vload(p::Ptr{T}, i::Index, ::A, ::StaticInt{RS}) where {T,A,RS}
+    if Base.allocatedinline(T)
+        Expr(:block, Expr(:meta,:inline), :(unsafe_load(p + convert(Int, i))))
+    else
+        Expr(:block, Expr(:meta,:inline), :(ccall(:jl_value_ptr, Ref{$T}, (Ptr{Cvoid},), unsafe_load(Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p)+convert(Int, i)))))
+    end
+end
+@generated function __vstore!(p::Ptr{T}, v::T, i::Index, ::A, ::S, ::NT, ::StaticInt{RS}) where {T,A,S,NT,RS}
+    if Base.allocatedinline(T)
+        Expr(:block, Expr(:meta,:inline), :(unsafe_store!(p + convert(Int, i), v); return nothing))
+    else
+        Expr(:block, Expr(:meta,:inline), :(unsafe_store!(Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p) + convert(Int,i), Base.pointer_from_objref(v)); return nothing))
+    end
+end
 

@@ -1091,6 +1091,20 @@ include("testsetup.jl")
         @test VectorizationBase.vmin(1.0,3.0) === 1.0
     end
 
+    @time @testset "Generic strided pointer" begin
+        A = rand(ComplexF64, 3, 4);
+        x = ["hi", "howdy", "greetings", "hello"];
+        GC.@preserve A x begin
+            @test A[2,3] === vload(stridedpointer(A), (2,3))
+            c = 123.0 - 456.0im
+            vstore!(stridedpointer(A), c, (3,2))
+            @test A[3,2] == c
+            @test x[3] === vload(stridedpointer(x), (3,))
+            w = "welcome!"
+            vstore!(stridedpointer(x), w, (2,))
+            @test w === x[2]
+        end
+    end
     # end
 end # @testset VectorizationBase
 

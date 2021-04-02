@@ -12,7 +12,13 @@
 # end
 
 @inline mulsizeof(::Type{T}, x::Number) where {T} = vmul_fast(sizeof(T), x)
-@generated mulsizeof(::Type{T}, ::StaticInt{N}) where {T,N} = Expr(:call, Expr(:curly, :StaticInt, N*sizeof(T)))
+@generated function mulsizeof(::Type{T}, ::StaticInt{N}) where {T,N}
+    if Base.allocatedinline(T)
+        Expr(:call, Expr(:curly, :StaticInt, N*sizeof(T)))
+    else
+        Expr(:call, Expr(:curly, :StaticInt, N*sizeof(Int)))
+    end
+end
 @inline mulsizeof(::Type{T}, ::Tuple{}) where {T} = ()
 @inline mulsizeof(::Type{T}, x::Tuple{X}) where {T,X} = (mulsizeof(T, first(x)), )
 @inline mulsizeof(::Type{T}, x::Tuple) where {T} = (mulsizeof(T, first(x)), mulsizeof(T, Base.tail(x))...)
@@ -76,17 +82,17 @@ end
 @inline StridedPointer{T,N,C,B,R}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 @inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 
-@inline function stridedpointer(A::AbstractArray{T}) where {T <: NativeTypes}
+@inline function stridedpointer(A::AbstractArray)#{T}) where {T <: NativeTypes}
     p, r = memory_reference(A)
     stridedpointer(p, contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A))
 end
-@inline function stridedpointer_preserve(A::AbstractArray{T}) where {T <: NativeTypes}
+@inline function stridedpointer_preserve(A::AbstractArray)#{T}) where {T <: NativeTypes}
     p, r = memory_reference(A)
     stridedpointer(p, contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A)), r
 end
 @inline function stridedpointer(
     ptr::Ptr{T}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
-) where {T<:NativeTypesExceptBit,C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
+) where {T,C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
 @inline bytestrides(A::StridedPointer) = getfield(A, :strd)
@@ -548,3 +554,5 @@ for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
     end
 end
+
+
