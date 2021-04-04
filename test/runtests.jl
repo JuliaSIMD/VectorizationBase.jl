@@ -1102,7 +1102,7 @@ include("testsetup.jl")
             @test x[1] === vload(stridedpointer(x), (0,))
             @test x[3] === vload(stridedpointer(x), (2,))
             w = "welcome!"
-            vstore!(stridedpointer(x), w, (2,))
+            vstore!(stridedpointer(x), w, (1,))
             @test w === x[2]
             h = "hallo"
             vstore!(stridedpointer(x), h, (2,2))
