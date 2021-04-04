@@ -1099,7 +1099,8 @@ include("testsetup.jl")
             c = 123.0 - 456.0im
             vstore!(stridedpointer(A), c, (3,2))
             @test A[3,2] == c
-            @test x[3] === vload(stridedpointer(x), (3,))
+            @test x[1] === vload(stridedpointer(x), (0,))
+            @test x[3] === vload(stridedpointer(x), (2,))
             w = "welcome!"
             vstore!(stridedpointer(x), w, (2,))
             @test w === x[2]
