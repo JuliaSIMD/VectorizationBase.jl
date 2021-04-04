@@ -11,13 +11,13 @@
 #     q
 # end
 
-@inline mulsizeof(::Type{T}, x::Number) where {T} = vmul_fast(sizeof(T), x)
+@generated function mulsizeof(::Type{T}, x::Number) where {T}
+    st = Base.allocatedinline(T) ? sizeof(T) : sizeof(Int)
+    Expr(:block, Expr(:meta,:inline), Expr(:call, :vmul_fast, st, :x))
+end
 @generated function mulsizeof(::Type{T}, ::StaticInt{N}) where {T,N}
-    if Base.allocatedinline(T)
-        Expr(:call, Expr(:curly, :StaticInt, N*sizeof(T)))
-    else
-        Expr(:call, Expr(:curly, :StaticInt, N*sizeof(Int)))
-    end
+    st = Base.allocatedinline(T) ? sizeof(T) : sizeof(Int)
+    Expr(:block, Expr(:meta,:inline), Expr(:call, Expr(:curly, :StaticInt, N*st)))
 end
 @inline mulsizeof(::Type{T}, ::Tuple{}) where {T} = ()
 @inline mulsizeof(::Type{T}, x::Tuple{X}) where {T,X} = (mulsizeof(T, first(x)), )

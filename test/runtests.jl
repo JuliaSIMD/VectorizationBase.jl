@@ -1093,7 +1093,7 @@ include("testsetup.jl")
 
     @time @testset "Generic strided pointer" begin
         A = rand(ComplexF64, 3, 4);
-        x = ["hi", "howdy", "greetings", "hello"];
+        x = ["hi" "howdy"; "greetings" "hello"];
         GC.@preserve A x begin
             @test A[2,3] === vload(stridedpointer(A), (2,3))
             c = 123.0 - 456.0im
@@ -1103,6 +1103,10 @@ include("testsetup.jl")
             w = "welcome!"
             vstore!(stridedpointer(x), w, (2,))
             @test w === x[2]
+            h = "hallo"
+            vstore!(stridedpointer(x), h, (2,2))
+            @test x[2,2] === h
+            vload(stridedpointer(x), (1,2)) === x[1,2]
         end
     end
     # end
