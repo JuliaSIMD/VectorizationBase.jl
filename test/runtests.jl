@@ -247,6 +247,8 @@ include("testsetup.jl")
         for T ∈ (Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64)
             @test @inferred(VectorizationBase.pick_vector_width(T)) * @inferred(VectorizationBase.static_sizeof(T)) === @inferred(VectorizationBase.register_size(T)) === @inferred(VectorizationBase.simd_integer_register_size())
         end
+        @test VectorizationBase.static_sizeof(BigFloat) === VectorizationBase.static_sizeof(Int)
+        @test VectorizationBase.static_sizeof(Float32) === VectorizationBase.static_sizeof(Int32) === VectorizationBase.StaticInt(4)
 
         @test @inferred(VectorizationBase.pick_vector_width(Float64, Int32, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.register_size())
         @test @inferred(VectorizationBase.pick_vector_width(Float64, Int32)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.register_size())
