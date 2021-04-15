@@ -200,7 +200,7 @@ const TABLE_EXP_64_1= Vec(ntuple(j -> Core.VecElement(Float64(2.0^(big(j+7)/16))
 
 @inline fast_fma(a, b, c, ::True) = fma(a, b, c)
 @inline function fast_fma(a, b, c, ::False)
-    d = dadd(dmul(Double(a),Double(b)),Double(c))
+    d = dadd(dmul(Double(a),Double(b),False()),Double(c))
     add_ieee(d.hi, d.lo)
 end
 

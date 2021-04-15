@@ -116,7 +116,7 @@ struct EVLMask{W,U} <: AbstractMask{W,U}
     u::U
     evl::UInt32
     @inline function EVLMask{W,U}(u::Unsigned, evl) where {W,U} # ignores U...
-        U2 = mask_type(Val{W}())
+        U2 = mask_type(StaticInt{W}())
         new{W,U2}(u % U2, evl % UInt32)
     end
 end
