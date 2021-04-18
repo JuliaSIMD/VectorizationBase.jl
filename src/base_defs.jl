@@ -17,9 +17,9 @@ const FASTDICT = Dict{Symbol,Expr}([
     :vfnmadd => :(VectorizationBase.vfnmadd_fast),
     :vfmsub => :(VectorizationBase.vfmsub_fast),
     :vfnmsub => :(VectorizationBase.vfnmsub_fast),
-    :log => :(Base.FastMath.log_fast),
-    :log2 => :(Base.FastMath.log2_fast),
-    :log10 => :(Base.FastMath.log10_fast)
+    :log => :(SLEEFPirates.log_fast),
+    :log2 => :(SLEEFPirates.log2_fast),
+    :log10 => :(SLEEFPirates.log10_fast)
 ])
 
 for (op,f) ∈ [
