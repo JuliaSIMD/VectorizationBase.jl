@@ -43,7 +43,7 @@ function reset_features!()
     for ext ∈ features
         feature, has = process_feature(ext)
         if Bool(has_feature(Val(feature)))::Bool !== has
-            @info "Defining $(has ? "presence" : "absense") of feature $feature."
+            @debug "Defining $(has ? "presence" : "absense") of feature $feature."
             set_featue(feature, has)
         end
     end
