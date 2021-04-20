@@ -546,7 +546,7 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym,M,e
     notmpval = Expr(:call, notmp ? :True : :False)
     rsexpr = Expr(:call, Expr(:curly, :StaticInt, RS))
     domask = init_transpose_memop_masking!(q, M, N, evl)
-    
+
     vds = Vector{Symbol}(undef, N)
     for n ∈ 1:N
         vds[n] = vdn = Symbol(:vd_,n)
@@ -1119,8 +1119,8 @@ end
 
 # If `::Function` vectorization is masked, then it must not be reduced by `::Function`.
 @generated function _vstore!(
-    ::Function, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,X,I}, m, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T,D,C,U,AU,F,N,W,M,I,AV,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,X}
+    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,W,M,X,I}, m, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T,D,C,U,AU,F,N,W,M,I,AV,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,X,G<:Function}
     N == U + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(U+1)."))
     # mask means it isn't vectorized
     AV > 0 || throw(ArgumentError("AV ≤ 0, but masking what, exactly?"))
@@ -1145,9 +1145,11 @@ function transposeshuffle(split, W, offset::Bool)
     Expr(:call, Expr(:curly, :Val, tup))
 end
 
-function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct::Symbol, noalias::Bool, RS::Int)
+function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct::Symbol, noalias::Bool, RS::Int, mask::Bool)
     N = ((C == AU) && isone(F)) ? prevpow2(Ntotal) : 0
     q = Expr(:block, Expr(:meta, :inline), :(v = data(vu)))
+    mask && push!(q.args, :(masktuple = data(m)))
+    # mask && push!(q.args, :(unsignedmask = data(tomask(m))))
     # store = noalias ? :vnoaliasstore! : :vstore!
     falseexpr = Expr(:call, :False)
     aliasexpr = noalias ? Expr(:call, :True) : falseexpr
@@ -1211,8 +1213,17 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
                 ind.args[AU] = Expr(:call, Expr(:curly, :StaticInt, F*ncomp))
                 push!(storeexpr.args, ind)
             end
+            if mask
+                boolmask = Expr(:call, :Vec)
+                for n ∈ ncomp+1:ncomp+minWN
+                    push!(boolmask.args, Expr(:call, gf, :masktuple, n, false))
+                end
+                push!(storeexpr.args, Expr(:call, :tomask, boolmask))
+            end
+            # mask && push!(storeexpr.args, :(Mask{$minWN}(unsignedmask)))
             push!(storeexpr.args, falseexpr, aliasexpr, falseexpr, rsexpr)
             push!(q.args, storeexpr)
+            # mask && push!(q.args, :(unsignedmask >>>= $minWN))
             ncomp += minWN
         end
     else
@@ -1225,7 +1236,12 @@ function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct:
             (n > N+1) && (ind = copy(ind)) # copy to avoid overwriting old
             ind.args[AU] = Expr(:call, Expr(:curly, :StaticInt, F*(n-1)))
             scalar = Expr(:call, reduct, Expr(:call, gf, :v, n, false))
-            push!(q.args, Expr(:call, :_vstore!, :gptr, scalar, ind, falseexpr, aliasexpr, falseexpr, rsexpr))
+            storeexpr = Expr(:call, :_vstore!, :gptr, scalar, ind, falseexpr, aliasexpr, falseexpr, rsexpr)
+            if mask
+                push!(q.args, Expr(:&&, Expr(:call, gf, :masktuple, n, false), storeexpr))
+            else
+                push!(q.args, storeexpr)
+            end
         end
     end
     q
@@ -1257,7 +1273,31 @@ end
     else
         throw("Function $G not recognized.")
     end
-    horizontal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S === True, RS)
+    horizontal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S === True, RS, false)
+end
+@generated function _vstore!(
+    ::G, ptr::AbstractStridedPointer{T,D,C}, vu::VecUnroll{U,W}, u::Unroll{AU,F,N,AV,1,M,X,I}, m::VecUnroll{U,1,Bool,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {T,D,C,U,AU,F,N,W,M,I,G<:Function,AV,A<:StaticBool, S<:StaticBool, NT<:StaticBool, RS,X}
+    N == U + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(U+1)."))
+    1+2
+    if (G === typeof(identity)) || (AV > 0) || (W == 1)
+        return Expr(:block, Expr(:meta, :inline), :(_vstore!(ptr, vu, u, $A(), $S(), $NT(), StaticInt{$RS}())))
+    elseif G === typeof(vsum)
+        op = :+; reduct = :vsum
+    elseif G === typeof(vprod)
+        op = :*; reduct = :vprod
+    elseif G === typeof(vmaximum)
+        op = :max; reduct = :vmaximum
+    elseif G === typeof(vminimum)
+        op = :min; reduct = :vminimum
+    elseif G === typeof(vall)
+        op = :&; reduct = :vall
+    elseif G === typeof(vany)
+        op = :|; reduct = :vany
+    else
+        throw("Function $G not recognized.")
+    end
+    horizontal_reduce_store_expr(W, N, (C,D,AU,F), op, reduct, S === True, RS, true)
 end
 
 

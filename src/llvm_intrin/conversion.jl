@@ -50,6 +50,10 @@ end
     convert_func("fpext", Float64, W, Float32, W)
 end
 @inline vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
+@inline vconvert(::Type{M}, v::Vec{W,Bool}) where {W,U,M<:AbstractMask{W,U}} = tomask(v)
+@inline vconvert(::Type{<:VectorizationBase.AbstractMask{W,U} where U}, v::Vec{W,Bool}) where {W} = VectorizationBase.tomask(v)
+@inline vconvert(::Type{<:VectorizationBase.AbstractMask{L,U} where {L,U}}, v::Vec{W,Bool}) where {W} = VectorizationBase.tomask(v)
+# @inline vconvert(::Type{Mask}, v::Vec{W,Bool}) where {W} = tomask(v)
 # @generated function vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W}
 #     instrs = String[]
 #     push!(instrs, "%m = trunc <$W x i8> %0 to <$W x i1>")
@@ -61,7 +65,7 @@ end
 #         Mask{$W}($LLVMCALL($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
 #     end
 # end
-@inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = vconvert(Mask{W}, v)
+@inline vconvert(::Type{Vec{W,Bit}}, v::Vec{W,Bool}) where {W,Bool} = tomask(v)
 
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T<:IntegerTypesHW} = v
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
