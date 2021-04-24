@@ -247,17 +247,22 @@ end
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
     # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
-    if (Base.libllvm_version ≥ v"11") && (W ≤ 16)
+    if (Base.libllvm_version ≥ v"11") && (W ≤ 16) && ispow2(W)
         quote
             $(Expr(:meta,:inline))
             mask(Val{$W}(), zero(l), ((l - one(l)) & $(I(W-1))))
         end
-    else
+    elseif W ≤ 16
         M = mask_type_symbol(W)
         quote
             $(Expr(:meta,:inline))
             evl = valrem(Val{$W}(), vsub(l % $M, one($M)))
             EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
+        end
+    else
+        quote
+            $(Expr(:meta,:inline))
+            _mask(StaticInt{$W}(), l, True())
         end
     end
 end
