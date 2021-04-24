@@ -529,6 +529,15 @@ include("testsetup.jl")
                 # @show T, f
                 @test tovector(@inferred(f(v))) == map(f, x)
             end
+            # test fallbacks
+            for (vf,bf) ∈ [(VectorizationBase.vinv,inv),(VectorizationBase.vabs,abs),(VectorizationBase.vround,round),(VectorizationBase.vsub,-),(VectorizationBase.vsub_fast,Base.FastMath.sub_fast)]
+              for i ∈ -5:5
+                @test vf(i) == bf(i)
+              end
+              for i ∈ -3.0:0.1:3.0
+                @test vf(i) == bf(i)
+              end
+            end
             # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
             # function relapprox(x::AbstractVector{T},y) where {T}
             #     t = max(norm(x),norm(y)) * eps(T)

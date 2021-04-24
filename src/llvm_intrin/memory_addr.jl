@@ -870,6 +870,12 @@ end
     # __vstore!(ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
     __vstore!(ptr, f(v), i, m, A(), S(), NT(), StaticInt{RS}())
 end
+@inline function __vstore!(
+    f::F, ptr::Ptr, v::AbstractSIMDVector, i::Index, m::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
+  # __vstore!(ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
+  m && __vstore!(f, ptr, v, i, A(), S(), NT(), StaticInt{RS}())
+end
 
 @inline function __vstore!(
     f::F, ptr::Ptr{T}, v::NativeTypes, ::A, ::S, ::NT, ::StaticInt{RS}
