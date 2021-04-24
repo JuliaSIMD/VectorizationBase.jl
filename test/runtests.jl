@@ -112,6 +112,8 @@ include("testsetup.jl")
         @test EVLMask{16,UInt16}(0xffff,16) === mask(Val(16), 0)
         @test EVLMask{16,UInt16}(0xffff,16) === mask(Val(16), 16)
         @test EVLMask{16,UInt16}(0xffff,16) === mask(Val(16), 32)
+        @test VectorizationBase.data(mask(Val(128),253)) == 0x1fffffffffffffffffffffffffffffff
+        @test mask(Val(128),253) === EVLMask{128,UInt128}(0x1fffffffffffffffffffffffffffffff, 125)
         @test all(w -> VectorizationBase.mask_type(w) === UInt8, 1:8)
         @test all(w -> VectorizationBase.mask_type(w) === UInt16, 9:16)
         @test all(w -> VectorizationBase.mask_type(w) === UInt32, 17:32)
@@ -600,8 +602,30 @@ include("testsetup.jl")
     println("Binary Functions")
     @time @testset "Binary Functions" begin
         # TODO: finish getting these tests to pass
-        # for I1 ∈ (Int32,Int64,UInt32,UInt64), I2 ∈ (Int32,Int64,UInt32,UInt64)
-        let WI = Int(VectorizationBase.pick_vector_width(Int64))
+      # for I1 ∈ (Int32,Int64,UInt32,UInt64), I2 ∈ (Int32,Int64,UInt32,UInt64)
+      for (vf,bf) ∈ [(VectorizationBase.vsub,-),(VectorizationBase.vadd,+),(VectorizationBase.vsub_fast,Base.FastMath.sub_fast),(VectorizationBase.vadd_fast,Base.FastMath.add_fast),
+                     (VectorizationBase.vmul,*),(VectorizationBase.vmul_fast,Base.FastMath.mul_fast),#(VectorizationBase.vmul,*),(VectorizationBase.vmul_fast,Base.FastMath.mul_fast),
+                     (VectorizationBase.vrem,%),(VectorizationBase.vrem_fast,%)]
+        for i ∈ -10:10, j ∈ -6:6
+          ((j == 0) && (bf === %)) && continue
+          @test vf(i%Int8,j%Int8) == bf(i%Int8,j%Int8)
+          @test vf(i%UInt8,j%UInt8) == bf(i%UInt8,j%UInt8)
+          @test vf(i%Int16,j%Int16) == bf(i%Int16,j%Int16)
+          @test vf(i%UInt16,j%UInt16) == bf(i%UInt16,j%UInt16)
+          @test vf(i%Int32,j%Int32) == bf(i%Int32,j%Int32)
+          @test vf(i%UInt32,j%UInt32) == bf(i%UInt32,j%UInt32)
+          @test vf(i%Int64,j%Int64) == bf(i%Int64,j%Int64)
+          @test vf(i%UInt64,j%UInt64) == bf(i%UInt64,j%UInt64)
+          @test vf(i%Int128,j%Int128) == bf(i%Int128,j%Int128)
+          @test vf(i%UInt128,j%UInt128) == bf(i%UInt128,j%UInt128)
+        end
+        for i ∈ -1.5:0.4:1.8, j ∈ -3:0.1:3.0
+          # `===` for `NaN` to pass
+          @test vf(i,j) === bf(i,j)
+          @test vf(Float32(i),Float32(j)) === bf(Float32(i),Float32(j))
+        end
+      end
+      let WI = Int(VectorizationBase.pick_vector_width(Int64))
             for I1 ∈ (Int32,Int64), I2 ∈ (Int32,Int64,UInt32)
                 # TODO: No longer skip these either.
                 sizeof(I1) > sizeof(I2) && continue

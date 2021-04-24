@@ -41,6 +41,8 @@ const LLVMCALL = GlobalRef(Base, :llvmcall)
 
 const FloatingTypes = Union{Float32, Float64} # Float16
 
+# const SignedHW = Union{Int8,Int16,Int32,Int64,Int128}
+# const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64,UInt128}
 const SignedHW = Union{Int8,Int16,Int32,Int64}
 const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64}
 const IntegerTypesHW = Union{SignedHW,UnsignedHW}
@@ -104,7 +106,7 @@ end
 @inline _demoteint(::Type{UInt64}) = UInt32
 
 
-abstract type AbstractMask{W,U<:UnsignedHW} <: AbstractSIMDVector{W,Bit} end
+abstract type AbstractMask{W,U<:Union{UnsignedHW,UInt128}} <: AbstractSIMDVector{W,Bit} end
 struct Mask{W,U} <: AbstractMask{W,U}
     u::U
     @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
