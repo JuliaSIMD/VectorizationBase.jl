@@ -3,7 +3,8 @@ struct OffsetPrecalc{T,N,C,B,R,X,M,P<:AbstractStridedPointer{T,N,C,B,R,X,M},I} <
     precalc::I
 end
 @inline Base.pointer(ptr::OffsetPrecalc) = pointer(getfield(ptr, :ptr))
-@inline Base.similar(ptr::OffsetPrecalc, p::Ptr) = OffsetPrecalc(similar(getfield(ptr, :ptr), p), getfield(ptr, :precalc))
+@inline cpupointer(ptr::OffsetPrecalc) = cpupointer(getfield(ptr, :ptr))
+@inline Base.similar(ptr::OffsetPrecalc, p::CPUPtr) = OffsetPrecalc(similar(getfield(ptr, :ptr), p), getfield(ptr, :precalc))
 # @inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(getfield(p, :ptr))
 # @inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
 @inline offsetprecalc(x, ::Any) = x
@@ -15,7 +16,7 @@ end
 @inline Base.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 @inline ArrayInterface.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 
-@inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}) where {T}
+@inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::CPUPtr{T}) where {T}
     OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
 end
 
@@ -91,6 +92,6 @@ end
     precalc_quote_from_descript(descript, C, X.parameters)
 end
 
-@inline tdot(ptr::OffsetPrecalc{T}, a, b) where {T} = tdot(pointer(ptr), a, b, getfield(ptr, :precalc))
-@inline tdot(ptr::OffsetPrecalc, ::Tuple{}, ::Tuple{}) = (pointer(ptr), Zero())
+@inline tdot(ptr::OffsetPrecalc{T}, a, b) where {T} = tdot(cpupointer(ptr), a, b, getfield(ptr, :precalc))
+@inline tdot(ptr::OffsetPrecalc, ::Tuple{}, ::Tuple{}) = (cpupointer(ptr), Zero())
 

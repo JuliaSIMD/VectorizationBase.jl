@@ -411,19 +411,19 @@ include("testsetup.jl")
         x = Vector{Int}(undef, 100);
         i = MM{1}(0)
         for j ∈ 1:25
-            VectorizationBase.__vstore!(pointer(x), j, (i * VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.cpupointer(x), j, (i * VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 26:50
-            VectorizationBase.__vstore!(pointer(x), j, (VectorizationBase.static_sizeof(Int) * i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.cpupointer(x), j, (VectorizationBase.static_sizeof(Int) * i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 51:75
-            VectorizationBase.__vstore!(pointer(x), j, VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.cpupointer(x), j, VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         for j ∈ 76:100
-            VectorizationBase.__vstore!(pointer(x), j, VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
+            VectorizationBase.__vstore!(VectorizationBase.cpupointer(x), j, VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i), Mask{1}(0xff), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.register_size())
             i += 1
         end
         @test x == 1:100

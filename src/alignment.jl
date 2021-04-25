@@ -6,8 +6,8 @@ power of 2.
 """
 function align end
 @inline align(x::Integer) = vadd_fast(x, Int(register_size()-One())) & Int(-register_size())
-@inline align(x::Ptr{T}, arg) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x), arg))
-@inline align(x::Ptr{T}) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x)))
+@inline align(x::T, arg) where {T<:Union{CPUPtr,Ptr}} = reinterpret(T, align(reinterpret(UInt, x), arg))
+@inline align(x::T) where {T<:Union{CPUPtr,Ptr}} = reinterpret(T, align(reinterpret(UInt, x)))
 @inline align(x::Integer, n) = (nm1 = n - One(); (x + nm1) & -n)
 @inline align(x::Integer, ::StaticInt{N}) where {N} = (nm1 = N - 1; (x + nm1) & -N)
 @inline align(x::Integer, ::Type{T}) where {T} = align(x, register_size() ÷ static_sizeof(T))

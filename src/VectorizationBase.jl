@@ -253,6 +253,7 @@ For use in spin-and-wait loops, like spinlocks.
 #     return nothing
 # end
 
+include("strided_pointers/cpupointers.jl")
 include("static.jl")
 include("cartesianvindex.jl")
 include("topology.jl")

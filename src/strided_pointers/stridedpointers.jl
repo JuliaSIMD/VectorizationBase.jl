@@ -37,12 +37,13 @@ end
 #     SDTuple{N,mulsizeof(T, X),P}(mulsizeof(T, t.x))
 # end
 
-@inline memory_reference(A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks), A.chunks
+@inline memory_reference(A::BitArray) = reinterpret(CPUPtr{Bit}, Base.unsafe_convert(Ptr{Bit}, A.chunks)), A.chunks
 @inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
-@inline memory_reference(::CPUPointer, A) = pointer(A), preserve_buffer(A)
+@inline memory_reference(::CPUPointer, A) = cpupointer(A), preserve_buffer(A)
 @inline function memory_reference(::ArrayInterface.CPUTuple, A)
     r = Ref(A)
-    Base.unsafe_convert(Ptr{eltype(A)}, r), r
+    T = eltype(A)
+    reinterpret(CPUPtr{T}, Base.unsafe_convert(Ptr{T}, r)), r
 end
 @inline function memory_reference(::ArrayInterface.CheckParent, A)
     P = parent(A)
@@ -70,17 +71,17 @@ abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{
 @inline ArrayInterface.contiguous_axis(::Type{A}) where {T,N,C,A<:AbstractStridedPointer{T,N,C}} = StaticInt{C}()
 @inline ArrayInterface.contiguous_batch_size(::Type{A}) where {T,N,C,B,A<:AbstractStridedPointer{T,N,C,B}} = StaticInt{B}()
 @inline ArrayInterface.stride_rank(::Type{A}) where {T,N,C,B,R,A<:AbstractStridedPointer{T,N,C,B,R}} = map(StaticInt, R)
-@inline memory_reference(A::AbstractStridedPointer) = pointer(A), nothing
+@inline memory_reference(A::AbstractStridedPointer) = cpupointer(A), nothing
 
 @inline Base.eltype(::AbstractStridedPointer{T}) where {T} = T
 
 struct StridedPointer{T,N,C,B,R,X,O} <: AbstractStridedPointer{T,N,C,B,R,X,O}
-    p::Ptr{T}
+    p::CPUPtr{T}
     strd::X
     offsets::O
 end
-@inline StridedPointer{T,N,C,B,R}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
-@inline StridedPointer{T,N,C,B,R,X}(ptr::Ptr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
+@inline StridedPointer{T,N,C,B,R}(ptr::CPUPtr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
+@inline StridedPointer{T,N,C,B,R,X}(ptr::CPUPtr{T}, strd::X, o::O) where {T,N,C,B,R,X,O} = StridedPointer{T,N,C,B,R,X,O}(ptr, strd, o)
 
 @inline function stridedpointer(A::AbstractArray)#{T}) where {T <: NativeTypes}
     p, r = memory_reference(A)
@@ -91,7 +92,7 @@ end
     stridedpointer(p, contiguous_axis(A), contiguous_batch_size(A), val_stride_rank(A), bytestrides(A), offsets(A)), r
 end
 @inline function stridedpointer(
-    ptr::Ptr{T}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
+    ptr::CPUPtr{T}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
 ) where {T,C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
     StridedPointer{T,N,C,B,R,X,O}(ptr, strd, offsets)
 end
@@ -116,29 +117,32 @@ end
 end
 @inline zstridedpointer(A) = zero_offsets(stridedpointer(A))
 
-@inline function Base.similar(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
+@inline function Base.similar(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::CPUPtr{T}) where {T,N,C,B,R,X,O}
     StridedPointer{T,N,C,B,R,X,O}(ptr, getfield(sptr, :strd), getfield(sptr, :offsets))
 end
 # @inline noalias!(p::StridedPointer) = similar(p, noalias!(pointer(p)))
-@inline function similar_no_offset(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
+@inline function similar_no_offset(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::CPUPtr{T}) where {T,N,C,B,R,X,O}
     StridedPointer{T,N,C,B,R,X}(ptr, getfield(sptr, :strd), zerotuple(Val{N}()))
 end
 
-@inline Base.pointer(ptr::StridedPointer) = getfield(ptr, :p)
+@inline cpupointer(ptr::StridedPointer) = getfield(ptr, :p)
+@inline Base.pointer(ptr::StridedPointer{T}) where {T} = reinterpret(Ptr{T}, getfield(ptr, :p))
 Base.unsafe_convert(::Type{Ptr{T}}, ptr::AbstractStridedPointer{T}) where {T} = pointer(ptr)
 # Shouldn't need to special case Array
 # function stridedpointer(A::Array{T,N}) where {T,N}
 #     StridedPointer{T,1,0,ntuple(identity,Val{N}()),ntuple(n -> isone(n) ? 1 : -1, Val{N}()), N, N-1}(pointer(A), Base.tail(strides(A)))
 # end
 
-@inline vstore!(ptr::AbstractStridedPointer{T}, v::Number) where {T<:Number} = __vstore!(pointer(ptr), convert(T,v), False(), False(), False(), register_size())
+@inline function vstore!(ptr::AbstractStridedPointer{T}, v::Number) where {T<:Number}
+    __vstore!(cpupointer(ptr), convert(T,v), False(), False(), False(), register_size())
+end
 
 @generated function nopromote_axis_indicator(::AbstractStridedPointer{<:Any,N}) where {N}
     t = Expr(:tuple); foreach(n -> push!(t.args, True()), 1:N)
     Expr(:block, Expr(:meta, :inline), t)
 end
 
-@inline _vload(ptr::AbstractStridedPointer{T,0}, i::Tuple{}, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS} = __vload(pointer(ptr), A(), StaticInt{RS}())
+@inline _vload(ptr::AbstractStridedPointer{T,0}, i::Tuple{}, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS} = __vload(cpupointer(ptr), A(), StaticInt{RS}())
 @inline gep(ptr::AbstractStridedPointer{T,0}, i::Tuple{}) where {T} = pointer(ptr)
 
 @inline _offset_index(i, ::NTuple{N,Zero}) where {N} = i
@@ -282,14 +286,15 @@ end
 end
 
 struct StridedBitPointer{N,C,B,R,X} <: AbstractStridedPointer{Bit,N,C,B,R,X,NTuple{N,Int}}
-    p::Ptr{Bit}
+    p::CPUPtr{Bit}
     strd::X
     offsets::NTuple{N,Int}
 end
 function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets) where {N,C,B,R,X}
     StridedBitPointer{N,C,B,R,X}(p, strd, offsets)
 end
-@inline Base.pointer(p::StridedBitPointer) = p.p
+@inline cpupointer(p::StridedBitPointer) = getfield(p,:p)
+@inline Base.pointer(p::StridedBitPointer) = reinterpret(Ptr{Bit}, getfield(p,:p))
 # @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
 @inline bytestrides(A::StridedBitPointer) = getfield(A, :strd)
 @inline Base.strides(ptr::StridedBitPointer) = getfield(ptr, :strd)
@@ -297,7 +302,7 @@ end
 @inline ArrayInterface.offsets(ptr::StridedBitPointer) = getfield(ptr, :offsets)
 
 @inline function stridedpointer(
-    ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
+    ptr::CPUPtr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
 ) where {C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
     StridedBitPointer{N,C,B,R,X}(ptr, strd, offsets)
 end
@@ -325,7 +330,7 @@ end
 #     push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), $strd, $offsets)))
 #     q
 # end
-@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X}, ptr::Ptr{Bit}) where {N,C,B,R,X}
+@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X}, ptr::CPUPtr{Bit}) where {N,C,B,R,X}
     StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
 end
 
@@ -531,28 +536,31 @@ BenchmarkTools.Trial:
 @inline preserve_buffer(A::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint}) = preserve_buffer(parent(A))
 @inline preserve_buffer(x) = x
 
-# function llvmptr_comp_quote(cmp, Tsym)
-#     pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
-#     instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
-#     Expr(:block, Expr(:meta,:inline), :(llvmcall($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
-# end
-# for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
-#     @eval begin
-#         @generated function $f(p1::Pointer{T}, p2::Pointer{T}) where {T}
-#             llvmptr_comp_quote($cmp, JULIA_TYPES[T])
-#         end
-#         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptr(p1), llvmptr(p2))
-#         @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
-#         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
-#     end
-# end
-linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
-for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
+function llvmptr_comp_quote(cmp, Tsym)
+    pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
+    instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
+    Expr(:block, Expr(:meta,:inline), :(llvmcall($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
+end
+
+for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
     @eval begin
-        @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
-        @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
+        # @generated function $f(p1::CPUPtr{T}, p2::CPUPtr{T}) where {T}
+        #     llvmptr_comp_quote($cmp, JULIA_TYPES[T])
+        # end
+        @generated $f(p1::CPUPtr{Float64}, p2::CPUPtr{Float64}) = llvmptr_comp_quote($cmp, :Float64)
+        @inline $f(p1::CPUPtr{T}, p2::CPUPtr{T}) where {T} = $f(reinterpret(CPUPtr{Float64}, p1), reinterpret(CPUPtr{Float64}, p2))
+        @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(cpupointer(p1), cpupointer(p2))
+        @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(linearize(p1), linearize(p2))
         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
     end
 end
+linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
+# for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
+#     @eval begin
+#         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
+#         @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
+#         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
+#     end
+# end
 
 

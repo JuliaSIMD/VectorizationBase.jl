@@ -108,11 +108,12 @@ function offset_ptr(
     T_sym = JULIA_TYPES[T]
     offset_ptr(T_sym, sizeof_T, ind_type, indargname, ibits, W, X, M, O, forgep, rs)
 end
+str_ptr_name(i) = i == -1 ? "%0" : "%ptr.$(i)"
 function offset_ptr(
     T_sym::Symbol, ind_type::Symbol, indargname::Char, ibits::Int, W::Int, X::Int, M::Int, O::Int, forgep::Bool, rs::Int
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
-    i = 0
+    i = -1
     Morig = M
     isbit = T_sym === :Bit
     if isbit
@@ -148,7 +149,9 @@ function offset_ptr(
     end
     # after this block, we will have a index_gep_typ pointer
     if iszero(O)
-        push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(index_gep_typ)*"); i += 1
+        if index_gep_typ != "i8"
+            push!(instrs, "%ptr.0 = bitcast i8* %0 to $(index_gep_typ)*"); i += 1
+        end
     else # !iszero(O)
         if !iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
             offset_gep_typ = "i8"
@@ -157,13 +160,17 @@ function offset_ptr(
             offset_gep_typ = index_gep_typ
             offset = O >>> tz
         end
-        push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"); i += 1
-        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"); i += 1
+        if offset_gep_typ != "i8"
+            push!(instrs, "%ptr.0 = bitcast i8* %0 to $(offset_gep_typ)*"); i += 1
+        end
+        push!(instrs, "$(str_ptr_name(i+1)) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* $(str_ptr_name(i)), i32 $(offset)"); i += 1
         if forgep && iszero(M) && (iszero(X) || isone(X))
-            push!(instrs, "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"); i += 1
+            if offset_gep_typ ≠ "i8"
+                push!(instrs, "$(str_ptr_name(i+1)) = bitcast $(offset_gep_typ)* $(str_ptr_name(i)) to i8*"); i += 1
+            end
             return instrs, i
         elseif offset_gep_typ != index_gep_typ
-            push!(instrs, "%ptr.$(i) = bitcast $(offset_gep_typ)* %ptr.$(i-1) to $(index_gep_typ)*"); i += 1
+            push!(instrs, "$(str_ptr_name(i+1)) = bitcast $(offset_gep_typ)* $(str_ptr_name(i)) to $(index_gep_typ)*"); i += 1
         end
     end
     # will do final type conversion
@@ -175,11 +182,13 @@ function offset_ptr(
             constmul = llvmconst(W, "i$(ibits) $M")
             push!(instrs, "%$(indname) = mul nsw <$W x i$(ibits)> %$(indargname), $(constmul)")
         end
-        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), <$W x i$(ibits)> %$(indname)"); i += 1
+        push!(instrs, "$(str_ptr_name(i+1)) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* $(str_ptr_name(i)), <$W x i$(ibits)> %$(indname)"); i += 1
         if forgep
-            push!(instrs, "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+            if index_gep_typ ≠ "i8"
+                push!(instrs, "$(str_ptr_name(i+1)) = bitcast <$W x $index_gep_typ*> $(str_ptr_name(i)) to <$W x i8*>"); i += 1
+            end
         elseif index_gep_typ != vtyp
-            push!(instrs, "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $typ*>"); i += 1
+            push!(instrs, "$(str_ptr_name(i+1)) = bitcast <$W x $index_gep_typ*> $(str_ptr_name(i)) to <$W x $typ*>"); i += 1
         end
         return instrs, i
     end
@@ -220,7 +229,7 @@ function offset_ptr(
             end
             # TODO: if X != 1 and X != 0, check if it is better to gep -> gep, or broadcast -> add -> gep
         end
-        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* %ptr.$(i-1), i$(ibits) %$(indname)"); i += 1
+        push!(instrs, "$(str_ptr_name(i+1)) = getelementptr inbounds $(index_gep_typ), $(index_gep_typ)* $(str_ptr_name(i)), i$(ibits) %$(indname)"); i += 1
     end
     # ind_type === :Integer || ind_type === :StaticInt
     if !(isone(X) | iszero(X)) # vec
@@ -228,18 +237,20 @@ function offset_ptr(
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
         if typ !== index_gep_typ
-            push!(instrs, "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(typ)*"); i += 1
+            push!(instrs, "$(str_ptr_name(i+1)) = bitcast $(index_gep_typ)* $(str_ptr_name(i)) to $(typ)*"); i += 1
         end
-        push!(instrs, "%ptr.$(i) = getelementptr inbounds $(typ), $(typ)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"); i += 1
+        push!(instrs, "$(str_ptr_name(i+1)) = getelementptr inbounds $(typ), $(typ)* $(str_ptr_name(i)), <$W x $(vityp)> <$vityp $vi>"); i += 1
         if forgep
-            push!(instrs, "%ptr.$(i) = ptrtoint <$W x $typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"); i += 1
+            if typ ≠ "i8"
+                push!(instrs, "$(str_ptr_name(i+1)) = bitcast <$W x $typ*> $(str_ptr_name(i)) to <$W x i8*>"); i += 1
+            end
         end
         return instrs, i
     end
     if forgep # if forgep, just return now
-        push!(instrs, "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"); i += 1
+        push!(instrs, "$(str_ptr_name(i+1)) = bitcast $(index_gep_typ)* $(str_ptr_name(i)) to i8*"); i += 1
     elseif index_gep_typ != vtyp
-        push!(instrs, "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(vtyp)*"); i += 1
+        push!(instrs, "$(str_ptr_name(i+1)) = bitcast $(index_gep_typ)* $(str_ptr_name(i)) to $(vtyp)*"); i += 1
     end
     instrs, i
 end
@@ -270,15 +281,16 @@ function gep_quote(
     ibits = 8sizeof_I
     # ::Type{T}, ind_type::Symbol, indargname = '1', ibytes::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
     instrs, i = offset_ptr(T_sym, ind_type, '1', ibits, W, X, M, O, true, rs)
-    ret = Expr(:curly, :Ptr, T_sym)
-    lret = JULIAPOINTERTYPE
+    ret = Expr(:curly, :CPUPtr, T_sym)
     if gep_returns_vector(W, X, M, ind_type)
         ret = Expr(:curly, :_Vec, W, ret)
-        lret = "<$W x $lret>"
+        lret = "<$W x i8*>"
+    else
+        lret = "i8*"
     end
 
-    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
-    largs = String[JULIAPOINTERTYPE]
+    args = Expr(:curly, :Tuple, Expr(:curly, :CPUPtr, T_sym))
+    largs = String["i8*"]
     arg_syms = Union{Symbol,Expr}[:ptr]
 
     if !(iszero(M) || ind_type === :StaticInt)
@@ -291,26 +303,34 @@ function gep_quote(
             push!(largs, "<$W x i$(ibits)>")
         end
     end
-    push!(instrs, "ret $lret %ptr.$(i-1)")
+    push!(instrs, "ret $lret $(str_ptr_name(i))")
     llvmcall_expr("", join(instrs, "\n"), ret, args, lret, largs, arg_syms)
 end
 
-@generated function _gep(ptr::Ptr{T}, i::I, ::StaticInt{RS}) where {I <: Integer, T <: NativeTypes, RS}
+@generated function _gep(ptr::CPUPtr{T}, i::I, ::StaticInt{RS}) where {I <: Integer, T <: NativeTypes, RS}
     gep_quote(T, :Integer, I, 1, 1, 1, 0, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, ::StaticInt{N}, ::StaticInt{RS}) where {N, T <: NativeTypes, RS}
+@generated function _gep(ptr::CPUPtr{T}, ::StaticInt{N}, ::StaticInt{RS}) where {N, T <: NativeTypes, RS}
     gep_quote(T, :StaticInt, Int, 1, 1, 0, N, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::StaticInt{RS}) where {T <: NativeTypes, I <: Integer, O, M, RS}
+@generated function _gep(ptr::CPUPtr{T}, i::LazyMulAdd{M,O,I}, ::StaticInt{RS}) where {T <: NativeTypes, I <: Integer, O, M, RS}
     gep_quote(T, :Integer, I, 1, 1, M, O, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, i::Vec{W,I}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: Integer, RS}
+@generated function _gep(ptr::CPUPtr{T}, i::Vec{W,I}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: Integer, RS}
     gep_quote(T, :Vec, I, W, 1, 1, 0, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: Integer, M, O, RS}
+@generated function _gep(ptr::CPUPtr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: Integer, M, O, RS}
     gep_quote(T, :Vec, I, W, 1, M, O, true, RS)
 end
-@inline gep(ptr::Ptr, i) = _gep(ptr, i, register_size())
+@inline gep(ptr::CPUPtr{T}, i) where {T<:NativeTypes} = _gep(ptr, i, register_size())
+@inline function gep(ptr::CPUPtr{T}, i) where {T}
+    if Base.allocatedinline(T)
+        reinterpret(CPUPtr{T}, _gep(reinterpret(CPUPtr{UInt8}, ptr), i, register_size()))
+    else
+        reinterpret(CPUPtr{T}, _gep(reinterpret(CPUPtr{UInt8}, ptr), i, register_size()))
+    end
+end
+
 # @inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
 @inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{IntegerIndex}})
     similar_no_offset(ptr, gep(ptr, i))
@@ -367,17 +387,17 @@ function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::I
     q
 end
 
-@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
+@inline function _mask_scalar_load(ptr::CPUPtr{T}, i::IntegerIndex, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
     Bool(m) ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
 end
-@inline function _mask_scalar_load(ptr::Ptr{T}, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
+@inline function _mask_scalar_load(ptr::CPUPtr{T}, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
     Bool(m) ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
 end
-@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
+@inline function _mask_scalar_load(ptr::CPUPtr{T}, i::IntegerIndex, m::AbstractMask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
     s = __vload(ptr, i, A(), StaticInt{RS}())
     ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
 end
-@inline function _mask_scalar_load(ptr::Ptr{T}, m::AbstractMask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
+@inline function _mask_scalar_load(ptr::CPUPtr{T}, m::AbstractMask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
     s = __vload(ptr, A(), StaticInt{RS}())
     ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
 end
@@ -458,14 +478,14 @@ function vload_quote_llvmcall_core(
         decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
         passthrough = mask ? "zeroinitializer" : "undef"
-        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" * LOAD_SCOPE_TBAA_FLAGS)
+        push!(instrs, "%res = call $loadinstr(<$W x $typ*> $(str_ptr_name(i)), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" * LOAD_SCOPE_TBAA_FLAGS)
     elseif mask
         suff = suffix(W, T_sym)
         loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
         decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
-        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" * LOAD_SCOPE_TBAA_FLAGS)
+        push!(instrs, "%res = call $loadinstr($vtyp* $(str_ptr_name(i)), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" * LOAD_SCOPE_TBAA_FLAGS)
     else
-        push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" * LOAD_SCOPE_TBAA_FLAGS)
+        push!(instrs, "%res = load $vtyp, $vtyp* $(str_ptr_name(i)), align $alignment" * LOAD_SCOPE_TBAA_FLAGS)
     end
     if isbit
         lret = string('i', max(8,nextpow2(W)))
@@ -503,8 +523,8 @@ function vload_quote_llvmcall_core(
             push!(instrs, "ret $vtyp %res")
         end
     end
-    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
-    largs = String[JULIAPOINTERTYPE]
+    args = Expr(:curly, :Tuple, Expr(:curly, :CPUPtr, T_sym))
+    largs = String["i8*"]
     arg_syms = Union{Symbol,Expr}[:ptr]
     if dynamic_index
         push!(arg_syms, :(data(i)))
@@ -561,42 +581,42 @@ end
 
 # no index, no mask
 @generated function __vload(
-    ptr::Ptr{T}, ::A, ::StaticInt{RS}
+    ptr::CPUPtr{T}, ::A, ::StaticInt{RS}
 ) where {T <: NativeTypes, A <: StaticBool, RS}
     vload_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A === True, RS)
 end
 # no index, mask
 @generated function __vload(
-    ptr::Ptr{T}, ::A, m::AbstractMask, ::StaticInt{RS}
+    ptr::CPUPtr{T}, ::A, m::AbstractMask, ::StaticInt{RS}
 ) where {T <: NativeTypes, A <: StaticBool, RS}
     vload_quote(T, Int, :StaticInt, 1, 1, 0, 0, true, A === True, RS)
 end
 # index, no mask
 @generated function __vload(
-    ptr::Ptr{T}, i::I, ::A, ::StaticInt{RS}
+    ptr::CPUPtr{T}, i::I, ::A, ::StaticInt{RS}
 ) where {A <: StaticBool, T <: NativeTypes, I <: Index, RS}
     IT, ind_type, W, X, M, O = index_summary(I)
     vload_quote(T, IT, ind_type, W, X, M, O, false, A === True, RS)
 end
 # index, mask
 @generated function __vload(
-    ptr::Ptr{T}, i::I, m::AbstractMask, ::A, ::StaticInt{RS}
+    ptr::CPUPtr{T}, i::I, m::AbstractMask, ::A, ::StaticInt{RS}
 ) where {A <: StaticBool, T <: NativeTypes, I <: Index, RS}
     IT, ind_type, W, X, M, O = index_summary(I)
     vload_quote(T, IT, ind_type, W, X, M, O, true, A === True, RS)
 end
 
 
-@inline function _vload_scalar(ptr::Ptr{Bit}, i::Integer, ::A, ::StaticInt{RS}) where {RS,A<:StaticBool}
+@inline function _vload_scalar(ptr::CPUPtr{Bit}, i::Integer, ::A, ::StaticInt{RS}) where {RS,A<:StaticBool}
     d = i >> 3; r = i & 7;
-    u = __vload(Base.unsafe_convert(Ptr{UInt8}, ptr), d, A(), StaticInt{RS}())
+    u = __vload(reinterpret(CPUPtr{UInt8}, ptr), d, A(), StaticInt{RS}())
     (u >> r) % Bool
 end
-@inline function __vload(ptr::Ptr{Bit}, i::IntegerTypesHW, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
+@inline function __vload(ptr::CPUPtr{Bit}, i::IntegerTypesHW, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS}
     _vload_scalar(ptr, i, A(), StaticInt{RS}())
 end
 # avoid ambiguities
-@inline __vload(ptr::Ptr{Bit}, ::StaticInt{N}, ::A, ::StaticInt{RS}) where {N,A<:StaticBool,RS} = _vload_scalar(ptr, StaticInt{N}(), A(), StaticInt{RS}())
+@inline __vload(ptr::CPUPtr{Bit}, ::StaticInt{N}, ::A, ::StaticInt{RS}) where {N,A<:StaticBool,RS} = _vload_scalar(ptr, StaticInt{N}(), A(), StaticInt{RS}())
 
 
 # Entry points, `vload` and `vloada`
@@ -609,7 +629,7 @@ end
 @inline vload(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}, m::Union{AbstractMask,Bool}) = _vload(ptr, i, m, False(), register_size())
 @inline vloada(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}, m::Union{AbstractMask,Bool}) = _vload(ptr, i, m, True(), register_size())
 
-@inline function __vload(ptr::Ptr{T}, i::Number, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
+@inline function __vload(ptr::CPUPtr{T}, i::Number, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
     b ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
 end
 @inline vwidth_from_ind(i::Tuple) = vwidth_from_ind(i, StaticInt(1), StaticInt(0))
@@ -623,21 +643,21 @@ end
     vwidth_from_ind(Base.tail(i), StaticInt{W}(), StaticInt{W}(U))
 end
 
-@inline function _vload(ptr::Ptr{T}, i::Tuple, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
+@inline function _vload(ptr::CPUPtr{T}, i::Tuple, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
     if b
         _vload(ptr, i, A(), StaticInt{RS}())
     else
         zero_init(T, vwidth_from_ind(i), StaticInt{RS}())
     end
 end
-@inline function _vload(ptr::Ptr{T}, i::Unroll{AU,F,N,AV,W,M,X,I}, b::Bool, ::A, ::StaticInt{RS}) where {T,AU,F,N,AV,W,M,X,I,A<:StaticBool,RS}
+@inline function _vload(ptr::CPUPtr{T}, i::Unroll{AU,F,N,AV,W,M,X,I}, b::Bool, ::A, ::StaticInt{RS}) where {T,AU,F,N,AV,W,M,X,I,A<:StaticBool,RS}
     m = max_mask(Val{W}()) & b
     _vload(ptr, i, m, A(), StaticInt{RS}())
 end
-@inline function __vload(ptr::Ptr{T}, i::I, m::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS,I<:IntegerIndex}
+@inline function __vload(ptr::CPUPtr{T}, i::I, m::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS,I<:IntegerIndex}
     m ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
 end
-@inline function __vload(ptr::Ptr{T}, i::I, m::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS,W,I<:VectorIndex{W}}
+@inline function __vload(ptr::CPUPtr{T}, i::I, m::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS,W,I<:VectorIndex{W}}
     _m = max_mask(Val{W}()) & m
     __vload(ptr, i, _m, A(), StaticInt{RS}())
 end
@@ -678,27 +698,27 @@ function vstore_quote(
         storeinstr = "void @llvm.masked.scatter." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
         decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
         m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
-        push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" * metadata)
-        # push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
+        push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> $(str_ptr_name(i)), i32 $alignment, <$W x i1> $m)" * metadata)
+        # push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> $(str_ptr_name(i)), i32 $alignment, <$W x i1> $m)")
     elseif mask
         suff = suffix(W, T_sym)
         storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
         decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
-        push!(instrs, "call $storeinstr($vtyp %1, $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" * metadata)
+        push!(instrs, "call $storeinstr($vtyp %1, $vtyp* $(str_ptr_name(i)), i32 $alignment, <$W x i1> %mask.0)" * metadata)
     elseif nontemporal
-        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}" * metadata)
+        push!(instrs, "store $vtyp %1, $vtyp* $(str_ptr_name(i)), align $alignment, !nontemporal !{i32 1}" * metadata)
     else
-        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment" * metadata)
+        push!(instrs, "store $vtyp %1, $vtyp* $(str_ptr_name(i)), align $alignment" * metadata)
     end
     push!(instrs, "ret void")
     ret = :Cvoid; lret = "void"
-    ptrtyp = Expr(:curly, :Ptr, T_sym)
+    ptrtyp = Expr(:curly, :CPUPtr, T_sym)
     args = if W > 1
         Expr(:curly, :Tuple, ptrtyp, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, T_sym)))
     else
         Expr(:curly, :Tuple, ptrtyp, T_sym)
     end
-    largs = String[JULIAPOINTERTYPE, vtyp]
+    largs = String["i8*", vtyp]
     arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
     if dynamic_index
         push!(arg_syms, :(data(i)))
@@ -720,7 +740,7 @@ end
 
 # no index, no mask, scalar store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::VT, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::VT, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, VT <: NativeTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if VT !== T
         return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert($T, v), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
@@ -729,7 +749,7 @@ end
 end
 # no index, no mask, vector store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::V, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::V, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if V !== Vec{W,T}
         return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
@@ -738,7 +758,7 @@ end
 end
 # index, no mask, scalar store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::VT, i::I, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::VT, i::I, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, VT <: NativeTypes, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     IT, ind_type, W, X, M, O = index_summary(I)
     if VT !== T || W > 1
@@ -752,7 +772,7 @@ end
 end
 # index, no mask, vector store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::V, i::I, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::V, i::I, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if V !== Vec{W,T}
         return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
@@ -767,7 +787,7 @@ end
 end
 # index, mask, scalar store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::VT, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::VT, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, T <: NativeTypesExceptBit, VT <: NativeTypes, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     IT, ind_type, _W, X, M, O = index_summary(I)
     (W == _W || _W == 1) || throw(ArgumentError("Vector width: $W, index width: $(_W). They must either be equal, or index width == 1."))
@@ -780,7 +800,7 @@ end
 end
 # no index, mask, vector store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::V, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::V, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if W == 1
         return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
@@ -791,7 +811,7 @@ end
 end
 # index, mask, vector store
 @generated function __vstore!(
-    ptr::Ptr{T}, v::V, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{T}, v::V, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if W == 1
         return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
@@ -810,38 +830,38 @@ end
 
 # BitArray stores
 @inline function __vstore!(
-    ptr::Ptr{Bit}, v::AbstractSIMDVector{W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{Bit}, v::AbstractSIMDVector{W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {B<:Union{Bit,Bool},W,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    __vstore!(Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), A(), S(), NT(), StaticInt{RS}())
+    __vstore!(reinterpret(CPUPtr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    ptr::Ptr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {B<:Union{Bit,Bool}, W,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    __vstore!(Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), data(i) >> 3, A(), S(), NT(), StaticInt{RS}())
+    __vstore!(reinterpret(CPUPtr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), data(i) >> 3, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    ptr::Ptr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, m::AbstractMask, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, m::AbstractMask, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {B<:Union{Bit,Bool}, W,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     ishift = data(i) >> 3
-    p = Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr)
+    p = reinterpret(CPUPtr{mask_type(StaticInt{W}())}, ptr)
     u = bitselect(data(m), __vload(p, ishift, A(), StaticInt{RS}()), tounsigned(v))
     __vstore!(p, u, ishift, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{Bit}, v::AbstractSIMDVector{W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{Bit}, v::AbstractSIMDVector{W,B}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {B<:Union{Bit,Bool}, F<:Function, W,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    __vstore!(f, Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), A(), S(), NT(), StaticInt{RS}())
+    __vstore!(f, reinterpret(CPUPtr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, B<:Union{Bit,Bool}, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    __vstore!(f, Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), data(i) >> 3, A(), S(), NT(), StaticInt{RS}())
+    __vstore!(f, reinterpret(CPUPtr{mask_type(StaticInt{W}())}, ptr), tounsigned(v), data(i) >> 3, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, m::AbstractMask, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{Bit}, v::AbstractSIMDVector{W,B}, i::VectorIndex{W}, m::AbstractMask, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, B<:Union{Bit,Bool}, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     ishift = data(i) >> 3
-    p = Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr)
+    p = reinterpret(CPUPtr{mask_type(StaticInt{W}())}, ptr)
     u = bitselect(data(m), __vload(p, ishift, A(), StaticInt{RS}()), tounsigned(v))
     __vstore!(f, p, u, ishift, A(), S(), NT(), StaticInt{RS}())
 end
@@ -849,41 +869,41 @@ end
 
 # Can discard `f` if we have a vector index
 @inline function __vstore!(
-    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{T}, v::AbstractSIMDVector{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W}
     __vstore!(ptr, f(v), A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, i::IntegerIndex, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{T}, v::AbstractSIMDVector{W}, i::IntegerIndex, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,W}
     __vstore!(ptr, f(v), i, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{T}, v::AbstractSIMDVector{W}, i::VectorIndex{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     # __vstore!(ptr, convert(Vec{W,T}, v), i, A(), S(), NT(), StaticInt{RS}()) # discard `f`
     __vstore!(ptr, v, i, A(), S(), NT(), StaticInt{RS}()) # discard `f`
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{T}, v::AbstractSIMDVector{W}, i::VectorIndex{W}, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{T}, v::AbstractSIMDVector{W}, i::VectorIndex{W}, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {W, T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     # __vstore!(ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
     __vstore!(ptr, f(v), i, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr, v::AbstractSIMDVector, i::Index, m::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr, v::AbstractSIMDVector, i::Index, m::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
   # __vstore!(ptr, convert(Vec{W,T}, v), i, m, A(), S(), NT(), StaticInt{RS}())
   m && __vstore!(f, ptr, v, i, A(), S(), NT(), StaticInt{RS}())
 end
 
 @inline function __vstore!(
-    f::F, ptr::Ptr{T}, v::NativeTypes, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{T}, v::NativeTypes, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     __vstore!(ptr, v, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function __vstore!(
-    f::F, ptr::Ptr{T}, v::NativeTypes, i::IntegerIndex, ::A, ::S, ::NT, ::StaticInt{RS}
+    f::F, ptr::CPUPtr{T}, v::NativeTypes, i::IntegerIndex, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T<:NativeTypesExceptBit, F<:Function,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     __vstore!(ptr, v, i, A(), S(), NT(), StaticInt{RS}())
 end
@@ -926,7 +946,7 @@ for (store,align,alias,nontemporal) ∈ [
     end
 end
 @inline function __vstore!(
-    ptr::Ptr, v, i, b::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
+    ptr::CPUPtr, v, i, b::Bool, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
     b && __vstore!(ptr, v, i, A(), S(), NT(), StaticInt{RS}())
     nothing
@@ -945,15 +965,26 @@ end
     """
     llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{Cvoid}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
-@inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) where {T,L,R} = prefetch(Base.unsafe_convert(Ptr{Cvoid}, ptr), Val{L}(), Val{R}())
+@inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) where {T,L,R} = prefetch(reinterpret(Ptr{Cvoid}, ptr), Val{L}(), Val{R}())
+@generated function prefetch(ptr::CPUPtr{Cvoid}, ::Val{L}, ::Val{R}) where {L, R}
+    L ∈ (0,1,2,3) || throw(ArgumentError("Prefetch intrinsic requires a locality argument of 0, 1, 2, or 3, but received $L."))
+    R ∈ (0,1) || throw(ArgumentError("Prefetch intrinsic requires a read/write argument of 0, 1, but received $R."))
+    decl = "declare void @llvm.prefetch(i8*, i32, i32, i32)"
+    instrs = """
+        call void @llvm.prefetch(i8* %0, i32 $R, i32 $L, i32 1)
+        ret void
+    """
+    llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{CPUPtr{Cvoid}}), "void", ["i8*"], [:ptr])
+end
+@inline prefetch(ptr::CPUPtr{T}, ::Val{L}, ::Val{R}) where {T,L,R} = prefetch(reinterpret(CPUPtr{Cvoid}, ptr), Val{L}(), Val{R}())
 
-@inline function prefetch(ptr::Union{AbstractStridedPointer,Ptr}, i, ::Val{Locality}, ::Val{ReadOrWrite}) where {Locality, ReadOrWrite}
+@inline function prefetch(ptr::Union{AbstractStridedPointer,CPUPtr}, i, ::Val{Locality}, ::Val{ReadOrWrite}) where {Locality, ReadOrWrite}
     prefetch(gep(ptr, i), Val{Locality}(), Val{ReadOrWrite}())
 end
-@inline prefetch(ptr::Ptr) = prefetch(ptr, Val{3}(), Val{0}())
-@inline prefetch(ptr::Ptr, ::Val{L}) where {L} = prefetch(ptr, Val{L}(), Val{0}())
-@inline prefetch(ptr::Ptr, i) = prefetch(ptr, i, Val{3}(), Val{0}())
-@inline prefetch(ptr::Ptr, i, ::Val{L}) where {L} = prefetch(ptr, i, Val{L}(), Val{0}())
+@inline prefetch(ptr::AbstractPtr) = prefetch(ptr, Val{3}(), Val{0}())
+@inline prefetch(ptr::AbstractPtr, ::Val{L}) where {L} = prefetch(ptr, Val{L}(), Val{0}())
+@inline prefetch(ptr::AbstractPtr, i) = prefetch(ptr, i, Val{3}(), Val{0}())
+@inline prefetch(ptr::AbstractPtr, i, ::Val{L}) where {L} = prefetch(ptr, i, Val{L}(), Val{0}())
 
 
 @inline prefetch0(x, i) = prefetch(gep(stridedpointer(x), (data(i),)), Val{3}(), Val{0}())
@@ -967,43 +998,54 @@ end
 @inline prefetch2(x, i, j) = prefetch(gep(stridedpointer(x), (data(i), data(j))), Val{1}(), Val{0}())
 # @inline prefetch2(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (data(i) + data(oi) - 1, data(j) + data(oj) - 1)), Val{1}(), Val{0}())
 
-@generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
+@generated function lifetime_start!(ptr::CPUPtr{T}, ::Val{L}) where {L,T}
     decl = "declare void @llvm.lifetime.start(i64, i8* nocapture)"
-    instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.start(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
-    llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+    instrs = "call void @llvm.lifetime.start(i64 $(L*sizeof(T)), i8* %0)\nret void"
+    llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{CPUPtr{$T}}), "void", ["i8*"], [:ptr])
 end
-@generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
+@generated function lifetime_end!(ptr::CPUPtr{T}, ::Val{L}) where {L,T}
     decl = "declare void @llvm.lifetime.end(i64, i8* nocapture)"
-    instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
-    llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+    instrs = "call void @llvm.lifetime.end(i64 $(L*sizeof(T)), i8* %0)\nret void"
+    llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{CPUPtr{$T}}), "void", ["i8*"], [:ptr])
 end
 
-@inline lifetime_start!(ptr::Ptr) = lifetime_start!(ptr, Val{-1}())
-@inline lifetime_end!(ptr::Ptr) = lifetime_end!(ptr, Val{-1}())
+@inline lifetime_start!(ptr::CPUPtr) = lifetime_start!(ptr, Val{-1}())
+@inline lifetime_end!(ptr::CPUPtr) = lifetime_end!(ptr, Val{-1}())
 # Fallback is to do nothing. Intention is (e.g.) for PaddedMatrices/StackPointers.
 @inline lifetime_start!(::Any) = nothing
 @inline lifetime_end!(::Any) = nothing
 
-@generated function compressstore!(ptr::Ptr{T}, v::Vec{W,T}, mask::AbstractMask{W,U}) where {W,T <: NativeTypes, U<:Unsigned}
+@generated function compressstore!(ptr::CPUPtr{T}, v::Vec{W,T}, mask::AbstractMask{W,U}) where {W,T <: NativeTypes, U<:Unsigned}
     typ = LLVM_TYPES[T]
     vtyp = "<$W x $typ>"
     mtyp_input = LLVM_TYPES[U]
     mtyp_trunc = "i$W"
-    instrs = String["%ptr = inttoptr $JULIAPOINTERTYPE %1 to $typ*"]
+    if typ == "i8"
+        pname = "%1"
+        instrs = String[]
+    else
+        pname = "%ptr"
+        instrs = String["%ptr = bitcast i8* %1 to $typ*"]
+    end
     truncate_mask!(instrs, '2', W, 0)
     decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, $typ*, <$W x i1>)"
-    push!(instrs, "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, $typ* %ptr, <$W x i1> %mask.0)\nret void")
-    llvmcall_expr(decl, join(instrs,"\n"), :Cvoid, :(Tuple{_Vec{$W,$T}, Ptr{$T}, $U}), "void", [vtyp, JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:(data(v)), :ptr, :(data(mask))])
+    push!(instrs, "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, $typ* $pname, <$W x i1> %mask.0)\nret void")
+    llvmcall_expr(decl, join(instrs,"\n"), :Cvoid, :(Tuple{_Vec{$W,$T}, CPUPtr{$T}, $U}), "void", [vtyp, "i8*", "i$(8sizeof(U))"], [:(data(v)), :ptr, :(data(mask))])
 end
 
-@generated function expandload(ptr::Ptr{T}, mask::AbstractMask{W,U}) where {W, T <: NativeTypes, U<:Unsigned}
+@generated function expandload(ptr::CPUPtr{T}, mask::AbstractMask{W,U}) where {W, T <: NativeTypes, U<:Unsigned}
     typ = LLVM_TYPES[T]
     vtyp = "<$W x $typ>"
     vptrtyp = "<$W x $typ*>"
     mtyp_input = LLVM_TYPES[U]
     mtyp_trunc = "i$W"
     instrs = String[]
-    push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $typ*")
+    pname = if typ == "i8"
+        "%0"
+    else
+        push!(instrs, "%ptr = bitcast i8* %0 to $typ*")
+        pname = "%ptr"
+    end
     if mtyp_input == mtyp_trunc
         push!(instrs, "%mask = bitcast $mtyp_input %1 to <$W x i1>")
     else
@@ -1011,23 +1053,23 @@ end
         push!(instrs, "%mask = bitcast $mtyp_trunc %masktrunc to <$W x i1>")
     end
     decl = "declare $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ*, <$W x i1>, $vtyp)"
-    push!(instrs, "%res = call $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ* %ptr, <$W x i1> %mask, $vtyp zeroinitializer)\nret $vtyp %res")
-    llvmcall_expr(decl, join(instrs,"\n"), :(_Vec{$W,$T}), :(Tuple{Ptr{$T}, $U}), vtyp, [JULIAPOINTERTYPE, "i$(8sizeof(U))"], [:ptr, :(data(mask))])
+    push!(instrs, "%res = call $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ* $pname, <$W x i1> %mask, $vtyp zeroinitializer)\nret $vtyp %res")
+    llvmcall_expr(decl, join(instrs,"\n"), :(_Vec{$W,$T}), :(Tuple{CPUPtr{$T}, $U}), vtyp, ["i8*", "i$(8sizeof(U))"], [:ptr, :(data(mask))])
 end
 
 # fallback definitions
-@generated function __vload(p::Ptr{T}, i::Index, ::A, ::StaticInt{RS}) where {T,A,RS}
+@generated function __vload(p::CPUPtr{T}, i::Index, ::A, ::StaticInt{RS}) where {T,A,RS}
     if Base.allocatedinline(T)
-        Expr(:block, Expr(:meta,:inline), :(unsafe_load(p + convert(Int, i))))
+        Expr(:block, Expr(:meta,:inline), :(unsafe_load(reinterpret(Ptr{T}, p) + convert(Int, i))))
     else
-        Expr(:block, Expr(:meta,:inline), :(ccall(:jl_value_ptr, Ref{$T}, (Ptr{Cvoid},), unsafe_load(Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p)+convert(Int, i)))))
+        Expr(:block, Expr(:meta,:inline), :(ccall(:jl_value_ptr, Ref{$T}, (Ptr{Cvoid},), unsafe_load(reinterpret(Ptr{Ptr{Cvoid}}, p)+convert(Int, i)))))
     end
 end
-@generated function __vstore!(p::Ptr{T}, v::T, i::Index, ::A, ::S, ::NT, ::StaticInt{RS}) where {T,A,S,NT,RS}
+@generated function __vstore!(p::CPUPtr{T}, v::T, i::Index, ::A, ::S, ::NT, ::StaticInt{RS}) where {T,A,S,NT,RS}
     if Base.allocatedinline(T)
-        Expr(:block, Expr(:meta,:inline), :(unsafe_store!(p + convert(Int, i), v); return nothing))
+        Expr(:block, Expr(:meta,:inline), :(unsafe_store!(reinterpret(Ptr{T}, p) + convert(Int, i), v); return nothing))
     else
-        Expr(:block, Expr(:meta,:inline), :(unsafe_store!(Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p) + convert(Int,i), Base.pointer_from_objref(v)); return nothing))
+        Expr(:block, Expr(:meta,:inline), :(unsafe_store!(reinterpret(Ptr{Ptr{Cvoid}}, p) + convert(Int,i), Base.pointer_from_objref(v)); return nothing))
     end
 end
 
