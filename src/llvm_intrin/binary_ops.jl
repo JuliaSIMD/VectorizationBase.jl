@@ -24,8 +24,9 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
         
         @generated $_ff_fast(v1::T, v2::T) where {T<:Integer} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
         @inline $ff_fast(v1::T, v2::T) where {T<:Vec} = $_ff_fast(v1, v2)
+        @inline $ff(v1::T, v2::T) where {T} = $f(v1, v2)#fallback
         @inline $ff_fast(v1::T, v2::T) where {T} = $f(v1, v2)#fallback
-        @inline $ff(x::T,y::T) where {T<:IntegerTypesHW} = $_ff_fast(x,y)
+        @inline $ff_fast(x::T,y::T) where {T<:IntegerTypesHW} = $_ff_fast(x,y)
     end
 end
 for (op,f) ∈ [("div",:÷),("rem",:%)]

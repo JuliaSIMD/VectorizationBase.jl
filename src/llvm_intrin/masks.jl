@@ -234,15 +234,10 @@ end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
     # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
     M = mask_type(W)
-    # M = mask_type_symbol(W)
-    # Wm1 = UInt32((W%UInt32) - 0x00000001)
     quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
         $(Expr(:meta,:inline))
-        # evl = vadd_fast(vsub_fast(l % $M, one($M)) & $Wm1, one($M))
-        # EVLMask{$W,$M}((one($M) << evl) - one($M), evl % UInt32)
-        
-        evl = valrem(Val{$W}(), vsub(l % $M, one($M)))
-        EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), vadd_fast(evl, one(evl)))
+        evl = valrem(Val{$W}(), (l % $M) - one($M))
+        EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
     end
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
@@ -256,8 +251,8 @@ end
         M = mask_type_symbol(W)
         quote
             $(Expr(:meta,:inline))
-            evl = valrem(Val{$W}(), vsub(l % $M, one($M)))
-            EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
+            evl = valrem(Val{$W}(), (l % $M) - one($M))
+            EVLMask{$W}(data(evl ≥ MM{$W}(0)), evl + one(evl))
         end
     else
         quote
@@ -627,10 +622,9 @@ end
         instrs = ["%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)"]
         zext_mask!(instrs, 'm', W, 0)
         push!(instrs, "ret i$(max(nextpow2(W),8)) %res.0")
-        # args =  [:base, :(vsub(N,one($T)))]
         args =  [:base, :N]
         call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(nextpow2(W),8))", [typ, typ], args, true)
-        Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, vadd_fast(vsub_fast(N % UInt32, base % UInt32), 0x00000001))))
+        Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, ((N % UInt32) - (base % UInt32)) + 0x00000001)))
     end
     @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), getfield(i, :i), N)
 end
