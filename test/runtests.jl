@@ -1148,9 +1148,9 @@ include("testsetup.jl")
     end
   @testset "NullStep" begin
     A = rand(4,5);
-    @test @inferred(vload(gesp(VectorizationBase.stridedpointer(A), (NullStep(),NullStep(0))), (1,2))) == A[1,2]
-    @test @inferred(vload(gesp(VectorizationBase.stridedpointer(A), (StaticInt(0),NullStep())), (2,3))) == A[2,3]
-    @test @inferred(vload(gesp(VectorizationBase.stridedpointer(A), (NullStep(),StaticInt(0))), (3,4))) == A[3,4]
+    @test @inferred(vload(VectorizationBase.gesp(VectorizationBase.stridedpointer(A), (VectorizationBase.NullStep(),VectorizationBase.NullStep())), (1,2))) == A[1,2]
+    @test @inferred(vload(VectorizationBase.gesp(VectorizationBase.stridedpointer(A), (StaticInt(0),VectorizationBase.NullStep())), (2,3))) == A[2,3]
+    @test @inferred(vload(VectorizationBase.gesp(VectorizationBase.stridedpointer(A), (VectorizationBase.NullStep(),StaticInt(0))), (3,4))) == A[3,4]
   end
     # end
 end # @testset VectorizationBase
