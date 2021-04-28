@@ -253,6 +253,18 @@ For use in spin-and-wait loops, like spinlocks.
 #     return nothing
 # end
 
+"""
+  abstract type AbstractStridedPointer{T,N,C,B,R,X,O} end
+
+T: element type
+N: dimensionality
+C: contiguous dim
+B: batch size
+R: rank of strides
+X: strides
+O: offsets
+"""
+abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 include("static.jl")
 include("cartesianvindex.jl")
 include("topology.jl")

@@ -318,6 +318,19 @@ end
 @inline  function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{IntegerIndex,N}}) where {N,C,B,R}
     StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), map(vsub_fast, getfield(ptr,:offsets), i))
 end
+struct NullStep end
+@inline vsub_fast(::NullStep, _) = Zero()
+@inline vsub_fast(::NullStep, ::NullStep) = Zero()
+@inline vsub_fast(::NullStep, ::StaticInt) = Zero()
+@inline select_null_offset(::NullStep, x) = x
+@inline select_null_offset(_, x) = Zero()
+@inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{Union{NullStep,IntegerIndex}}})
+  inds = map(vsub_fast, i, offsets(ptr))
+  offs = map(select_null_offset, i, offsets(ptr))
+  similar_with_offset(ptr, gep(zero_offsets(ptr), inds), offs)
+end
+@inline gesp(ptr::AbstractStridedPointer, i::Tuple{NullStep,Vararg{NullStep,N}}) where {N} = ptr
+@inline gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{Any,N}}) where {N} = gesp(ptr, Tuple(CartesianVIndex(i)))#flatten
 
 
 function vload_quote(

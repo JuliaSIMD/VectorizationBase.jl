@@ -54,19 +54,6 @@ end
 end
 @inline memory_reference(::ArrayInterface.CPUIndex, A) = throw("Memory access for $(typeof(A)) not implemented yet.")
 
-"""
-  abstract type AbstractStridedPointer{T,N,C,B,R,X,O} end
-
-T: element type
-N: dimensionality
-C: contiguous dim
-B: batch size
-R: rank of strides
-X: strides
-O: offsets
-"""
-abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
-
 @inline ArrayInterface.contiguous_axis(::Type{A}) where {T,N,C,A<:AbstractStridedPointer{T,N,C}} = StaticInt{C}()
 @inline ArrayInterface.contiguous_batch_size(::Type{A}) where {T,N,C,B,A<:AbstractStridedPointer{T,N,C,B}} = StaticInt{B}()
 @inline ArrayInterface.stride_rank(::Type{A}) where {T,N,C,B,R,A<:AbstractStridedPointer{T,N,C,B,R}} = map(StaticInt, R)
@@ -120,6 +107,9 @@ end
     StridedPointer{T,N,C,B,R,X,O}(ptr, getfield(sptr, :strd), getfield(sptr, :offsets))
 end
 # @inline noalias!(p::StridedPointer) = similar(p, noalias!(pointer(p)))
+@inline function similar_with_offset(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}, off) where {T,N,C,B,R,X,O}
+    StridedPointer{T,N,C,B,R,X}(ptr, getfield(sptr, :strd), off)
+end
 @inline function similar_no_offset(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
     StridedPointer{T,N,C,B,R,X}(ptr, getfield(sptr, :strd), zerotuple(Val{N}()))
 end
@@ -325,8 +315,11 @@ end
 #     push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), $strd, $offsets)))
 #     q
 # end
-@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R,X}, ptr::Ptr{Bit}) where {N,C,B,R,X}
-    StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
+@inline function similar_with_offset(sptr::StridedBitPointer{N,C,B,R}, ptr::Ptr{Bit}, offset::Tuple{Vararg{Integer,N}}) where {N,C,B,R}
+    StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), offset)
+end
+@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R}, ptr::Ptr{Bit}) where {N,C,B,R}
+  StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
 end
 
 # @generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}

@@ -18,6 +18,9 @@ end
 @inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}) where {T}
     OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
 end
+@inline function similar_with_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}, off) where {T}
+    OffsetPrecalc(similar_with_offset(getfield(sptr, :ptr), ptr, off), getfield(sptr, :precalc))
+end
 
 
 """
