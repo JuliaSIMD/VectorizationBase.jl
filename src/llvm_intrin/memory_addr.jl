@@ -155,7 +155,7 @@ function offset_ptr(
             offset = O
         else # then we need another intermediary
             offset_gep_typ = index_gep_typ
-            offset = O >>> tz
+            offset = O >> tz
         end
         push!(instrs, "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"); i += 1
         push!(instrs, "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"); i += 1
