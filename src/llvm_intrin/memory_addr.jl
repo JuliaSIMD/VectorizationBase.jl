@@ -318,7 +318,6 @@ end
 @inline  function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{IntegerIndex,N}}) where {N,C,B,R}
     StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), map(vsub_fast, getfield(ptr,:offsets), i))
 end
-struct NullStep end
 @inline vsub_fast(::NullStep, _) = Zero()
 @inline vsub_fast(::NullStep, ::NullStep) = Zero()
 @inline vsub_fast(::NullStep, ::StaticInt) = Zero()

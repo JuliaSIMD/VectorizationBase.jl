@@ -83,9 +83,21 @@ end
 # Index would be `(MM{W,3}(1),)`
 # so we have `AU == AV == 1`, but also `X == N == F`.
 function shuffle_load_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, rs::Int, MASKFLAG::UInt
+    ::Type{T}, integer_params::NTuple{9,Int}, ::Type{I}, align::Bool, rs::Int, MASKFLAG::UInt
 ) where {T,I}
-    IT, ind_type, _W, _X, M, O = index_summary(I)
+  IT, ind_type, _W, _X, M, O = index_summary(I)
+  size_T = sizeof(T)
+  T_sym = JULIA_TYPES[T]
+  I_sym = JULIA_TYPES[IT]
+
+  _shuffle_load_quote(
+    T_sym, size_T, integer_params, I_sym, ind_type, M, O, align, rs, MASKFLAG
+  )
+end
+function _shuffle_load_quote(
+    T_sym::Symbol, size_T::Int, integer_params::NTuple{9,Int}, I_sym::Symbol, ind_type::Symbol, M::Int, O::Int, align::Bool, rs::Int, MASKFLAG::UInt
+)
+    N, C, B, AU, F, UN, AV, W, X = integer_params
     # we don't require vector indices for `Unroll`s...
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
     mask = MASKFLAG ≠ zero(UInt)
@@ -93,14 +105,11 @@ function shuffle_load_quote(
         return nothing
         # throw(ArgumentError("`shuffle_load_quote` currently requires masking either all or none of the unrolled loads."))
     end
-    size_T = sizeof(T)
     # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
     ((AV > 0) && interleave_memory_access(AU, C, F, X, UN, size_T, B)) || return nothing
     # `X` is stride between indices, e.g. `X = 3` means our final vectors should be `<x[0], x[3], x[6], x[9]>`
     # We need `X` to equal the steps (the unrolling factor)
     Wfull = W * UN
-    T_sym = JULIA_TYPES[T]
-    I_sym = JULIA_TYPES[IT]
     vloadexpr = vload_quote_llvmcall(
         T_sym, I_sym, ind_type, Wfull, size_T, M, O, mask, align, rs, :(_Vec{$Wfull,$T_sym})
     )
@@ -322,7 +331,7 @@ end
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
     end
-    maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS, zero(UInt))
+    maybeshufflequote = shuffle_load_quote(T, (N, C, B, AU, F, UN, AV, W, X), I, align, RS, zero(UInt))
     # `maybeshufflequote` for now requires `mask` to be `false`
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
@@ -360,7 +369,7 @@ end
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
     end
-    maybeshufflequote = shuffle_load_quote(T, D, C, B, AU, F, N, AV, W, X, I, align, RS, M)
+    maybeshufflequote = shuffle_load_quote(T, (D, C, B, AU, F, N, AV, W, X), I, align, RS, M)
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
         return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
@@ -386,7 +395,7 @@ end
 #     sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,W,B}, ::A, ::StaticInt{RS}, ::StaticInt{X}
 # ) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,Nm1,B<:Union{Bool,Bit},X}
 #     Nm1+1 == N || throw(ArgumentError("Nm1 + 1 = $(Nm1 + 1) ≠ $N = N"))
-#     maybeshufflequote = shuffle_load_quote(T, N, C, B, AU, F, UN, AV, W, X, I, align, RS, 2)
+#     maybeshufflequote = shuffle_load_quote(T, (N, C, B, AU, F, UN, AV, W, X), I, align, RS, 2)
 #     maybeshufflequote === nothing || return maybeshufflequote
 #     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, true)
 # end
@@ -457,12 +466,23 @@ function vstore_unroll_quote(
 end
 
 function shuffle_store_quote(
-    ::Type{T}, N, C, B, AU, F, UN, AV, W, X, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int, mask::Bool
+    ::Type{T}, integer_params::NTuple{9,Int}, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int, mask::Bool
 ) where {T,I}
-    IT, ind_type, _W, _X, M, O = index_summary(I)
+  IT, ind_type, _W, _X, M, O = index_summary(I)
+  T_sym = JULIA_TYPES[T]
+  I_sym = JULIA_TYPES[IT]
+  size_T = sizeof(T)
+  _shuffle_store_quote(
+    T_sym, size_T, integer_params, I_sym, ind_type, M, O, align, alias, notmp, rs, mask
+  )
+end
+function _shuffle_store_quote(
+    T_sym::Symbol, size_T::Int, integer_params::NTuple{9,Int}, I_sym::Symbol, ind_type::Symbol, M::Int, O::Int, align::Bool, alias::Bool, notmp::Bool, rs::Int, mask::Bool
+)
+    N, C, B, AU, F, UN, AV, W, X = integer_params
+  
     # we don't require vector indices for `Unroll`s...
     # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
-    size_T = sizeof(T)
     # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
     interleave_memory_access(AU, C, F, X, UN, size_T, B) || return nothing
     # `X` is stride between indices, e.g. `X = 3` means our final vectors should be `<x[0], x[3], x[6], x[9]>`
@@ -471,8 +491,6 @@ function shuffle_store_quote(
     # the approach for combining is to keep concatenating vectors to double their length
     # until we hit ≥ half Wfull, then we `vresize` the remainder, and shuffle in the final combination before storing.
 
-    T_sym = JULIA_TYPES[T]
-    I_sym = JULIA_TYPES[IT]
     # mask = false
     vstoreexpr = vstore_quote(
         T_sym, I_sym, ind_type, Wfull, size_T, M, O,
@@ -652,7 +670,7 @@ end
         # `shuffle_store_quote` actually hold.
         return vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
     end
-    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS, false)
+    maybeshufflequote = shuffle_store_quote(T,(D,C,B,AU,F,N,AV,W,X), I, align, alias, notmp, RS, false)
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
         vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
@@ -686,7 +704,7 @@ end
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,true)
     end
-    maybeshufflequote = shuffle_store_quote(T,D,C,B,AU,F,N,AV,W,X, I, align, alias, notmp, RS, true)
+    maybeshufflequote = shuffle_store_quote(T,(D,C,B,AU,F,N,AV,W,X), I, align, alias, notmp, RS, true)
     maybeshufflequote === nothing || return maybeshufflequote
     if should_transpose
         vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,true)
@@ -1145,7 +1163,7 @@ function transposeshuffle(split, W, offset::Bool)
     Expr(:call, Expr(:curly, :Val, tup))
 end
 
-function horizontal_reduce_store_expr(W, Ntotal, (C,D,AU,F), op::Symbol, reduct::Symbol, noalias::Bool, RS::Int, mask::Bool)
+function horizontal_reduce_store_expr(W::Int, Ntotal::Int, (C,D,AU,F)::NTuple{4,Int}, op::Symbol, reduct::Symbol, noalias::Bool, RS::Int, mask::Bool)
     N = ((C == AU) && isone(F)) ? prevpow2(Ntotal) : 0
     q = Expr(:block, Expr(:meta, :inline), :(v = data(vu)))
     mask && push!(q.args, :(masktuple = data(m)))

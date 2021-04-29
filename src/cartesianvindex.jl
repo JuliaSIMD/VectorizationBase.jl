@@ -1,7 +1,8 @@
 
-struct CartesianVIndex{N,T<:Tuple{Vararg{Integer,N}}} <: Base.AbstractCartesianIndex{N}
+struct NullStep end
+struct CartesianVIndex{N,T<:Tuple{Vararg{Union{Integer,NullStep},N}}} <: Base.AbstractCartesianIndex{N}
     I::T
-    @inline CartesianVIndex(I::T) where {N, T <: Tuple{Vararg{Integer,N}}} = new{N,T}(I)
+    @inline CartesianVIndex(I::T) where {N, T <: Tuple{Vararg{Union{Integer,NullStep},N}}} = new{N,T}(I)
 end
 Base.length(::CartesianVIndex{N}) where {N} = N
 ArrayInterface.known_length(::Type{<:CartesianVIndex{N}}) where {N} = N
@@ -13,17 +14,20 @@ Base.@propagate_inbounds Base.getindex(I::CartesianVIndex, i) = getfield(I,:I)[i
 _ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
 @inline gesp(p::AbstractStridedPointer{T,N}, i::Tuple{CartesianVIndex{N}}) where {T,N} = gesp(p, getfield(getfield(i,1,false),:I))
 # _ndim(::Type{<:AbstractArray{N}}) where {N} = N
-@generated function CartesianVIndex(I::T) where {T <: Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex}}}}
+@generated function CartesianVIndex(I::T) where {T <: Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,NullStep}}}}
     iexpr = Expr(:tuple)
     Tp = T.parameters
     q = Expr(:block)
     for i in eachindex(Tp)
         I_i = Symbol(:I_, i)
         push!(q.args, Expr(:(=), I_i, Expr(:ref, :I, i)))
-        if Tp[i] <: Base.AbstractCartesianIndex
-            for n in 1:_ndim(Tp[i])
+        Tpᵢ = Tp[i]
+        if Tpᵢ <: Base.AbstractCartesianIndex
+            for n in 1:_ndim(Tpᵢ)
                 push!(iexpr.args, Expr(:ref, I_i, n))
             end
+        # elseif Tpᵢ === NullStep
+        #     push!(iexpr.args, :(Zero()))
         else
             push!(iexpr.args, I_i)
         end

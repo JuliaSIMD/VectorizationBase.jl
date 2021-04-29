@@ -134,24 +134,21 @@ end
 suffix(@nospecialize(T))::String = suffix(JULIA_TYPES[T])
 
 # Type-dependent LLVM constants
-function llvmconst(T, val)
-    iszero(val) && return "zeroinitializer"
-    "$(LLVM_TYPES[T]) $val"
+function llvmconst(T, val)::String
+    iszero(val) ? "zeroinitializer" : "$(LLVM_TYPES[T]) $val"
 end
-function llvmconst(::Type{Bool}, val)
+function llvmconst(::Type{Bool}, val)::String
     Bool(val) ? "i1 1" : "zeroinitializer"
 end
-function llvmconst(W::Integer, T, val)
+function llvmconst(W::Int, @nospecialize(T), val)::String
     isa(val, Number) && iszero(val) && return "zeroinitializer"
-    typ = LLVM_TYPES[T]
+    typ = (LLVM_TYPES[T])::String
     '<' * join(("$typ $(val)" for _ in Base.OneTo(W)), ", ") * '>'
 end
-function llvmconst(W::Integer, ::Type{Bool}, val)
-    Bool(val) || return "zeroinitializer"
-    typ = "i1"
-    '<' * join(("$typ $(Int(val))" for _ in Base.OneTo(W)), ", ") * '>'
+function llvmconst(W::Int, ::Type{Bool}, val)::String
+    Bool(val) ? '<' * join(("i1 $(Int(val))" for _ in Base.OneTo(W)), ", ") * '>' : "zeroinitializer"
 end
-function llvmconst(W::Int, v::String)
+function llvmconst(W::Int, v::String)::String
     '<' * join((v for _ in Base.OneTo(W)), ", ") * '>'
 end
 # function llvmtypedconst(T, val)
@@ -223,8 +220,10 @@ end
             }
         """
         # attributes #0 = { alwaysinline }
-        call = Expr(:call, LLVMCALL, (mod, "entry"), ret, args)
-        foreach(arg -> push!(call.args, arg), arg_syms)
+        call = Expr(:call, LLVMCALL, (mod::String, "entry")::Tuple{String,String}, ret, args)
+        for arg ∈ arg_syms
+            push!(call.args, arg)
+        end
         call = Expr(:(::), call, ret)
         if first(lret) === '<'
             call = Expr(:call, :Vec, call)

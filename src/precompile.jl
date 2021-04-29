@@ -1,23 +1,37 @@
 function _precompile_()
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-    for T in (Bool, Int, Float32, Float64)
-        for A in (Vector, Matrix)
-            precompile(stridedpointer, (A{T},))
-            precompile(stridedpointer, (LinearAlgebra.Adjoint{T,A{T}},))
-        end
+  ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
+  for T in (Bool, Int, Float32, Float64)
+    for A in (Vector, Matrix)
+      precompile(stridedpointer, (A{T},))
+      precompile(stridedpointer, (LinearAlgebra.Adjoint{T,A{T}},))
     end
+  end
 
-                            
-    precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int))
-    precompile(vload_quote_llvmcall_core, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int))
-    precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int))
+  
+  precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int))
+  precompile(vload_quote_llvmcall_core, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int))
+  precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int))
 
-    precompile(reset_features!, ())
-    precompile(safe_topology_load!, ())
-    precompile(redefine_attr_count, ())
-    precompile(redefine_cache, (Int,))
+  precompile(reset_features!, ())
+  precompile(safe_topology_load!, ())
+  precompile(redefine_attr_count, ())
+  precompile(redefine_cache, (Int,))
 
-    # precompile(_pick_vector_width, (Type, Vararg{Type,100}))
+  precompile(Tuple{typeof(dynamic_cache_summary),Int})   # time: 0.006437437
+  
+  precompile(Tuple{typeof(transpose_vecunroll_quote_W_smaller),Int,Int})   # time: 0.02420761
+
+  precompile(Tuple{typeof(horizontal_reduce_store_expr),Int,Int,NTuple{4, Int},Symbol,Symbol,Bool,Int,Bool})   # time: 0.02125804
+  precompile(Tuple{typeof(transpose_vecunroll_quote_W_larger),Int,Int})   # time: 0.01755242
+  precompile(Tuple{typeof(shufflevector_instrs),Int,Type,Vector{String},Int})   # time: 0.0159487
+  precompile(Tuple{typeof(transpose_vecunroll_quote),Int})   # time: 0.014891806
+  precompile(Tuple{typeof(align),Int,Int})   # time: 0.013784537
+  precompile(Tuple{typeof(align),Int})   # time: 0.013609074
+
+  precompile(Tuple{typeof(_shuffle_load_quote), Symbol, Int, NTuple{9,Int}, Symbol, Symbol, Int, Int, Bool, Int, UInt})
+  precompile(Tuple{typeof(_shuffle_store_quote), Symbol, Int, NTuple{9,Int}, Symbol, Symbol, Int, Int, Bool, Bool, Bool, Int, Bool})
+
+  # precompile(_pick_vector_width, (Type, Vararg{Type,100}))
     # the `"NATIVE_PRECOMPILE_VECTORIZATIONBASE" ∈ keys(ENV)` isn't respected, seems
     # like it gets precompiled anyway given that the first condition is `true`.
     # if VERSION ≥ v"1.7.0-DEV.346" && "NATIVE_PRECOMPILE_VECTORIZATIONBASE" ∈ keys(ENV)

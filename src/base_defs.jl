@@ -221,8 +221,9 @@ for (op, f, promotef) ∈ [
         end        
     end
 end
-@inline IfElse.ifelse(f::Function, m::AbstractSIMD{W,B}, args::Vararg{NativeTypesV,K}) where {W,K,B<:Union{Bool,Bit}} = vifelse(f, m, args...)
-@inline IfElse.ifelse(f::Function, m::Bool, args::Vararg{NativeTypesV,K}) where {K} = vifelse(f, m, args...)
+@inline IfElse.ifelse(f::F, m::AbstractSIMD{W,B}, args::Vararg{NativeTypesV,K}) where {W,K,B<:Union{Bool,Bit},F<:Function} = vifelse(f, m, args...)
+@inline IfElse.ifelse(f::F, m::Bool, args::Vararg{NativeTypesV,K}) where {K,F<:Function} = vifelse(f, m, args...)
+@inline IfElse.ifelse(m::Bool, a::V, b::V) where {W,V<:AbstractSIMD{W}} = m ? a : b#vifelse(max_mask(StaticInt{W}()) & m, a, b)
 for (f,add,mul) ∈ [
     (:fma,:(+),:(*)), (:muladd,:(+),:(*)),
     (:vfma,:(+),:(*)), (:vmuladd,:(+),:(*)),
@@ -275,5 +276,10 @@ end
 
 for f ∈ [:typemin, :typemax, :floatmin, :floatmax]
     @eval @inline Base.$f(::Type{V}) where {W,T,V <: AbstractSIMD{W,T}} = convert(V, $f(T))
+end
+
+for T ∈ keys(JULIA_TYPE_SIZE)
+  T === :Bit && continue
+  @eval @inline $T(v::AbstractSIMD) = vconvert($T, v)
 end
 

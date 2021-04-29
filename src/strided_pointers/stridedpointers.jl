@@ -132,6 +132,8 @@ end
 @inline gep(ptr::AbstractStridedPointer{T,0}, i::Tuple{}) where {T} = pointer(ptr)
 
 @inline _offset_index(i, ::NTuple{N,Zero}) where {N} = i
+@inline _offset_index(i::Tuple{I}, offset::NTuple{N,Zero}) where {N,I} = i
+@inline _offset_index(i::Tuple{I}, offset) where {I} = (vsub_fast(only(i), first(offset)),)
 @inline _offset_index(i, offset) = map(vsub_fast, i, offset)
 @inline offset_index(ptr, i) = _offset_index(i, offsets(ptr))
 @inline linear_index(ptr, i) = tdot(ptr, offset_index(ptr, i), strides(ptr))
@@ -441,6 +443,8 @@ end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T<:FloatingTypes}
     FastRange{T}(getfield(r, :f), getfield(r, :s), first(i) + getfield(r, :o))
 end
+@inline gesp(r::FastRange{T,Zero}, i::Tuple{NullStep}) where {T<:Integer} = r
+@inline gesp(r::FastRange{T}, i::Tuple{NullStep}) where {T<:FloatingTypes} = r
 
 # `FastRange{<:FloatingTypes}` must use an integer offset because `ptrforcomparison` needs to be exact/integral.
 

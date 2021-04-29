@@ -1,12 +1,12 @@
 
-function shufflevector_instrs(W, T, I, W2)
+function shufflevector_instrs(W::Int, @nospecialize(T), I::Vector{String}, W2::Int)
     W2 > W && throw(ArgumentError("W for vector 1 must be at least W for vector two, but W₁ = $W < W₂ = $W2."))
-    typ = LLVM_TYPES[T]
-    vtyp1 = "<$W x $typ>"
-    M = length(I)
-    vtyp3 = "<$M x i32>"
-    vtypr = "<$M x $typ>"
-    mask = '<' * join(map(x->string("i32 ", x), I), ", ") * '>'
+    typ::String = (LLVM_TYPES[T])::String
+    vtyp1::String = "<$W x $typ>"
+    M::Int = length(I)
+    vtyp3::String = "<$M x i32>"
+    vtypr::String = "<$M x $typ>"
+    mask::String = '<' * join(I, ", ")::String * '>'
     if ((W2 == 0) | (W2 == W))
         v2 = W2 == 0 ? "undef" : "%1"
         M, """
@@ -23,16 +23,23 @@ function shufflevector_instrs(W, T, I, W2)
         """
     end
 end
+function tupletostringvector(@nospecialize(x::NTuple{N,Int})) where {N}
+  y = Vector{String}(undef, N)
+  @inbounds for n ∈ 1:N
+    y[n] = string("i32 ", x[n])
+  end
+  y
+end
 @generated function shufflevector(v1::Vec{W,T}, v2::Vec{W2,T}, ::Val{I}) where {W,W2,T,I}
     W ≥ W2 || throw(ArgumentError("`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W,$T}` and `v2` is a `Vec{$W2,$T}`."))
-    M, instrs = shufflevector_instrs(W, T, I, W2)
+    M, instrs = shufflevector_instrs(W, T, tupletostringvector(I), W2)
     quote
         $(Expr(:meta, :inline))
         Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}, _Vec{$W2,$T}}, data(v1), data(v2)))
     end
 end
 @generated function shufflevector(v1::Vec{W,T}, ::Val{I}) where {W,T,I}
-    M, instrs = shufflevector_instrs(W, T, I, 0)
+    M, instrs = shufflevector_instrs(W, T, tupletostringvector(I), 0)
     quote
         $(Expr(:meta, :inline))
         Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}}, data(v1)))
@@ -75,10 +82,10 @@ end
     W1 ≥ W2 || throw(ArgumentError("`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W1,$T}` and `v2` is a `Vec{$W2,$T}`."))
     mask = Vector{String}(undef, 2W1)
     for w ∈ 0:W1+W2-1
-        mask[w+1] = string(w)
+        mask[w+1] = string("i32 ", w)
     end
     for w ∈ W1+W2:2W1-1
-        mask[w+1] = "undef"
+        mask[w+1] = "i32 undef"
     end
     M, instrs = shufflevector_instrs(W1, T, mask, W2)
     quote

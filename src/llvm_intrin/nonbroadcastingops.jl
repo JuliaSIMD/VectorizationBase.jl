@@ -49,42 +49,38 @@ end
     end
 end
 
-function scalar_maxmin(W, ::Type{T}, ismax) where {T}
-    comp = if T <: Signed
-        ismax ? "icmp sgt" : "icmp slt"
-    elseif T <: Unsigned
-        ismax ? "icmp ugt" : "icmp ult"
-    elseif ismax
-        "fcmp ogt"
+function scalar_maxmin(W::Int, @nospecialize(_::Type{T}), ismax::Bool) where {T}
+  if T <: Integer
+    typ = "i$(8sizeof(T))"
+    comp = (T <: Signed) ? (ismax ? "icmp sgt" : "icmp slt") : (ismax ? "icmp ugt" : "icmp ult")
+    basevalue = llvmconst(W, T, ismax ? typemin(T) : typemax(T))
+  else
+    opzero = ismax ? -Inf : Inf
+    comp = ismax ? "fcmp ogt" : "fcmp olt"
+    basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
+    if T === Float64
+      typ = "double"
+      # basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
+    elseif T === Float32
+      typ = "float"
+      # basevalue = llvmconst(W, T, repr(reinterpret(UInt32, Float32(opzero))))
+      # elseif T === Float16
+      # typ = "half"
+      # basevalue = llvmconst(W, T, repr(reinterpret(UInt16, Float16(opzero))))
     else
-        "fcmp olt"
+      throw("T === $T not currently supported.")
     end
-    if T <: Integer
-        typ = "i$(8sizeof(T))"
-        basevalue = llvmconst(W, T, ismax ? typemin(T) : typemax(T))
-    else
-        opzero = ismax ? -Inf : Inf
-        basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
-        if T === Float64
-            typ = "double"
-            # basevalue = llvmconst(W, T, repr(reinterpret(UInt64, opzero)))
-        elseif T === Float32
-            typ = "float"
-            # basevalue = llvmconst(W, T, repr(reinterpret(UInt32, Float32(opzero))))
-        # elseif T === Float16
-            # typ = "half"
-            # basevalue = llvmconst(W, T, repr(reinterpret(UInt16, Float16(opzero))))
-        else
-            throw("T === $T not currently supported.")
-        end
-    end
-    vtyp = "<$W x $typ>"
-    instrs = String[]
-    push!(instrs, "%ie = insertelement $vtyp $(basevalue), $typ %1, i32 0")
-    push!(instrs, "%selection = $comp $vtyp %0, %ie")
-    push!(instrs, "%v = select <$W x i1> %selection, $vtyp %0, $vtyp %ie")
-    push!(instrs, "ret $vtyp %v")
-    instrs
+  end
+  _scalar_maxmin(W, typ, comp, basevalue)
+end
+function _scalar_maxmin(W::Int, typ::String, comp::String, basevalue::String)
+  vtyp = "<$W x $typ>"
+  String[
+    "%ie = insertelement $vtyp $(basevalue), $typ %1, i32 0",
+    "%selection = $comp $vtyp %0, %ie",
+    "%v = select <$W x i1> %selection, $vtyp %0, $vtyp %ie",
+    "ret $vtyp %v"
+  ]
 end
 @generated function maxscalar(v::Vec{W,T}, s::T) where {W, T <: NativeTypes}
     instrs = scalar_maxmin(W, T, true)

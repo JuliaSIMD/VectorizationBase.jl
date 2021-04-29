@@ -643,7 +643,6 @@ end
     end
     mask = '<' * join(map(x->string("i32 ", x), shuffmask), ", ") * '>'
     
-    # M, instrs = shufflevector_instrs(W, Bit, shuffmask, W)
     push!(instrs, "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask")
 
     mtyp_output = "i$(max(8,nextpow2(W2)))"

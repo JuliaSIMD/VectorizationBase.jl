@@ -18,9 +18,9 @@ const TOPOLOGY = Topology()
 safe_topology_load!()
 
 function count_attr(topology::Hwloc.Object, attr::Symbol)
-    count = 0
+    count::Int = 0
     for t ∈ topology
-        count += t.type_ == attr
+        count += t.type_ === attr
     end
     if ((Sys.ARCH === :aarch64) && Sys.isapple()) && (attr === :Core)
         count >>>= one(count) # FIXME: how to actually identify big cores???
@@ -68,7 +68,7 @@ for (f, attr) ∈ [
 end
 
 function redefine_attr_count()
-    sys_thread = sys_threads()
+    sys_thread = Int(sys_threads())::Int
     iter = [
         (num_l1cache(), :num_l1cache, :L1Cache),
         (num_l2cache(), :num_l2cache, :L2Cache),
