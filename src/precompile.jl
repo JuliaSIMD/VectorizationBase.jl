@@ -28,9 +28,14 @@ function _precompile_()
   precompile(Tuple{typeof(align),Int,Int})   # time: 0.013784537
   precompile(Tuple{typeof(align),Int})   # time: 0.013609074
 
+  precompile(Tuple{typeof(vstore_transpose_quote),Int64,Int64,Int64,Int64,Int64,Int64,Int64,Bool,Bool,Bool,Int64,Int64,Symbol,UInt64,Bool})   # time: 0.006213663
+  precompile(Tuple{typeof(vstore_unroll_i_quote),Int64,Int64,Int64,Bool,Bool,Bool,Int64,Bool})   # time: 0.002936335
+  
   precompile(Tuple{typeof(_shuffle_load_quote), Symbol, Int, NTuple{9,Int}, Symbol, Symbol, Int, Int, Bool, Int, UInt})
   precompile(Tuple{typeof(_shuffle_store_quote), Symbol, Int, NTuple{9,Int}, Symbol, Symbol, Int, Int, Bool, Bool, Bool, Int, Bool})
 
+  precompile(Tuple{typeof(collapse_expr),Int64,Symbol,Int64})   # time: 0.003906299
+  
   # precompile(_pick_vector_width, (Type, Vararg{Type,100}))
     # the `"NATIVE_PRECOMPILE_VECTORIZATIONBASE" ∈ keys(ENV)` isn't respected, seems
     # like it gets precompiled anyway given that the first condition is `true`.
