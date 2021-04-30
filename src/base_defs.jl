@@ -151,13 +151,18 @@ for (f,vf) ∈ [
         @inline Base.$f(::Type{T}, v::AbstractSIMD) where {T <: AbstractSIMD} = $vf(T, v)
     end
 end
+@static if VERSION ≥ v"1.7.0-DEV.421"
+  using Base: @aggressive_constprop
+else
+  macro aggressive_constprop(ex); esc(ex); end
+end
 for (f,vf) ∈ [
-    (:(Base.rem),:vrem), (:(Base.FastMath.rem_fast),:vrem_fast)
+    (:(Base.rem),:vrem), (:(Base.FastMath.rem_fast),:vrem)#_fast)
 ]
     @eval begin
-        @inline $f(x::NativeTypes, ::Type{T}) where {T <: AbstractSIMD} = $vf(x, T)
-        @inline $f(v::AbstractSIMD, ::Type{T}) where {T <: NativeTypes} = $vf(v, T)
-        @inline $f(v::AbstractSIMD, ::Type{T}) where {T <: AbstractSIMD} = $vf(v, T)
+        @aggressive_constprop @inline $f(x::NativeTypes, ::Type{T}) where {T <: AbstractSIMD} = $vf(x, T)
+        @aggressive_constprop @inline $f(v::AbstractSIMD, ::Type{T}) where {T <: IntegerTypesHW} = $vf(v, T)
+        @aggressive_constprop @inline $f(v::AbstractSIMD, ::Type{T}) where {T <: AbstractSIMD} = $vf(v, T)
     end
 end
 

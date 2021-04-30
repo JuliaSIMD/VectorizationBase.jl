@@ -536,6 +536,19 @@ end
 
 
 @static if Base.libllvm_version ≥ v"11"
+  const MASK_DICTIONARY = Dict{Tuple{Int,Int,Symbol},Expr}()
+  function generate_mask_quote(W::Int, size_T::Int, T_sym::Symbol)
+    # declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i64(i64 %base, i64 %n)
+    bits = 8size_T
+    typ = "i$(bits)"
+    decl = "declare <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ), $(typ))"
+    instrs = ["%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)"]
+    zext_mask!(instrs, 'm', W, 0)
+    push!(instrs, "ret i$(max(nextpow2(W),8)) %res.0")
+    args =  [:base, :N]
+    call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(nextpow2(W),8))", [typ, typ], args, true)
+    Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, ((N % UInt32) - (base % UInt32)) + 0x00000001)))
+  end
     """
       mask(::Union{StaticInt{W},Val{W}}, base, N)
       mask(base::MM{W}, N)
@@ -614,19 +627,14 @@ end
     Mask{8,Bool}<1, 1, 1, 1, 1, 0, 0, 0>
     ```
     """
-    @generated function mask(::Union{Val{W},StaticInt{W}}, base::T, N::T) where {W,T <: IntegerTypesHW}
-        # declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i64(i64 %base, i64 %n)
-        bits = 8sizeof(T)
-        typ = "i$(bits)"
-        decl = "declare <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ), $(typ))"
-        instrs = ["%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)"]
-        zext_mask!(instrs, 'm', W, 0)
-        push!(instrs, "ret i$(max(nextpow2(W),8)) %res.0")
-        args =  [:base, :N]
-        call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(nextpow2(W),8))", [typ, typ], args, true)
-        Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, ((N % UInt32) - (base % UInt32)) + 0x00000001)))
+  @generated function mask(::Union{Val{W},StaticInt{W}}, base::T, N::T) where {W,T <: IntegerTypesHW}
+    let size_T::Int = sizeof(T), T_sym::Symbol = JULIA_TYPES[T]
+      get!(MASK_DICTIONARY, (W, size_T, T_sym)) do
+        generate_mask_quote(W, size_T, T_sym)
+      end
     end
-    @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), getfield(i, :i), N)
+  end
+  @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), getfield(i, :i), N)
 end
 
 

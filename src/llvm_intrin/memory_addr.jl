@@ -248,15 +248,19 @@ end
 
 gep_returns_vector(W::Int, X::Int, M::Int, ind_type::Symbol) = (!isone(W) && ((ind_type === :Vec) || !(isone(X) | iszero(X))))
 #::Type{T}, ::Type{I}, W::Int = 1, ivec::Bool = false, constmul::Int = 1) where {T <: NativeTypes, I <: Integer}
+
+const GEP_DICTIONARY = Dict{Tuple{Symbol,Symbol,Symbol,Int,Int,Int,Int,Bool,Int},Expr}()
 function gep_quote(
     ::Type{T}, ind_type::Symbol, ::Type{I}, W::Int, X::Int, M::Int, O::Int, forgep::Bool, rs::Int
 ) where {T, I}
-    T_sym = JULIA_TYPES[T]
-    I_sym = JULIA_TYPES[I]
+  T_sym = JULIA_TYPES[T]
+  I_sym = JULIA_TYPES[I]
+  get!(GEP_DICTIONARY, (T_sym, ind_type, I_sym, W, X, M, O, forgep, rs)) do
     gep_quote(T_sym, ind_type, I_sym, W, X, M, O, forgep, rs)
+  end
 end
 function gep_quote(
-    T_sym::Symbol, ind_type::Symbol, I_sym::Symbol, W::Int, X::Int, M::Int, O::Int, forgep::Bool, rs
+    T_sym::Symbol, ind_type::Symbol, I_sym::Symbol, W::Int, X::Int, M::Int, O::Int, forgep::Bool, rs::Int
 )
     sizeof_T = JULIA_TYPE_SIZE[T_sym]
     sizeof_I = JULIA_TYPE_SIZE[I_sym]
@@ -393,7 +397,7 @@ end
     s = __vload(ptr, A(), StaticInt{RS}())
     ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
 end
-
+const LOAD_DICTIONARY = Dict{Tuple{Symbol,Symbol,Symbol,Int,Int,Int,Int,Bool,Bool,Int},Expr}()
 function vload_quote_llvmcall(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
 )
@@ -410,13 +414,14 @@ function vload_quote_llvmcall(
             end
         end
     end
-
-    decl, instrs, args, lret, largs, arg_syms = vload_quote_llvmcall_core(
+    get!(LOAD_DICTIONARY, (T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs)) do
+      decl, instrs, args, lret, largs, arg_syms = vload_quote_llvmcall_core(
         T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs
-    )
-    
-    return llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true)
+      )
+      llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true)
+    end
 end
+
 function vload_quote_llvmcall_core(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
 )
@@ -654,13 +659,15 @@ end
     __vload(ptr, i, _m, A(), StaticInt{RS}())
 end
 
-
+const STORE_DICTIONARY = Dict{Tuple{Symbol,Symbol,Symbol,Int,Int,Int,Int,Bool,Bool,Bool,Bool,Int},Expr}()
 function vstore_quote(
     ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
 ) where {T <: NativeTypes, I <: Integer}
-    T_sym = JULIA_TYPES[T]
-    I_sym = JULIA_TYPES[I]
+  T_sym = JULIA_TYPES[T]
+  I_sym = JULIA_TYPES[I]
+  get!(STORE_DICTIONARY,(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs)) do
     vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs)
+  end
 end
 function vstore_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
