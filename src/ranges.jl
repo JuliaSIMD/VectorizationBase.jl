@@ -106,6 +106,7 @@ end
 @inline Vec(i::MM{1}) = data(i)
 @inline Vec(i::MM{1,<:Any,StaticInt{N}}) where {N} = N
 @inline vconvert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
+@inline vconvert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T<:IntegerTypesHW} = vrangeincr(Val{W}(), data(i)%T, Val{0}(), Val{X}())
 @inline vconvert(::Type{T}, i::MM{W,X}) where {W,X,T<:NativeTypes} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
 
 # Addition

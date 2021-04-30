@@ -227,8 +227,8 @@ end
 @inline max_mask(::Type{T}) where {T} = max_mask(pick_vector_width(T))
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = EVLMask{W,U}(one(U)<<W - one(U), W % UInt32)
 
-@generated function valrem(::Union{Val{W},StaticInt{W}}, l) where {W}
-    ex = ispow2(W) ? :(l & $(W - 1)) : :(l % $W)
+@generated function valrem(::Union{Val{W},StaticInt{W}}, l::T) where {W,T<:Integer}
+    ex = ispow2(W) ? :(l & $(W - 1)) : Expr(:call, Base.urem_int, :l, T(W))
     Expr(:block, Expr(:meta, :inline), ex)
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
@@ -245,14 +245,14 @@ end
     if (Base.libllvm_version ≥ v"11") && (W ≤ 16) && ispow2(W)
         quote
             $(Expr(:meta,:inline))
-            mask(Val{$W}(), zero(l), ((l - one(l)) & $(I(W-1))))
+            mask(Val{$W}(), zero(l), (vsub_fast(l, one(l)) & $(I(W-1))))
         end
     elseif W ≤ 16
         M = mask_type_symbol(W)
         quote
             $(Expr(:meta,:inline))
-            evl = valrem(Val{$W}(), (l % $M) - one($M))
-            EVLMask{$W}(data(evl ≥ MM{$W}(0)), evl + one(evl))
+            evl = valrem(Val{$W}(), vsub_fast((l % $M), one($M)))
+            EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
         end
     else
         quote
