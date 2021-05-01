@@ -546,7 +546,7 @@ end
     zext_mask!(instrs, 'm', W, 0)
     push!(instrs, "ret i$(max(nextpow2(W),8)) %res.0")
     args =  [:base, :N]
-    call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(nextpow2(W),8))", [typ, typ], args, true)
+    call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T_sym,$T_sym}), "i$(max(nextpow2(W),8))", [typ, typ], args, true)
     Expr(:block, Expr(:meta,:inline), :(EVLMask{$W}($call, ((N % UInt32) - (base % UInt32)) + 0x00000001)))
   end
     """
