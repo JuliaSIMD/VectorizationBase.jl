@@ -22,6 +22,7 @@ end
 @inline vinv(v) = inv(v)
 @inline vinv(v::AbstractSIMD{W,<:FloatingTypes}) where {W} = vfdiv(one(v), v)
 @inline vinv(v::AbstractSIMD{W,<:IntegerTypesHW}) where {W} = inv(float(v))
+@inline Base.FastMath.inv_fast(v::AbstractSIMD) = Base.FastMath.div_fast(one(v), v)
 
 @inline vabs(v) = abs(v)
 @inline vabs(v::AbstractSIMD{W,<:Unsigned}) where {W} = v

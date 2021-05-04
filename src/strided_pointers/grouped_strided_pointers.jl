@@ -210,21 +210,29 @@ end
     q
 end
 
-@generated function stridedpointers(gsp::GroupedStridedPointers{P,C,B,R,I,X,O}) where {P,C,B,R,X,O,I}
-    t = Expr(:tuple)
-    gf = GlobalRef(Core, :getfield)
-    for i ∈ eachindex(I)
-        Iᵢ = I[i]
-        Nᵢ = length(Iᵢ)
-        p = Expr(:call, gf, :ptrs, i, false)
-        # curly = Expr(:curly, :StridedPointer, )
-        x = Expr(:tuple); o = Expr(:tuple)
-        for j ∈ Iᵢ
-            push!(x.args, Expr(:call, gf, :strds, j, false))
-            push!(o.args, Expr(:call, gf, :offs, j, false))
-        end
-        push!(t.args, Expr(:call, :stridedpointer, p, :(StaticInt{$(C[i])}()), :(StaticInt{$(B[i])}()), :(Val{$(R[i])}()), x, o))
+@generated function stridedpointers(gsp::GroupedStridedPointers{P,C,B,R,I,X,O}) where {P,C,B,R,N,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}},I}
+  t = Expr(:tuple)
+  gf = GlobalRef(Core, :getfield)
+  q = Expr(:block, Expr(:meta,:inline), :(ptrs = $gf(gsp, :ptrs)), :(strds = $gf(gsp, :strides)), :(offs = $gf(gsp, :offsets)))
+  for n ∈ 1:N
+    push!(
+      q.args,
+      Expr(:(=), Symbol(:x_,n), Expr(:call, gf, :strds, n, false)),
+      Expr(:(=), Symbol(:o_,n), Expr(:call, gf, :offs, n, false))
+    )
+  end
+  for i ∈ eachindex(I)
+    Iᵢ = I[i]
+    Nᵢ = length(Iᵢ)
+    p = Expr(:call, gf, :ptrs, i, false)
+    # curly = Expr(:curly, :StridedPointer, )
+    x = Expr(:tuple); o = Expr(:tuple)
+    for j ∈ Iᵢ
+      push!(x.args, Symbol(:x_,j))
+      push!(o.args, Symbol(:o_,j))
     end
-    Expr(:block, Expr(:meta,:inline), :(ptrs = $gf(gsp, :ptrs)), :(strds = $gf(gsp, :strides)), :(offs = $gf(gsp, :offsets)), t)
+    push!(t.args, Expr(:call, :stridedpointer, p, :(StaticInt{$(C[i])}()), :(StaticInt{$(B[i])}()), :(Val{$(R[i])}()), x, o))
+  end
+  push!(q.args, t); return q
 end
 
