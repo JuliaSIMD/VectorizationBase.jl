@@ -434,17 +434,24 @@ end
 @inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Integer,I} = convert(T, getfield(r, :o)) + convert(T, getfield(r, :s)) * first(i)
 
 @inline function vload(r::FastRange{T}, i::Tuple{I}) where {T<:FloatingTypes,I}
-    convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (first(i) + convert(T, getfield(r, :o)))
+    convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (only(i) + convert(T, getfield(r, :o)))
 end
 @inline function gesp(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer}
     s = getfield(r, :s)
-    FastRange{T}(Zero(), s, first(i)*s + getfield(r, :o))
+    FastRange{T}(Zero(), s, only(i)*s + getfield(r, :o))
 end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T<:FloatingTypes}
-    FastRange{T}(getfield(r, :f), getfield(r, :s), first(i) + getfield(r, :o))
+    FastRange{T}(getfield(r, :f), getfield(r, :s), only(i) + getfield(r, :o))
 end
 @inline gesp(r::FastRange{T,Zero}, i::Tuple{NullStep}) where {T<:Integer} = r
 @inline gesp(r::FastRange{T}, i::Tuple{NullStep}) where {T<:FloatingTypes} = r
+@inline increment_ptr(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer} = only(i)*s + getfield(r, :o)
+@inline increment_ptr(r::FastRange{T}, i::Tuple{I}) where {I,T<:Integer} = only(i) + getfield(r, :o)
+@inline increment_ptr(r::FastRange) = getfield(r,:o)
+@inline increment_ptr(r::FastRange{T}, o, i::Tuple{I}) where {I,T} = vadd_fast(only(i), o)
+@inline increment_ptr(r::FastRange{T,Zero}, o, i::Tuple{I}) where {I,T} = vadd_fast(vmul_fast(only(i), getfield(r, :s)), o)
+
+@inline reconstruct_ptr(r::FastRange{T}, o) where {T} = FastRange{T}(getfield(r,:f), getfield(r, :s), o)
 
 # `FastRange{<:FloatingTypes}` must use an integer offset because `ptrforcomparison` needs to be exact/integral.
 
@@ -548,6 +555,7 @@ for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (
     @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
     @inline $f(p1::Ptr, p2::Ptr, sp::AbstractStridedPointer) = $f(llvmptrd(p1), llvmptrd(p2))
     @inline $f(p1::NTuple{N,Int}, p2::NTuple{N,Int}, sp) where {N} = $op(reconstruct_ptr(sp, p1), reconstruct_ptr(sp, p2))
+    @inline $f(a,b,c) = $f(a,b)
   end
 end
 @inline linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
