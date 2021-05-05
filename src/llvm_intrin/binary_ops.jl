@@ -35,6 +35,7 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
     @generated $fnw(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($(op * " nsw nuw"), 1, T)
   end
 end
+
 for (op,f) ∈ [("div",:÷),("rem",:%)]
   @eval begin
     @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
@@ -97,7 +98,9 @@ for f ∈ [:vadd,:vadd_fast,:vsub,:vsub_fast,:vmul,:vmul_fast]
     end
 end
 # @inline vsub(a::T, b::T) where {T<:Base.BitInteger} = Base.sub_int(a, b)
-for (vf,bf) ∈ [(:vadd,:add_int),(:vsub,:sub_int),(:vmul,:mul_int)]
+for (vf,bf) ∈ [
+  (:vadd,:add_int),(:vsub,:sub_int),(:vmul,:mul_int),
+  (:vadd_fast,:add_int),(:vsub_fast,:sub_int),(:vmul_fast,:mul_int)]
   @eval begin
     @inline $vf(a::Int128, b::Int128) = Base.$bf(a, b)
     @inline $vf(a::UInt128, b::UInt128) = Base.$bf(a, b)
