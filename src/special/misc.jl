@@ -1,5 +1,10 @@
 @inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = Base.power_by_squaring(v, i)
 @inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = Base.power_by_squaring(v, i)
+@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = Base.power_by_squaring(v, i)
+@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = Base.power_by_squaring(v, i)
+@inline Base.FastMath.pow_fast(v::AbstractSIMD, x::FloatingTypes) = exp2(Base.FastMath.log2_fast(v) * x)
+@inline Base.FastMath.pow_fast(v::FloatingTypes, x::AbstractSIMD) = exp2(Base.FastMath.log2_fast(v) * x)
+@inline Base.FastMath.pow_fast(v::AbstractSIMD, x::AbstractSIMD) = exp2(Base.FastMath.log2_fast(v) * x)
 # @inline relu(x) = (y = zero(x); ifelse(x > y, x, y)) 
 @inline relu(x) = (y = zero(x); ifelse(x < y, y, x))
 

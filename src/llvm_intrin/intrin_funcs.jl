@@ -662,26 +662,26 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     end
   @inline _vinv_fast(v, ::False) = vinv(v)
   @inline vinv_fast(v::AbstractSIMD{W,Float64}) where {W} = _vinv_fast(v, has_feature(Val(:x86_64_avx512vl)))
-  @inline vdiv_afast(a, b, ::False) = vdiv_fast(a, b)
-  @inline vdiv_afast(a, b, ::True) = vdiv_fast(a, b)
-  @inline function vdiv_afast(a::VecUnroll{N,W,T,Vec{W,T}}, b::VecUnroll{N,W,T,Vec{W,T}}, ::True) where {N,W,T<:FloatingTypes}
-    VecUnroll(_vdiv_afast(getfield(a,:data),getfield(b,:data)))
+  @inline vfdiv_afast(a::VecUnroll{N}, b::VecUnroll{N}, ::False) where {N} = VecUnroll(fmap(vfdiv_fast, getfield(a,:data), getfield(b,:data)))
+  @inline vfdiv_afast(a::VecUnroll{N}, b::VecUnroll{N}, ::True) where {N} = VecUnroll(fmap(vfdiv_fast, getfield(a,:data), getfield(b,:data)))
+  @inline function vfdiv_afast(a::VecUnroll{N,W,T,Vec{W,T}}, b::VecUnroll{N,W,T,Vec{W,T}}, ::True) where {N,W,T<:FloatingTypes}
+    VecUnroll(_vfdiv_afast(getfield(a,:data),getfield(b,:data)))
   end
-  # @inline function _vdiv_afast(a::Tuple{Vec{W,T},Vec{W,T},Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}, b::Tuple{Vec{W,T},Vec{W,T},Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}) where {W,K,T<:FloatingTypes}
+  # @inline function _vfdiv_afast(a::Tuple{Vec{W,T},Vec{W,T},Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}, b::Tuple{Vec{W,T},Vec{W,T},Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}) where {W,K,T<:FloatingTypes}
   #   # c1 = vfdiv_fast(a[1], b[1])
   #   binv1 = _vinv_fast(b[1], True())
   #   c2 = vfdiv_fast(a[2], b[2])
   #   c3 = vfdiv_fast(a[3], b[3])
   #   c4 = vfdiv_fast(a[4], b[4])
   #   c1 = vmul_fast(a[1], binv1)
-  #   (c1, c2, c3, c4, _vdiv_afast(Base.tail(Base.tail(Base.tail(Base.tail(a)))), Base.tail(Base.tail(Base.tail(Base.tail(b)))))...)
+  #   (c1, c2, c3, c4, _vfdiv_afast(Base.tail(Base.tail(Base.tail(Base.tail(a)))), Base.tail(Base.tail(Base.tail(Base.tail(b)))))...)
   # end
-  @inline function _vdiv_afast(a::Tuple{Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}, b::Tuple{Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}) where {W,K,T<:FloatingTypes}
+  @inline function _vfdiv_afast(a::Tuple{Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}, b::Tuple{Vec{W,T},Vec{W,T},Vararg{Vec{W,T},K}}) where {W,K,T<:FloatingTypes}
     c1 = vmul_fast(a[1], _vinv_fast(b[1], True()))
     c2 = vfdiv_fast(a[2], b[2])
-    (c1, c2, _vdiv_afast(Base.tail(Base.tail(a)), Base.tail(Base.tail(b)))...)
+    (c1, c2, _vfdiv_afast(Base.tail(Base.tail(a)), Base.tail(Base.tail(b)))...)
   end
-  @inline function _vdiv_afast(a::Tuple{Vec{W,T},Vec{W,T}}, b::Tuple{Vec{W,T},Vec{W,T}}) where {W,T<:FloatingTypes}
+  @inline function _vfdiv_afast(a::Tuple{Vec{W,T},Vec{W,T}}, b::Tuple{Vec{W,T},Vec{W,T}}) where {W,T<:FloatingTypes}
     c1 = vmul_fast(a[1], _vinv_fast(b[1], True()))
     # c1 = vfdiv_fast(a[1], b[1])
     c2 = vfdiv_fast(a[2], b[2])
@@ -690,11 +690,11 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   ge_one_fma(::Val{:tigerlake}) = False()
   ge_one_fma(::Val{:icelake}) = False()
   ge_one_fma(::Val) = False()
-  @inline _vdiv_afast(a::Tuple{Vec{W,T}}, b::Tuple{Vec{W,T}}) where {W,T<:FloatingTypes} = (vfdiv_fast(a,b),)
-  @inline _vdiv_afast(a::Tuple{}, b::Tuple{}) = ()
+  @inline _vfdiv_afast(a::Tuple{Vec{W,T}}, b::Tuple{Vec{W,T}}) where {W,T<:FloatingTypes} = (vfdiv_fast(a,b),)
+  @inline _vfdiv_afast(a::Tuple{}, b::Tuple{}) = ()
   @inline function vfdiv_fast(a::VecUnroll{N,W,Float64,Vec{W,Float64}},b::VecUnroll{N,W,Float64,Vec{W,Float64}}) where {N,W}
-    vdiv_afast(a, b, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
+    vfdiv_afast(a, b, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
   end
-  # @inline vfdiv_fast(a::VecUnroll{N,W,Float32,Vec{W,Float32}},b::VecUnroll{N,W,Float32,Vec{W,Float32}}) where {N,W} = vdiv_afast(a, b, True())
+  # @inline vfdiv_fast(a::VecUnroll{N,W,Float32,Vec{W,Float32}},b::VecUnroll{N,W,Float32,Vec{W,Float32}}) where {N,W} = vfdiv_afast(a, b, True())
 end
 

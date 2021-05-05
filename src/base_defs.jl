@@ -20,6 +20,7 @@ const FASTDICT = Dict{Symbol,Expr}([
   :log => :(SLEEFPirates.log_fast),
   :log2 => :(SLEEFPirates.log2_fast),
   :log10 => :(SLEEFPirates.log10_fast),
+  :(^) => :(Base.FastMath.pow_fast)
 ])
 
 for (op,f) ∈ [
