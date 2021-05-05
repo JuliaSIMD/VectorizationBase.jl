@@ -1,25 +1,25 @@
 
 const FASTDICT = Dict{Symbol,Expr}([
-    :(+) => :(Base.FastMath.add_fast),
-    :(-) => :(Base.FastMath.sub_fast),
-    :(*) => :(Base.FastMath.mul_fast),
-    :(/) => :(Base.FastMath.div_fast),
-    :(÷) => :(VectorizationBase.vdiv_fast), # VectorizationBase.vdiv == integer, VectorizationBase.vfdiv == float
-    :(%) => :(Base.FastMath.rem_fast),
-    :abs2 => :(Base.FastMath.abs2_fast),
-    # :inv => :(Base.FastMath.inv_fast), # this is slower in most benchmarks
-    :hypot => :(Base.FastMath.hypot_fast),
-    :max => :(Base.FastMath.max_fast),
-    :min => :(Base.FastMath.min_fast),
-    :muladd => :(VectorizationBase.vmuladd_fast),
-    :fma => :(VectorizationBase.vfma_fast),
-    :vfmadd => :(VectorizationBase.vfmadd_fast),
-    :vfnmadd => :(VectorizationBase.vfnmadd_fast),
-    :vfmsub => :(VectorizationBase.vfmsub_fast),
-    :vfnmsub => :(VectorizationBase.vfnmsub_fast),
-    :log => :(SLEEFPirates.log_fast),
-    :log2 => :(SLEEFPirates.log2_fast),
-    :log10 => :(SLEEFPirates.log10_fast)
+  :(+) => :(Base.FastMath.add_fast),
+  :(-) => :(Base.FastMath.sub_fast),
+  :(*) => :(Base.FastMath.mul_fast),
+  :(/) => :(Base.FastMath.div_fast),
+  :(÷) => :(VectorizationBase.vdiv_fast), # VectorizationBase.vdiv == integer, VectorizationBase.vfdiv == float
+  :(%) => :(Base.FastMath.rem_fast),
+  :abs2 => :(Base.FastMath.abs2_fast),
+  :inv => :(Base.FastMath.inv_fast), # this is slower in most benchmarks
+  :hypot => :(Base.FastMath.hypot_fast),
+  :max => :(Base.FastMath.max_fast),
+  :min => :(Base.FastMath.min_fast),
+  :muladd => :(VectorizationBase.vmuladd_fast),
+  :fma => :(VectorizationBase.vfma_fast),
+  :vfmadd => :(VectorizationBase.vfmadd_fast),
+  :vfnmadd => :(VectorizationBase.vfnmadd_fast),
+  :vfmsub => :(VectorizationBase.vfmsub_fast),
+  :vfnmsub => :(VectorizationBase.vfnmsub_fast),
+  :log => :(SLEEFPirates.log_fast),
+  :log2 => :(SLEEFPirates.log2_fast),
+  :log10 => :(SLEEFPirates.log10_fast),
 ])
 
 for (op,f) ∈ [
@@ -27,7 +27,7 @@ for (op,f) ∈ [
     (:(Base.FastMath.sub_fast), :vsub_fast),
     # (:(Base.FastMath.abs2_fast),:vabs2_fast),
     (:(Base.inv),:vinv),
-    (:(Base.FastMath.inv_fast),:vinv_fast),
+    # (:(Base.FastMath.inv_fast),:vinv_fast),
     (:(Base.abs),:vabs),
     (:(Base.round),:vround),
     (:(Base.floor),:vfloor),

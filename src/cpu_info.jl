@@ -8,29 +8,31 @@ function feature_string()
     features, features_cstring
 end
 
-# const FEATURE_DICT = Dict{String,Bool}()
-# has_feature(str) = get(FEATURE_DICT, str, false)
+const FEATURE_SET = Set{String}()
+_has_feature(str::String) = str ∈ FEATURE_SET
 
 archstr() = Sys.ARCH === :i686 ? "x86_64_" : string(Sys.ARCH) * '_'
 
 # feature_name(ext) = archstr() * replace(ext[2:end], r"\." => "_")
-feature_name(ext) = Symbol(archstr() * ext[2:end])
+feature_name(ext) = archstr() * ext[2:end]
 process_feature(ext) = (feature_name(ext), first(ext) == '+')
 
 has_feature(_) = False()
-function set_featue(feature::Symbol, has::Bool)
-    featqn = QuoteNode(feature)
+@noinline function set_featue(feature::String, has::Bool)
+    featqn = QuoteNode(Symbol(feature))
     if has
         @eval has_feature(::Val{$featqn}) = True()
     else
         @eval has_feature(::Val{$featqn}) = False()
     end
 end
+
 function set_features!()
     features, features_cstring = feature_string()
     for ext ∈ features
-        feature, has = process_feature(ext)
-        set_featue(feature, has)
+      feature, has = process_feature(ext)
+      has && push!(FEATURE_SET, feature)
+      set_featue(feature, has)
     end
     Libc.free(features_cstring)
 end
@@ -42,7 +44,7 @@ function reset_features!()
     features, features_cstring = feature_string()
     for ext ∈ features
         feature, has = process_feature(ext)
-        if Bool(has_feature(Val(feature)))::Bool !== has
+        if _has_feature(feature) ≠ has
             @debug "Defining $(has ? "presence" : "absense") of feature $feature."
             set_featue(feature, has)
         end

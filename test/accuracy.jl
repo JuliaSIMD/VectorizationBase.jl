@@ -58,7 +58,7 @@ infh(::Type{Float32}) = 1e37
 function countulp(::Type{T}, __x, __y) where {T}
     _x, _y = promote(__x, __y)
     x, y = convert(T, _x), convert(T, _y) # Cast to smaller type
-
+  iszero(y) && return iszero(x) ? zero(x) : T(1004)
     ulpc = convert(T, abs(_x - _y) / ulp(y))
     nanulp = VectorizationBase.ifelse(isnan(x) ⊻ isnan(y), T(10000), T(0))
     infulp = VectorizationBase.ifelse((sign(x) == sign(y)) & (abs(y) > infh(T)), T(0), T(10001))
