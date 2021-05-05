@@ -628,8 +628,8 @@ include("testsetup.jl")
       end
       let WI = Int(VectorizationBase.pick_vector_width(Int64))
             for I1 ∈ (Int32,Int64), I2 ∈ (Int32,Int64,UInt32)
-                # TODO: No longer skip these either.
-                sizeof(I1) > sizeof(I2) && continue
+              # TODO: No longer skip these either.
+              sizeof(I1) > sizeof(I2) && continue
                 vi1 = VectorizationBase.VecUnroll((
                     Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
                     Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
@@ -679,7 +679,7 @@ include("testsetup.jl")
                         # check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I1), size_trunc_int.(xi4, I1)), I1));
                     end
                 end
-                @test tovector(@inferred(vi1 ^ i)) ≈ xi1 .^ i
+                @test tovector(@inferred(vi1 ^ i)) ≈ Float64.(xi1) .^ i
                 @test @inferred(VectorizationBase.vall(@inferred(1 - MM{WI}(1)) == (1 - Vec(ntuple(identity, Val(WI))...)) ))
             end
             vf1 = VectorizationBase.VecUnroll((
@@ -734,8 +734,6 @@ include("testsetup.jl")
 
             @test gcd(Vec(42,64,0,-37), Vec(18,96,-38,0)) === Vec(6,32,38,37)
             @test lcm(Vec(24,16,42,0),Vec(18,12,18,17)) === Vec(72, 48, 126, 0)
-
-            
         end
     end
     println("Ternary Functions")
