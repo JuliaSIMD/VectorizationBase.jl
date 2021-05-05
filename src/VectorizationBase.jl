@@ -372,17 +372,19 @@ include("precompile.jl")
 _precompile_()
 
 function __init__()
-    ccall(:jl_generating_output, Cint, ()) == 1 && return
+  ccall(:jl_generating_output, Cint, ()) == 1 && return
+  safe_topology_load!()
+  if unwrap(cpu_name()) !== Symbol(Sys.CPU_NAME::String)
+    @debug "Defining CPU name."
+    define_cpu_name()
+
     reset_features!()
     reset_extra_features!()
-    if unwrap(cpu_name()) !== Symbol(Sys.CPU_NAME::String)
-        @debug "Defining CPU name."
-        define_cpu_name()
-    end
-    safe_topology_load!()
     redefine_attr_count()
     foreach(redefine_cache, 1:4)
-    return nothing
+  end
+  redefine_num_threads()
+  return nothing
 end
 
 

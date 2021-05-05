@@ -4,7 +4,7 @@ end
 Topology() = Topology(nothing)
 function safe_topology_load!()
     try
-        TOPOLOGY.topology = Hwloc.topology_load();
+        TOPOLOGY.topology = Hwloc.gettopology();
     catch e
         @warn e
         @warn """
@@ -86,10 +86,13 @@ function redefine_attr_count()
             define_attr_count(f, ref)
         end
     end
-    if sys_thread > Threads.nthreads()
-        @eval num_threads() = StaticInt{$(Threads.nthreads())}()
-    end
     nothing
+end
+
+function redefine_num_threads()
+  if Int(num_threads()) > min(Threads.nthreads(),Int(sys_threads()))
+    @eval num_threads() = StaticInt{$(Threads.nthreads())}()
+  end  
 end
 
 num_cache(::Union{Val{1},StaticInt{1}}) = num_l1cache()
@@ -186,7 +189,7 @@ cache_inclusive(_) = nothing
 function define_cache(N, c = dynamic_cache_summary(N))
     c === nothing_cache_summary() || _define_cache(N, c)
 end
-function _define_cache(N, c)
+@noinline function _define_cache(N, c)
     @eval begin
         cache_size(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.size)}()
         cache_linesize(::Union{Val{$N},StaticInt{$N}}) = StaticInt{$(c.linesize)}()
