@@ -538,17 +538,22 @@ end
 @inline llvmptrd(p::Ptr) = reinterpret(Core.LLVMPtr{Float64,0}, p)
 @inline llvmptrd(p::AbstractStridedPointer) = llvmptrd(pointer(p))
 for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
-    @eval begin
-        @generated function $f(p1::Core.LLVMPtr{T,0}, p2::Core.LLVMPtr{T,0}) where {T}
-            llvmptr_comp_quote($cmp, JULIA_TYPES[T])
-        end
-        @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptrd(p1), llvmptrd(p2))
-      # @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
-      @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
-        @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
+  @eval begin
+    @generated function $f(p1::Core.LLVMPtr{T,0}, p2::Core.LLVMPtr{T,0}) where {T}
+      llvmptr_comp_quote($cmp, JULIA_TYPES[T])
     end
+    @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptrd(p1), llvmptrd(p2))
+    # @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
+    @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
+    @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
+    @inline $f(p1::Ptr, p2::Ptr, sp::AbstractStridedPointer) = $f(llvmptrd(p1), llvmptrd(p2))
+    @inline $f(p1::NTuple{N,Int}, p2::NTuple{N,Int}, sp) where {N} = $op(reconstruct_ptr(sp, p1), reconstruct_ptr(sp, p2))
+  end
 end
-linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
+@inline linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
+
+
+
 # for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
 #     @eval begin
 #         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))

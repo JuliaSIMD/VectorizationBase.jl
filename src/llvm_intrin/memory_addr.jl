@@ -311,12 +311,23 @@ end
     gep_quote(T, :Vec, I, W, 1, M, O, true, RS)
 end
 @inline gep(ptr::Ptr, i) = _gep(ptr, i, register_size())
-# @inline gesp(ptr::AbstractStridedPointer, i) = similar_no_offset(ptr, gep(ptr, i))
-@inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{IntegerIndex}})
-    similar_no_offset(ptr, gep(ptr, i))
+
+@inline increment_ptr(ptr::AbstractStridedPointer) = pointer(ptr)
+@inline function increment_ptr(ptr::AbstractStridedPointer, i::Tuple)
+  p, li = tdot(ptr, map(vsub_fast, i, offsets(ptr)), strides(ptr))
+  _gep(p, li, Zero())
 end
-@inline  function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{IntegerIndex,N}}) where {N,C,B,R}
-    StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), map(vsub_fast, getfield(ptr,:offsets), i))
+@inline increment_ptr(p::StridedBitPointer) = getfield(p,:offsets)
+@inline increment_ptr(p::StridedBitPointer, i::Tuple) = map(vsub_fast, getfield(p,:offsets), i)
+@inline increment_ptr(p::AbstractStridedPointer, o, i::Tuple) = increment_ptr(reconstruct_ptr(p, o), i)
+@inline reconstruct_ptr(sp::AbstractStridedPointer, p::Ptr) = similar_no_offset(sp, p)
+@inline function reconstruct_ptr(sp::AbstractStridedPointer{N,C,B,R}, offs::NTuple{N,Int}) where {N,C,B,R}
+  StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), offs)
+end
+
+
+@inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{IntegerIndex}})
+  reconstruct_ptr(ptr, increment_ptr(ptr, i))
 end
 @inline vsub_fast(::NullStep, _) = Zero()
 @inline vsub_fast(::NullStep, ::NullStep) = Zero()
@@ -962,7 +973,8 @@ end
 @inline function prefetch(ptr::Union{AbstractStridedPointer,Ptr}, i, ::Val{Locality}, ::Val{ReadOrWrite}) where {Locality, ReadOrWrite}
     prefetch(gep(ptr, i), Val{Locality}(), Val{ReadOrWrite}())
 end
-@inline prefetch(ptr::Ptr) = prefetch(ptr, Val{3}(), Val{0}())
+@inline prefetch(ptr) = nothing
+@inline prefetch(ptr::Ptr) = prefetch(reinterpret(Ptr{Cvoid}, ptr), Val{3}(), Val{0}())
 @inline prefetch(ptr::Ptr, ::Val{L}) where {L} = prefetch(ptr, Val{L}(), Val{0}())
 @inline prefetch(ptr::Ptr, i) = prefetch(ptr, i, Val{3}(), Val{0}())
 @inline prefetch(ptr::Ptr, i, ::Val{L}) where {L} = prefetch(ptr, i, Val{L}(), Val{0}())
