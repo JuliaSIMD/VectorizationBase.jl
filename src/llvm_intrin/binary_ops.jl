@@ -27,6 +27,7 @@ for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
     @generated $fnw(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($(op * " nsw nuw"), W, T)
     @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
     @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
+    @inline $ff(x::NativeTypes, y::NativeTypes) = $f(x,y)
     
     @generated $ff_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
     @generated $fnsw(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($(op * " nsw"), 1, T)

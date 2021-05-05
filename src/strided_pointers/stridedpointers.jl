@@ -528,28 +528,33 @@ BenchmarkTools.Trial:
 @inline preserve_buffer(A::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint}) = preserve_buffer(parent(A))
 @inline preserve_buffer(x) = x
 
-# function llvmptr_comp_quote(cmp, Tsym)
-#     pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
-#     instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
-#     Expr(:block, Expr(:meta,:inline), :(llvmcall($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
-# end
-# for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
-#     @eval begin
-#         @generated function $f(p1::Pointer{T}, p2::Pointer{T}) where {T}
-#             llvmptr_comp_quote($cmp, JULIA_TYPES[T])
-#         end
-#         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptr(p1), llvmptr(p2))
-#         @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
-#         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
-#     end
-# end
-linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
-for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
+function llvmptr_comp_quote(cmp, Tsym)
+    pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
+    instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
+    Expr(:block, Expr(:meta,:inline), :(llvmcall($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
+end
+# @inline llvmptr(p::Ptr{T}) where {T} = reinterpret(Core.LLVMPtr{T,0}, p)
+# @inline llvmptr(p::AbstractStridedPointer) = llvmptr(pointer(p))
+@inline llvmptrd(p::Ptr) = reinterpret(Core.LLVMPtr{Float64,0}, p)
+@inline llvmptrd(p::AbstractStridedPointer) = llvmptrd(pointer(p))
+for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
     @eval begin
-        @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
-        @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
+        @generated function $f(p1::Core.LLVMPtr{T,0}, p2::Core.LLVMPtr{T,0}) where {T}
+            llvmptr_comp_quote($cmp, JULIA_TYPES[T])
+        end
+        @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptrd(p1), llvmptrd(p2))
+      # @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
+      @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
     end
 end
+linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
+# for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
+#     @eval begin
+#         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
+#         @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
+#         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
+#     end
+# end
 
 

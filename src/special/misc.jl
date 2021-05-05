@@ -1,7 +1,31 @@
-@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = Base.power_by_squaring(v, i)
-@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = Base.power_by_squaring(v, i)
-@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = Base.power_by_squaring(v, i)
-@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = Base.power_by_squaring(v, i)
+@inline function pow_by_square(_v, e::IntegerTypesHW)
+  v = float(_v)
+  x = one(v)
+  if e < 0
+    v = y = inv(v)
+    e = -e
+  else
+    y = v
+  end
+  while e ≠ zero(e)
+    tz = trailing_zeros(e)
+    e >>= (tz + one(tz))
+    while tz > zero(tz)
+      y *= y
+      tz -= one(tz)
+    end
+    x *= y
+    y *= y
+  end
+  return x
+end
+# 5 = 101 = 2^2 + 2^0 # x^4 * x^1
+# x^5 = x^4 * x
+
+@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = pow_by_square(v, i)
+@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = pow_by_square(v, i)
+@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = pow_by_square(v, i)
+@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = pow_by_square(v, i)
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, x::FloatingTypes) = exp2(Base.FastMath.log2_fast(v) * x)
 @inline Base.FastMath.pow_fast(v::FloatingTypes, x::AbstractSIMD) = exp2(Base.FastMath.log2_fast(v) * x)
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, x::AbstractSIMD) = exp2(Base.FastMath.log2_fast(v) * x)
