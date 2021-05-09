@@ -690,7 +690,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   ge_one_fma(::Val{:tigerlake}) = False()
   ge_one_fma(::Val{:icelake}) = False()
   ge_one_fma(::Val) = True()
-  @inline _vfdiv_afast(a::Tuple{Vec{W,T}}, b::Tuple{Vec{W,T}}) where {W,T<:FloatingTypes} = (vfdiv_fast(a,b),)
+  @inline _vfdiv_afast(a::Tuple{Vec{W,T}}, b::Tuple{Vec{W,T}}) where {W,T<:FloatingTypes} = (vfdiv_fast(getfield(a,1,false),getfield(b,1,false)),)
   @inline _vfdiv_afast(a::Tuple{}, b::Tuple{}) = ()
   @inline function vfdiv_fast(a::VecUnroll{N,W,Float64,Vec{W,Float64}},b::VecUnroll{N,W,Float64,Vec{W,Float64}}) where {N,W}
     vfdiv_afast(a, b, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
