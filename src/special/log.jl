@@ -212,7 +212,7 @@ end
 end
 
 # Probably the best
-@inline function vlog2_fast(a::AbstractSIMD{W,Float64}) where {W}
+@inline function vlog2_fast(a::AbstractSIMD{8,Float64})
     # log2(vgetmant(a, Val(8))) + vgetexp(a) == log2(a)
     m = vgetmant(a, Val(8)) # m ∈ [1,2)
     e = vgetexp(a)
@@ -221,10 +221,12 @@ end
     # return y
     y₀ = vroundscale(y, Val(80)) # 80 = 16*(1+4)
     # y₀ is a multiple of 32; 0.5:(1/32):1.0
+    # log2(m) = y * x = log2(y) + log2(x)
+    # r = x - 1
     # r + 1 = m*y;
     # log(r+1) = log(m) + log(y₀)
     # log(m) = log(1+r) - log(y₀)
-    r = vfmsub(m, y₀, 1.0) 
+    r = vfmsub(m, y₀, 1.0) # m * y - 1 
     # log1pr = logkern_5(r)
     # log1pr = logkern_6(r)
     log1pr = logkern_7(r)

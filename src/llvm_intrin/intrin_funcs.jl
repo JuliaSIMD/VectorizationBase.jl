@@ -689,7 +689,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   end
   ge_one_fma(::Val{:tigerlake}) = False()
   ge_one_fma(::Val{:icelake}) = False()
-  ge_one_fma(::Val) = False()
+  ge_one_fma(::Val) = True()
   @inline _vfdiv_afast(a::Tuple{Vec{W,T}}, b::Tuple{Vec{W,T}}) where {W,T<:FloatingTypes} = (vfdiv_fast(a,b),)
   @inline _vfdiv_afast(a::Tuple{}, b::Tuple{}) = ()
   @inline function vfdiv_fast(a::VecUnroll{N,W,Float64,Vec{W,Float64}},b::VecUnroll{N,W,Float64,Vec{W,Float64}}) where {N,W}

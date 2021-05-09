@@ -29,7 +29,8 @@ end
     mtyp = W == 16 ? "i16" : "i8"
     if bits == 512
         decl = "declare $instr($vtyp, $vtyp, $vtyp, $mtyp, i32)"
-        instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp undef, $mtyp -1, i32 11)\nret $vtyp %res"
+        # instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp undef, $mtyp -1, i32 11)\nret $vtyp %res"
+        instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp undef, $mtyp -1, i32 8)\nret $vtyp %res"
     else
         decl = "declare $instr($vtyp, $vtyp, $vtyp, $mtyp)"
         instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp undef, $mtyp -1)\nret $vtyp %res"
@@ -49,6 +50,7 @@ end
     if bits == 512
         decl = "declare $instr($vtyp, $vtyp, $vtyp, $mtyp, i32)"
         instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp %2, $mtyp %3, i32 11)\nret $vtyp %res"
+        instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp %2, $mtyp %3, i32 8)\nret $vtyp %res"
     else
         decl = "declare $instr($vtyp, $vtyp, $vtyp, $mtyp)"
         instrs = "%res = call $instr($vtyp %0, $vtyp %1, $vtyp %2, $mtyp %3)\nret $vtyp %res"
