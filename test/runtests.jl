@@ -115,6 +115,10 @@ include("testsetup.jl")
         @test EVLMask{12,UInt16}(0x01ff, 9) === mask(Val(12), 117)
         @test VectorizationBase.data(mask(Val(128),253)) == 0x1fffffffffffffffffffffffffffffff
         @test mask(Val(128),253) === EVLMask{128,UInt128}(0x1fffffffffffffffffffffffffffffff, 125)
+        @test EVLMask{1}(true, 1) === true
+        @test    Mask{1}(true)    === true
+        @test EVLMask{1}(false, 1) === false
+        @test    Mask{1}(false)    === false
         @test all(w -> VectorizationBase.mask_type(w) === UInt8, 1:8)
         @test all(w -> VectorizationBase.mask_type(w) === UInt16, 9:16)
         @test all(w -> VectorizationBase.mask_type(w) === UInt32, 17:32)
