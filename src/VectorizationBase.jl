@@ -124,6 +124,8 @@ struct EVLMask{W,U} <: AbstractMask{W,U}
 end
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 @inline EVLMask{W}(u::U, i) where {W,U<:Unsigned} = EVLMask{W,U}(u, i)
+@inline Mask{1}(b::Bool) = b
+@inline EVLMask{1}(b::Bool, i) = b
 @inline Mask(m::EVLMask{W,U}) where {W,U} = Mask{W,U}(getfield(m,:u))
 # Const prop is good enough; added an @inferred test to make sure.
 # Removed because confusion can cause more harm than good.
