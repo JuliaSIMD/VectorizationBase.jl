@@ -293,43 +293,50 @@ end
 # @generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")
 # end
-for (op,f) ∈ [
-    ("experimental.vector.reduce.v2.fadd",:vsum),
-    ("experimental.vector.reduce.v2.fmul",:vprod)
+for (opname,f) ∈ [
+  ("fadd",:vsum),
+  ("fmul",:vprod)
 ]
-    @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        # TS = JULIA_TYPES[T]
-        TS = T === Float32 ? :Float32 : :Float64
-        build_llvmcall_expr($op, -1, TS, [1, W], [TS, TS], "nsz arcp contract afn reassoc")
-    end
+  if Base.libllvm_version < v"12"
+    op = "experimental.vector.reduce.v2." * opname
+  else
+    op = "vector.reduce." * opname
+  end
+  @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+    # TS = JULIA_TYPES[T]
+    TS = T === Float32 ? :Float32 : :Float64
+    build_llvmcall_expr($op, -1, TS, [1, W], [TS, TS], "nsz arcp contract afn reassoc")
+  end
 end
 @inline vsum(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.add_fast(s, vsum(v))
 @inline vprod(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.mul_fast(s, vprod(v))
 for (op,f) ∈ [
-    ("experimental.vector.reduce.fmax",:vmaximum),
-    ("experimental.vector.reduce.fmin",:vminimum)
+  ("vector.reduce.fmax",:vmaximum),
+  ("vector.reduce.fmin",:vminimum)
 ]
-    @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-        # TS = JULIA_TYPES[T]
-        TS = T === Float32 ? :Float32 : :Float64
-        build_llvmcall_expr($op, -1, TS, [W], [TS], "nsz arcp contract afn reassoc")
-    end
+  Base.libllvm_version < v"12" && (op = "experimental." * op)
+  @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+    # TS = JULIA_TYPES[T]
+    TS = T === Float32 ? :Float32 : :Float64
+    build_llvmcall_expr($op, -1, TS, [W], [TS], "nsz arcp contract afn reassoc")
+  end
 end
 for (op,f,S) ∈ [
-    ("experimental.vector.reduce.add",:vsum,:Integer),
-    ("experimental.vector.reduce.mul",:vprod,:Integer),
-    ("experimental.vector.reduce.and",:vall,:Integer),
-    ("experimental.vector.reduce.or",:vany,:Integer),
-    ("experimental.vector.reduce.xor",:vxorreduce,:Integer),
-    ("experimental.vector.reduce.smax",:vmaximum,:Signed),
-    ("experimental.vector.reduce.smin",:vminimum,:Signed),
-    ("experimental.vector.reduce.umax",:vmaximum,:Unsigned),
-    ("experimental.vector.reduce.umin",:vminimum,:Unsigned)
+  ("vector.reduce.add",:vsum,:Integer),
+  ("vector.reduce.mul",:vprod,:Integer),
+  ("vector.reduce.and",:vall,:Integer),
+  ("vector.reduce.or",:vany,:Integer),
+  ("vector.reduce.xor",:vxorreduce,:Integer),
+  ("vector.reduce.smax",:vmaximum,:Signed),
+  ("vector.reduce.smin",:vminimum,:Signed),
+  ("vector.reduce.umax",:vmaximum,:Unsigned),
+  ("vector.reduce.umin",:vminimum,:Unsigned)
 ]
-    @eval @generated function $f(v1::Vec{W,T}) where {W, T <: $S}
-        TS = JULIA_TYPES[T]
-        build_llvmcall_expr($op, -1, TS, [W], [TS])
-    end
+  Base.libllvm_version < v"12" && (op = "experimental." * op)
+  @eval @generated function $f(v1::Vec{W,T}) where {W, T <: $S}
+    TS = JULIA_TYPES[T]
+    build_llvmcall_expr($op, -1, TS, [W], [TS])
+  end
 end
 if Sys.ARCH == :aarch64 # TODO: maybe the default definition will stop segfaulting some day?
     for I ∈ (:Int64, :UInt64), (f,op) ∈ ((:vmaximum,:max),(:vminimum,:min))
