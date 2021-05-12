@@ -5,7 +5,7 @@ Return aligned memory address with minimum increment. `align` assumes `n` is a
 power of 2.
 """
 function align end
-@inline align(x::Integer) = vadd_fast(x, Int(register_size()-One())) & Int(-register_size())
+@inline align(x::Integer) = (x + Int(register_size()-One())) & Int(-register_size())
 @inline align(x::Ptr{T}, arg) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x), arg))
 @inline align(x::Ptr{T}) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x)))
 @inline align(x::Integer, n) = (nm1 = n - One(); (x + nm1) & -n)

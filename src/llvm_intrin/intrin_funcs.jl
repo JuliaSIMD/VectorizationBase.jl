@@ -77,10 +77,16 @@ end
 # for (op,f) ∈ [("abs",:abs)]
 # end
 if Base.libllvm_version ≥ v"12"
-    for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed),("umax",:max,:Unsigned),("umin",:min,:Unsigned)]
-        vf = Symbol(:v,f)
-        @eval @generated $vf(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, [W, W], [TS, TS]))
-    end
+  for (op,f,S) ∈ [("smax",:max,:Signed),("smin",:min,:Signed),("umax",:max,:Unsigned),("umin",:min,:Unsigned)]
+    vf = Symbol(:v,f)
+    @eval @generated $vf(v1::Vec{W,T}, v2::Vec{W,T}) where {W, T <: $S} = (TS = JULIA_TYPES[T]; build_llvmcall_expr($op, W, TS, [W, W], [TS, TS]))
+    @eval @inline $vf(v1::Vec{W,<:$S}, v2::Vec{W,<:$S}) where {W} = ((v3,v4) = promote(v1,v2); $vf(v3,v4))
+  end
+  # TODO: clean this up.
+  @inline vmax(v1::Vec{W,<:Signed}, v2::Vec{W,<:Unsigned}) where {W} = vifelse(v1 > v2, v1, v2)
+  @inline vmin(v1::Vec{W,<:Signed}, v2::Vec{W,<:Unsigned}) where {W} = vifelse(v1 < v2, v1, v2)
+  @inline vmax(v1::Vec{W,<:Unsigned}, v2::Vec{W,<:Signed}) where {W} = vifelse(v1 > v2, v1, v2)
+  @inline vmin(v1::Vec{W,<:Unsigned}, v2::Vec{W,<:Signed}) where {W} = vifelse(v1 < v2, v1, v2)
 else
     @inline vmax(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vifelse(v1 > v2, v1, v2)
     @inline vmin(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vifelse(v1 < v2, v1, v2)

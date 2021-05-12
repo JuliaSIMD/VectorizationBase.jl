@@ -53,7 +53,7 @@ end
 @inline maybestaticfirst(A::CartesianIndices) = CartesianVIndex(_maybestaticfirst(A.indices))
 @inline maybestaticlast(A::CartesianIndices) = CartesianVIndex(_maybestaticlast(A.indices))
 
-for (op,f) ∈ [(:(+),:vadd_fast), (:(-),:vsub_fast), (:(*),:vmul_fast)]
+for (op,f) ∈ [(:(+),:vadd_nsw), (:(-),:vsub_nsw), (:(*),:vmul_nsw)]
   @eval begin
     @inline Base.$op(a::CartesianVIndex, b) = CartesianVIndex(fmap($f, getfield(a,:I), b))
     @inline Base.$op(a, b::CartesianVIndex) = CartesianVIndex(fmap($f, a, getfield(b,:I)))
