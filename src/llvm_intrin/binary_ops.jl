@@ -15,26 +15,35 @@ end
 
 # Integer
 for (op,f) ∈ [("add",:+),("sub",:-),("mul",:*),("shl",:<<)]
-  fnsw = Symbol(op,"_nsw")
-  fnuw = Symbol(op,"_nuw")
-  fnw = Symbol(op,"_nsw_nuw")
   ff = Symbol('v', op)
+  fnsw = Symbol(ff,"_nsw")
+  fnuw = Symbol(ff,"_nuw")
+  fnw = Symbol(ff,"_nw")
   ff_fast = Symbol(ff, :_fast)
   @eval begin
-    @generated $ff_fast(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
+    # @inline $ff(a,b) = $ff_fast(a,b)
+    @inline $ff(a::T,b::T) where {T<:Union{FloatingTypes,IntegerTypesHW,AbstractSIMD}} = $ff_fast(a,b)
+    # @generated $ff_fast(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
+    @generated $ff_fast(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
     @generated $fnsw(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($(op * " nsw"), W, T)
     @generated $fnuw(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($(op * " nuw"), W, T)
     @generated $fnw(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($(op * " nsw nuw"), W, T)
-    @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
-    @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
-    @inline $ff(x::NativeTypes, y::NativeTypes) = $f(x,y)
+    # @generated Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
+    @inline Base.$f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = $ff_fast(v1, v2)
+    # @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
+    @inline $ff_fast(x, y) = $f(x,y)
     
-    @generated $ff_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
+    # @generated $ff_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), 1, T)
+    # @generated $ff_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($op, 1, T)
     @generated $fnsw(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($(op * " nsw"), 1, T)
     @generated $fnuw(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($(op * " nuw"), 1, T)
     @generated $fnw(v1::T, v2::T) where {T<:IntegerTypesHW} = binary_op($(op * " nsw nuw"), 1, T)
   end
 end
+@inline vadd_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = Base.add_int(v1,v2)
+@inline vsub_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = Base.sub_int(v1,v2)
+@inline vmul_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = Base.mul_int(v1,v2)
+@inline vshl_fast(v1::T, v2::T) where {T<:IntegerTypesHW} = Base.shl_int(v1,v2)
 for (op,f) ∈ [("div",:÷),("rem",:%)]
   ff = Symbol('v', op); #_ff = Symbol(:_, ff)
   sbf = Symbol('s', op, :_int)
@@ -88,9 +97,9 @@ end
 @inline vsub(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.sub_float(a,b)
 @inline vadd(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.add_float(a,b)
 @inline vmul(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.mul_float(a,b)
-@inline vsub_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.FastMath.sub_float_fast(a,b)
-@inline vadd_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.FastMath.add_float_fast(a,b)
-@inline vmul_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.FastMath.mul_float_fast(a,b)
+@inline vsub_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.sub_float_fast(a,b)
+@inline vadd_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.add_float_fast(a,b)
+@inline vmul_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.mul_float_fast(a,b)
 
 @inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = vfdiv(vsub(v1, vrem(v1, v2)), v2)
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = vfdiv_fast(vsub_fast(v1, vrem_fast(v1, v2)), v2)
@@ -106,23 +115,30 @@ end
 @inline vfdiv(a, b) = a / b
 @inline vfdiv_fast(a, b) = Base.FastMath.div_fast(a, b)
 
-for f ∈ [:vadd,:vadd_fast,:vsub,:vsub_fast,:vmul,:vmul_fast]
+for f ∈ [:vadd,:vsub,:vmul]
+  for s ∈ [Symbol(""),:_fast,:_nsw,:_nuw,:_nw]
+    fs = Symbol(f,s)
     @eval begin
-        @inline function $f(a, b)
-            c, d = promote(a, b)
-            $f(c, d)
-        end
+      @inline function $fs(a::Union{FloatingTypes,IntegerTypesHW,AbstractSIMD}, b::Union{FloatingTypes,IntegerTypesHW,AbstractSIMD})
+        c, d = promote(a, b)
+        $fs(c, d)
+      end
     end
+  end
 end
 # @inline vsub(a::T, b::T) where {T<:Base.BitInteger} = Base.sub_int(a, b)
 for (vf,bf) ∈ [
   (:vadd,:add_int),(:vsub,:sub_int),(:vmul,:mul_int),
-  (:vadd_fast,:add_int),(:vsub_fast,:sub_int),(:vmul_fast,:mul_int)]
+  (:vadd_fast,:add_int),(:vsub_fast,:sub_int),(:vmul_fast,:mul_int),
+  (:vadd_nsw,:add_int),(:vsub_nsw,:sub_int),(:vmul_nsw,:mul_int),
+  (:vadd_nuw,:add_int),(:vsub_nuw,:sub_int),(:vmul_nuw,:mul_int),
+  (:vadd_nw,:add_int),(:vsub_nw,:sub_int),(:vmul_nw,:mul_int),
+]
   @eval begin
     @inline $vf(a::Int128, b::Int128) = Base.$bf(a, b)
     @inline $vf(a::UInt128, b::UInt128) = Base.$bf(a, b)
   end
 end
-@inline vrem(a::Float32, b::Float32) = Base.rem_float(a, b)
-@inline vrem(a::Float64, b::Float64) = Base.rem_float(a, b)
+@inline vrem(a::Float32, b::Float32) = Base.rem_float_fast(a, b)
+@inline vrem(a::Float64, b::Float64) = Base.rem_float_fast(a, b)
 

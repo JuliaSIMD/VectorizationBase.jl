@@ -63,43 +63,82 @@ include("testsetup.jl")
 
     end
 
-    println("alignment.jl")
-    @time @testset "alignment.jl" begin
-
-        @test all(i -> VectorizationBase.align(i) == VectorizationBase.register_size(), 1:VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(i) == 2VectorizationBase.register_size(), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(i) == 10VectorizationBase.register_size(), (1:VectorizationBase.register_size()) .+ 9VectorizationBase.register_size())
-
-        @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},   Int(VectorizationBase.register_size())), 1:VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},  2Int(VectorizationBase.register_size())), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid}, 20Int(VectorizationBase.register_size())), (1:VectorizationBase.register_size()) .+ 19VectorizationBase.register_size())
-
-        @test all(i -> VectorizationBase.align(i,W32) == VectorizationBase.align(i,Float32) == VectorizationBase.align(i,Int32) == W32*cld(i,W32), 1:VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(i,W32) == VectorizationBase.align(i,Float32) == VectorizationBase.align(i,Int32) == W32*cld(i,W32), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(i,W32) == VectorizationBase.align(i,Float32) == VectorizationBase.align(i,Int32) == W32*cld(i,W32), (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size())
-
-        @test all(i -> VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == W64*cld(i,W64), 1:VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == W64*cld(i,W64), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == W64*cld(i,W64), (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size())
-
-        @test reinterpret(Int, VectorizationBase.align(pointer(A))) % VectorizationBase.register_size() === 0
-
-        @test all(i -> VectorizationBase.aligntrunc(i) == 0, 0:VectorizationBase.register_size()-1)
-        @test all(i -> VectorizationBase.aligntrunc(i) == VectorizationBase.register_size(), VectorizationBase.register_size():2VectorizationBase.register_size()-1)
-        @test all(i -> VectorizationBase.aligntrunc(i) == 9VectorizationBase.register_size(), (0:VectorizationBase.register_size()-1) .+ 9VectorizationBase.register_size())
-
-        @test all(i -> VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == W32*div(i,W32), 1:VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == W32*div(i,W32), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == W32*div(i,W32), (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size())
-
-        @test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64), 1:VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64), 1+VectorizationBase.register_size():2VectorizationBase.register_size())
-        @test all(i -> VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64), (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size())
-
-        a = Vector{Float64}(undef, 0)
-        ptr = pointer(a)
-        @test UInt(VectorizationBase.align(ptr, 1 << 12)) % (1 << 12) == 0
+  println("alignment.jl")
+  @time @testset "alignment.jl" begin
+    for i ∈ 1:VectorizationBase.register_size()
+      @test VectorizationBase.align(i) == VectorizationBase.register_size()
     end
+    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+      @test VectorizationBase.align(i) == 2VectorizationBase.register_size()
+    end
+    for i ∈ (1:VectorizationBase.register_size()) .+ 9VectorizationBase.register_size()
+      @test VectorizationBase.align(i) == 10VectorizationBase.register_size()
+    end
+    for i ∈ 1:VectorizationBase.register_size()
+      @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},   Int(VectorizationBase.register_size()))
+    end
+    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+      @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid},  2Int(VectorizationBase.register_size()))
+    end
+    for i ∈ (1:VectorizationBase.register_size()) .+ 19VectorizationBase.register_size()
+      @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) == reinterpret(Ptr{Cvoid}, 20Int(VectorizationBase.register_size()))
+    end
+    for i ∈ 1:VectorizationBase.register_size()
+      @test VectorizationBase.align(i,W32) == VectorizationBase.align(i,Float32) == VectorizationBase.align(i,Int32) == W32*cld(i,W32)
+    end
+    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+      @test VectorizationBase.align(i,W32) == VectorizationBase.align(i,Float32) == VectorizationBase.align(i,Int32) == W32*cld(i,W32)
+    end
+    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+      @test VectorizationBase.align(i,W32) == VectorizationBase.align(i,Float32) == VectorizationBase.align(i,Int32) == W32*cld(i,W32)
+    end
+
+    for i ∈ 1:VectorizationBase.register_size()
+      @test VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == W64*cld(i,W64)
+    end
+    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+      @test VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == W64*cld(i,W64)
+    end
+    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+      @test VectorizationBase.align(i,W64) == VectorizationBase.align(i,Float64) == VectorizationBase.align(i,Int64) == W64*cld(i,W64)
+    end
+
+    @test reinterpret(Int, VectorizationBase.align(pointer(A))) % VectorizationBase.register_size() === 0
+
+    for i ∈ 0:VectorizationBase.register_size()-1
+      @test VectorizationBase.aligntrunc(i) == 0
+    end
+    for i ∈ VectorizationBase.register_size():2VectorizationBase.register_size()-1
+      @test VectorizationBase.aligntrunc(i) == VectorizationBase.register_size()
+    end
+    for i ∈ (0:VectorizationBase.register_size()-1) .+ 9VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i) == 9VectorizationBase.register_size()
+    end
+
+    for i ∈ 1:VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == W32*div(i,W32)
+    end
+    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == W32*div(i,W32)
+    end
+    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i,W32) == VectorizationBase.aligntrunc(i,Float32) == VectorizationBase.aligntrunc(i,Int32) == W32*div(i,W32)
+    end
+
+    for i ∈ 1:VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64)
+    end
+    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64)
+    end
+    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i,W64) == VectorizationBase.aligntrunc(i,Float64) == VectorizationBase.aligntrunc(i,Int64) == W64*div(i,W64)
+    end
+
+    a = Vector{Float64}(undef, 0)
+    ptr = pointer(a)
+    @test UInt(VectorizationBase.align(ptr, 1 << 12)) % (1 << 12) == 0
+  end
 
     println("masks.jl")
     @time @testset "masks.jl" begin
@@ -608,9 +647,10 @@ include("testsetup.jl")
     @time @testset "Binary Functions" begin
         # TODO: finish getting these tests to pass
       # for I1 ∈ (Int32,Int64,UInt32,UInt64), I2 ∈ (Int32,Int64,UInt32,UInt64)
-      for (vf,bf) ∈ [(VectorizationBase.vsub,-),(VectorizationBase.vadd,+),(VectorizationBase.vsub_fast,Base.FastMath.sub_fast),(VectorizationBase.vadd_fast,Base.FastMath.add_fast),
-                     (VectorizationBase.vmul,*),(VectorizationBase.vmul_fast,Base.FastMath.mul_fast),#(VectorizationBase.vmul,*),(VectorizationBase.vmul_fast,Base.FastMath.mul_fast),
-                     (VectorizationBase.vrem,%),(VectorizationBase.vrem_fast,%)]
+      for (vf,bf,testfloat) ∈ [(VectorizationBase.vadd,+,true),(VectorizationBase.vadd_fast,Base.FastMath.add_fast,true),(VectorizationBase.vadd_nsw,+,false),#(VectorizationBase.vadd_nuw,+,false),(VectorizationBase.vadd_nw,+,false),
+                     (VectorizationBase.vsub,-,true),(VectorizationBase.vsub_fast,Base.FastMath.sub_fast,true),(VectorizationBase.vsub_nsw,-,false),#(VectorizationBase.vsub_nuw,-,false),(VectorizationBase.vsub_nw,-,false),
+                     (VectorizationBase.vmul,*,true),(VectorizationBase.vmul_fast,Base.FastMath.mul_fast,true),(VectorizationBase.vmul_nsw,*,false),#(VectorizationBase.vmul_nuw,*,false),(VectorizationBase.vmul_nw,*,false),
+                     (VectorizationBase.vrem,%,true),(VectorizationBase.vrem_fast,%,true)]
         for i ∈ -10:10, j ∈ -6:6
           ((j == 0) && (bf === %)) && continue
           @test vf(i%Int8,j%Int8) == bf(i%Int8,j%Int8)
@@ -624,10 +664,12 @@ include("testsetup.jl")
           @test vf(i%Int128,j%Int128) == bf(i%Int128,j%Int128)
           @test vf(i%UInt128,j%UInt128) == bf(i%UInt128,j%UInt128)
         end
-        for i ∈ -1.5:0.4:1.8, j ∈ -3:0.1:3.0
-          # `===` for `NaN` to pass
-          @test vf(i,j) === bf(i,j)
-          @test vf(Float32(i),Float32(j)) === bf(Float32(i),Float32(j))
+        if testfloat
+          for i ∈ -1.5:0.4:1.8, j ∈ -3:0.1:3.0
+            # `===` for `NaN` to pass
+            @test vf(i,j) === bf(i,j)
+            @test vf(Float32(i),Float32(j)) === bf(Float32(i),Float32(j))
+          end
         end
       end
       let WI = Int(VectorizationBase.pick_vector_width(Int64))
@@ -995,7 +1037,7 @@ include("testsetup.jl")
         end
         fi = VectorizationBase.LazyMulAdd{8,0}(MM{8}(StaticInt(16)))
         si = VectorizationBase.LazyMulAdd{2}(240)
-        @test @inferred(VectorizationBase.vadd_fast(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
+        @test @inferred(VectorizationBase.vadd_nsw(fi, si)) === VectorizationBase.LazyMulAdd{2,128}(MM{8,4}(240))
     end
     # TODO: Put something here.
     # @time @testset "Arch Functions" begin

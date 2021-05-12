@@ -13,7 +13,7 @@
 
 @generated function mulsizeof(::Type{T}, x::Number) where {T}
     st = Base.allocatedinline(T) ? sizeof(T) : sizeof(Int)
-    Expr(:block, Expr(:meta,:inline), Expr(:call, :vmul_fast, st, :x))
+    Expr(:block, Expr(:meta,:inline), Expr(:call, :vmul_nw, st, :x))
 end
 @generated function mulsizeof(::Type{T}, ::StaticInt{N}) where {T,N}
     st = Base.allocatedinline(T) ? sizeof(T) : sizeof(Int)
@@ -133,8 +133,8 @@ end
 
 @inline _offset_index(i, ::NTuple{N,Zero}) where {N} = i
 @inline _offset_index(i::Tuple{I}, offset::NTuple{N,Zero}) where {N,I} = i
-@inline _offset_index(i::Tuple{I}, offset) where {I} = (vsub_fast(only(i), first(offset)),)
-@inline _offset_index(i, offset) = map(vsub_fast, i, offset)
+@inline _offset_index(i::Tuple{I}, offset) where {I} = (vsub_nsw(only(i), first(offset)),)
+@inline _offset_index(i, offset) = map(vsub_nsw, i, offset)
 @inline offset_index(ptr, i) = _offset_index(i, offsets(ptr))
 @inline linear_index(ptr, i) = tdot(ptr, offset_index(ptr, i), strides(ptr))
 
@@ -324,19 +324,6 @@ end
   StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
 end
 
-# @generated function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{Any,N}}) where {N,C,B,R}
-#     quote
-#         $(Expr(:meta,:inline))
-#         offs = ptr.offsets
-#         StridedBitPointer{$N,$C,$B,$R}(getfield(ptr, :p), getfield(ptr, :strd), Base.Cartesian.@ntuple $N n -> vsub_fast(offs[n], i[n]))
-#     end
-# end
-# @generated function pointerforcomparison(p::StridedBitPointer{N}) where {N}
-#     inds = Expr(:tuple); foreach(_ -> push!(inds.args, :(Zero())), 1:N)
-#     Expr(:block, Expr(:meta,:inline), Expr(:call, :gep, :p, inds))
-# end
-# @inline tdot(ptr::StridedBitPointer, a, b, c) = tdot(Bool, a, b, c) >>> StaticInt(3)
-
 # There is probably a smarter way to do indexing adjustment here.
 # The reasoning for the current approach of geping for Zero() on extracted inds
 # and for offsets otherwise is best demonstrated witht his motivational example:
@@ -377,7 +364,7 @@ function double_index_quote(C,B,R::NTuple{N,Int},I1,I2,typ) where {N}
         if n == J1
             push!(inds.args, :(Zero()))
         elseif n == J2
-            push!(strd.args, Expr(:call, :vadd_fast, Expr(:ref, :strd, J1), Expr(:ref, :strd, J2)))
+            push!(strd.args, Expr(:call, :vadd_nw, Expr(:ref, :strd, J1), Expr(:ref, :strd, J2)))
             push!(offs.args, :(Zero()))
             push!(inds.args, :(Zero()))
             push!(Rtup.args, max(R[J1], R[J2]))
@@ -448,8 +435,8 @@ end
 @inline increment_ptr(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer} = only(i)*s + getfield(r, :o)
 @inline increment_ptr(r::FastRange{T}, i::Tuple{I}) where {I,T<:Integer} = only(i) + getfield(r, :o)
 @inline increment_ptr(r::FastRange) = getfield(r,:o)
-@inline increment_ptr(r::FastRange{T}, o, i::Tuple{I}) where {I,T} = vadd_fast(only(i), o)
-@inline increment_ptr(r::FastRange{T,Zero}, o, i::Tuple{I}) where {I,T} = vadd_fast(vmul_fast(only(i), getfield(r, :s)), o)
+@inline increment_ptr(r::FastRange{T}, o, i::Tuple{I}) where {I,T} = vadd_nsw(only(i), o)
+@inline increment_ptr(r::FastRange{T,Zero}, o, i::Tuple{I}) where {I,T} = vadd_nsw(vmul_nsw(only(i), getfield(r, :s)), o)
 
 @inline reconstruct_ptr(r::FastRange{T}, o) where {T} = FastRange{T}(getfield(r,:f), getfield(r, :s), o)
 

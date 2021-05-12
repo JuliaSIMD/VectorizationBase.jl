@@ -25,7 +25,7 @@ O - static offset
 F - static multiplicative factor
 """
 @generated function _vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}, ::StaticInt{SIRS}) where {W,I<:Integer,O,F,SIRS}
-    isone(W) && return Expr(:block, Expr(:meta,:inline), :(vadd_fast(i, $(O % I))))
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.add_int(i, $(O % I))))
     bytes = pick_integer_bytes(W, sizeof(I), SIRS)
     bits = 8bytes
     jtypesym = Symbol(I <: Signed  ? :Int : :UInt, bits)
@@ -48,7 +48,7 @@ end
     _vrangeincr(Val{W}(), i, Val{O}(), Val{F}(), simd_integer_register_size())
 end
 @generated function vrangeincr(::Val{W}, i::T, ::Val{O}, ::Val{F}) where {W,T<:FloatingTypes,O,F}
-    isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.FastMath.add_fast(i, $(T(O)))))
+    isone(W) && return Expr(:block, Expr(:meta,:inline), :(Base.add_float_fast(i, $(T(O)))))
     typ = LLVM_TYPES[T]
     vtyp = vtype(W, typ)
     rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:W-1), ", ")
@@ -113,35 +113,34 @@ end
 @inline vadd_fast(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd_fast(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
 @inline vadd_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd_fast(Vec(i), j)
 @inline vadd_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd_fast(i, Vec(j))
-@inline vadd(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = vadd_fast(i, j)
-@inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd_fast(i, j)
-@inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd_fast(i, j)
+@inline vadd_nsw(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd_nsw(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())
+@inline vadd_nsw(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd_nsw(Vec(i), j)
+@inline vadd_nsw(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd_nsw(i, Vec(j))
+
+# @inline vadd(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = vadd_fast(i, j)
+# @inline vadd(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vadd_fast(i, j)
+# @inline vadd(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vadd_fast(i, j)
 
 # Subtraction
-@inline vsub(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub_fast(data(i), data(j)), StaticInt{X}() - StaticInt{Y}())
-@inline vsub(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub_fast(Vec(i), j)
-@inline vsub(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub_fast(i, Vec(j))
-@inline vsub_fast(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = vsub(i, j)
-@inline vsub_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub(i, j)
-@inline vsub_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub(i, j)
+@inline vsub_fast(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub_fast(data(i), data(j)), StaticInt{X}() - StaticInt{Y}())
+@inline vsub_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub_fast(Vec(i), j)
+@inline vsub_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub_fast(i, Vec(j))
+
+@inline vsub_nsw(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vsub_nsw(data(i), data(j)), StaticInt{X}() - StaticInt{Y}())
+@inline vsub_nsw(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vsub_nsw(Vec(i), j)
+@inline vsub_nsw(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vsub_nsw(i, Vec(j))
 # Multiplication
-@inline vmul(i::MM{W}, j::AbstractMask{W}) where {W} = Vec(i) * j
-@inline vmul(i::AbstractMask{W}, j::MM{W}) where {W} = i * Vec(j)
-@inline vmul(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = Vec(i) * j
-@inline vmul(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = i * Vec(j)
-@inline vmul(i::MM{W}, j::MM{W}) where {W} = vmul_fast(Vec(i), Vec(j))
 @inline vmul_fast(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul_fast(Vec(i), j)
 @inline vmul_fast(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul_fast(i, Vec(j))
 @inline vmul_fast(i::MM{W}, j::MM{W}) where {W} = vmul_fast(Vec(i), Vec(j))
-@inline vmul_fast(i::MM, j::Integer) = vmul_fast(Vec(i), j)
-@inline vmul_fast(j::Integer, i::MM) = vmul_fast(j, Vec(i))
+@inline vmul_fast(i::MM, j::IntegerTypesHW) = vmul_fast(Vec(i), j)
+@inline vmul_fast(j::IntegerTypesHW, i::MM) = vmul_fast(j, Vec(i))
 
-# Multiplication without promotion
-@inline vmul_no_promote(a, b) = vmul_fast(a, b)
-@inline vmul_no_promote(a::MM{W}, b) where {W} = MM{W}(vmul_fast(getfield(a, :i), b))
-@inline vmul_no_promote(a, b::MM{W}) where {W} = MM{W}(vmul_fast(a, getfield(b, :i)))
-@inline vmul_no_promote(a::MM{W}, b::MM{W}) where {W} = vmul_fast(a, b) # must promote
-vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
+@inline vmul_nsw(i::MM{W}, j::AbstractSIMDVector{W}) where {W} = vmul_nsw(Vec(i), j)
+@inline vmul_nsw(i::AbstractSIMDVector{W}, j::MM{W}) where {W} = vmul_nsw(i, Vec(j))
+@inline vmul_nsw(i::MM{W}, j::MM{W}) where {W} = vmul_nsw(Vec(i), Vec(j))
+@inline vmul_nsw(i::MM, j::IntegerTypesHW) = vmul_nsw(Vec(i), j)
+@inline vmul_nsw(j::IntegerTypesHW, i::MM) = vmul_nsw(j, Vec(i))
 
 # Division
 @generated _floattype(::Union{StaticInt{R},Val{R}}) where {R} = R ≥ 8 ? :Float64 : :Float32
@@ -150,6 +149,9 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @inline vfloat(i::MM{W,X,I}) where {W,X,I} = Vec(MM{W,X}(floattype(Val{W}())(getfield(i, :i) % pick_integer(Val{W}(),I))))
 @inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline vfdiv(j::T, i::MM) where {T<:Real} = j / float(i)
+@inline vfdiv_fast(i::MM, j::MM) = vfdiv_fast(float(i), float(j))
+@inline vfdiv_fast(i::MM, j::T) where {T<:Real} = vfdiv_fast(float(i), j)
+@inline vfdiv_fast(j::T, i::MM) where {T<:Real} = vfdiv_fast(j, float(i))
 
 @inline vfdiv(i::MM, j::VecUnroll{N,W,T,V}) where {N,W,T,V} = float(i) / j
 @inline vfdiv(j::VecUnroll{N,W,T,V}, i::MM) where {N,W,T,V} = j / float(i)
@@ -167,16 +169,16 @@ vmul_no_promote(a::MM, b::MM) = throw("Dimension mismatch.")
 @inline Base.:(>>>)(i::MM{W,X,T}, j::StaticInt) where {W,X,T<:StaticInt} = MM{W}(getfield(i, :i) >>> j, StaticInt{X}() >>> j)
 
 
-for (f,op) ∈ [
-    (:scalar_less, :(<)), (:scalar_greater,:(>)), (:scalar_greaterequal,:(≥)), (:scalar_lessequal,:(≤)), (:scalar_equal,:(==)), (:scalar_notequal,:(!=))
-]
-    @eval @inline $f(i::MM, j::Real) = $op(data(i), j)
-    @eval @inline $f(i::Real, j::MM) = $op(i, data(j))
-    @eval @inline $f(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
-    @eval @inline $f(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
-    @eval @inline $f(i::MM, j::MM) = $op(data(i), data(j))
-    @eval @inline $f(i, j) = $op(i, j)
-end
+# for (f,op) ∈ [
+#     (:scalar_less, :(<)), (:scalar_greater,:(>)), (:scalar_greaterequal,:(≥)), (:scalar_lessequal,:(≤)), (:scalar_equal,:(==)), (:scalar_notequal,:(!=))
+# ]
+#     @eval @inline $f(i::MM, j::Real) = $op(data(i), j)
+#     @eval @inline $f(i::Real, j::MM) = $op(i, data(j))
+#     @eval @inline $f(i::MM, ::StaticInt{j}) where {j} = $op(data(i), j)
+#     @eval @inline $f(::StaticInt{i}, j::MM) where {i} = $op(i, data(j))
+#     @eval @inline $f(i::MM, j::MM) = $op(data(i), data(j))
+#     @eval @inline $f(i, j) = $op(i, j)
+# end
 
 for f ∈ [:vshl, :vashr, :vlshr]
     @eval begin
@@ -268,6 +270,6 @@ for f ∈ [:vlt, :vle, :vgt, :vge, :veq, :vne, :vmin, :vmax, :vmin_fast, :vmax_f
 end
 
 @inline vadd_fast(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
-@inline vadd(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
+@inline vadd_nsw(i::MM{W,Zero}, j::MM{W,Zero}) where {W} = vrange(Val{W}(), Int, Val{0}(), Val{2}())
 
 

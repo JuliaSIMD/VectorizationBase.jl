@@ -18,28 +18,45 @@
 
 @inline Base.one(::Type{MM{W,X,I}}) where {W,X,I} = one(I)
 @inline staticm1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vsub_fast(data(i), one(I)))
-@inline staticp1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vadd_fast(data(i), one(I)))
-@inline vadd_fast(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd_fast(data(i), j))
-@inline vadd_fast(i::Integer, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_fast(i, data(j)))
+@inline staticp1(i::MM{W,X,I}) where {W,X,I} = MM{W,X}(vadd_nsw(data(i), one(I)))
+@inline vadd_fast(i::MM{W,X}, j::IntegerTypesHW) where {W,X} = MM{W,X}(vadd_fast(data(i), j))
+@inline vadd_fast(i::IntegerTypesHW, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_fast(i, data(j)))
 @inline vadd_fast(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd_fast(data(i), StaticInt{j}()))
 @inline vadd_fast(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_fast(StaticInt{i}(), data(j)))
 @inline vadd_fast(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 @inline vadd_fast(::StaticInt{0}, j::MM{W,X}) where {W,X} = j
-@inline vsub_fast(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub_fast(data(i), j))
+@inline vsub_fast(i::MM{W,X}, j::IntegerTypesHW) where {W,X} = MM{W,X}(vsub_fast(data(i), j))
 @inline vsub_fast(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(data(i), StaticInt{j}()))
 @inline vsub_fast(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 
-@inline vadd(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vadd_fast(data(i), j))
-@inline vadd(i::Integer, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_fast(i, data(j)))
-@inline vadd(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd_fast(data(i), StaticInt{j}()))
-@inline vadd(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_fast(StaticInt{i}(), data(j)))
-@inline vsub(i::MM{W,X}, j::Integer) where {W,X} = MM{W,X}(vsub_fast(data(i), j))
-@inline vsub(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_fast(data(i), StaticInt{j}()))
+@inline vadd_nsw(i::MM{W,X}, j::IntegerTypesHW) where {W,X} = MM{W,X}(vadd_nsw(data(i), j))
+@inline vadd_nsw(i::IntegerTypesHW, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_nsw(i, data(j)))
+@inline vadd_nsw(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd_nsw(data(i), StaticInt{j}()))
+@inline vadd_nsw(i::MM{W,X}, ::Zero) where {W,X} = i
+@inline vadd_nsw(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_nsw(StaticInt{i}(), data(j)))
+@inline vadd_nsw(::Zero, j::MM{W,X}) where {W,X} = j
+@inline vsub_nsw(i::MM{W,X}, j::IntegerTypesHW) where {W,X} = MM{W,X}(vsub_nsw(data(i), j))
+@inline vsub_nsw(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_nsw(data(i), StaticInt{j}()))
+@inline vsub_nsw(i::MM{W,X}, ::Zero) where {W,X} = i
 @inline vsub(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
-@inline vsub(i::MM) = i * StaticInt{-1}()
 @inline vsub_fast(i::MM) = i * StaticInt{-1}()
-@inline vmul(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(vmul_fast(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
-@inline vmul(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(vmul_fast(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
+@inline vsub_nsw(i::MM) = i * StaticInt{-1}()
+@inline vsub(i::MM) = i * StaticInt{-1}()
+@inline vadd(i::MM, j::IntegerTypesHW) = vadd_fast(i, j)
+@inline vadd(j::IntegerTypesHW, i::MM) = vadd_fast(j, i)
+@inline vsub(i::MM, j::IntegerTypesHW) = vsub_fast(i, j)
+@inline vsub(j::IntegerTypesHW, i::MM) = vsub_fast(j, i)
+
+
+@inline vmul_nsw(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(vmul_nsw(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
+@inline vmul_nsw(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(vmul_nsw(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
+
+@inline vmul_fast(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(vmul_fast(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
+@inline vmul_fast(i::MM{W,X}, ::StaticInt{M}) where {M,W,X} = MM{W}(vmul_fast(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
+@inline vmul(a, ::StaticInt{N}) where {N} = vmul_fast(a, StaticInt{N}())
+@inline vmul(::StaticInt{N}, a) where {N} = vmul_fast(StaticInt{N}(), a)
+@inline vmul(::StaticInt{N}, ::StaticInt{M}) where {N,M} = StaticInt{N}() * StaticInt{M}()
+
 @inline vrem(i::MM{W,X,I}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = i
 @inline vrem(i::MM{W,X}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = MM{W,X}(data(i) % I)
 @inline veq(::AbstractIrrational, ::MM{W,<:Integer}) where {W} = zero(Mask{W})
@@ -47,12 +64,10 @@
 @inline veq(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
 @inline veq(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
 
-@inline function vsub(i::NativeTypes, j::MM{W,X}) where {W,X}
-    MM(StaticInt{W}(), vsub(i, data(j)), -StaticInt{X}())
-end
-@inline function vsub_fast(i::NativeTypes, j::MM{W,X}) where {W,X}
-    MM(StaticInt{W}(), vsub_fast(i, data(j)), -StaticInt{X}())
-end
+@inline vsub_nsw(i::NativeTypes, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_nsw(i, data(j)), -StaticInt{X}())
+@inline vsub_fast(i::NativeTypes, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_fast(i, data(j)), -StaticInt{X}())
+@inline vsub_nsw(i::Union{FloatingTypes,IntegerTypesHW}, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_nsw(i, data(j)), -StaticInt{X}())
+@inline vsub_fast(i::Union{FloatingTypes,IntegerTypesHW}, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_fast(i, data(j)), -StaticInt{X}())
 
 @inline function Base.in(m::MM{W,X,<:Integer}, r::AbstractUnitRange) where {W,X}
     vm = Vec(m)

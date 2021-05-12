@@ -142,8 +142,10 @@ function vadd_expr(W,U,instr)
     ret <$W x i8> %res""")
     Expr(:block, Expr(:meta, :inline), :(Vec($LLVMCALL($(join(instrs, "\n")), _Vec{$W,UInt8}, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
-@generated vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U,"add")
-@generated vsub(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U,"sub")
+@generated vadd_fast(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U,"add")
+@generated vsub_fast(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_expr(W,U,"sub")
+@inline vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_fast(m1,m2)
+@inline vsub(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vsub_fast(m1,m2)
 
 @inline Base.:(&)(m::AbstractMask{W,U}, b::Bool) where {W,U} = Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
 @inline Base.:(&)(b::Bool, m::AbstractMask{W,U}) where {W,U} = Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
@@ -206,8 +208,8 @@ end
 # @inline Base.:(~)(m::Mask) = !m
 
 @inline Base.count_ones(m::AbstractMask) = count_ones(getfield(m, :u))
-@inline vadd(m::AbstractMask, i::Integer) = i + count_ones(m)
-@inline vadd(i::Integer, m::AbstractMask) = i + count_ones(m)
+@inline vadd(m::AbstractMask, i::IntegerTypesHW) = i + count_ones(m)
+@inline vadd(i::IntegerTypesHW, m::AbstractMask) = i + count_ones(m)
 
 @generated function vzero(::Type{M}) where {W, M <: Mask{W}}
     Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :Mask, W), Expr(:call, :zero, mask_type_symbol(W))))
@@ -245,14 +247,14 @@ end
     if (Base.libllvm_version ≥ v"11") && (W ≤ 16) && ispow2(W)
         quote
             $(Expr(:meta,:inline))
-            mask(Val{$W}(), zero(l), (vsub_fast(l, one(l)) & $(I(W-1))))
+            mask(Val{$W}(), zero(l), (vsub_nw(l, one(l)) & $(I(W-1))))
         end
     elseif W ≤ 16
         M = mask_type_symbol(W)
         quote
             $(Expr(:meta,:inline))
-            evl = valrem(Val{$W}(), vsub_fast((l % $M), one($M)))
-            EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_fast(evl, one(evl)))
+            evl = valrem(Val{$W}(), vsub_nw((l % $M), one($M)))
+            EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_nw(evl, one(evl)))
         end
     else
         quote
