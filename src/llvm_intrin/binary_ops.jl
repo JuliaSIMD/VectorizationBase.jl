@@ -77,11 +77,13 @@ for (op,sub) ∈ [
 end
 
 for (op,f) ∈ [("fadd",:vadd),("fsub",:vsub),("fmul",:vmul),("fdiv",:vfdiv),("frem",:vrem)]
-    ff = Symbol(f, :_fast)
-    @eval begin
-        @generated  $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($(op * ' ' * fast_flags(false)), W, T)
-        @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($(op * ' ' * fast_flags( true)), W, T)
-    end
+  ff = Symbol(f, :_fast)
+  fop_fast = f === :vfdiv ? "fdiv fast" : op * ' ' * fast_flags(true)
+  fop_contract = op * ' ' * fast_flags(false)
+  @eval begin
+    @generated  $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($fop_contract, W, T)
+    @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($fop_fast, W, T)
+  end
 end
 @inline vsub(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.sub_float(a,b)
 @inline vadd(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.add_float(a,b)
