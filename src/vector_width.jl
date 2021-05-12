@@ -64,6 +64,13 @@
 @inline vmul(::StaticInt{N}, a) where {N} = vmul_fast(StaticInt{N}(), a)
 @inline vmul(::StaticInt{N}, ::StaticInt{M}) where {N,M} = StaticInt{N}() * StaticInt{M}()
 
+@inline vsub(a, ::StaticInt{N}) where {N} = vsub_fast(a, StaticInt{N}())
+@inline vadd(a, ::StaticInt{N}) where {N} = vadd_fast(a, StaticInt{N}())
+@inline vsub(::StaticInt{N}, a) where {N} = vsub_fast(StaticInt{N}(), a)
+@inline vadd(::StaticInt{N}, a) where {N} = vadd_fast(StaticInt{N}(), a)
+@inline vsub(::StaticInt{M}, ::StaticInt{N}) where {M,N} = StaticInt{M}() - StaticInt{N}()
+@inline vadd(::StaticInt{M}, ::StaticInt{N}) where {M,N} = StaticInt{M}() + StaticInt{N}()
+
 @inline vrem(i::MM{W,X,I}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = i
 @inline vrem(i::MM{W,X}, ::Type{I}) where {W,X,I<:IntegerTypesHW} = MM{W,X}(data(i) % I)
 @inline veq(::AbstractIrrational, ::MM{W,<:Integer}) where {W} = zero(Mask{W})
