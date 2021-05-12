@@ -46,6 +46,13 @@
 @inline vadd(j::IntegerTypesHW, i::MM) = vadd_fast(j, i)
 @inline vsub(i::MM, j::IntegerTypesHW) = vsub_fast(i, j)
 @inline vsub(j::IntegerTypesHW, i::MM) = vsub_fast(j, i)
+@inline vadd(i::MM, ::StaticInt{j}) where {j} = vadd_fast(i, StaticInt{j}())
+@inline vadd(::StaticInt{j}, i::MM) where {j} = vadd_fast(StaticInt{j}(), i)
+@inline vsub(i::MM, ::StaticInt{j}) where {j} = vsub_fast(i, StaticInt{j}())
+@inline vsub(::StaticInt{j}, i::MM) where {j} = vsub_fast(StaticInt{j}(), i)
+@inline vadd(i::MM, ::Zero) = i
+@inline vadd(::Zero, i::MM) = i
+@inline vsub(::Zero, i::MM) = StaticInt{-1}()*i
 
 
 @inline vmul_nsw(::StaticInt{M}, i::MM{W,X}) where {M,W,X} = MM{W}(vmul_nsw(data(i), StaticInt{M}()), StaticInt{X}() * StaticInt{M}())
