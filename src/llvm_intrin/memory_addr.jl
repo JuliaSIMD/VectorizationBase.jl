@@ -356,207 +356,220 @@ end
 
 
 function vload_quote(
-    ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
+  ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
+  mask::Bool, noalias::Bool, align::Bool, rs::Int
 ) where {T <: NativeTypes, I <: Integer}
-    T_sym = JULIA_TYPES[T]
-    I_sym = JULIA_TYPES[I]
-    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs)
+  T_sym = JULIA_TYPES[T]
+  I_sym = JULIA_TYPES[I]
+  vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, rs)
 end
 function vload_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
+  T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
+  mask::Bool, align::Bool, noalias::Bool, rs::Int
 )
-    isbit = T_sym === :Bit
-    if !isbit && W > 1
-        sizeof_T = JULIA_TYPE_SIZE[T_sym]
-        if W * sizeof_T > rs
-            return vload_split_quote(W, sizeof_T, mask, align, rs, T_sym)
-        else
-            return vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, :(_Vec{$W,$T_sym}))
-        end
+  isbit = T_sym === :Bit
+  if !isbit && W > 1
+    sizeof_T = JULIA_TYPE_SIZE[T_sym]
+    if W * sizeof_T > rs
+      return vload_split_quote(W, sizeof_T, mask, align, noalias, rs, T_sym)
+    else
+      return vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, rs, :(_Vec{$W,$T_sym}))
     end
-    jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
-    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp)
+  end
+  jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
+  vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, rs, jtyp)
     # jtyp_expr = Expr(:(.), :Base, QuoteNode(jtyp)) # reduce latency, hopefully
     # vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp_expr)
 end
-function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::Int, T_sym::Symbol)
-    D, r1 = divrem(W * sizeof_T, rs)
-    Wnew, r2 = divrem(W, D)
-    (iszero(r1) & iszero(r2)) || throw(ArgumentError("If loading more than a vector, Must load a multiple of the vector width."))
-    q = Expr(:block,Expr(:meta,:inline))
-    # ind_type = :StaticInt, :Integer, :Vec
-    push!(q.args, :(isplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), i)))
-    mask && push!(q.args, :(msplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), m)))
-    t = Expr(:tuple)
-    alignval = Expr(:call, align ? :True : :False)
-    for d ∈ 1:D
-        call = Expr(:call, :__vload, :ptr)
-        push!(call.args, Expr(:ref, :isplit, d))
-        mask && push!(call.args, Expr(:ref, :msplit, d))
-        push!(call.args, alignval, Expr(:call, Expr(:curly, :StaticInt, rs)))
-        v_d = Symbol(:v_, d)
-        push!(q.args, Expr(:(=), v_d, call))
-        push!(t.args, v_d)
-    end
-    push!(q.args, :(VecUnroll($t)::VecUnroll{$(D-1),$Wnew,$T_sym,Vec{$Wnew,$T_sym}}))
-    q
+function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, noalias::Bool, rs::Int, T_sym::Symbol)
+  D, r1 = divrem(W * sizeof_T, rs)
+  Wnew, r2 = divrem(W, D)
+  (iszero(r1) & iszero(r2)) || throw(ArgumentError("If loading more than a vector, Must load a multiple of the vector width."))
+  q = Expr(:block,Expr(:meta,:inline))
+  # ind_type = :StaticInt, :Integer, :Vec
+  push!(q.args, :(isplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), i)))
+  mask && push!(q.args, :(msplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), m)))
+  t = Expr(:tuple)
+  alignval = Expr(:call,   align ? :True : :False)
+  aliasval = Expr(:call, noalias ? :True : :False)
+  rsexpr = Expr(:call, Expr(:curly, :StaticInt, rs))
+  for d ∈ 1:D
+    call = Expr(:call, :__vload, :ptr)
+    push!(call.args, Expr(:ref, :isplit, d))
+    mask && push!(call.args, Expr(:ref, :msplit, d))
+    push!(call.args, alignval, aliasval, rsexpr)
+    v_d = Symbol(:v_, d)
+    push!(q.args, Expr(:(=), v_d, call))
+    push!(t.args, v_d)
+  end
+  push!(q.args, :(VecUnroll($t)::VecUnroll{$(D-1),$Wnew,$T_sym,Vec{$Wnew,$T_sym}}))
+  q
 end
 
-@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
-    Bool(m) ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
+@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{1}, ::A, ::S, ::StaticInt{RS}) where {T,A,S,RS}
+    Bool(m) ? __vload(ptr, i, A(), S(), StaticInt{RS}()) : zero(T)
 end
-@inline function _mask_scalar_load(ptr::Ptr{T}, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
-    Bool(m) ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
+@inline function _mask_scalar_load(ptr::Ptr{T}, m::AbstractMask{1}, ::A, ::S, ::StaticInt{RS}) where {T,A,S,RS}
+    Bool(m) ? __vload(ptr, i, A(), S(), StaticInt{RS}()) : zero(T)
 end
-@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
-    s = __vload(ptr, i, A(), StaticInt{RS}())
+@inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{W}, ::A, ::S, ::StaticInt{RS}) where {T,A,S,RS,W}
+    s = __vload(ptr, i, A(), S(), StaticInt{RS}())
     ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
 end
-@inline function _mask_scalar_load(ptr::Ptr{T}, m::AbstractMask{W}, ::A, ::StaticInt{RS}) where {T,A,RS,W}
-    s = __vload(ptr, A(), StaticInt{RS}())
+@inline function _mask_scalar_load(ptr::Ptr{T}, m::AbstractMask{W}, ::A, ::S, ::StaticInt{RS}) where {T,A,S,RS,W}
+    s = __vload(ptr, A(), S(), StaticInt{RS}())
     ifelse(m, _vbroadcast(StaticInt{W}(), s, StaticInt{RS}()), _vzero(StaticInt{W}(), T, StaticInt{RS}()))
 end
 
 function vload_quote_llvmcall(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, rs::Int, ret::Union{Symbol,Expr}
 )
-    if mask && W == 1
-        if M == O == 0
-            return quote
-                $(Expr(:meta,:inline))
-                _mask_scalar_load(ptr, m, $(align ? :True : :False)(), StaticInt{$rs}())
-            end
-        else
-            return quote
-                $(Expr(:meta,:inline))
-                _mask_scalar_load(ptr, i, m, $(align ? :True : :False)(), StaticInt{$rs}())
-            end
-        end
+  if mask && W == 1
+    alignsym = align ? :True : :False
+    aliassym = noalias ? :True : :False
+    if M == O == 0
+      return quote
+        $(Expr(:meta,:inline))
+        _mask_scalar_load(ptr, m, $(alignsym)(), $(aliassym)(), StaticInt{$rs}())
+      end
+    else
+      return quote
+        $(Expr(:meta,:inline))
+        _mask_scalar_load(ptr, i, m, $(alignsym)(), $(aliassym)(), StaticInt{$rs}())
+      end
     end
+  end
 
-    decl, instrs, args, lret, largs, arg_syms = vload_quote_llvmcall_core(
-        T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs
-    )
-    
-    return llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true)
+  decl, instrs, args, lret, largs, arg_syms = vload_quote_llvmcall_core(
+    T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, rs
+  )
+  
+  return llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true)
 end
 function vload_quote_llvmcall_core(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
+  T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int,
+  M::Int, O::Int, mask::Bool, align::Bool, noalias::Bool, rs::Int
 )
-    sizeof_T = JULIA_TYPE_SIZE[T_sym]
+  sizeof_T = JULIA_TYPE_SIZE[T_sym]
 
-    reverse_load = ((W > 1) & (X == -sizeof_T)) & (ind_type !== :Vec)
-    if reverse_load
-        X = sizeof_T
-        O -= (W - 1) * sizeof_T
-    end
-    # if (X == -sizeof_T) & (!mask)
-    #     return quote
-    #         $(Expr(:meta,:inline))
-    #         vload(ptr, i
-    #     end
-    # end
-    sizeof_I = JULIA_TYPE_SIZE[I_sym]
-    ibits = 8sizeof_I
-    if W > 1 && ind_type !== :Vec
-        X, Xr = divrem(X, sizeof_T)
-        iszero(Xr) || throw(ArgumentError("sizeof($T_sym) == $sizeof_T, but stride between vector loads is given as $X, which is not a positive integer multiple."))
-    end
-    instrs, i = offset_ptr(T_sym, ind_type, '1', ibits, W, X, M, O, false, rs)
-    grv = gep_returns_vector(W, X, M, ind_type)
-    # considers booleans to only occupy 1 bit in memory, so they must be handled specially
-    isbit = T_sym === :Bit
-    if isbit
-        # @assert !grv "gather's not are supported with `BitArray`s."
-        mask = false # TODO: not this?
-        # typ = "i$W"
-        alignment = (align & (!grv)) ? cld(W,8) : 1
-        typ = "i1"
-    else
-        alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
-        typ = LLVM_TYPES_SYM[T_sym]
-    end
+  reverse_load = ((W > 1) & (X == -sizeof_T)) & (ind_type !== :Vec)
+  if reverse_load
+    X = sizeof_T
+    O -= (W - 1) * sizeof_T
+  end
+  # if (X == -sizeof_T) & (!mask)
+  #     return quote
+  #         $(Expr(:meta,:inline))
+  #         vload(ptr, i
+  #     end
+  # end
+  sizeof_I = JULIA_TYPE_SIZE[I_sym]
+  ibits = 8sizeof_I
+  if W > 1 && ind_type !== :Vec
+    X, Xr = divrem(X, sizeof_T)
+    iszero(Xr) || throw(ArgumentError("sizeof($T_sym) == $sizeof_T, but stride between vector loads is given as $X, which is not a positive integer multiple."))
+  end
+  instrs, i = offset_ptr(T_sym, ind_type, '1', ibits, W, X, M, O, false, rs)
+  grv = gep_returns_vector(W, X, M, ind_type)
+  # considers booleans to only occupy 1 bit in memory, so they must be handled specially
+  isbit = T_sym === :Bit
+  if isbit
+    # @assert !grv "gather's not are supported with `BitArray`s."
+    mask = false # TODO: not this?
+    # typ = "i$W"
+    alignment = (align & (!grv)) ? cld(W,8) : 1
+    typ = "i1"
+  else
+    alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
+    typ = LLVM_TYPES_SYM[T_sym]
+  end
 
+  if noalias
     decl = LOAD_SCOPE_TBAA
-    dynamic_index = !(iszero(M) || ind_type === :StaticInt)
+    flags = LOAD_SCOPE_TBAA_FLAGS
+  else
+    decl = ""
+    flags = ""
+  end
+  dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
-    vtyp = vtype(W, typ)
-    if mask
-        if reverse_load
-            decl *= truncate_mask!(instrs, '1' + dynamic_index, W, 0, true)
-        else
-            truncate_mask!(instrs, '1' + dynamic_index, W, 0, false)
-        end
-    end
-    if grv
-        loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
-        decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
-        m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
-        passthrough = mask ? "zeroinitializer" : "undef"
-        push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" * LOAD_SCOPE_TBAA_FLAGS)
-    elseif mask
-        suff = suffix(W, T_sym)
-        loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
-        decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
-        push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" * LOAD_SCOPE_TBAA_FLAGS)
+  vtyp = vtype(W, typ)
+  if mask
+    if reverse_load
+      decl *= truncate_mask!(instrs, '1' + dynamic_index, W, 0, true)
     else
-        push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" * LOAD_SCOPE_TBAA_FLAGS)
+      truncate_mask!(instrs, '1' + dynamic_index, W, 0, false)
     end
-    if isbit
-        lret = string('i', max(8,nextpow2(W)))
-        if W > 1
-            if reverse_load
-                # isbit means mask is set to false, so we definitely need to declare `bitreverse`
-                bitreverse = "i$(W) @llvm.bitreverse.i$(W)(i$(W))"
-                decl *= "declare $bitreverse"
-                resbit = "resbitreverse"
-                push!(instrs, "%$(resbit) = call $bitreverse(i$(W) %res")
-            else
-                resbit = "res"
-            end
-            if W < 8
-                push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
-                push!(instrs, "%resfinal = zext i$(W) %resint to i8")
-            elseif ispow2(W)
-                push!(instrs, "%resfinal = bitcast <$W x i1> %$(resbit) to i$(W)")
-            else
-                Wpow2 = nextpow2(W)
-                push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
-                push!(instrs, "%resfinal = zext i$(W) %resint to i$(Wpow2)")
-            end
-        else
-            push!(instrs, "%resfinal = zext i1 %res to i8")
-        end
-        push!(instrs, "ret $lret %resfinal")
+  end
+  if grv
+    loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
+    decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
+    m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
+    passthrough = mask ? "zeroinitializer" : "undef"
+    push!(instrs, "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" * flags)
+  elseif mask
+    suff = suffix(W, T_sym)
+    loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
+    decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
+    push!(instrs, "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" * flags)
+  else
+    push!(instrs, "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" * flags)
+  end
+  if isbit
+    lret = string('i', max(8,nextpow2(W)))
+    if W > 1
+      if reverse_load
+        # isbit means mask is set to false, so we definitely need to declare `bitreverse`
+        bitreverse = "i$(W) @llvm.bitreverse.i$(W)(i$(W))"
+        decl *= "declare $bitreverse"
+        resbit = "resbitreverse"
+        push!(instrs, "%$(resbit) = call $bitreverse(i$(W) %res")
+      else
+        resbit = "res"
+      end
+      if W < 8
+        push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
+        push!(instrs, "%resfinal = zext i$(W) %resint to i8")
+      elseif ispow2(W)
+        push!(instrs, "%resfinal = bitcast <$W x i1> %$(resbit) to i$(W)")
+      else
+        Wpow2 = nextpow2(W)
+        push!(instrs, "%resint = bitcast <$W x i1> %$(resbit) to i$(W)")
+        push!(instrs, "%resfinal = zext i$(W) %resint to i$(Wpow2)")
+      end
     else
-        lret = vtyp
-        if reverse_load
-            reversemask = '<' * join(map(x->string("i32 ", W-x), 1:W), ", ") * '>'
-            push!(instrs, "%resreversed = shufflevector $vtyp %res, $vtyp undef, <$W x i32> $reversemask")
-            push!(instrs, "ret $vtyp %resreversed")
-        else
-            push!(instrs, "ret $vtyp %res")
-        end
+      push!(instrs, "%resfinal = zext i1 %res to i8")
     end
-    args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
-    largs = String[JULIAPOINTERTYPE]
-    arg_syms = Union{Symbol,Expr}[:ptr]
-    if dynamic_index
-        push!(arg_syms, :(data(i)))
-        if ind_type === :Integer
-            push!(args.args, I_sym)
-            push!(largs, "i$(ibits)")
-        else
-            push!(args.args, :(_Vec{$W,$I_sym}))
-            push!(largs, "<$W x i$(ibits)>")
-        end
+    push!(instrs, "ret $lret %resfinal")
+  else
+    lret = vtyp
+    if reverse_load
+      reversemask = '<' * join(map(x->string("i32 ", W-x), 1:W), ", ") * '>'
+      push!(instrs, "%resreversed = shufflevector $vtyp %res, $vtyp undef, <$W x i32> $reversemask")
+      push!(instrs, "ret $vtyp %resreversed")
+    else
+      push!(instrs, "ret $vtyp %res")
     end
-    if mask
-        push!(arg_syms, :(data(m)))
-        push!(args.args, mask_type(nextpow2(W)))
-        push!(largs, "i$(max(8,nextpow2(W)))")
+  end
+  args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
+  largs = String[JULIAPOINTERTYPE]
+  arg_syms = Union{Symbol,Expr}[:ptr]
+  if dynamic_index
+    push!(arg_syms, :(data(i)))
+    if ind_type === :Integer
+      push!(args.args, I_sym)
+      push!(largs, "i$(ibits)")
+    else
+      push!(args.args, :(_Vec{$W,$I_sym}))
+      push!(largs, "<$W x i$(ibits)>")
     end
-    return decl, join(instrs, "\n"), args, lret, largs, arg_syms
+  end
+  if mask
+    push!(arg_syms, :(data(m)))
+    push!(args.args, mask_type(nextpow2(W)))
+    push!(largs, "i$(max(8,nextpow2(W)))")
+  end
+  return decl, join(instrs, "\n"), args, lret, largs, arg_syms
 end
 function vload_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
