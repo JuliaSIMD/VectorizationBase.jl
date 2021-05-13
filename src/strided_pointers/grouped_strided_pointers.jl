@@ -176,10 +176,9 @@ end
                     # @show n, nprev
                     isassigned(m, LinearIndices(m)[n,nprev]) || continue
                     pm = m[n, nprev] # just accessing lower triangle, but matrix is symmetric
-                    # @show pm
                     # pm is ndim_n x ndim_nprev
                     # we need to search back through stride ranks...
-                    for k ∈ axes(pm,1)
+                    for k ∈ axes(pm,2)
                         Rₚ, Sₚ = ordered_rank_and_sort(R.parameters[nprev].parameters[1])
                         Dₚ = D.parameters[nprev].parameters[1]
                         Xₚ = X.parameters[nprev].parameters
