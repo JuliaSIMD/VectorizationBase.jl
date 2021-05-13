@@ -496,33 +496,63 @@ include("testsetup.jl")
         @test vec(colormat[:,41:48]) == vec(colormat[:,1:8])
     end
 
-    println("Grouped Strided Pointers")
-    @time @testset "Grouped Strided Pointers" begin
-        M, K, N = 4, 5, 6
-        A = rand(M, K); B = rand(K, N); C = rand(M, N);
-        GC.@preserve A B C begin
-            fs = [identity, adjoint]
-            for fA ∈ fs, fB ∈ fs, fC ∈ fs
-                At = fA === identity ? A : copy(A')'
-                Bt = fB === identity ? B : copy(B')'
-                Ct = fC === identity ? C : copy(C')'
-                gsp, pres = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
-                if fA === fC
-                    @test sizeof(gsp.strides) == 2sizeof(Int)
-                end
-                ai = fA === identity
-                bi = fB === identity
-                ci = fC === identity
-                # Test to confirm that redundant strides are not stored in the grouped strided pointer
-                @test sizeof(gsp) == sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
-                @test sizeof(gsp.offsets) == 0
-                pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
-                @test pA === stridedpointer(At)
-                @test pB === stridedpointer(Bt)
-                @test pC === stridedpointer(Ct)
-            end
-        end
+  println("Grouped Strided Pointers")
+  @time @testset "Grouped Strided Pointers" begin
+    M, K, N = 4, 5, 6
+    A = Matrix{Float64}(undef, M, K);
+    B = Matrix{Float64}(undef, K, N);
+    C = Matrix{Float64}(undef, M, N);
+    struct SizedWrapper{M,N,T,AT<:AbstractMatrix{T}} <: AbstractMatrix{T} ; A::AT; end
+    SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} = SizedWrapper{M,N,T,AT}(A) 
+    Base.size(::SizedWrapper{M,N}) = (M,N); Base.getindex(A::SizedWrapper, i...) = getindex(parent(A), i...)
+    Base.parent(dw::SizedWrapper) = dw.A
+    VectorizationBase.memory_reference(dw::SizedWrapper) = VectorizationBase.memory_reference(parent(dw))
+    VectorizationBase.contiguous_axis(dw::SizedWrapper) = VectorizationBase.contiguous_axis(parent(dw))
+    VectorizationBase.contiguous_batch_size(dw::SizedWrapper) = VectorizationBase.contiguous_batch_size(parent(dw))
+    VectorizationBase.val_stride_rank(dw::SizedWrapper) = VectorizationBase.val_stride_rank(parent(dw))
+    function VectorizationBase.bytestrides(dw::SizedWrapper{M,N,T}) where {M,N,T}
+      x1 = VectorizationBase.static_sizeof(T)
+      if VectorizationBase.val_stride_rank(dw) === Val((1,2))
+        return x1, x1 * StaticInt{M}()
+      else#if VectorizationBase.val_stride_rank(dw) === Val((2,1))
+        return x1 * StaticInt{N}(), x1
+      end
     end
+    VectorizationBase.offsets(dw::SizedWrapper) = VectorizationBase.offsets(parent(dw))
+    VectorizationBase.val_dense_dims(dw::SizedWrapper{T,N}) where {T,N} = VectorizationBase.val_dense_dims(parent(dw))
+    
+    
+    GC.@preserve A B C begin
+      fs = (false,true)#[identity, adjoint]
+      for ai ∈ fs, bi ∈ fs, ci ∈ fs
+        At = ai ? A : (similar(A')');
+        Bt = bi ? B : (similar(B')');
+        Ct = ci ? C : (similar(C')');
+        gsp, pres = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
+        if ai === ci
+          @test sizeof(gsp.strides) == 2sizeof(Int)
+        end
+        # Test to confirm that redundant strides are not stored in the grouped strided pointer
+        @test sizeof(gsp) == sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
+        @test sizeof(gsp.offsets) == 0
+        pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
+        @test pA === stridedpointer(At)
+        @test pB === stridedpointer(Bt)
+        @test pC === stridedpointer(Ct)
+        Btsw = SizedWrapper{K,N}(Bt)
+        gsp2, pres2 = @inferred(VectorizationBase.grouped_strided_pointer((At,Btsw,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()));
+        @test sizeof(gsp2) == sizeof(Int) * (5 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
+
+        pA2, pB2, pC2 = @inferred(VectorizationBase.stridedpointers(gsp2))
+        @test pointer(pA2) == pointer(At)
+        @test pointer(pB2) == pointer(Bt)
+        @test pointer(pC2) == pointer(Ct)
+        @test strides(pA2) == strides(pA)
+        @test strides(pB2) == strides(pB)
+        @test strides(pC2) == strides(pC)
+      end
+    end
+  end
 
     println("Adjoint VecUnroll")
     @time @testset "Adjoint VecUnroll" begin

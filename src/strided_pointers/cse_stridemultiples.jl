@@ -53,8 +53,8 @@ end
 @inline lazymul(a, b, c) = lazymul(a, b)
 @inline lazymul(a::StaticInt, b, ::Nothing) = lazymul(a, b)
 
-_unwrap(::Type{StaticInt{N}}) where {N} = N
-_unwrap(_) = nothing
+_unwrap(@nospecialize(_::Type{StaticInt{N}})) where {N} = N
+_unwrap(@nospecialize(_)) = nothing
 # descript is a tuple of (unrollfactor) for each ind; if it shouldn't preallocate, unrollfactor may be set to 1
 function precalc_quote_from_descript(descript, contig, X)
     precalc = Expr(:tuple)
