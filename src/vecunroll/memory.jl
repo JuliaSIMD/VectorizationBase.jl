@@ -85,6 +85,7 @@ end
 function shuffle_load_quote(
     ::Type{T}, integer_params::NTuple{9,Int}, ::Type{I}, align::Bool, rs::Int, MASKFLAG::UInt
 ) where {T,I}
+  Sys.CPU_NAME === "znver1" && return nothing
   IT, ind_type, _W, _X, M, O = index_summary(I)
   size_T = sizeof(T)
   T_sym = JULIA_TYPES[T]
@@ -471,6 +472,7 @@ end
 function shuffle_store_quote(
     ::Type{T}, integer_params::NTuple{9,Int}, ::Type{I}, align::Bool, alias::Bool, notmp::Bool, rs::Int, mask::Bool
 ) where {T,I}
+  Sys.CPU_NAME === "znver1" && return nothing
   IT, ind_type, _W, _X, M, O = index_summary(I)
   T_sym = JULIA_TYPES[T]
   I_sym = JULIA_TYPES[IT]
