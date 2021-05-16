@@ -43,9 +43,7 @@ function vload_unroll_quote(
         $(Expr(:meta, :inline))
         gptr = similar_no_offset(sptr, gep(pointer(sptr), data(u)))
     end
-    if vecunrollmask
-        push!(q.args, :(masktup = data(vm)))
-    end
+    vecunrollmask && push!(q.args, :(masktup = data(vm)))
     gf = GlobalRef(Core, :getfield)
     for n in 1:N
         l = Expr(:call, :_vload, :gptr, inds[n])
@@ -404,8 +402,8 @@ end
 #     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, true)
 # end
 @generated function _vload_unroll(
-    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,<:Any,B}, ::A, ::StaticInt{RS}, ::Any
-) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,Nm1,B<:Union{Bool,Bit}}
+    sptr::AbstractStridedPointer{T,D}, u::Unroll{AU,F,N,AV,W,M,UX,I}, vm::VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}}, ::A, ::StaticInt{RS}, ::Any
+) where {A<:StaticBool,AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,RS,UX,Nm1}
     Nm1+1 == N || throw(ArgumentError("Nm1 + 1 = $(Nm1 + 1) ≠ $N = N"))
     vload_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A === True, RS, true)
 end
@@ -433,6 +431,16 @@ end
     else
         zero_vecunroll(StaticInt{N}(), StaticInt{W}(), T, StaticInt{RS}())
     end
+end
+@generated function vload(r::FastRange{T}, u::Unroll{AU,F,N,AV,W,M,X,I}) where {AU,F,N,AV,W,M,X,I,T}
+  _vload_fastrange_unroll(AU,F,N,AV,W,M,X,false,false)
+end
+@generated function vload(r::FastRange{T}, u::Unroll{AU,F,N,AV,W,M,X,I}, m::AbstractMask) where {AU,F,N,AV,W,M,X,I,T}
+  _vload_fastrange_unroll(AU,F,N,AV,W,M,X,true,false)
+end
+@generated function vload(r::FastRange{T}, u::Unroll{AU,F,N,AV,W,M,X,I}, vm::VecUnroll{Nm1,<:Any,<:Union{Bool,Bit}}) where {AU,F,N,AV,W,M,X,I,T,Nm1}
+  Nm1+1 == N || throw(ArgumentError("Nm1 + 1 = $(Nm1 + 1) ≠ $N = N"))
+  _vload_fastrange_unroll(AU,F,N,AV,W,M,X,false,true)
 end
 
 

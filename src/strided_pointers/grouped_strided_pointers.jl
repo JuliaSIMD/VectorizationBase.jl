@@ -101,8 +101,8 @@ function check_match(pm, Rₙ, Sₙ, Xₙ, Dₙ, j, Rₚ, Sₚ, Xₚ, Dₚ, k)::
     pind = Sₚ[Rₚₖ-1]
     # matching_values(Xₙ, nind, Xₚ, pind) && return true
     # for them being of equal size,
-    # @show pm[nind, pind], Dₙ[nind], Dₚ[pind], nind, pind
-    if pm[nind, pind] && Dₙ[nind] && Dₚ[pind]
+    # @show pm[nind, pind], Dₙ[j], Dₚ[k], nind, pind
+    if pm[nind, pind] && Dₙ[j] && Dₚ[k]
       return check_match(pm, Rₙ, Sₙ, Xₙ, Dₙ, nind, Rₚ, Sₚ, Xₚ, Dₚ, pind)
     end
   end
@@ -113,7 +113,7 @@ end
 @generated function grouped_strided_pointer(
   ptrs::P, contig_axis::C, batch_sz::B, r::R, x::X, o::O, d::D, ::Val{G}
 ) where {P,C,B,R,X,O,D,G}
-  1+1
+  # 1+1
   N = length(P.parameters)
   # We search for stride matches here
   # first we go over the groups, looking for matches

@@ -552,6 +552,13 @@ include("testsetup.jl")
         @test strides(pC2) == strides(pC)
       end
     end
+
+    data_in_large = Array{Float64}(undef, 4, 4, 4, 4, 1);
+    data_in = view(data_in_large, :, 1, :, :, 1);
+    tmp1= Array{Float64}(undef, 4, 4, 4);
+    sp_data_in, sp_tmp1 = VectorizationBase.stridedpointers(VectorizationBase.grouped_strided_pointer((data_in,tmp1), Val((((1,1),(2,1)),)))[1])
+    @test sp_data_in === stridedpointer(data_in)
+    @test sp_tmp1 === stridedpointer(tmp1)
   end
 
     println("Adjoint VecUnroll")

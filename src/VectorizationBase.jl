@@ -122,6 +122,7 @@ struct EVLMask{W,U} <: AbstractMask{W,U}
         new{W,U2}(u % U2, evl % UInt32)
     end
 end
+const AnyMask{W} = Union{AbstractMask{W},VecUnroll{<:Any,W,Bit,<:AbstractMask{W}}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 @inline EVLMask{W}(u::U, i) where {W,U<:Unsigned} = EVLMask{W,U}(u, i)
 @inline Mask{1}(b::Bool) = b

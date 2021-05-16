@@ -105,9 +105,9 @@ end
 @inline Vec(i::MM{W,X,StaticInt{N}}) where {W,X,N} = vrange(Val{W}(), Int, Val{N}(), Val{X}())
 @inline Vec(i::MM{1}) = data(i)
 @inline Vec(i::MM{1,<:Any,StaticInt{N}}) where {N} = N
-@inline vconvert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
+@inline vconvert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T} = vrangeincr(Val{W}(), convert(T, data(i)), Val{0}(), Val{X}())
 @inline vconvert(::Type{Vec{W,T}}, i::MM{W,X}) where {W,X,T<:IntegerTypesHW} = vrangeincr(Val{W}(), data(i)%T, Val{0}(), Val{X}())
-@inline vconvert(::Type{T}, i::MM{W,X}) where {W,X,T<:NativeTypes} = vrangeincr(Val{W}(), T(data(i)), Val{0}(), Val{X}())
+@inline vconvert(::Type{T}, i::MM{W,X}) where {W,X,T<:NativeTypes} = vrangeincr(Val{W}(), convert(T, data(i)), Val{0}(), Val{X}())
 
 # Addition
 @inline vadd_fast(i::MM{W,X}, j::MM{W,Y}) where {W,X,Y} = MM{W}(vadd_fast(data(i), data(j)), StaticInt{X}() + StaticInt{Y}())

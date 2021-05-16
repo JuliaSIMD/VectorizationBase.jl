@@ -365,19 +365,30 @@ end
 function vload_quote(
     T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int
 )
-    isbit = T_sym === :Bit
-    if !isbit && W > 1
-        sizeof_T = JULIA_TYPE_SIZE[T_sym]
-        if W * sizeof_T > rs
-            return vload_split_quote(W, sizeof_T, mask, align, rs, T_sym)
-        else
-            return vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, :(_Vec{$W,$T_sym}))
-        end
+  isbit = T_sym === :Bit
+  if !isbit && W > 1
+    sizeof_T = JULIA_TYPE_SIZE[T_sym]
+    if W * sizeof_T > rs
+      if ((T_sym === :Int64) | (T_sym === :UInt64)) && ((W * sizeof_T) == 2rs)
+        return vload_trunc_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, :(_Vec{$W,$T_sym}))
+      else
+        return vload_split_quote(W, sizeof_T, mask, align, rs, T_sym)
+      end
+    else
+      return vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, :(_Vec{$W,$T_sym}))
     end
-    jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
-    vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp)
-    # jtyp_expr = Expr(:(.), :Base, QuoteNode(jtyp)) # reduce latency, hopefully
-    # vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp_expr)
+  end
+  jtyp = isbit ? (isone(W) ? :Bool : mask_type_symbol(W)) : T_sym
+  vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp)
+  # jtyp_expr = Expr(:(.), :Base, QuoteNode(jtyp)) # reduce latency, hopefully
+  # vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, jtyp_expr)
+end
+function vload_trunc_quote(
+    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int, ret::Union{Symbol,Expr}
+)
+  call = vload_quote_llvmcall(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, ret)
+  call = Expr(:call, :%, call, Core.ifelse(T_sym === :Int64, :Int32, :UInt32))
+  Expr(:block, Expr(:meta,:inline), call)
 end
 function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::Int, T_sym::Symbol)
     D, r1 = divrem(W * sizeof_T, rs)
@@ -567,6 +578,7 @@ function vload_quote(
     end
     Expr(:block, Expr(:meta,:inline), call)
 end
+
 # vload_quote(T, ::Type{I}, ind_type::Symbol, W::Int, X, M, O, mask, align = false)
 
 # ::Type{T}, ::Type{I}, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int, mask::Bool, align::Bool, rs::Int

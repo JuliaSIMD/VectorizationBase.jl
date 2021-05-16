@@ -261,8 +261,30 @@ for (f,add,mul) ∈ [
 
         @inline $f(a::One, b::NativeTypesV, c::Zero) = b
         @inline $f(a::NativeTypesV, b::One, c::Zero) = a
-        @inline $f(a::One, b::One, c::Zero) = One()
+      @inline $f(a::One, b::One, c::Zero) = One()
+
+      @inline $f(a::AnyMask, b::NativeTypes, c::NativeTypes) = vifelse(a, $add(b,c), c)
+      @inline $f(a::AnyMask, b::NativeTypes, c::AbstractSIMD{W}) where {W} = vifelse(a, $add(b,c), c)
+      @inline $f(a::AnyMask, b::AbstractSIMD{W}, c::NativeTypes) where {W} = vifelse(a, $add(b,c), c)
+      @inline $f(a::AnyMask, b::AbstractSIMD{W}, c::AbstractSIMD{W}) where {W} = vifelse(a, $add(b,c), c)
+
+      @inline $f(b::NativeTypes, a::AnyMask, c::NativeTypes) = vifelse(a, $add(b,c), c)
+      @inline $f(b::NativeTypes, a::AnyMask, c::AbstractSIMD{W}) where {W} = vifelse(a, $add(b,c), c)
+      @inline $f(b::AbstractSIMD{W}, a::AnyMask, c::NativeTypes) where {W} = vifelse(a, $add(b,c), c)
+      @inline $f(b::AbstractSIMD{W}, a::AnyMask, c::AbstractSIMD{W}) where {W} = vifelse(a, $add(b,c), c)
+      
+      @inline $f(a::AnyMask, b::AnyMask, c::NativeTypes) = vifelse(a & b, c + one(c), c)
+      @inline $f(a::AnyMask, b::AnyMask, c::AbstractSIMD{W}) where {W} = vifelse(a & b, c + one(c), c)
     end
+end
+for f ∈ [:(Base.:(+)),:(Base.FastMath.add_fast)]
+  @eval begin
+    @inline $f(a::AnyMask, b::NativeTypes) = vifelse(a, $f(b,one(b)), b)
+    @inline $f(a::AnyMask, b::AbstractSIMD{W}) where {W} = vifelse(a, $f(b,one(b)), b)
+    @inline $f(a::NativeTypes, b::AnyMask) = vifelse(b, $f(a,one(a)), a)
+    @inline $f(a::AbstractSIMD{W}, b::AnyMask) where {W} = vifelse(b, $f(a,one(a)), a)
+    @inline $f(a::AnyMask, b::AnyMask) = vadd_fast(a, b)
+  end
 end
 
 # masks

@@ -446,10 +446,33 @@ end
 # @inline pointerforcomparison(r::FastRange, i::Tuple{I}) where {I} = getfield(r, :o) + first(i)
 
 
-@inline vload(r::FastRange, i::Tuple, m::AbstractMask) = (v = vload(r, i); ifelse(m, v, zero(v)))
-@inline vload(r::FastRange, i::Tuple, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i, m::AbstractMask) = (v = vload(r, i); ifelse(m, v, zero(v)))
+@inline vload(r::FastRange, i, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline _vload(r::FastRange, i, _, __) = vload(r, i)
 @inline _vload(r::FastRange, i, m::AbstractMask, __, ___) = vload(r, i, m)
+@inline _vload(r::FastRange, i, m::VecUnroll{<:Any,<:Any,<:Union{Bool,Bit}}, __, ___) = vload(r, i, m)
+function _vload_fastrange_unroll(AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, X::Int, mask::Bool, vecunrollmask::Bool)
+  t = Expr(:tuple)
+  inds = unrolled_indicies(1, AU, F, N, AV, W, X)
+  q = quote
+    $(Expr(:meta, :inline))
+    gptr = gesp(r, data(u))
+  end
+  vecunrollmask && push!(q.args, :(masktup = data(vm)))
+  gf = GlobalRef(Core, :getfield)
+  for n in 1:N
+    l = Expr(:call, :vload, :gptr, inds[n])
+    if vecunrollmask
+      push!(l.args, :($gf(masktup, $n, false)))
+    elseif mask & (M % Bool)
+      push!(l.args, :m)
+    end
+    M >>= 1
+    push!(t.args, l)
+  end
+  push!(q.args, :(VecUnroll($t)))
+  q
+end  
 # discard unnueeded align/reg size info
 # @inline vload(r::FastRange, i, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i)
 # @inline vload(r::FastRange, i, m, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i,m)
