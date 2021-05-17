@@ -64,28 +64,26 @@ const SCOPE_METADATA = """
 const LOAD_SCOPE_FLAGS = ", !alias.scope !3";
 const STORE_SCOPE_FLAGS = ", !noalias !3";
 
-const USE_TBAA = false
 # use TBAA?
-# define: LOAD_SCOPE_TBAA, LOAD_SCOPE_TBAA_FLAGS, SCOPE_METADATA, STORE_TBAA, SCOPE_FLAGS, STORE_TBAA_FLAGS
-let
-    LOAD_TBAA = """
-    !4 = !{!"jtbaa"}
-    !5 = !{!6, !6, i64 0, i64 0}
-    !6 = !{!"jtbaa_arraybuf", !4, i64 0}
-    """;
-    LOAD_TBAA_FLAGS = ", !tbaa !5";
-    global const LOAD_SCOPE_TBAA = USE_TBAA ? SCOPE_METADATA * LOAD_TBAA : SCOPE_METADATA;
-    global const LOAD_SCOPE_TBAA_FLAGS = USE_TBAA ? LOAD_SCOPE_FLAGS * LOAD_TBAA_FLAGS : LOAD_SCOPE_FLAGS
-
-    global const STORE_TBAA = USE_TBAA ? """
-    !4 = !{!"jtbaa", !5, i64 0}
-    !5 = !{!"jtbaa"}
-    !6 = !{!"jtbaa_data", !4, i64 0}
-    !7 = !{!8, !8, i64 0}
-    !8 = !{!"jtbaa_arraybuf", !6, i64 0}
-    """ : ""
-    global const STORE_TBAA_FLAGS = USE_TBAA ? ", !tbaa !7" : ""
-end
+const TBAA_STR = """
+!4 = !{!5, !5, i64 0}
+!5 = !{!"jtbaa_mutab", !6, i64 0}
+!6 = !{!"jtbaa_value", !7, i64 0}
+!7 = !{!"jtbaa_data", !8, i64 0}
+!8 = !{!"jtbaa", !9, i64 0}
+!9 = !{!"jtbaa"}
+""";
+const TBAA_FLAGS = ", !tbaa !4";
+# const TBAA_STR = """
+# !4 = !{!"jtbaa", !5, i64 0}
+# !5 = !{!"jtbaa"}
+# !6 = !{!"jtbaa_data", !4, i64 0}
+# !7 = !{!8, !8, i64 0}
+# !8 = !{!"jtbaa_arraybuf", !6, i64 0}
+# """;
+# const TBAA_FLAGS = ", !tbaa !7";
+const LOAD_SCOPE_TBAA = SCOPE_METADATA * TBAA_STR
+const LOAD_SCOPE_TBAA_FLAGS = LOAD_SCOPE_FLAGS * TBAA_FLAGS
 
 """
 An omnibus offset constructor.
@@ -715,8 +713,8 @@ function vstore_quote(
     align != nontemporal # should I do this?
     alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
 
-    decl = noalias ? SCOPE_METADATA * STORE_TBAA : STORE_TBAA
-    metadata = noalias ? STORE_SCOPE_FLAGS * STORE_TBAA_FLAGS : STORE_TBAA_FLAGS
+    decl = noalias ? SCOPE_METADATA * TBAA_STR : TBAA_STR
+    metadata = noalias ? STORE_SCOPE_FLAGS * TBAA_FLAGS : TBAA_FLAGS
     dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
     typ = LLVM_TYPES_SYM[T_sym]
