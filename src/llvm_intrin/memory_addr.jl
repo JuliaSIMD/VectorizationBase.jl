@@ -342,6 +342,7 @@ end
   StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), increment_ptr(ptr, i))
 end
 @inline vsub_nsw(::NullStep, _) = Zero()
+@inline vsub_nsw(::NullStep, ::LazyMulAdd) = Zero() # avoid ambiguity
 @inline vsub_nsw(::NullStep, ::NullStep) = Zero()
 @inline vsub_nsw(::NullStep, ::StaticInt) = Zero()
 @inline select_null_offset(::NullStep, x) = x

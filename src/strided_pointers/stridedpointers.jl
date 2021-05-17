@@ -38,7 +38,7 @@ end
 # end
 
 @inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
-@inline memory_reference(::CPUPointer, A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks), A.chunks
+@inline memory_reference(A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks), A.chunks
 @inline memory_reference(::CPUPointer, A) = pointer(A), preserve_buffer(A)
 @inline memory_reference(::CPUPointer, A::Union{LinearAlgebra.Adjoint, Base.ReshapedArray, Base.PermutedDimsArray, LinearAlgebra.Transpose}) = memory_reference(CPUPointer(), parent(A))
 @inline function memory_reference(::CPUPointer, A::Base.ReinterpretArray{T}) where {T}
