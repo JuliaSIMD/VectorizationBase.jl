@@ -37,9 +37,23 @@ end
 #     SDTuple{N,mulsizeof(T, X),P}(mulsizeof(T, t.x))
 # end
 
-@inline memory_reference(A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks), A.chunks
 @inline memory_reference(A::AbstractArray) = memory_reference(device(A), A)
+@inline memory_reference(::CPUPointer, A::BitArray) = Base.unsafe_convert(Ptr{Bit}, A.chunks), A.chunks
 @inline memory_reference(::CPUPointer, A) = pointer(A), preserve_buffer(A)
+@inline memory_reference(::CPUPointer, A::Union{LinearAlgebra.Adjoint, Base.ReshapedArray, Base.PermutedDimsArray, LinearAlgebra.Transpose}) = memory_reference(CPUPointer(), parent(A))
+@inline function memory_reference(::CPUPointer, A::Base.ReinterpretArray{T}) where {T}
+  p, m = memory_reference(CPUPointer(), parent(A))
+  reinterpret(Ptr{T}, p), m
+end
+@inline ind_diff(::Base.Slice, ::Any) = Zero()
+@inline ind_diff(x::AbstractRange, o) = vsub_nsw(static_first(x), o)
+@inline ind_diff(x::Integer, o) = vsub_nsw(x, o)
+@inline function memory_reference(::CPUPointer, A::SubArray)
+  p, m = memory_reference(CPUPointer(), parent(A))
+  pA = parent(A)
+  offset = ArrayInterface.reduce_tup(+, map(vmul_nsw, map(ind_diff, A.indices, offsets(pA)), strides(pA)))
+  p + sizeof(eltype(A))*offset, m
+end
 @inline function memory_reference(::ArrayInterface.CPUTuple, A)
     r = Ref(A)
     Base.unsafe_convert(Ptr{eltype(A)}, r), r

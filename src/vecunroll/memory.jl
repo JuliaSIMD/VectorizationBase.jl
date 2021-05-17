@@ -120,7 +120,7 @@ function _shuffle_load_quote(
         ptr = pointer(sptr)
         i = data(u)
     end
-    mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), vmul_fast($UN, getfield(sm, :evl)))))
+    mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), vmul_nw($UN, getfield(sm, :evl)))))
     push!(q.args, :(v = $vloadexpr))
     vut = Expr(:tuple)
     for n ∈ 0:UN-1
@@ -157,9 +157,9 @@ function push_transpose_mask!(q::Expr, mq::Expr, domask::Bool, n::Int, npartial:
                 isym = integer_of_bytes_symbol(min(4, RS ÷ n))
                 vmmtyp = :(VectorizationBase._vrange(Val{$n}(), $isym, Val{0}(), Val{1}()))
                 push!(q.args, :($mm_evl_cmp = $vmmtyp))
-                push!(q.args, :($mw_w = vmul_fast(_evl,$(UInt32(n))) > $mm_evl_cmp))
+                push!(q.args, :($mw_w = vmul_nw(_evl,$(UInt32(n))) > $mm_evl_cmp))
             else
-                push!(q.args, :($mw_w = (vsub_fast(vmul_fast(_evl,$(UInt32(n))), $(UInt32(n*(w-1))))%Int32) > ($mm_evl_cmp)))
+                push!(q.args, :($mw_w = (vsub_nsw(vmul_nw(_evl,$(UInt32(n))), $(UInt32(n*(w-1))))%Int32) > ($mm_evl_cmp)))
             end
             if n == npartial
                 push!(mq.args, mw_w )
@@ -549,7 +549,7 @@ function _shuffle_store_quote(
             push!(shufftup.args, W*n + w)
         end
     end
-    mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), vmul_fast($UN, $gf(sm, :evl)))))
+    mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), vmul_nw($UN, $gf(sm, :evl)))))
     push!(q.args, Expr(:(=), :v, Expr(:call, :shufflevector, syms[1], syms[2], Expr(:call, Expr(:curly, :Val, shufftup)))))
     push!(q.args, vstoreexpr)
     q
