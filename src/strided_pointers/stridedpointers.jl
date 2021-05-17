@@ -554,9 +554,7 @@ BenchmarkTools.Trial:
 ```
 """
 @inline preserve_buffer(A::AbstractArray) = A
-@inline preserve_buffer(A::SubArray) = preserve_buffer(parent(A))
-@inline preserve_buffer(A::PermutedDimsArray) = preserve_buffer(parent(A))
-@inline preserve_buffer(A::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint}) = preserve_buffer(parent(A))
+@inline preserve_buffer(A::Union{LinearAlgebra.Transpose,LinearAlgebra.Adjoint,Base.ReinterpretArray,Base.ReshapedArray,PermutedDimsArray,SubArray}) = preserve_buffer(parent(A))
 @inline preserve_buffer(x) = x
 
 function llvmptr_comp_quote(cmp, Tsym)

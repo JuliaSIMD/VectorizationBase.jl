@@ -65,23 +65,23 @@ const LOAD_SCOPE_FLAGS = ", !alias.scope !3";
 const STORE_SCOPE_FLAGS = ", !noalias !3";
 
 # use TBAA?
-const TBAA_STR = """
-!4 = !{!5, !5, i64 0}
-!5 = !{!"jtbaa_mutab", !6, i64 0}
-!6 = !{!"jtbaa_value", !7, i64 0}
-!7 = !{!"jtbaa_data", !8, i64 0}
-!8 = !{!"jtbaa", !9, i64 0}
-!9 = !{!"jtbaa"}
-""";
-const TBAA_FLAGS = ", !tbaa !4";
 # const TBAA_STR = """
-# !4 = !{!"jtbaa", !5, i64 0}
-# !5 = !{!"jtbaa"}
-# !6 = !{!"jtbaa_data", !4, i64 0}
-# !7 = !{!8, !8, i64 0}
-# !8 = !{!"jtbaa_arraybuf", !6, i64 0}
+# !4 = !{!5, !5, i64 0}
+# !5 = !{!"jtbaa_mutab", !6, i64 0}
+# !6 = !{!"jtbaa_value", !7, i64 0}
+# !7 = !{!"jtbaa_data", !8, i64 0}
+# !8 = !{!"jtbaa", !9, i64 0}
+# !9 = !{!"jtbaa"}
 # """;
-# const TBAA_FLAGS = ", !tbaa !7";
+# const TBAA_FLAGS = ", !tbaa !4";
+const TBAA_STR = """
+!4 = !{!"jtbaa", !5, i64 0}
+!5 = !{!"jtbaa"}
+!6 = !{!"jtbaa_data", !4, i64 0}
+!7 = !{!8, !8, i64 0}
+!8 = !{!"jtbaa_arraybuf", !6, i64 0}
+""";
+const TBAA_FLAGS = ", !tbaa !7";
 const LOAD_SCOPE_TBAA = SCOPE_METADATA * TBAA_STR
 const LOAD_SCOPE_TBAA_FLAGS = LOAD_SCOPE_FLAGS * TBAA_FLAGS
 
