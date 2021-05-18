@@ -668,7 +668,7 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym,M,e
 end
 
 @generated function _vstore_unroll!(
-    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{X}
+    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,<:VecOrScalar}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{X}
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,X,VUT}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, $(A()), $(S()), $(NT()), $(StaticInt(RS)), $(StaticInt(X)))))
@@ -693,7 +693,7 @@ end
   end
 end
 @generated function _vstore_unroll!(
-  sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
+  sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,<:VecOrScalar}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,VUT}
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, $(A()), $(S()), $(NT()), $(StaticInt(RS)), nothing)))
   align =  A === True
