@@ -95,7 +95,7 @@ end
 @inline vmin_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmin(v1, v2)
      
 # floating point
-for (op,f) ∈ [("sqrt",:vsqrt),("fabs",:vabs),("floor",:vfloor),("ceil",:vceil),("trunc",:vtrunc),("nearbyint",:vround)
+for (op,f) ∈ [("sqrt",:vsqrt),("fabs",:vabs),("floor",:vfloor),("ceil",:vceil),("trunc",:vtrunc),("nearbyint",:vround)#,("roundeven",:roundeven)
               ]
     # @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
     @eval @generated $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = (TS = T === Float32 ? :Float32 : :Float64; build_llvmcall_expr($op, W, TS, [W], [TS], "fast"))
@@ -103,7 +103,7 @@ end
 @inline vsqrt(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} = vsqrt(float(v))
 @inline vsqrt(v::FloatingTypes) = Base.sqrt_llvm_fast(v)
 @inline vsqrt(v::Integer) = Base.sqrt_llvm_fast(float(v))
-
+# @inline roundeven(v::VecUnroll) = VecUnroll(fmap(roundeven, getfield(v,:data)))
 # @generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("lrint", W, Int64, (W,), (T,), "")
 # end

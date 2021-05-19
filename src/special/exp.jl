@@ -16,8 +16,11 @@ end
     twopk = (k % Base.uinttype(T)) << signif_bits(T)
     reinterpret(T, twopk + small_part)
 end
+@inline vscalef(m::AbstractMask, v1::AbstractSIMD, v2::AbstractSIMD, v3::AbstractSIMD, ::False) = vifelse(m, vscalef(v1, v2, False()), v3)
 @inline vscalef(v1::T,v2::T) where {T<:AbstractSIMD} = vscalef(v1,v2,has_feature(Val(:x86_64_avx512f)))
+@inline vscalef(m::AbstractMask, v1::T, v2::T, v3::T) where {T<:AbstractSIMD} = vscalef(m,v1,v2,v3,has_feature(Val(:x86_64_avx512f)))
 @inline vscalef(v1::T,v2::T) where {T<:Union{Float32,Float64}} = vscalef(v1,v2,False())
+@inline vscalef(b::Bool,v1::T,v2::T,v3::T) where {T<:Union{Float32,Float64}} = b ? vscalef(v1,v2,False()) : zero(T)
 @inline vscalef(v1,v2) = ((v3,v4) = promote(v1,v2); vscalef(v3,v4))
 @generated function vscalef(v1::Vec{W,T}, v2::Vec{W,T}, ::True) where {W,T<:Union{Float32,Float64}}
     bits = 8W*sizeof(T)
@@ -96,6 +99,7 @@ end
 end
 
 @inline vscalef(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap(vscalef, getfield(v1, :data), getfield(v2, :data)))
+@inline vscalef(m::VecUnroll, v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = VecUnroll(fmap(vscalef, getfield(m, :data), getfield(v1, :data), getfield(v2, :data), getfield(v3, :data)))
 @inline vsreduce(v::VecUnroll, ::Val{M}) where {M} = VecUnroll(fmap(vsreduce, getfield(v, :data), Val{M}()))
 @inline vpermi2pd(v1::VecUnroll, v2::VecUnroll, v3::VecUnroll) = VecUnroll(fmap(vpermi2pd, getfield(v1, :data), getfield(v2, :data), getfield(v3, :data)))
 @inline vpermi2pd(v1::VecUnroll, v2::Vec, v3::Vec) = VecUnroll(fmap(vpermi2pd, getfield(v1, :data), v2, v3))

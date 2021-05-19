@@ -189,6 +189,8 @@ end
     mu = getfield(m, :u)
     mm & mu === mm
 end
+@inline vany(b::Bool) = b
+@inline vall(b::Bool) = b
 
 @generated function vnot(m::AbstractMask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"
