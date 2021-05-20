@@ -1196,7 +1196,7 @@ include("testsetup.jl")
               erftol = 3
             else
               xx .= range(-6.0, 6.0, length = 2^20);
-              erftol = 25
+              erftol = 7
             end;
             test_acc(VectorizationBase.verf, erf, T, xx, erftol)
             # xx .= exp2.(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^20));

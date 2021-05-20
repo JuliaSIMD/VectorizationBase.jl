@@ -31,7 +31,9 @@
 @inline _integer(v::AbstractSIMD{W,Float64}, ::True) where {W} = vconvert(Int64, v)
 @inline _integer(v::AbstractSIMD{W,Float64}, ::False) where {W} = vconvert(Int32, v)
 
-@inline function erf_kernel_l9(w::Union{Float64,AbstractSIMD{<:Any,Float64}}, x::Union{Float64,AbstractSIMD{<:Any,Float64}})
+
+
+@inline function erf_kernel_l9(x::Union{Float64,AbstractSIMD{<:Any,Float64}})
   y = vfmadd(x, 6.49254556481904e-5, 0.00120339380863079)
   z = vfmadd(x, 0.000364915280629351, 0.00849717371168693)
   y = vfmadd(x, y, 0.0403259488531795)
@@ -40,8 +42,22 @@
   z = vfmadd(x, z, 0.453767041780003)
   y = vfmadd(x, y, 1.12837916709551)
   z = vfmadd(x, z, 1.0)
-  Base.FastMath.div_fast(w * y, z)
+  res = y / z
+  res + vfnmadd(8.13035732583580548119176214095147680242299108680658322550212199643608432312984e-16,x,2.679870718713541577762315771546743935213688171443421284936882991116060314650674e-15)
+  # Base.FastMath.div_fast(w * y, z)
 end
+# erf(x)/x = erf_poly_l9(x*x) # r = x^2; x = sqrt(r)
+# erf(sqrt(r))/sqrt(r) = erf_poly_l9(r)
+# x in 0...0.65
+# r in 0...0.65^2
+
+# using Remez, SpecialFunctions
+# erftestsmall(x) = (r = sqrt(x); erf(r)/r)
+# ncinit = BigFloat[1.12837916709551, 0.135894887627278, 0.0403259488531795, 0.00120339380863079, 6.49254556481904e-5];
+# dcinit = BigFloat[1.0, 0.453767041780003, 0.0869936222615386, 0.00849717371168693, 0.000364915280629351];
+# N,D,E,X = ratfn_minimax(erftestsmall, [big"1e-70", big"0.65"^2], 4, 4, (w,x)->BigFloat(1), ncinit, dcinit); @show(E); N
+
+
 vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
 @inline function erf_v56f_kernel(v3f, v4f)
   v29f = v4f * -1.4426950408889634
@@ -85,15 +101,17 @@ end
   # v3 = reinterpret(Float64, v2)
   v3f = abs(v0f)
   v4f = v0f*v0f
-  m6 = v3f < 0.65
+  # m6 = v3f < 0.65
+  # m6 = v3f < 0.68
+  m6 = v3f < 0.675
   if vany(collapse_or(m6))
-    v19f = erf_kernel_l9(v0f, v4f)
+    v19f = v0f*erf_kernel_l9(v4f)
     vall(collapse_and(m6)) && return v19f
   else
     # v19f = zero(v0f)
     v19f = _vundef(v0f)
   end
-  m23 = v3f < 2.7
+  m23 = v3f < 2.725
   v56f = erf_v56f_kernel(v3f, v4f)
   if vany(collapse_or(m23 & (~m6))) # any(0.65 < v3f < 2.2) # l58 
     v65f = vfmadd(v3f, 0.0125304936549413, 0.126579413030178)
@@ -107,9 +125,8 @@ end
     v69f = vfmadd(v3f, v68f, 2.45992070144246)
     v64f = vfmadd(v3f, v63f, 0.999999992049799)
     v70f = vfmadd(v3f, v69f, 1.0)
-    v71f = v56f * v64f
-    v72f = Base.FastMath.div_fast(v71f, v70f)
-    v73f = 1.0 - v72f
+    v71f = Base.FastMath.div_fast(v56f, v70f)
+    v73f = vfnmadd(v71f, v64f, 1.0)
     v78f = copysign(v73f, v0f)
     v84f = ifelse(m6, v19f, v78f)
     vall(collapse_and(m23)) && return v84f
@@ -132,16 +149,12 @@ end
   # # v98f = Base.FastMath.div_fast(v97f, v96f)
   # v97f = v90f / v96f
   v97f = erf_v97f_kernel(v3f)
-  v98f = v97f * v56f
-  # v98f = fdiv_ieee(v97f, v96f)
-  # v98f = v97f / v96f
-  v99f = 1.0 - v98f
+  v99f = vfnmadd(v97f, v56f, 1.0)
   # v99f = sub_ieee(1.0, v98f)
   v104f = copysign(v99f, v0f)
   v105f = ifelse(m23, v84f, v104f)
   return v105f
 end
-# # N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); @show(E); N
 # # erftest(x) = (1 - erf(x)) / VectorizationBase.erf_v56f_kernel(abs(x),x*x)
 # # N,D,E,X = ratfn_minimax(erftest, [big"2.2", big"5.9215871960"], 5, 6); @show(E); N
 # erf(2.3) = 1.0 - v98f
