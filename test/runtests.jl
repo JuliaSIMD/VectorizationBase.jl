@@ -907,6 +907,7 @@ include("testsetup.jl")
     @time @testset "Special functions" begin
         if VERSION ≥ v"1.6.0-DEV.674" && Bool(VectorizationBase.has_feature(Val(Symbol("x86_64_sse4.1"))))
             erfs = [0.1124629160182849, 0.22270258921047847, 0.3286267594591274, 0.42839235504666845, 0.5204998778130465, 0.6038560908479259, 0.6778011938374184, 0.7421009647076605, 0.7969082124228322, 0.8427007929497149, 0.8802050695740817, 0.9103139782296353, 0.9340079449406524, 0.9522851197626487, 0.9661051464753108, 0.976348383344644, 0.9837904585907745, 0.9890905016357308, 0.9927904292352575, 0.9953222650189527, 0.997020533343667, 0.9981371537020182, 0.9988568234026434, 0.999311486103355, 0.999593047982555, 0.9997639655834707, 0.9998656672600594, 0.9999249868053346, 0.9999589021219005, 0.9999779095030014, 0.9999883513426328, 0.9999939742388483]
+            
             if Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f)))
                 v = VectorizationBase.verf(Vec{8, Float64}(0.1:0.1:0.8...,))
                 @test [v(i) for i in 1:8] ≈ erfs[1:8]
@@ -1174,6 +1175,7 @@ include("testsetup.jl")
     end
 
     println("Special Functions")
+    using SpecialFunctions
     @time @testset "Special Functions" begin
         for T ∈ [Float32,Float64]
             min_non_denormal = nextfloat(abs(reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))))
@@ -1189,6 +1191,14 @@ include("testsetup.jl")
             xx .= range(T(0.8)*l10mnd, T(0.8)*abs(l10mnd), length = 2^20);
             test_acc(exp10, exp10, T, xx, 3)
 
+            if T === Float32
+              xx .= range(-4f0, 4f0, length = 2^20);
+              erftol = 3
+            else
+              xx .= range(-6.0, 6.0, length = 2^20);
+              erftol = 25
+            end;
+            test_acc(VectorizationBase.verf, erf, T, xx, erftol)
             # xx .= exp2.(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^20));
             # test_acc(VectorizationBase.vlog2, log2, T, xx, 7)
         end

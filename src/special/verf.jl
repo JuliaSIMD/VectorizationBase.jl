@@ -31,7 +31,7 @@
 @inline _integer(v::AbstractSIMD{W,Float64}, ::True) where {W} = vconvert(Int64, v)
 @inline _integer(v::AbstractSIMD{W,Float64}, ::False) where {W} = vconvert(Int32, v)
 
-@inline function erf_kernel_l9(w::AbstractSIMD{W,Float64}, x::AbstractSIMD{W,Float64}) where {W}
+@inline function erf_kernel_l9(w::Union{Float64,AbstractSIMD{<:Any,Float64}}, x::Union{Float64,AbstractSIMD{<:Any,Float64}})
   y = vfmadd(x, 6.49254556481904e-5, 0.00120339380863079)
   z = vfmadd(x, 0.000364915280629351, 0.00849717371168693)
   y = vfmadd(x, y, 0.0403259488531795)
@@ -42,27 +42,11 @@
   z = vfmadd(x, z, 1.0)
   Base.FastMath.div_fast(w * y, z)
 end
-
-@inline function verf(v0f::Union{Float64,AbstractSIMD{<:Any,Float64}})
-  # v1 = reinterpret(UInt64, v)
-  # v2 = v1 & 0x7fffffffffffffff
-  # v3 = reinterpret(Float64, v2)
-  v3f = abs(v0f)
-  v4f = v0f*v0f
-  m6 = v3f < 0.65
-  if vany(collapse_or(m6))
-    v19f = erf_kernel_l9(v0f, v4f)
-    vall(collapse_and(m6)) && return v19f
-  else
-    # v19f = zero(v0f)
-    v19f = _vundef(v0f)
-  end
-  v5i = reinterpret(UInt64, v4f)
-  m23 = v3f < 2.2
-  v28f = reinterpret(Float64, v5i ⊻ 0x8000000000000000)
-  v29f = v28f * 1.4426950408889634
+vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
+@inline function erf_v56f_kernel(v3f, v4f)
+  v29f = v4f * -1.4426950408889634
   v30f = round(v29f)
-  v31f = vfmadd(v30f, -0.6931471803691238, v28f)
+  v31f = vfmsub(v30f, -0.6931471803691238, v4f)
   v32f = v30f * 1.9082149292705877e-10
   v33f = v31f - v32f
   v34f = v33f * v33f
@@ -77,9 +61,40 @@ end
   v44f = 1.0 - v32f
   v45f = v44f + v31f
   v46f = v45f + v43f
-  m47 = v28f > -708.3964185322641
-  v54f = vscalef(m47, v46f, v30f, zero(v0f))
-  v56f = ifelse(v28f ≥ 709.782712893384, Inf, v54f)
+  m47 = v4f ≤ 708.3964185322641
+  v54f = vscalef(m47, v46f, v30f, zero(v3f))
+  v56f = ifelse(v4f < 709.782712893384, v54f, Inf) # TODO: NaN should return v54f
+end
+@inline function erf_v97f_kernel(v3f)
+  v91f = vfmadd(v3f, 0.0400072964526861, 0.278788439273629)
+  v86f = vfmadd(v3f, 0.0225716982919218, 0.157289620742839)
+  v92f = vfmadd(v3f, v91f, 1.05074004614827)
+  v87f = vfmadd(v3f, v86f, 0.581528574177741)
+  v93f = vfmadd(v3f, v92f, 2.38574194785344)
+  v88f = vfmadd(v3f, v87f, 1.26739901455873)
+  v94f = vfmadd(v3f, v93f, 3.37367334657285)
+  v89f = vfmadd(v3f, v88f, 1.62356584489367)
+  v95f = vfmadd(v3f, v94f, 2.75143870676376)
+  v90f = vfmadd(v3f, v89f, 0.99992114009714)
+  v96f = vfmadd(v3f, v95f, 1.0)
+  v97f = v90f / v96f  
+end
+@inline function verf(v0f::Union{Float64,AbstractSIMD{<:Any,Float64}})
+  # v1 = reinterpret(UInt64, v)
+  # v2 = v1 & 0x7fffffffffffffff
+  # v3 = reinterpret(Float64, v2)
+  v3f = abs(v0f)
+  v4f = v0f*v0f
+  m6 = v3f < 0.65
+  if vany(collapse_or(m6))
+    v19f = erf_kernel_l9(v0f, v4f)
+    vall(collapse_and(m6)) && return v19f
+  else
+    # v19f = zero(v0f)
+    v19f = _vundef(v0f)
+  end
+  m23 = v3f < 2.7
+  v56f = erf_v56f_kernel(v3f, v4f)
   if vany(collapse_or(m23 & (~m6))) # any(0.65 < v3f < 2.2) # l58 
     v65f = vfmadd(v3f, 0.0125304936549413, 0.126579413030178)
     v60f = vfmadd(v3f, 0.00706940843763253, 0.0714193832506776)
@@ -101,25 +116,39 @@ end
   else
     v84f = v19f
   end
-  # l83
-  v91f = vfmadd(v3f, 0.0400072964526861, 0.278788439273629)
-  v86f = vfmadd(v3f, 0.0225716982919218, 0.157289620742839)
-  v92f = vfmadd(v3f, v91f, 1.05074004614827)
-  v87f = vfmadd(v3f, v86f, 0.581528574177741)
-  v93f = vfmadd(v3f, v92f, 2.38574194785344)
-  v88f = vfmadd(v3f, v87f, 1.26739901455873)
-  v94f = vfmadd(v3f, v93f, 3.37367334657285)
-  v89f = vfmadd(v3f, v88f, 1.62356584489367)
-  v95f = vfmadd(v3f, v94f, 2.75143870676376)
-  v90f = vfmadd(v3f, v89f, 0.99992114009714)
-  v96f = vfmadd(v3f, v95f, 1.0)
-  v97f = v56f * v90f
-  v98f = Base.FastMath.div_fast(v97f, v96f)
+  # l83 # > 2.2
+  # v91f = vfmadd(v3f, 0.0400072964526861, 0.278788439273629)
+  # v86f = vfmadd(v3f, 0.0225716982919218, 0.157289620742839)
+  # v92f = vfmadd(v3f, v91f, 1.05074004614827)
+  # v87f = vfmadd(v3f, v86f, 0.581528574177741)
+  # v93f = vfmadd(v3f, v92f, 2.38574194785344)
+  # v88f = vfmadd(v3f, v87f, 1.26739901455873)
+  # v94f = vfmadd(v3f, v93f, 3.37367334657285)
+  # v89f = vfmadd(v3f, v88f, 1.62356584489367)
+  # v95f = vfmadd(v3f, v94f, 2.75143870676376)
+  # v90f = vfmadd(v3f, v89f, 0.99992114009714)
+  # v96f = vfmadd(v3f, v95f, 1.0)
+  # # v97f = v56f * v90f
+  # # v98f = Base.FastMath.div_fast(v97f, v96f)
+  # v97f = v90f / v96f
+  v97f = erf_v97f_kernel(v3f)
+  v98f = v97f * v56f
+  # v98f = fdiv_ieee(v97f, v96f)
+  # v98f = v97f / v96f
   v99f = 1.0 - v98f
+  # v99f = sub_ieee(1.0, v98f)
   v104f = copysign(v99f, v0f)
   v105f = ifelse(m23, v84f, v104f)
   return v105f
 end
+# # N,D,E,X = ratfn_minimax(x -> (exp2(x) - big"1")/x, [big(nextfloat(-0.03125)),big(0.03125)], 4, 0); @show(E); N
+# # erftest(x) = (1 - erf(x)) / VectorizationBase.erf_v56f_kernel(abs(x),x*x)
+# # N,D,E,X = ratfn_minimax(erftest, [big"2.2", big"5.9215871960"], 5, 6); @show(E); N
+# erf(2.3) = 1.0 - v98f
+# (1.0 - erf(2.3) / v56f(2.3)) = v97f
+# (1.0 - erf(2.3) / v56f(2.3)) = v90f / v96f
+# rational polynomial, degree 5 / degree 6
+
 
 @inline function verf(v0f::Union{Float32,AbstractSIMD{<:Any,Float32}})
   v3f = abs(v0f)

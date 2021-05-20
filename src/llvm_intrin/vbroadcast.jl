@@ -38,6 +38,7 @@ end
         end
     end
 end
+@inline _vundef(::T) where {T<:NativeTypes} = _vundef(StaticInt{1}(), T)
 @inline _vundef(::Vec{W,T}) where {W,T} = _vundef(StaticInt{W}(), T)
 @generated _vundef(::VecUnroll{N,W,T}) where {N,W,T} = Expr(:block,Expr(:meta,:inline), :(VecUnroll(Base.Cartesian.@ntuple $(N+1) n -> _vundef(StaticInt{$W}(), $T))))
 @generated function _vbroadcast(::StaticInt{W}, s::_T, ::StaticInt{RS}) where {W,_T<:NativeTypes,RS}
