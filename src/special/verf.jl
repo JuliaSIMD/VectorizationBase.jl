@@ -79,7 +79,7 @@ vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
   v46f = v45f + v43f
   m47 = v4f ≤ 708.3964185322641
   v54f = vscalef(m47, v46f, v30f, zero(v3f))
-  v56f = ifelse(v4f < 709.782712893384, v54f, Inf) # TODO: NaN should return v54f
+  # v56f = ifelse(v4f < 709.782712893384, v54f, Inf) # TODO: NaN should return v54f
 end
 @inline function erf_v97f_kernel(v3f)
   v91f = vfmadd(v3f, 0.0400072964526861, 0.278788439273629)
@@ -94,6 +94,20 @@ end
   v90f = vfmadd(v3f, v89f, 0.99992114009714)
   v96f = vfmadd(v3f, v95f, 1.0)
   v97f = v90f / v96f  
+end
+@inline function erf_v71_kernel(v3f)
+  v65f = vfmadd(v3f, 0.0125304936549413, 0.126579413030178)
+  v60f = vfmadd(v3f, 0.00706940843763253, 0.0714193832506776)
+  v66f = vfmadd(v3f, v65f, 0.594651311286482)
+  v61f = vfmadd(v3f, v60f, 0.331899559578213)
+  v67f = vfmadd(v3f, v66f, 1.61876655543871)
+  v62f = vfmadd(v3f, v61f, 0.878115804155882)
+  v68f = vfmadd(v3f, v67f, 2.65383972869776)
+  v63f = vfmadd(v3f, v62f, 1.33154163936765)
+  v69f = vfmadd(v3f, v68f, 2.45992070144246)
+  v64f = vfmadd(v3f, v63f, 0.999999992049799)
+  v70f = vfmadd(v3f, v69f, 1.0)
+  v64f, v70f
 end
 @inline function verf(v0f::Union{Float64,AbstractSIMD{<:Any,Float64}})
   # v1 = reinterpret(UInt64, v)
@@ -113,18 +127,8 @@ end
   end
   m23 = v3f < 2.725
   v56f = erf_v56f_kernel(v3f, v4f)
-  if vany(collapse_or(m23 & (~m6))) # any(0.65 < v3f < 2.2) # l58 
-    v65f = vfmadd(v3f, 0.0125304936549413, 0.126579413030178)
-    v60f = vfmadd(v3f, 0.00706940843763253, 0.0714193832506776)
-    v66f = vfmadd(v3f, v65f, 0.594651311286482)
-    v61f = vfmadd(v3f, v60f, 0.331899559578213)
-    v67f = vfmadd(v3f, v66f, 1.61876655543871)
-    v62f = vfmadd(v3f, v61f, 0.878115804155882)
-    v68f = vfmadd(v3f, v67f, 2.65383972869776)
-    v63f = vfmadd(v3f, v62f, 1.33154163936765)
-    v69f = vfmadd(v3f, v68f, 2.45992070144246)
-    v64f = vfmadd(v3f, v63f, 0.999999992049799)
-    v70f = vfmadd(v3f, v69f, 1.0)
+  if vany(collapse_or(m23 & (~m6))) # any(0.675 < v3f < 2.2) # l58
+    v64f, v70f = erf_v71_kernel(v3f)
     v71f = Base.FastMath.div_fast(v56f, v70f)
     v73f = vfnmadd(v71f, v64f, 1.0)
     v78f = copysign(v73f, v0f)
