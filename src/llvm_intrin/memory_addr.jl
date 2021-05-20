@@ -293,19 +293,20 @@ function gep_quote(
     llvmcall_expr("", join(instrs, "\n"), ret, args, lret, largs, arg_syms)
 end
 
-@generated function _gep(ptr::Ptr{T}, i::I, ::StaticInt{RS}) where {I <: Integer, T <: NativeTypes, RS}
+@generated function _gep(ptr::Ptr{T}, i::I, ::StaticInt{RS}) where {I <: IntegerTypes, T <: NativeTypes, RS}
     gep_quote(T, :Integer, I, 1, 1, 1, 0, true, RS)
 end
 @generated function _gep(ptr::Ptr{T}, ::StaticInt{N}, ::StaticInt{RS}) where {N, T <: NativeTypes, RS}
     gep_quote(T, :StaticInt, Int, 1, 1, 0, N, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::StaticInt{RS}) where {T <: NativeTypes, I <: Integer, O, M, RS}
+@generated function _gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,I}, ::StaticInt{RS}) where {T <: NativeTypes, I <: IntegerTypes, O, M, RS}
     gep_quote(T, :Integer, I, 1, 1, M, O, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, i::Vec{W,I}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: Integer, RS}
+@inline _gep(ptr, i::IntegerIndex, ::StaticInt) = ptr + _materialize(i)
+@generated function _gep(ptr::Ptr{T}, i::Vec{W,I}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: IntegerTypes, RS}
     gep_quote(T, :Vec, I, W, 1, 1, 0, true, RS)
 end
-@generated function _gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: Integer, M, O, RS}
+@generated function _gep(ptr::Ptr{T}, i::LazyMulAdd{M,O,Vec{W,I}}, ::StaticInt{RS}) where {W, T <: NativeTypes, I <: IntegerTypes, M, O, RS}
     gep_quote(T, :Vec, I, W, 1, M, O, true, RS)
 end
 @inline gep(ptr::Ptr, i) = _gep(ptr, i, register_size())
