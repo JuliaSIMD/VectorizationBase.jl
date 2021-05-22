@@ -340,7 +340,7 @@ include("testsetup.jl")
         C = rand(40,20,10) .> 0;
         mtest = vload(stridedpointer(C), ((MM{16})(9), 2, 3));
         @test VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5))) === VectorizationBase.offsetprecalc(VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5))), Val((3,3)))
-        @test VectorizationBase.bytestrides(VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5))) === VectorizationBase.bytestrides(stridedpointer(C))
+        @test VectorizationBase.bytestrides(VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5)))) === VectorizationBase.bytestrides(stridedpointer(C))
         @test VectorizationBase.bytestrides(C) === VectorizationBase.bytestrides(stridedpointer(C))
         v1 = C[9:24,2,3];
         @test tovector(mtest) == v1
@@ -410,7 +410,7 @@ include("testsetup.jl")
                     v1 = randnvec(); v2 = randnvec(); v3 = randnvec();
                     GC.@preserve B begin
                         if AU == AV
-                            vstore!(VectorizationBase.offsetprecalc(stridedpointer(B), Val((5,5))), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
+                            vstore!(VectorizationBase.offsetprecalc(stridedpointer(B), Val((5,5,5))), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)))
                             vu = @inferred(vload(stridedpointer(B), VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))))
                         else
                             vstore!(stridedpointer(B), VectorizationBase.VecUnroll((v1,v2,v3)), VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)))

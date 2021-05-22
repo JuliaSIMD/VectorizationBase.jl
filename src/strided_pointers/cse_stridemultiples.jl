@@ -7,7 +7,7 @@ end
 # @inline pointerforcomparison(p::OffsetPrecalc) = pointerforcomparison(getfield(p, :ptr))
 # @inline pointerforcomparison(p::OffsetPrecalc, i::Tuple) = pointerforcomparison(p.ptr, i)
 @inline offsetprecalc(x, ::Any) = x
-@inline offsetprecalc(x::OffsetPrecalc, ::Any) = x
+@inline offsetprecalc(x::OffsetPrecalc, ::Val) = x
 @inline offsetprecalc(x::StridedBitPointer, ::Val) = x
 # @inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
 # @inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
