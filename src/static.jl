@@ -37,8 +37,8 @@ for (f,ff) ∈ [
     @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M, N} = $f(StaticInt{M}(),StaticInt{N}())
     # @inline $f(::StaticInt{M}, x) where {M} = $ff(M, x)
     # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
-    @inline $ff(::StaticInt{M}, x::IntegerTypesHW) where {M} = $ff(M, x)
-    @inline $ff(x::IntegerTypesHW, ::StaticInt{M}) where {M} = $ff(x, M)
+    @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} = $ff(M%T, x)
+    @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} = $ff(x, M%T)
     @inline $ff(::StaticInt{M}, x) where {M} = $ff(M, x)
     @inline $ff(x, ::StaticInt{M}) where {M} = $ff(x, M)
   end
