@@ -87,7 +87,7 @@ end
 @inline Base.clamp(x::AbstractSIMD{<:Any,<:Integer}, r::AbstractUnitRange{<:Integer}) =
     clamp(x, first(r), last(r))
 
-function Base.gcd(a::AbstractSIMDVector{W,I}, b::AbstractSIMDVector{W,I}) where {W,I<:Base.HWReal}
+@inline function Base.gcd(a::AbstractSIMDVector{W,I}, b::AbstractSIMDVector{W,I}) where {W,I<:Base.HWReal}
     aiszero = a == zero(a)
     biszero = b == zero(b)
     absa = abs(a)
@@ -109,14 +109,14 @@ function Base.gcd(a::AbstractSIMDVector{W,I}, b::AbstractSIMDVector{W,I}) where 
     end
     ifelse(aiszero, absb, ifelse(biszero, absa, (u << k) % I))
 end
-Base.gcd(a::VecUnroll, b::Real) = VecUnroll(fmap(gcd, data(a), b))
-Base.gcd(a::Real, b::VecUnroll) = VecUnroll(fmap(gcd, a, data(b)))
-Base.gcd(a::VecUnroll, b::VecUnroll) = VecUnroll(fmap(gcd, data(a), data(b)))
-function Base.lcm(a::AbstractSIMD, b::AbstractSIMD)
+@inline Base.gcd(a::VecUnroll, b::Real) = VecUnroll(fmap(gcd, data(a), b))
+@inline Base.gcd(a::Real, b::VecUnroll) = VecUnroll(fmap(gcd, a, data(b)))
+@inline Base.gcd(a::VecUnroll, b::VecUnroll) = VecUnroll(fmap(gcd, data(a), data(b)))
+@inline function Base.lcm(a::AbstractSIMD, b::AbstractSIMD)
     z = zero(a)
     isz = (a == z) | (b == z)
     ifelse(isz, z, (b ÷ gcd(b, a)) * a)
 end
-Base.lcm(a::AbstractSIMD, b::Real) = ((c,d) = promote(a,b); lcm(c,d))
-Base.lcm(a::Real, b::AbstractSIMD) = ((c,d) = promote(a,b); lcm(c,d))
+@inline Base.lcm(a::AbstractSIMD, b::Real) = ((c,d) = promote(a,b); lcm(c,d))
+@inline Base.lcm(a::Real, b::AbstractSIMD) = ((c,d) = promote(a,b); lcm(c,d))
 
