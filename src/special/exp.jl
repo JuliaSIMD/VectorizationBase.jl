@@ -308,8 +308,8 @@ end
     r = vsreduce(16.0x, Val(0)) * 0.0625
     N_float = x - r
     expr = expm1b_kernel_16(Val(2), r)
-    inds = convert(UInt, vsreduce(N_float, Val(1))*16.0)
-    # inds = ((trunc(Int, 16.0*N_float)%UInt)) & 0x000000000000000f
+    inds = convert(UInt64, vsreduce(N_float, Val(1))*16.0)
+    # inds = ((trunc(Int64, 16.0*N_float)%UInt64)) & 0x000000000000000f
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
     small_part = vfmadd(js, expr, js)
     res = vscalef(small_part, N_float)
@@ -355,7 +355,7 @@ end
     N_float = round(x*LogBo16INV(Val(B), Float64))
     r = muladd(N_float, LogBo16U(Val(B), Float64), x)
     r = muladd(N_float, LogBo16L(Val(B), Float64), r)
-    inds = ((trunc(Int, N_float)%UInt)) & 0x000000000000000f
+    inds = ((trunc(Int64, N_float)%UInt64)) & 0x000000000000000f
     expr = expm1b_kernel_16(Val(B), r)
     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
     small_part = vfmadd(js, expr, js)
