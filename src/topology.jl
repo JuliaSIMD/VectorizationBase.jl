@@ -90,7 +90,7 @@ function redefine_attr_count()
 end
 
 function redefine_num_threads()
-  if Int(num_threads()) > min(Threads.nthreads(),Int(sys_threads()))
+  if Int(num_threads()) ≠ min(Threads.nthreads(),Int(sys_threads()))
     @eval num_threads() = StaticInt{$(Threads.nthreads())}()
   end  
 end
