@@ -380,14 +380,16 @@ _precompile_()
 
   reset_features!()
   reset_extra_features!()
-  redefine_attr_count()
-  foreach(redefine_cache, 1:4)
 end
 
 function __init__()
   ccall(:jl_generating_output, Cint, ()) == 1 && return
   safe_topology_load!()
   unwrap(cpu_name()) === Symbol(Sys.CPU_NAME::String) || redefine()
+  if Hwloc.num_physical_cores() ≠ Int(num_cores()) * ((Sys.ARCH === :aarch64) && Sys.isapple() ? 2 : 1)
+    redefine_attr_count()
+    foreach(redefine_cache, 1:4)
+  end
   redefine_num_threads()
   return nothing
 end
