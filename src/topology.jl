@@ -90,8 +90,9 @@ function redefine_attr_count()
 end
 
 function redefine_num_threads()
-  if Int(num_threads()) ≠ min(Threads.nthreads(),Int(sys_threads()))
-    @eval num_threads() = StaticInt{$(Threads.nthreads())}()
+  dynamic_threads = min(Threads.nthreads(),Sys.CPU_THREADS::Int)
+  if Int(num_threads()) ≠ dynamic_threads
+    @eval num_threads() = StaticInt{$dynamic_threads}()
   end  
 end
 
