@@ -313,13 +313,14 @@ end
 
 @inline increment_ptr(ptr::AbstractStridedPointer) = pointer(ptr)
 @inline function increment_ptr(ptr::AbstractStridedPointer, i::Tuple)
-  p, li = tdot(ptr, map(vsub_nsw, i, offsets(ptr)), strides(ptr))
+  ioffset = _offset_index(i, offsets(ptr))
+  p, li = tdot(ptr, ioffset, strides(ptr))
   _gep(p, li, Zero())
 end
-@inline function increment_ptr(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Zero}}, i::Tuple) where {T,N,C,B,R,X}
-  p, li = tdot(ptr, i, strides(ptr))
-  _gep(p, li, Zero())
-end
+# @inline function increment_ptr(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Zero}}, i::Tuple) where {T,N,C,B,R,X}
+#   p, li = tdot(ptr, i, strides(ptr))
+#   _gep(p, li, Zero())
+# end
 @inline increment_ptr(p::StridedBitPointer) = getfield(p,:offsets)
 @inline increment_ptr(p::StridedBitPointer, i::Tuple) = map(vsub_nsw, getfield(p,:offsets), i)
 @inline increment_ptr(p::AbstractStridedPointer, o, i::Tuple) = increment_ptr(reconstruct_ptr(p, o), i)

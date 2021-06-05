@@ -63,7 +63,9 @@ function precalc_quote_from_descript(descript, contig, X)
     anyprecalcs = anydynamicprecals = false
     pstrideextracts = Expr(:block)
     for (i,uf) ∈ enumerate(descript)
-        if i == contig || uf < 3
+        if i > length(X)
+            break
+        elseif i == contig || uf < 3
             push!(precalc.args, nothing)
         else
             t = Expr(:tuple)

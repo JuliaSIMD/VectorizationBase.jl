@@ -139,9 +139,13 @@ end
           # m[ai,aj] = fill(false, jdim, idim)
         end
         if ai < aj
-          pm[dj, di] = true
+          if checkbounds(Bool, pm, dj, di)
+            @inbounds pm[dj, di] = true
+          end
         elseif ai > aj
-          pm[di, dj] = true
+          if checkbounds(Bool, pm, di, dj)
+            @inbounds pm[di, dj] = true
+          end
         end
       end
     end
