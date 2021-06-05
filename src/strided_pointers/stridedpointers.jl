@@ -149,7 +149,7 @@ end
 @inline _offset_index(i::Tuple{}, offset::Tuple{}) = ()
 @inline _offset_index(i::Tuple{I1}, offset::Tuple{I2,I3,Vararg}) where {I1,I2,I3} = (vsub_nsw(only(i), first(offset)),)
 @inline _offset_index(i::Tuple{I1,I2,Vararg}, offset::Tuple{I3}) where {I1,I2,I3} = (vsub_nsw(first(i), first(offset)),)
-@inline _offset_index(i::Tuple{I1}, offset::Tuple{I2}) where {I1,I2,I3}           = (vsub_nsw(only(i), only(offset)),)
+@inline _offset_index(i::Tuple{I1}, offset::Tuple{I2}) where {I1,I2}           = (vsub_nsw(only(i), only(offset)),)
 # iterating
 @inline _offset_index(i::Tuple{I1,I2,Vararg}, offset::Tuple{I3,I4,Vararg}) where {I1,I2,I3,I4} = (vsub_nsw(first(i), first(offset)), _offset_index(Base.tail(i),Base.tail(offset))...)
 

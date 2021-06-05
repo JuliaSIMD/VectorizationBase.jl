@@ -1079,21 +1079,63 @@ end
     end
 end
 
-@inline Base.getindex(A::AbstractArray, i::Unroll) = vload(stridedpointer(A), i)
-@inline Base.setindex!(A::AbstractArray, v, i::Unroll) = vstore!(stridedpointer(A), v, i)
+# @inline function Base.getindex(A::AbstractArray{<:Number}, i::Unroll)
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     x = vload(sp, i)
+#   end
+#   return x
+# end
+# @inline function Base.getindex(A::ArrayInterface.AbstractArray2{<:Number}, i::Unroll)
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     x = vload(sp, i)
+#   end
+#   return x
+# end
+# @inline function Base.setindex!(A::AbstractArray{<:Number}, v, i::Unroll)
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     vstore!(sp, v, i)
+#   end
+#   return v
+# end
+# @inline function Base.setindex!(A::ArrayInterface.AbstractArray2{<:Number}, v, i::Unroll)
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     vstore!(sp, v, i)
+#   end
+#   return v
+# end
 
+# @inline function Base.getindex(A::AbstractArray{<:Number}, i::AbstractSIMD)
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     x = vload(zero_offsets(sp), (vsub_nw(i,ArrayInterface.offset1(A)),))
+#   end
+#   return x
+# end
+# @inline function Base.getindex(A::ArrayInterface.AbstractArray2{<:Number}, i::AbstractSIMD)
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     x = vload(zero_offsets(sp), (vsub_nw(i,ArrayInterface.offset1(A)),))
+#   end
+#   return x
+# end
 
-
-@inline Base.getindex(A::AbstractVector, i::AbstractSIMD) = vload(stridedpointer(A), (i,))
-@inline Base.getindex(A::AbstractArray, i::AbstractSIMD) = vload(stridedpointer(A), (vsub_nw(i,1),))
-@inline Base.getindex(A::AbstractArray, i::AbstractSIMD, j::Vararg{Union{Integer,AbstractSIMD},K}) where {K} = vload(stridedpointer(A), (i,j...))
-@inline Base.getindex(A::AbstractArray, i::Integer, j::AbstractSIMD, k::Vararg{Union{Integer,AbstractSIMD},K}) where {K} = vload(stridedpointer(A), (i,j,k...))
-@inline Base.getindex(A::AbstractArray, i::Integer, j::Integer, k::AbstractSIMD, l::Vararg{Union{Integer,AbstractSIMD},K}) where {K} = vload(stridedpointer(A), (i,j,k,l...))
-
-@inline Base.setindex!(A::AbstractVector, v, i::AbstractSIMD) = vstore!(stridedpointer(A), v, (i,))
-@inline Base.setindex!(A::AbstractArray, v, i::AbstractSIMD) = vstore!(stridedpointer(A), v, (vsub_nw(i,1),))
-@inline Base.setindex!(A::AbstractArray, v, i::AbstractSIMD, j::Vararg{Union{Integer,AbstractSIMD},K}) where {K} = vstore!(stridedpointer(A), v, (i,j...))
-@inline Base.setindex!(A::AbstractArray, v, i::Integer, j::AbstractSIMD, k::Vararg{Union{Integer,AbstractSIMD},K}) where {K} = vstore!(stridedpointer(A), v, (i,j,k...))
-@inline Base.setindex!(A::AbstractArray, v, i::Integer, j::Integer, k::AbstractSIMD, l::Vararg{Union{Integer,AbstractSIMD},K}) where {K} = vstore!(stridedpointer(A), v, (i,j,k,l...))
+# @inline function Base.getindex(A::AbstractArray{<:Number}, i::Vararg{Union{Integer,AbstractSIMD},K}) where {K}
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     x = vload(sp, i)
+#   end
+#   return x
+# end
+# @inline function Base.getindex(A::ArrayInterface.AbstractArray2{<:Number}, i::Vararg{Union{Integer,AbstractSIMD},K}) where {K}
+#   sp, pres = stridedpointer_preserve(A)
+#   GC.@preserve pres begin
+#     x = vload(sp, i)
+#   end
+#   return x
+# end
 
 
