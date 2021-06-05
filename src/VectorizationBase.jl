@@ -2,11 +2,15 @@ module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse
 using ArrayInterface:
-    StaticInt, Zero, One, StaticBool, True, False,
-    contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
-    device, CPUPointer, CPUIndex, eq, ne, lt, le, gt, ge,
-    known_length, known_first, known_last, strides, offsets,
-    static_first, static_last, static_length
+  StaticInt, Zero, One, StaticBool, True, False,
+  contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
+  device, CPUPointer, CPUIndex, eq, ne, lt, le, gt, ge,
+  known_length, known_first, known_last, strides, offsets,
+  static_first, static_last, static_length
+
+using CPUSummary, LLVMCallFunctions, LayoutPointers
+using CPUSummary: intlog2, nextpow2, prevpow2, has_opmask_registers
+
 import IfElse: ifelse
 
 asbool(::Type{True}) = true
@@ -243,12 +247,6 @@ clarification, and especially if you think the function may be useful for others
 """))
 end
 
-"""
-  pause()
-
-For use in spin-and-wait loops, like spinlocks.
-"""
-@inline pause() = ccall(:jl_cpu_pause, Cvoid, ())
 
 # notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
 # function assert_init_has_finished()
@@ -270,16 +268,6 @@ O: offsets
 abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 include("static.jl")
 include("cartesianvindex.jl")
-include("topology.jl")
-include("cpu_info.jl")
-if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
-    include("cpu_info_x86.jl")
-elseif Sys.ARCH === :aarch64
-    include("cpu_info_aarch64.jl")
-else
-    include("cpu_info_generic.jl")
-end
-# include("cache_inclusivity.jl")
 include("early_definitions.jl")
 include("promotion.jl")
 include("llvm_types.jl")
@@ -382,17 +370,17 @@ _precompile_()
   reset_extra_features!()
 end
 
-function __init__()
-  ccall(:jl_generating_output, Cint, ()) == 1 && return
-  safe_topology_load!()
-  unwrap(cpu_name()) === Symbol(Sys.CPU_NAME::String) || redefine()
-  if Hwloc.num_physical_cores() ≠ Int(num_cores()) * ((Sys.ARCH === :aarch64) && Sys.isapple() ? 2 : 1)
-    redefine_attr_count()
-    foreach(redefine_cache, 1:4)
-  end
-  redefine_num_threads()
-  return nothing
-end
+# function __init__()
+#   ccall(:jl_generating_output, Cint, ()) == 1 && return
+#   safe_topology_load!()
+#   unwrap(cpu_name()) === Symbol(Sys.CPU_NAME::String) || redefine()
+#   if Hwloc.num_physical_cores() ≠ Int(num_cores()) * ((Sys.ARCH === :aarch64) && Sys.isapple() ? 2 : 1)
+#     redefine_attr_count()
+#     foreach(redefine_cache, 1:4)
+#   end
+#   redefine_num_threads()
+#   return nothing
+# end
 
 
 end # module

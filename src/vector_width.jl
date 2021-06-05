@@ -88,9 +88,9 @@
     (vm ≥ first(r)) & (vm ≤ last(r))
 end
 
-@inline function pick_vector_width_shift(args::Vararg{Any,K}) where {K}
-    W = pick_vector_width(args...)
-    W, intlog2(W)
-end
+# @inline function pick_vector_width_shift(args::Vararg{Any,K}) where {K}
+#     W = pick_vector_width(args...)
+#     W, intlog2(W)
+# end
     
 
