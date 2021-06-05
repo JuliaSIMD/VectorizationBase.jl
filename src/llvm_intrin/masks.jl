@@ -664,3 +664,8 @@ end
 #     (u1 << W) | u2
 # end
 
+@inline ifelse(b::Bool, m1::Mask{W},    m2::Mask{W})    where {W} = Mask{W}(   Core.ifelse(b, getfield(m1,:u), getfield(m2,:u)))
+@inline ifelse(b::Bool, m1::Mask{W},    m2::EVLMask{W}) where {W} = Mask{W}(   Core.ifelse(b, getfield(m1,:u), getfield(m2,:u)))
+@inline ifelse(b::Bool, m1::EVLMask{W}, m2::Mask{W})    where {W} = Mask{W}(   Core.ifelse(b, getfield(m1,:u), getfield(m2,:u)))
+@inline ifelse(b::Bool, m1::EVLMask{W}, m2::EVLMask{W}) where {W} = EVLMask{W}(Core.ifelse(b, getfield(m1,:u), getfield(m2,:u)),Core.ifelse(b, getfield(m1,:evl), getfield(m2,:evl)))
+

@@ -338,7 +338,7 @@ include("testsetup.jl")
     println("Memory")
     @time @testset "Memory" begin
         C = rand(40,20,10) .> 0;
-        mtest = vload(stridedpointer(C), ((MM{16})(9), 2, 3));
+        mtest = vload(stridedpointer(C), ((MM{16})(9), 2, 3, 1));
         @test VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5))) === VectorizationBase.offsetprecalc(VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5))), Val((3,3)))
         @test VectorizationBase.bytestrides(VectorizationBase.offsetprecalc(stridedpointer(C), Val((5,5)))) === VectorizationBase.bytestrides(stridedpointer(C))
         @test VectorizationBase.bytestrides(C) === VectorizationBase.bytestrides(stridedpointer(C))

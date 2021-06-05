@@ -145,20 +145,24 @@ end
 @inline _vload(ptr::AbstractStridedPointer{T,0}, i::Tuple{}, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS} = __vload(pointer(ptr), A(), StaticInt{RS}())
 @inline gep(ptr::AbstractStridedPointer{T,0}, i::Tuple{}) where {T} = pointer(ptr)
 
-@inline _offset_index(i, ::NTuple{N,Zero}) where {N} = i
-@inline _offset_index(i::Tuple{I}, offset::NTuple{N,Zero}) where {N,I} = i
-@inline _offset_index(i::Tuple{I}, offset) where {I} = (vsub_nsw(only(i), first(offset)),)
-@inline _offset_index(i, offset) = map(vsub_nsw, i, offset)
+# terminating
+@inline _offset_index(i::Tuple{}, offset::Tuple{}) = ()
+@inline _offset_index(i::Tuple{I1}, offset::Tuple{I2,I3,Vararg}) where {I1,I2,I3} = (vsub_nsw(only(i), first(offset)),)
+@inline _offset_index(i::Tuple{I1,I2,Vararg}, offset::Tuple{I3}) where {I1,I2,I3} = (vsub_nsw(first(i), first(offset)),)
+@inline _offset_index(i::Tuple{I1}, offset::Tuple{I2}) where {I1,I2,I3}           = (vsub_nsw(only(i), only(offset)),)
+# iterating
+@inline _offset_index(i::Tuple{I1,I2,Vararg}, offset::Tuple{I3,I4,Vararg}) where {I1,I2,I3,I4} = (vsub_nsw(first(i), first(offset)), _offset_index(Base.tail(i),Base.tail(offset))...)
+
 @inline offset_index(ptr, i) = _offset_index(i, offsets(ptr))
 @inline linear_index(ptr, i) = tdot(ptr, offset_index(ptr, i), strides(ptr))
 
 # Fast compile path?
-@inline function _vload(ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
+@inline function _vload(ptr::AbstractStridedPointer{T,N}, i::Tuple, ::A, ::StaticInt{RS}) where {T,N,A<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     __vload(p, li, A(), StaticInt{RS}())
 end
 @inline function _vload(
-    ptr::AbstractStridedPointer{T,N}, i::Tuple{Vararg{Any,N}}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
+    ptr::AbstractStridedPointer{T,N}, i::Tuple, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
 ) where {T,N,A<:StaticBool,RS}
     p, li = linear_index(ptr, i)
     __vload(p, li, m, A(), StaticInt{RS}())
