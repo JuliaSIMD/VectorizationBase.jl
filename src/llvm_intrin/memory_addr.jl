@@ -345,12 +345,17 @@ end
 @inline vsub_nsw(::NullStep, ::LazyMulAdd) = Zero() # avoid ambiguity
 @inline vsub_nsw(::NullStep, ::NullStep) = Zero()
 @inline vsub_nsw(::NullStep, ::StaticInt) = Zero()
-@inline select_null_offset(::NullStep, x) = x
-@inline select_null_offset(_, x) = Zero()
+
+@inline select_null_offset(i::Tuple{}, off::Tuple{}) = ()
+@inline select_null_offset(i::Tuple{I1,Vararg}, off::Tuple{O1}) where {I1,O1} = (Zero(), )
+@inline select_null_offset(i::Tuple{NullStep,Vararg}, off::Tuple{O1}) where {O1} = (first(off), )
+@inline select_null_offset(i::Tuple{I1,I2,Vararg}, off::Tuple{O1,O2,Vararg}) where {I1,I2,O1,O2} = (Zero(), select_null_offset(Base.tail(i),Base.tail(off))...)
+@inline select_null_offset(i::Tuple{NullStep,I2,Vararg}, off::Tuple{O1,O2,Vararg}) where {I2,O1,O2} = (first(off), select_null_offset(Base.tail(i),Base.tail(off))...)
+
 @inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{Union{NullStep,IntegerIndex}}})
-  inds = map(vsub_nsw, i, offsets(ptr))
-  offs = map(select_null_offset, i, offsets(ptr))
-  similar_with_offset(ptr, gep(zero_offsets(ptr), inds), offs)
+  ioffset = _offset_index(i, offsets(ptr))
+  offs = select_null_offset(i, offsets(ptr))
+  similar_with_offset(ptr, gep(zero_offsets(ptr), ioffset), offs)
 end
 @inline gesp(ptr::AbstractStridedPointer, i::Tuple{NullStep,Vararg{NullStep,N}}) where {N} = ptr
 @inline gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{Any,N}}) where {N} = gesp(ptr, Tuple(CartesianVIndex(i)))#flatten
