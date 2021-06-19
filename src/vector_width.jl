@@ -2,7 +2,6 @@
 # nextpow2(W) = vshl(one(W), vsub_fast(8sizeof(W), leading_zeros(vsub_fast(W, one(W)))))
 
 
-
 # @inline _pick_vector(::StaticInt{W}, ::Type{T}) where {W,T} = Vec{W,T}
 # @inline pick_vector(::Type{T}) where {T} = _pick_vector(pick_vector_width(T), T)
 # @inline function pick_vector(::Val{N}, ::Type{T}) where {N, T}
@@ -92,5 +91,14 @@ end
     W = pick_vector_width(args...)
     W, intlog2(W)
 end
-    
+
+for op ∈ (:(+),:(-))
+  @eval begin
+    @inline Base.$op(vu::VecUnroll{N,1,T,T}, i::MM) where {N,T<:NativeTypes} = VecUnroll(fmap($op, data(vu), i))
+    @inline Base.$op(i::MM, vu::VecUnroll{N,1,T,T}) where {N,T<:NativeTypes} = VecUnroll(fmap($op, i, data(vu)))
+    @inline Base.$op(vu::VecUnroll{N,1,T,T}, i::VecUnroll{N,W,I,MM{W,X,I}}) where {N,W,T<:NativeTypes,I,X} = VecUnroll(fmap($op, data(vu), data(i)))
+    @inline Base.$op(i::VecUnroll{N,W,I,MM{W,X,I}}, vu::VecUnroll{N,1,T,T}) where {N,W,T<:NativeTypes,I,X} = VecUnroll(fmap($op, data(i), data(vu)))
+  end
+end
+# @inline Base.:(+)(vu::VecUnroll{N,W,T,T}, i::MM) = VecUnroll(fmap(+, data(vu), i))
 
