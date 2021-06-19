@@ -23,6 +23,13 @@ end
     (p, pt...), (r, rt...)
 end
 
+struct DensePointerWrapper{D,T,N,C,B,R,X,O,P<:AbstractStridedPointer{T,N,C,B,R,X,O}} <: AbstractStridedPointer{T,N,C,B,R,X,O}
+  p::P
+end
+@inline val_dense_dims(::DensePointerWrapper{D}) where {D} = Val{D}()
+@inline Base.pointer(A::DensePointerWrapper) = pointer(getfield(A,:p))
+@inline DensePointerWrapper{D}(sp::P) where {D,T,N,C,B,R,X,O,P<:AbstractStridedPointer{T,N,C,B,R,X,O}} = DensePointerWrapper{D,T,N,C,B,R,X,O,P}(sp)
+
 grouped_strided_pointer(::Tuple{}, ::Val{()}) = ((),())
 """
 G is a tuple(tuple((A_ind,A's dim),(A_ind,A's dim)), ())
