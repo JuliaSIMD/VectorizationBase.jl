@@ -29,6 +29,11 @@ end
 @inline val_dense_dims(::DensePointerWrapper{D}) where {D} = Val{D}()
 @inline Base.pointer(A::DensePointerWrapper) = pointer(getfield(A,:p))
 @inline DensePointerWrapper{D}(sp::P) where {D,T,N,C,B,R,X,O,P<:AbstractStridedPointer{T,N,C,B,R,X,O}} = DensePointerWrapper{D,T,N,C,B,R,X,O,P}(sp)
+@inline ArrayInterface.offsets(A::DensePointerWrapper) = offsets(getfield(A,:p))
+@inline bytestrides(A::DensePointerWrapper) = bytestrides(getfield(A,:p))
+# for f ∈ (:bytestrides,:offsets)
+#   @eval @inline $f(A::DensePointerWrapper) = $f(getfield(A,:p))
+# end
 
 grouped_strided_pointer(::Tuple{}, ::Val{()}) = ((),())
 """
