@@ -9,4 +9,7 @@ tests/#*#
 *~
 *.mem
 *#*
+Manifest.toml
+test/Manifest.toml
+
 

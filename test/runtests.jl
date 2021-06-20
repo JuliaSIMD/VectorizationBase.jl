@@ -531,7 +531,8 @@ include("testsetup.jl")
         At = ai ? A : (similar(A')');
         Bt = bi ? B : (similar(B')');
         Ct = ci ? C : (similar(C')');
-        gsp, pres = @inferred(VectorizationBase.grouped_strided_pointer((At,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
+        spdw = VectorizationBase.DensePointerWrapper{(true,true)}(VectorizationBase.stridedpointer(At))
+        gsp, pres = @inferred(VectorizationBase.grouped_strided_pointer((spdw,Bt,Ct), Val{(((1,1),(3,1)),((1,2),(2,1)),((2,2),(3,2)))}()))
         if ai === ci
           @test sizeof(gsp.strides) == 2sizeof(Int)
         end
@@ -820,6 +821,9 @@ include("testsetup.jl")
 
             @test gcd(Vec(42,64,0,-37), Vec(18,96,-38,0)) === Vec(6,32,38,37)
             @test lcm(Vec(24,16,42,0),Vec(18,12,18,17)) === Vec(72, 48, 126, 0)
+        end
+        if VectorizationBase.simd_integer_register_size() ≥ 16
+          @test VecUnroll((Vec(ntuple(Int32,Val(4))...),Vec(ntuple(Int32 ∘ Base.Fix2(+,4), Val(4))...))) << Vec(0x01,0x02,0x03,0x04) === VecUnroll((Vec(map(Int32,(2,8,24,64))...), Vec(map(Int32,(10,24,56,128))...)))
         end
     end
     println("Ternary Functions")

@@ -1,4 +1,3 @@
-
 # unary # 2^2 - 2 = 2 definitions
 @inline fmap(f::F, x::Tuple{X}) where {F,X} = (f(first(x)),)
 @inline fmap(f::F, x::NTuple) where {F} = (f(first(x)), fmap(f, Base.tail(x))...)
@@ -90,9 +89,9 @@ for op ∈ [:vgt,:vge,:vlt,:vle,:veq,:vne,:vmax,:vmax_fast,:vmin,:vmin_fast]
 end
 
 for op ∈ [:vrem, :vshl, :vashr, :vlshr, :vdiv, :vfdiv, :vrem_fast, :vfdiv_fast]
-    @eval begin
-        @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data)))
-    end
+  @eval begin
+    @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data)))
+  end
 end
 for op ∈ [:vrem, :vand, :vor, :vxor, :vshl, :vashr, :vlshr, :vlt, :vle,:vgt,:vge,:veq,:vne]
     @eval begin
@@ -101,7 +100,11 @@ for op ∈ [:vrem, :vand, :vor, :vxor, :vshl, :vashr, :vlshr, :vlt, :vle,:vgt,:v
     end
 end
 for op ∈ [:vshl, :vashr, :vlshr]
-    @eval @inline $op(m::AbstractMask, vu::VecUnroll) = $op(Vec(m), vu)
+  @eval begin
+    @inline $op(m::AbstractMask, vu::VecUnroll) = $op(Vec(m), vu)
+    @inline $op(v1::AbstractSIMDVector, v2::VecUnroll) = VecUnroll(fmap($op, v1, getfield(v2, :data)))
+    @inline $op(v1::VecUnroll, v2::AbstractSIMDVector) = VecUnroll(fmap($op, getfield(v1, :data), v2))
+  end
 end
 for op ∈ [:rotate_left,:rotate_right,:funnel_shift_left,:funnel_shift_right]
     @eval begin
@@ -238,4 +241,3 @@ end
 # @inline vminimum(vu::VecUnroll) = vminimum(collapse_min(vu))
 # @inline vall(vu::VecUnroll) = vall(collapse_and(vu))
 # @inline vany(vu::VecUnroll) = vany(collapse_or(vu))
-
