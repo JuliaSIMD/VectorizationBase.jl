@@ -177,19 +177,12 @@ end
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
     # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
-    if Base.libllvm_version ≥ v"11"
-        quote
-            $(Expr(:meta,:inline))
-            mask(Val{$W}(), zero(l), ((l - one(l)) & $(I(W-1))))
-        end
-    else
-        M = mask_type_symbol(W)
-        quote
-            $(Expr(:meta,:inline))
-            rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
-            rem ≥ MM{$W}(0)
-        end
-    end
+  M = mask_type_symbol(W)
+  quote
+    $(Expr(:meta,:inline))
+    rem = valrem(Val{$W}(), vsub((l % $M), one($M)))
+    rem ≥ MM{$W}(0)
+  end
 end
 @inline function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W, I <: Integer}
     _mask(StaticInt{W}(), l, has_opmask_registers())
@@ -452,100 +445,4 @@ end
 @inline vmul(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
 @inline vmul(b::Bool, v::VecUnroll{N,W,T}) where {N,W,T} = b ? v : zero(v)
 
-
-
-@static if Base.libllvm_version ≥ v"11"
-    """
-      mask(::Union{StaticInt{W},Val{W}}, base, N)
-      mask(base::MM{W}, N)
-
-    The two arg (`base`, `N`) method takes a base (current index) and last index of a loop.
-    Idiomatic use for three-arg version may look like
-
-    ```julia
-    using VectorizationBase
-    sp = stridedpointer(x);
-    for i ∈ 1:8:N
-        m = mask(Val(8), (MM{8}(i),), N) # if using an integer base, also needs a `Val` or `StaticInt` to indicate size.
-        v = vload(sp, (MM{8}(i),), m)
-        # do something with `v`
-    end
-    ```
-    or, a full runnable example:
-    ```julia
-    using VectorizationBase, SLEEFPirates
-    x = randn(117); y = similar(x);
-    function vexp!(y, x)
-        W = VectorizationBase.pick_vector_width(eltype(x));
-        L = length(y);
-        spx = stridedpointer(x); spy = stridedpointer(y);
-        i = MM(W, 1); # use an `MM` index.
-        while (m = mask(i,L); m !== VectorizationBase.zero_mask(W))
-            yᵢ = exp(vload(spx, (i,), m))
-            vstore!(spy, yᵢ, (i,), m)
-            i += W
-        end
-    end
-
-    vexp!(y, x)
-    @assert y ≈ exp.(x)
-
-    # A sum optimized for short vectors (e.g., 10-20 elements)
-    function simd_sum(x)
-        W = VectorizationBase.pick_vector_width(eltype(x));
-        L = length(x);
-        spx = stridedpointer(x);
-        i = MM(W, 1); # use an `MM` index.
-        s = VectorizationBase.vzero(W, eltype(x))
-        while (m = mask(i,L); m !== VectorizationBase.zero_mask(W))
-            s += vload(spx, (i,), m)
-            i += W
-        end
-        VectorizationBase.vsum(s)
-    end
-    # or
-    function simd_sum(x)
-        W = VectorizationBase.pick_vector_width(eltype(x));
-        L = length(x);
-        spx = stridedpointer(x);
-        i = MM(W, 1); # use an `MM` index.
-        s = VectorizationBase.vzero(W, eltype(x))
-        cond = true
-        m = mask(i,L)
-        while cond
-            s += vload(spx, (i,), m)
-            i += W
-            m = mask(i,L)
-            cond = m !== VectorizationBase.zero_mask(W)
-        end
-        VectorizationBase.vsum(s)
-    end
-    ```
-
-    ```julia
-    julia> VectorizationBase.mask(Val(8), 1, 6) # starting with `i = 1`, if vector is of length 6, 6 lanes are on
-    Mask{8,Bool}<1, 1, 1, 1, 1, 1, 0, 0>
-
-    julia> VectorizationBase.mask(Val(8), 81, 93) # if `i = 81` and the vector is of length 93, we want all lanes on.
-    Mask{8,Bool}<1, 1, 1, 1, 1, 1, 1, 1>
-
-    julia> VectorizationBase.mask(Val(8), 89, 93) # But after `i += 8`, we're at `i = 89`, and now want just 5 lanes on.
-    Mask{8,Bool}<1, 1, 1, 1, 1, 0, 0, 0>
-    ```
-    """
-    @generated function mask(::Union{Val{W},StaticInt{W}}, base::T, N::T) where {W,T <: IntegerTypesHW}
-        # declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i64(i64 %base, i64 %n)
-        bits = 8sizeof(T)
-        typ = "i$(bits)"
-        decl = "declare <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ), $(typ))"
-        instrs = ["%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)"]
-        zext_mask!(instrs, 'm', W, 0)
-        push!(instrs, "ret i$(max(W,8)) %res.0")
-        # args =  [:base, :(vsub(N,one($T)))]
-        args =  [:base, :N]
-        call = llvmcall_expr(decl, join(instrs,"\n"), mask_type_symbol(W), :(Tuple{$T,$T}), "i$(max(W,8))", [typ, typ], args, true)
-        Expr(:block, Expr(:meta,:inline), :(Mask{$W}($call)))
-    end
-    @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} = mask(Val{W}(), i.i, N)
-end
 
