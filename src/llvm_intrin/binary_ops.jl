@@ -142,3 +142,35 @@ end
 @inline vrem(a::Float32, b::Float32) = Base.rem_float_fast(a, b)
 @inline vrem(a::Float64, b::Float64) = Base.rem_float_fast(a, b)
 
+@inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
+  Base.FastMath.add_fast(Base.FastMath.add_fast(a,b),c)
+end
+@inline function Base.FastMath.add_fast(a::T, b::T, c::T) where {T<:AbstractSIMD}
+  Base.FastMath.add_fast(Base.FastMath.add_fast(a,b),c)
+end
+
+@inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD, d::AbstractSIMD)
+  x = Base.FastMath.add_fast(a,b)
+  y = Base.FastMath.add_fast(c,d)
+  Base.FastMath.add_fast(x, y)
+end
+@inline function Base.FastMath.add_fast(a::T, b::T, c::T, d::T) where {T<:AbstractSIMD}
+  x = Base.FastMath.add_fast(a,b)
+  y = Base.FastMath.add_fast(c,d)
+  Base.FastMath.add_fast(x, y)
+end
+
+@inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD, d::AbstractSIMD, e::AbstractSIMD, f::Vararg{Any,K}) where {K}
+  x = Base.FastMath.add_fast(a,b)
+  y = Base.FastMath.add_fast(c,d)
+  Base.FastMath.add_fast(Base.FastMath.add_fast(x, y), e, f...)
+end
+@inline function Base.FastMath.add_fast(a::T, b::T, c::T, d::T, e::T, f::Vararg{T,K}) where {T<:AbstractSIMD,K}
+  x = Base.FastMath.add_fast(a,b)
+  y = Base.FastMath.add_fast(c,d)
+  Base.FastMath.add_fast(Base.FastMath.add_fast(x, y), e, f...)
+end
+
+
+
+
