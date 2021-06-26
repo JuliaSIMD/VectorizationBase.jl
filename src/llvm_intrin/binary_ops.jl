@@ -160,7 +160,7 @@ end
   Base.FastMath.add_fast(x, y)
 end
 
-@inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD, d::AbstractSIMD, e::AbstractSIMD, f::Vararg{Any,K}) where {K}
+@inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD, d::AbstractSIMD, e::AbstractSIMD, f::Vararg{Number,K}) where {K}
   x = Base.FastMath.add_fast(a,b)
   y = Base.FastMath.add_fast(c,d)
   Base.FastMath.add_fast(Base.FastMath.add_fast(x, y), e, f...)
