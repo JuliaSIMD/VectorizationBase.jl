@@ -98,22 +98,29 @@ end
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,S}) where {T<:NativeTypes,S,W} = vconvert(Vec{W,T}, v)
 
 ### `vconvert(::Type{<:VecUnroll}, x)` methods
-@inline function vconvert(::Type{VecUnroll{N,W,T,V}}, s::NativeTypes) where {N,W,T,V}
-    VecUnroll{N}(vconvert(V, s))
-end
+@inline vconvert(::Type{VecUnroll{N,W,T,V}}, s::NativeTypes) where {N,W,T,V} = VecUnroll{N,W,T,V}(vconvert(V, s))
 @inline function _vconvert(::Type{VecUnroll{N,W,T,V}}, v::AbstractSIMDVector{W}) where {N,W,T,V}
-    VecUnroll{N}(vconvert(V, v))
+  VecUnroll{N,W,T,V}(vconvert(V, v))
 end
 @inline function vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N}) where {N,W,T,V}
-    VecUnroll(fmap(vconvert, V, getfield(v, :data)))
+  VecUnroll(fmap(vconvert, V, getfield(v, :data)))
 end
 @inline vconvert(::Type{VecUnroll{N,W,T,V}}, v::VecUnroll{N,W,T,V}) where {N,W,T,V} = v
 @generated function vconvert(::Type{VecUnroll{N,1,T,T}}, s::NativeTypes) where {N,T}
-    quote
-        $(Expr(:meta,:inline))
-        x = convert($T, s)
-        VecUnroll((Base.Cartesian.@ntuple $(N+1) n -> x))
-    end
+  quote
+    $(Expr(:meta,:inline))
+    x = convert($T, s)
+    VecUnroll((Base.Cartesian.@ntuple $(N+1) n -> x))
+  end
+end
+@generated function VecUnroll{N,W,T,V}(x::V) where {N,W,T,V<:Real}
+  q = Expr(:block, Expr(:meta,:inline))
+  t = Expr(:tuple)
+  for n ∈ 0:N
+    push!(t.args, :x)
+  end
+  push!(q.args, :(VecUnroll($t)))
+  q
 end
 
 # @inline vconvert(::Type{T}, v::T) where {T} = v

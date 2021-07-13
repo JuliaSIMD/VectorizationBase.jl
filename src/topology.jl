@@ -215,7 +215,7 @@ function redefine_cache(N)
         inclusive = i === nothing ? nothing : Bool(i)::Bool
     )
     correct = dynamic_cache_summary(N)
-    if c !== correct
+    if (c ≢ correct) && (correct ≢ nothing_cache_summary())
         @debug "Redefining cache $N."
         _define_cache(N, correct)
     end

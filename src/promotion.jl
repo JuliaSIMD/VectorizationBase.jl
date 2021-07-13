@@ -20,7 +20,7 @@ Base.promote_rule(::Type{V}, ::Type{T2}) where {W,T1,T2<:NativeTypes,V<:Abstract
 Base.promote_rule(::Type{V}, ::Type{Bool}) where {V<:AbstractMask} = V
 
 
-_assemble_vec_unroll(::Val{N}, ::Type{V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = VecUnroll{N,W,T,V}
+_assemble_vec_unroll(::Val{N}, ::Type{V}) where {N,W,T,V<:AbstractSIMD{W,T}} = VecUnroll{N,W,T,V}
 _assemble_vec_unroll(::Val{N}, ::Type{T}) where {N,T<:NativeTypes} = VecUnroll{N,1,T,T}
 Base.promote_rule(::Type{VecUnroll{N,W,T1,V}}, ::Type{T2}) where {N,W,T1,V,T2<:NativeTypes} = _assemble_vec_unroll(Val{N}(), promote_type(V,T2))
 Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,T2,V2<:AbstractSIMDVector{W,T2}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
