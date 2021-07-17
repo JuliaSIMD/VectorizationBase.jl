@@ -109,9 +109,10 @@ function _shuffle_load_quote(
     end
     # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
     ((AV > 0) && interleave_memory_access(AU, C, F, X, UN, size_T, B)) || return nothing
+    Wfull = W * UN
+    (mask && (Wfull > 128)) && return nothing
     # `X` is stride between indices, e.g. `X = 3` means our final vectors should be `<x[0], x[3], x[6], x[9]>`
     # We need `X` to equal the steps (the unrolling factor)
-    Wfull = W * UN
     vloadexpr = vload_quote_llvmcall(
         T_sym, I_sym, ind_type, Wfull, size_T, M, O, mask, align, rs, :(_Vec{$Wfull,$T_sym})
     )
@@ -329,7 +330,7 @@ end
         bitlq === nothing || return bitlq
     end
     align = A === True
-    should_transpose = should_transpose_memop(F,C,AU,AV,UN,M)
+    should_transpose = should_transpose_memop(F,C,AU,AV,UN,zero(UInt64))
     if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
     end
@@ -351,7 +352,7 @@ end
         bitlq = bitload(AU,W,AV,F,UN,RS,false)
         bitlq === nothing || return bitlq
     end
-    should_transpose = should_transpose_memop(F,C,AU,AV,UN,M)
+    should_transpose = should_transpose_memop(F,C,AU,AV,UN,zero(UInt64))
     if should_transpose
         vload_transpose_quote(N,AU,F,UN,AV,W,UX,A === True,RS,sizeof(T),zero(UInt),false)
     else
@@ -502,6 +503,7 @@ function _shuffle_store_quote(
     # `X` is stride between indices, e.g. `X = 3` means our final vectors should be `<x[0], x[3], x[6], x[9]>`
     # We need `X` to equal the steps (the unrolling factor)
     Wfull = W * UN
+    (mask && (Wfull > 128)) && return nothing
     # the approach for combining is to keep concatenating vectors to double their length
     # until we hit ≥ half Wfull, then we `vresize` the remainder, and shuffle in the final combination before storing.
 
@@ -676,7 +678,7 @@ end
   align =  A === True
   alias =  S === True
   notmp = NT === True
-  should_transpose = should_transpose_memop(F,C,AU,AV,N,M)
+  should_transpose = should_transpose_memop(F,C,AU,AV,N,zero(UInt64))
   if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         # should transpose means we'll transpose, but we'll only prefer it over the
         # `shuffle_store_quote` implementation if W == N, and we're using the entire register.
@@ -700,7 +702,7 @@ end
   alias =  S === True
   notmp = NT === True
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
-  if should_transpose_memop(F,C,AU,AV,N,M)
+  if should_transpose_memop(F,C,AU,AV,N,zero(UInt64))
     vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
   else
     vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, false, align, alias, notmp, RS, false)
@@ -977,7 +979,7 @@ function vstore_double_unroll_quote(
     sexpr = Expr(:call, S ? :True : :False)
     ntexpr = Expr(:call, NT ? :True : :False)
     rsexpr = Expr(:call, Expr(:curly, :StaticInt, RS))
-    if (AUO == C) & (AV ≠ C)  # outer unroll is along contiguous axis
+    if (AUO == C) & ((AV ≠ C) | ((AV == C) & (X == NO))) # outer unroll is along contiguous axis, so we swap outer and inner
         # so we loop over `UI+1`, constructing VecUnrolls "slices", and store those
         unroll = :(Unroll{$AUO,$FO,$NO,$AV,$W,$MO,$X}(Zero()))
         vds = Vector{Symbol}(undef, NO)

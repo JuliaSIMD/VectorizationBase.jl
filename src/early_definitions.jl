@@ -36,6 +36,7 @@ end
     _pick_vector_width(One(), smin(register_size(), nextpow2(StaticInt{P}())), T)
 end
 
+
 function integer_of_bytes_symbol(bytes::Int, unsigned::Bool = false)
     if bytes ≥ 8
         unsigned ? :UInt64 : :Int64
@@ -97,6 +98,7 @@ end
     signorunsign(I, issigned(T))
 end
 
+
 function mask_type_symbol(W)
     if W <= 8
         return :UInt8
@@ -106,8 +108,14 @@ function mask_type_symbol(W)
         return :UInt32
     elseif W <= 64
         return :UInt64
-    else#if W <= 128
+    elseif W <= 128
         return :UInt128
+    elseif W <= 256
+        return :UInt256
+    elseif W <= 512
+        return :UInt512
+    else#if W <= 1024
+        return :UInt1024
     end
 end
 function mask_type(W)
@@ -119,8 +127,14 @@ function mask_type(W)
         return UInt32
     elseif W <= 64
         return UInt64
-    else#if W <= 128
+    elseif W <= 128
         return UInt128
+    elseif W <= 256
+        return UInt256
+    elseif W <= 512
+        return UInt512
+    else#if W <= 1024
+        return UInt1024
     end
 end
 mask_type(::Union{Val{1},StaticInt{1}}) = UInt8#Bool

@@ -222,7 +222,10 @@ function offset_ptr(
     end
     # ind_type === :Integer || ind_type === :StaticInt
     if !(isone(X) | iszero(X)) # vec
-        vibytes = min(4, rs ÷ W)
+        # LLVM assumes integers are signed for indexing
+        # therefore, we need to set the integer size to be at least `nextpow2(intlog2(X*W-1)+2)` bits
+        # to avoid overflow
+        vibytes = max(min(4, rs ÷ W), nextpow2(intlog2(X*W-1)+2)>>3)
         vityp = "i$(8vibytes)"
         vi = join((X*w for w ∈ 0:W-1), ", $vityp ")
         if typ !== index_gep_typ

@@ -50,6 +50,58 @@ const IntegerTypes = Union{StaticInt,IntegerTypesHW}
 
 struct Bit; data::Bool; end # Dummy for Ptr
 const Boolean = Union{Bit,Bool}
+
+# for N ∈ (256,512,1024)
+#   T = Symbol(:UInt,N)
+#   str = "ret i$(N) "
+#   @eval begin
+#     primitive type $T <: Unsigned $N end
+#     Base.zero(::Type{$T}) = Base.llvmcall($(str*'0'), $T, Tuple{})
+#     Base.typemax(::Type{$T}) = Base.llvmcall($(str*"-1"), $T, Tuple{})
+#     ($T)(x::Integer) = Base.zext_int($T, x)
+#   end
+# end
+# const BigBitUInt = Union{UInt256,UInt512,UInt1024}
+
+# Base.typemin(::Type{T}) where {T <: BigBitUInt} = zero(T)
+
+# Base.:(~)(x::BigBitUInt) = Base.not_int(x)
+# Base.count_ones(x::BigBitUInt) = Base.trunc_int(Int, Base.ctpop_int(x))
+# Base.leading_zeros(x::BigBitUInt) = Base.trunc_int(Int, Base.ctlz_int(x))
+# Base.trailing_zeros(x::BigBitUInt) = Base.trunc_int(Int, Base.cttz_int(x))
+# Base.rem(x::BigBitUInt, ::Type{I}) where {I<:Integer} = Base.trunc_int(I, x)
+# Base.rem(x::T, ::Type{T}) where {T<:BigBitUInt} = x
+# for (f,intrin) ∈ [(:(>>),:lshr_int), (:(>>>),:lshr_int), (:(<<),:shl_int), (:(|), :or_int), (:(&), :and_int), (:(⊻), :xor_int), (:(+), :add_int), (:(-), :sub_int), (:(*), :mul_int)]
+#   @eval Base.$f(x::T, y::T) where {T <: BigBitUInt} = Base.$intrin(x, y)
+# end
+# for f ∈ [:(|),:(&),:(⊻),:(+),:(-),:(*)]
+#   @eval Base.$f(x::T, y::Unsigned) where {T <: BigBitUInt} = $f(x, Base.zext_int(T, y))
+#   @eval Base.$f(y::Unsigned, x::T) where {T <: BigBitUInt} = $f(Base.zext_int(T, y), x)
+#   @eval Base.$f(x::T, y::Signed) where {T <: BigBitUInt} = $f(x, Base.sext_int(T, y))
+#   @eval Base.$f(y::Signed, x::T) where {T <: BigBitUInt} = $f(Base.sext_int(T, y), x)
+# end
+
+# Base.:(>>)(x::T, y::Unsigned) where {T <: BigBitUInt} = Base.lshr_int(x, Base.zext_int(T, y))
+# Base.:(>>>)(x::T, y::Unsigned) where {T <: BigBitUInt} = Base.lshr_int(x, Base.zext_int(T, y))
+# Base.:(<<)(x::T, y::Unsigned) where {T <: BigBitUInt} = Base.shl_int(x, Base.zext_int(T, y))
+
+# Base.:(>>)(x::T, y::Signed) where {T <: BigBitUInt} = x << unsigned(-y)
+# Base.:(>>>)(x::T, y::Signed) where {T <: BigBitUInt} = x << unsigned(-y)
+# Base.:(<<)(x::T, y::Signed) where {T <: BigBitUInt} = x >> unsigned(-y)
+
+# function Base.rand(::Type{UInt256})
+#   x = zero(UInt256)
+#   x |= rand(UInt64)
+#   x <<= 0x0000000000000040
+#   x |= rand(UInt64)
+#   x <<= 0x0000000000000040
+#   x |= rand(UInt64)
+#   x <<= 0x0000000000000040
+#   x |= rand(UInt64)
+#   x
+# end
+
+# const NativeTypesExceptBit = Union{Bool,HWReal,Int128,UInt128,UInt256,UInt512,UInt1024}
 const NativeTypesExceptBit = Union{Bool,HWReal}
 const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
@@ -106,6 +158,7 @@ end
 @inline _demoteint(::Type{UInt64}) = UInt32
 
 
+# abstract type AbstractMask{W,U<:Union{UnsignedHW,UInt128,UInt256,UInt512,UInt1024}} <: AbstractSIMDVector{W,Bit} end
 abstract type AbstractMask{W,U<:Union{UnsignedHW,UInt128}} <: AbstractSIMDVector{W,Bit} end
 struct Mask{W,U} <: AbstractMask{W,U}
     u::U
@@ -186,18 +239,18 @@ function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
 end
 Base.bitstring(m::AbstractMask{W}) where {W} = bitstring(data(m))[end-W+1:end]
 function Base.show(io::IO, m::AbstractMask{W}) where {W}
-    bits = data(m)
-    if m isa EVLMask
-        print(io, "EVLMask{$W,Bit}<")
-    else
-        print(io, "Mask{$W,Bit}<")
-    end
-    for w ∈ 0:W-1
-        print(io, bits & 1)
-        bits >>= 1
-        w < W-1 && print(io, ", ")
-    end
-    print(io, ">")
+  bits = data(m)
+  if m isa EVLMask
+    print(io, "EVLMask{$W,Bit}<")
+  else
+    print(io, "Mask{$W,Bit}<")
+  end
+  for w ∈ 0:W-1
+    print(io, (bits & 0x01) % Int)
+    bits >>= 0x01
+    w < W-1 && print(io, ", ")
+  end
+  print(io, ">")
 end
 function Base.show(io::IO, vu::VecUnroll{N,W,T,V}) where {N,W,T,V}
     println(io, "$(N+1) x $V")

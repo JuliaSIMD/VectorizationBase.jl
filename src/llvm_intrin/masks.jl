@@ -236,13 +236,13 @@ end
     Expr(:block, Expr(:meta, :inline), ex)
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
-    # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
-    M = mask_type(W)
-    quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
-        $(Expr(:meta,:inline))
-        evl = valrem(Val{$W}(), (l % $M) - one($M))
-        EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
-    end
+  # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
+  M = mask_type(W)
+  quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
+    $(Expr(:meta,:inline))
+    evl = valrem(Val{$W}(), (l % $M) - one($M))
+    EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
+  end
 end
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
     # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
@@ -267,7 +267,7 @@ end
 end
 
 @inline function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W, I <: Integer}
-    _mask(StaticInt{W}(), l, has_opmask_registers())
+  _mask(StaticInt{W}(), l, has_opmask_registers())
 end
 # This `mask` method returns a constant, independent of `has_opmask_registers()`; that only effects method of calculating
 # the constant. So it'd be safe to bake in a value.
