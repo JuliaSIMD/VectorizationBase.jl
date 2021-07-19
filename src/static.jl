@@ -39,8 +39,6 @@ for (f,ff) ∈ [
     # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
     @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} = $ff(M%T, x)
     @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} = $ff(x, M%T)
-    @inline $ff(::StaticInt{M}, x::MM) where {M} = $ff(M, x)
-    @inline $ff(x::MM, ::StaticInt{M}) where {M} = $ff(x, M)
     @inline $ff(::StaticInt{M}, x::T) where {M,T} = $ff(T(M), x)
     @inline $ff(x::T, ::StaticInt{M}) where {M,T} = $ff(x, T(M))
   end
@@ -49,8 +47,6 @@ for f ∈ [:vadd_fast, :vsub_fast, :vmul_fast]
   @eval begin
     @inline $f(::StaticInt{M}, n::T) where {M,T<:Number} = $f(T(M), n)
     @inline $f(m::T, ::StaticInt{N}) where {N,T<:Number} = $f(m, T(N))
-    @inline $f(::StaticInt{M}, n::MM) where {M} = $f(M, n)
-    @inline $f(m::MM, ::StaticInt{N}) where {N} = $f(m, N)
   end
 end
 for f ∈ [:vsub, :vsub_fast, :vsub_nsw, :vsub_nuw, :vsub_nw]
@@ -83,13 +79,13 @@ end
 @inline vmul_fast(::One, ::StaticInt{N}) where {N} = StaticInt{N}()
 @inline vmul_fast(::One, ::One) = One()
 @inline vmul_fast(a::Number, ::One) = a
+@inline vmul_fast(a::MM, ::One) = a
 @inline vmul_fast(a::IntegerTypesHW, ::One) = a
 @inline vmul_fast(::One, a::Number) = a
+@inline vmul_fast(::One, a::MM) = a
 @inline vmul_fast(::One, a::IntegerTypesHW) = a
 @inline vmul_fast(::Zero, ::One) = Zero()
 @inline vmul_fast(::One, ::Zero) = Zero()
-@inline vmul_fast(i::MM{W,X}, ::StaticInt{1}) where {W,X} = i
-@inline vmul_fast(::StaticInt{1}, i::MM{W,X}) where {W,X} = i
 
 for T ∈ [:VecUnroll, :AbstractMask, :MM]
     @eval begin

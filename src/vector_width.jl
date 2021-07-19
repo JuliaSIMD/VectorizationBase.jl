@@ -31,12 +31,11 @@
 @inline vadd_nsw(i::MM{W,X}, j::IntegerTypesHW) where {W,X} = MM{W,X}(vadd_nsw(data(i), j))
 @inline vadd_nsw(i::IntegerTypesHW, j::MM{W,X}) where {W,X} = MM{W,X}(vadd_nsw(i, data(j)))
 @inline vadd_nsw(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vadd_nsw(data(i), StaticInt{j}()))
-@inline vadd_nsw(i::MM{W,X}, ::Zero) where {W,X} = i
+@inline vadd_nsw(i::MM, ::Zero) = i
 @inline vadd_nsw(::StaticInt{i}, j::MM{W,X}) where {W,X,i} = MM{W,X}(vadd_nsw(StaticInt{i}(), data(j)))
 @inline vadd_nsw(::Zero, j::MM{W,X}) where {W,X} = j
 @inline vsub_nsw(i::MM{W,X}, j::IntegerTypesHW) where {W,X} = MM{W,X}(vsub_nsw(data(i), j))
 @inline vsub_nsw(i::MM{W,X}, ::StaticInt{j}) where {W,X,j} = MM{W,X}(vsub_nsw(data(i), StaticInt{j}()))
-@inline vsub_nsw(i::MM{W,X}, ::Zero) where {W,X} = i
 @inline vsub(i::MM{W,X}, ::StaticInt{0}) where {W,X} = i
 @inline vsub_fast(i::MM) = i * StaticInt{-1}()
 @inline vsub_nsw(i::MM) = i * StaticInt{-1}()
@@ -77,6 +76,7 @@
 @inline veq(::MM{W,<:Integer}, ::AbstractIrrational) where {W} = zero(Mask{W})
 @inline veq(i::MM{W}, x::AbstractIrrational) where {W} = Vec(i) == x
 
+@inline vsub_nsw(i::MM, ::Zero) = i
 @inline vsub_nsw(i::NativeTypes, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_nsw(i, data(j)), -StaticInt{X}())
 @inline vsub_fast(i::NativeTypes, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_fast(i, data(j)), -StaticInt{X}())
 @inline vsub_nsw(i::Union{FloatingTypes,IntegerTypesHW}, j::MM{W,X}) where {W,X} = MM(StaticInt{W}(), vsub_nsw(i, data(j)), -StaticInt{X}())
