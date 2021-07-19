@@ -39,13 +39,19 @@ for (f,ff) ∈ [
     # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
     @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} = $ff(M%T, x)
     @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} = $ff(x, M%T)
-    @inline $ff(::StaticInt{M}, x) where {M} = $ff(M, x)
+    @inline $ff(::StaticInt{M}, x::MM) where {M} = $ff(M, x)
+    @inline $ff(x::MM, ::StaticInt{M}) where {M} = $ff(x, M)
+    @inline $ff(::StaticInt{M}, x::T) where {M,T} = $ff(T(M), x)
     @inline $ff(x::T, ::StaticInt{M}) where {M,T} = $ff(x, T(M))
   end
 end
 for f ∈ [:vadd_fast, :vsub_fast, :vmul_fast]
-    @eval @inline $f(::StaticInt{M}, n::Number) where {M} = $f(M, n)
-    @eval @inline $f(m::Number, ::StaticInt{N}) where {N} = $f(m, N)
+  @eval begin
+    @inline $f(::StaticInt{M}, n::T) where {M,T<:Number} = $f(T(M), n)
+    @inline $f(m::T, ::StaticInt{N}) where {N,T<:Number} = $f(m, T(N))
+    @inline $f(::StaticInt{M}, n::MM) where {M} = $f(M, n)
+    @inline $f(m::MM, ::StaticInt{N}) where {N} = $f(m, N)
+  end
 end
 for f ∈ [:vsub, :vsub_fast, :vsub_nsw, :vsub_nuw, :vsub_nw]
   @eval begin
