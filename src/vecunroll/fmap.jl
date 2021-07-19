@@ -57,7 +57,7 @@ end
 @inline inv_approx(v::VecUnroll{N,W,T}) where {N,W,T<:Union{Float32,Float64}} = VecUnroll(fmap(inv_approx, getfield(v, :data)))
 
 @inline vreinterpret(::Type{T}, v::VecUnroll) where {T<:Number} = VecUnroll(fmap(vreinterpret, T, getfield(v, :data)))
-for op ∈ [:vadd,:vsub,:vmul,:vand,:vor,:vxor,:vlt,:vle,:vgt,:vge,:veq,:vne,:vadd_fast,:vsub_fast,:vmul_fast]
+for op ∈ [:vadd,:vsub,:vmul,:vand,:vor,:vxor,:vlt,:vle,:vgt,:vge,:veq,:vne,:vadd_fast,:vsub_fast,:vmul_fast,:vsub_nsw,:vadd_nsw,:vmul_nsw,:vsub_nw,:vadd_nw,:vmul_nw,:vsub_nuw,:vadd_nuw,:vmul_nuw]
     @eval begin
         @inline $op(v1::VecUnroll, v2::VecUnroll) = VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data)))
         @inline $op(v1::VecUnroll, v2::VecOrScalar) = VecUnroll(fmap($op, getfield(v1, :data), v2))
