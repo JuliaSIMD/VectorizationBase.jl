@@ -15,7 +15,7 @@ Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 ArrayInterface = "3.1.2"
 Hwloc = "2.0"
 IfElse = "0.1"
-Static = "0.2"
+Static = "0.2, 0.3"
 julia = "1.5"
 
 [extras]
