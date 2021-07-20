@@ -191,6 +191,8 @@ end
 end
 @inline vany(b::Bool) = b
 @inline vall(b::Bool) = b
+@inline vsum(m::AbstractMask) = count_ones(getfield(m, :u))
+@inline vprod(m::AbstractMask) = vall(m)
 
 @generated function vnot(m::AbstractMask{W,U}) where {W,U}
     mtyp_input = "i$(8sizeof(U))"

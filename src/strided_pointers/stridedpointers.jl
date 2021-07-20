@@ -116,6 +116,10 @@ end
     StridedPointer{T,N,C,B,R}(getfield(sptr, :p), getfield(sptr, :strd), zerotuple(Val{N}()))
 end
 @inline zstridedpointer(A) = zero_offsets(stridedpointer(A))
+@inline function zstridedpointer_preserve(A::AbstractArray)#{T}) where {T <: NativeTypes}
+  p, r = stridedpointer_preserve(A)
+  zero_offsets(p), r
+end
 
 @inline function Base.similar(sptr::StridedPointer{T,N,C,B,R,X,O}, ptr::Ptr{T}) where {T,N,C,B,R,X,O}
     StridedPointer{T,N,C,B,R,X,O}(ptr, getfield(sptr, :strd), getfield(sptr, :offsets))
