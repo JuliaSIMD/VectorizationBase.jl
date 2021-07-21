@@ -178,6 +178,8 @@ end
 @inline zero_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(zero_mask(Val(W))))
 @inline max_mask(::AbstractSIMDVector{W}) where {W} = Mask(max_mask(Val(W)))
 @inline max_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(max_mask(Val(W))))
+@inline zero_mask(::NativeTypes) = false
+@inline max_mask(::NativeTypes) = true
 
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $(zero(U))
