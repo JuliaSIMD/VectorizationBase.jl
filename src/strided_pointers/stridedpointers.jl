@@ -413,9 +413,9 @@ end
 @inline stridedpointer_preserve(ptr::AbstractStridedPointer) = (ptr,nothing)
 
 struct FastRange{T,F,S,O}# <: AbstractStridedPointer{T,1,1,0,(1,),Tuple{S},Tuple{O}}# <: AbstractRange{T}
-    f::F
-    s::S
-    o::O
+  f::F
+  s::S
+  o::O
 end
 FastRange{T}(f::F,s::S) where {T<:Integer,F,S} = FastRange{T,Zero,S,F}(Zero(),s,f)
 FastRange{T}(f::F,s::S,o::O) where {T,F,S,O} = FastRange{T,F,S,O}(f,s,o)
@@ -425,8 +425,8 @@ FastRange{T}(f::F,s::S,::True) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,In
 FastRange{T}(f::F,s::S,::False) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,Int32}(f,s,zero(Int32))
 
 @inline function memory_reference(r::AbstractRange{T}) where {T}
-    s = ArrayInterface.static_step(r)
-    FastRange{T}(ArrayInterface.static_first(r) - s, s), nothing
+  s = ArrayInterface.static_step(r)
+  FastRange{T}(ArrayInterface.static_first(r) - s, s), nothing
 end
 @inline memory_reference(r::FastRange) = (r,nothing)
 @inline bytestrides(::FastRange{T}) where {T} = (static_sizeof(T),)
@@ -438,16 +438,15 @@ end
 
 @inline stridedpointer(fr::FastRange, ::StaticInt{1}, ::StaticInt{0}, ::Val{(1,)}, ::Tuple{X}, ::Tuple{One}) where {X<:Integer} = fr
 
-
 # `FastRange{<:Integer}` can ignore the offset
 @inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Integer,I} = convert(T, getfield(r, :o)) + convert(T, getfield(r, :s)) * first(i)
 
 @inline function vload(r::FastRange{T}, i::Tuple{I}) where {T<:FloatingTypes,I}
-    convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (only(i) + convert(T, getfield(r, :o)))
+  convert(T, getfield(r, :f)) + convert(T, getfield(r, :s)) * (only(i) + convert(T, getfield(r, :o)))
 end
 @inline function gesp(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer}
-    s = getfield(r, :s)
-    FastRange{T}(Zero(), s, only(i)*s + getfield(r, :o))
+  s = getfield(r, :s)
+  FastRange{T}(Zero(), s, only(i)*s + getfield(r, :o))
 end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T<:FloatingTypes}
     FastRange{T}(getfield(r, :f), getfield(r, :s), only(i) + getfield(r, :o))
@@ -461,6 +460,15 @@ end
 @inline increment_ptr(r::FastRange{T,Zero}, o, i::Tuple{I}) where {I,T} = vadd_nsw(vmul_nsw(only(i), getfield(r, :s)), o)
 
 @inline reconstruct_ptr(r::FastRange{T}, o) where {T} = FastRange{T}(getfield(r,:f), getfield(r, :s), o)
+
+
+@inline function zero_offsets(fr::FastRange{T,Zero}) where {T<:Integer}
+  s = getfield(fr,:s)
+  FastRange{T}(Zero(), s, getfield(fr,:o) + s)
+end
+@inline function zero_offsets(fr::FastRange{T}) where {T<:FloatingTypes}
+  FastRange{T}(getfield(fr,:f), getfield(fr,:s), getfield(fr,:o) + 1)
+end
 
 # `FastRange{<:FloatingTypes}` must use an integer offset because `ptrforcomparison` needs to be exact/integral.
 
