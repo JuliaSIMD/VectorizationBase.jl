@@ -500,6 +500,7 @@ end
 @inline Base.flipsign(x::Real, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) != zero(T)
+@inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) == zero(T)
 
 
 @generated function vifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
