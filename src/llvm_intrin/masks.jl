@@ -174,6 +174,11 @@ end
 @inline vashr(m::AbstractMask{W,U}, i::IntegerTypesHW) where {W,U} = Mask{W,U}(shr(getfield(m, :u), i))
 @inline vlshr(m::AbstractMask{W,U}, i::IntegerTypesHW) where {W,U} = Mask{W,U}(shr(getfield(m, :u), i))
 
+@inline zero_mask(::AbstractSIMDVector{W}) where {W} = Mask(zero_mask(Val(W)))
+@inline zero_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(zero_mask(Val(W))))
+@inline max_mask(::AbstractSIMDVector{W}) where {W} = Mask(max_mask(Val(W)))
+@inline max_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(max_mask(Val(W))))
+
 for (U,W) in [(UInt8,8), (UInt16,16), (UInt32,32), (UInt64,64)]
     @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $(zero(U))
     @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $(typemax(U))
@@ -501,7 +506,6 @@ end
 @inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) != zero(T)
 @inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) == zero(T)
-
 
 @generated function vifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
     typ = LLVM_TYPES[T]
