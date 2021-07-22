@@ -872,6 +872,7 @@ include("testsetup.jl")
                 @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, b64))) ≈ ifelse.(mv, f.(a, x2, b), b)
                 @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, b64, v3))) ≈ ifelse.(mv, f.(a, b, x3), x3)
             end
+            @test tovector(@inferred(VectorizationBase.vfmaddsub(v1,v2,v3))) ≈ muladd.(x1, x2, x3 .* ifelse.(iseven.(eachindex(x1)), 1, -1)  )
         end
         let WI = Int(VectorizationBase.pick_vector_width(Int64))
             vi64 = VectorizationBase.VecUnroll((
