@@ -357,3 +357,47 @@ end
     Expr(:block, Expr(:meta,:inline), :(VecUnroll($t)))
 end
 
+@inline shufflevector(vxu::VecUnroll, ::Val{I}) where {I} = VecUnroll(fmap(shufflevector, data(vxu), Val{I}()))
+
+"""
+  vpermilps177(vx::AbstractSIMD)
+
+  Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
+    Vec(1, 0, 3, 2, 5, 4, 7, 6)
+"""
+@generated function vpermilps177(vx::AbstractSIMD{W}) where {W}
+  s = Expr(:tuple)
+  for w ∈ 1:2:W
+    push!(s.args, w, w-1)
+  end
+  Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$s}())))
+end
+"""
+  vmovsldup(vx::AbstractSIMD)
+
+  Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
+    Vec(0, 0, 2, 2, 4, 4, 6, 6),
+"""
+@generated function vmovsldup(vx::AbstractSIMD{W}) where {W}
+  sl = Expr(:tuple)
+  for w ∈ 1:2:W
+    push!(sl.args, w-1, w-1)
+  end
+  vl = :(shufflevector(vx, Val{$sl}()))
+  Expr(:block, Expr(:meta,:inline), vl)
+end
+"""
+  vmovshdup(vx::AbstractSIMD)
+
+  Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
+    Vec(1, 1, 3, 3, 5, 5, 7, 7)
+"""
+@generated function vmovshdup(vx::AbstractSIMD{W}) where {W}
+  sh = Expr(:tuple)
+  for w ∈ 1:2:W
+    push!(sh.args, w, w)
+  end
+  vh = :(shufflevector(vx, Val{$sh}()))
+  Expr(:block, Expr(:meta,:inline), vh)
+end
+
