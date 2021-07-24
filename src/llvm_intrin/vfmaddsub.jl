@@ -21,6 +21,9 @@ function vfmaddsub_expr(W::Int, double::Bool, addsub::Bool, avx512::Bool)
     call = "$op($vtyp %0, $vtyp %1, $vtyp %2, i$(W) -1, i32 4)"
   else
     op = "@llvm.x86.fma.vfm$(addsubstr).p$(t)"
+    if bits == 256
+      op *= ".256"
+    end
     decl = "$op($vtyp, $vtyp, $vtyp)"
     call = "$op($vtyp %0, $vtyp %1, $vtyp %2)"
   end
