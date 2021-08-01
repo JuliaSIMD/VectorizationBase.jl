@@ -3,6 +3,7 @@ fast_flags(fast::Bool) = fast ? "nsz arcp contract afn reassoc" : "nsz contract"
 # fast_flags(fast::Bool) = fast ? "fast" : "nsz contract"
 
 const LLVM_TYPES = IdDict{Type{<:NativeTypes},String}(
+  Float16 => "half",
   Float32 => "float",
   Float64 => "double",
   Bit => "i1",
@@ -22,6 +23,7 @@ const LLVM_TYPES = IdDict{Type{<:NativeTypes},String}(
   # UInt1024 => "i1024",
 )
 const JULIA_TYPES = IdDict{Type{<:NativeTypes},Symbol}(
+  Float16 => :Float16,
   Float32 => :Float32,
   Float64 => :Float64,
   Int8 => :Int8,
@@ -41,6 +43,7 @@ const JULIA_TYPES = IdDict{Type{<:NativeTypes},Symbol}(
   # UInt1024 => :UInt1024,
 )
 const LLVM_TYPES_SYM = IdDict{Symbol,String}(
+  :Float16 => "half",
   :Float32 => "float",
   :Float64 => "double",
   :Int8 => "i8",
@@ -61,6 +64,7 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
   # :UInt1024 => "i1024",
 )
 const TYPE_LOOKUP = IdDict{Symbol,Type{<:NativeTypes}}(
+  :Float16 => Float16,
   :Float32 => Float32,
   :Float64 => Float64,
   :Int8 => Int8,
@@ -80,6 +84,7 @@ const TYPE_LOOKUP = IdDict{Symbol,Type{<:NativeTypes}}(
   # :UInt1024 => UInt1024
 )
 const JULIA_TYPE_SIZE = IdDict{Symbol,Int}(
+  :Float16 => 2,
   :Float32 => 4,
   :Float64 => 8,
   :Int8 => 1,

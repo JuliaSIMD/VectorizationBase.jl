@@ -29,4 +29,5 @@ reset_extra_features!() = nothing
 
 fast_int64_to_double() = has_feature(Val(:x86_64_avx512dq))
 
+fast_half() = False()
 

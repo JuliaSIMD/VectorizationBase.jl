@@ -47,6 +47,9 @@ for (op,f) ∈ [
         @inline $op(a::AbstractSIMD) = $f(a)
     end
 end
+@inline vfloat(a::Vec{W,Float16}) where {W} = _vfloat16(a, fast_half())
+@inline _vfloat16(a::Vec{W,Float16}, ::True) where {W} = a
+@inline _vfloat16(a::Vec{W,Float16}, ::False) where {W} = convert(Vec{W,Float32}, a)
 @inline Base.:(~)(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = v ⊻ vbroadcast(Val(W), -1 % T)
 @inline Base.FastMath.abs2_fast(v::AbstractSIMD) = vmul_fast(v,v)
 

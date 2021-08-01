@@ -39,7 +39,7 @@ export Vec, Mask, EVLMask, MM, stridedpointer, vload, vstore!, StaticInt, True, 
 using Base: llvmcall, VecElement, HWReal, tail
 const LLVMCALL = GlobalRef(Base, :llvmcall)
 
-const FloatingTypes = Union{Float32, Float64} # Float16
+const FloatingTypes = Union{Float32, Float64, Float16}
 
 # const SignedHW = Union{Int8,Int16,Int32,Int64,Int128}
 # const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64,UInt128}
@@ -102,7 +102,7 @@ const Boolean = Union{Bit,Bool}
 # end
 
 # const NativeTypesExceptBit = Union{Bool,HWReal,Int128,UInt128,UInt256,UInt512,UInt1024}
-const NativeTypesExceptBit = Union{Bool,HWReal}
+const NativeTypesExceptBit = Union{Bool,HWReal,Float16}
 const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}

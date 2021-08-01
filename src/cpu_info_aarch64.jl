@@ -44,3 +44,5 @@ has_opmask_registers() = has_feature(Val(:aarch64_sve_cpuid))
 
 fast_int64_to_double() = True()
 
+fast_half() = False()
+

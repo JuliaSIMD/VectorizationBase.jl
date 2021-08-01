@@ -1,4 +1,4 @@
-
+Base.promote(v1::AbstractSIMD{W,Float16}, v2::AbstractSIMD{W,Float16}) where {W} = (convert(Float32,v1), convert(Float32,v2))
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1,T2,W} = promote_type(T1,T2)
 
 function _ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1, T2, W}

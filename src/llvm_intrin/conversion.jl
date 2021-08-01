@@ -43,11 +43,14 @@ end
         convert_func(((T1 <: Signed) && (T2 <: Signed)) ? "sext" : "zext", T1, W, T2)
     end
 end
-@generated function vconvert(::Type{Vec{W,Float32}}, v::Vec{W,Float64}) where {W}
-    convert_func("fptrunc", Float32, W, Float64, W)
-end
-@generated function vconvert(::Type{Vec{W,Float64}}, v::Vec{W,Float32}) where {W}
-    convert_func("fpext", Float64, W, Float32, W)
+@generated function vconvert(::Type{Vec{W,T2}}, v::Vec{W,T1}) where {W,T1<:FloatingTypes,T2<:FloatingTypes}
+  if sizeof(T1) == sizeof(T2)
+    Expr(:block, Expr(:meta,:inline), :v)
+  elseif sizeof(T1) < sizeof(T2)
+    convert_func("fpext", T2, W, T1, W)
+  else
+    convert_func("fptrunc", T2, W, T1, W)
+  end
 end
 @inline vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
 @inline vconvert(::Type{M}, v::Vec{W,Bool}) where {W,U,M<:AbstractMask{W,U}} = tomask(v)

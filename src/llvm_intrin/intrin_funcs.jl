@@ -359,27 +359,43 @@ end
 @inline vprod(x, v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = vprod(convert(T, x), v)
 
 for (f,f_to,op,reduce,twoarg) ∈ [
-    (:reduced_add,:reduce_to_add,:+,:vsum,true),(:reduced_prod,:reduce_to_prod,:*,:vprod,true),
-    (:reduced_max,:reduce_to_max,:max,:vmaximum,false),(:reduced_min,:reduce_to_min,:min,:vminimum,false),
-    (:reduced_all,:reduce_to_all,:(&),:vall,false),(:reduced_any,:reduce_to_any,:(|),:vany,false)
+  (:reduced_add,:reduce_to_add,:+,:vsum,true),(:reduced_prod,:reduce_to_prod,:*,:vprod,true),
+  (:reduced_max,:reduce_to_max,:max,:vmaximum,false),(:reduced_min,:reduce_to_min,:min,:vminimum,false),
+  (:reduced_all,:reduce_to_all,:(&),:vall,false),(:reduced_any,:reduce_to_any,:(|),:vany,false)
 ]
-    @eval begin
-        @inline $f_to(x::NativeTypes, y::NativeTypes) = x
-        @inline $f_to(x::AbstractSIMD, y::AbstractSIMD) = x
-        @inline $f_to(x::AbstractSIMD, y::NativeTypes) = $reduce(x)
-        @inline $f(x::NativeTypes, y::NativeTypes) = $op(x,y)
-        @inline $f(x::AbstractSIMD, y::AbstractSIMD) = $op(x,y)
-        @inline $f_to(x::VecUnroll, y::VecUnroll) = VecUnroll(fmap($f_to, getfield(x, :data), getfield(y, :data)))
-        @inline $f(x::VecUnroll, y::VecUnroll) = VecUnroll(fmap($f, getfield(x, :data), getfield(y, :data)))
+  @eval begin
+    @inline $f_to(x::NativeTypes, y::NativeTypes) = x
+    @inline $f_to(x::AbstractSIMD{W}, y::AbstractSIMD{W}) where {W} = x
+    @generated function $f_to(x0::AbstractSIMD{W1}, y::AbstractSIMD{W2}) where {W1,W2}
+      @assert W1 ≥ W2
+      i = 0
+      q = Expr(:block, Expr(:meta,:inline))
+      xtp = :x0
+      while (W1 >>> i) ≠ W2
+        i += 1
+        xt = Symbol(:x,i)
+        xt0 = Symbol(xt,:_0); xt1 = Symbol(xt,:_1)
+        push!(q.args, Expr(:(=), Expr(:tuple,xt0,xt1), Expr(:call,:splitvector,xtp)), Expr(:(=), xt, Expr(:call, $op, xt0, xt1)))
+        xtp = xt
+      end
+      push!(q.args, Symbol(:x,i))
+      q
     end
-    if twoarg
-        # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $reduce(y, x)
-        @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $reduce(y, x)
-        # @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = ((y2,x2,r) = @show (y, x, $reduce(y, x)); r)
-    else
-        # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $op(y, $reduce(x))
-        @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $op(y, $reduce(x))
-    end
+    @inline $f_to(x::AbstractSIMD, y::NativeTypes) = $reduce(x)
+    @inline $f(x::NativeTypes, y::NativeTypes) = $op(x,y)
+    @inline $f(x::AbstractSIMD{W}, y::AbstractSIMD{W}) where {W} = $op(x,y)
+    @inline $f(x::AbstractSIMD, y::AbstractSIMD) = $op($f_to(x,y),y)
+    @inline $f_to(x::VecUnroll, y::VecUnroll) = VecUnroll(fmap($f_to, getfield(x, :data), getfield(y, :data)))
+    @inline $f(x::VecUnroll, y::VecUnroll) = VecUnroll(fmap($f, getfield(x, :data), getfield(y, :data)))
+  end
+  if twoarg
+    # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $reduce(y, x)
+    @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $reduce(y, x)
+    # @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = ((y2,x2,r) = @show (y, x, $reduce(y, x)); r)
+  else
+    # @eval @inline $f(y::T, x::AbstractSIMD{W,T}) where {W,T} = $op(y, $reduce(x))
+    @eval @inline $f(x::AbstractSIMD, y::NativeTypes) = $op(y, $reduce(x))
+  end
 end
 
 @inline roundint(x::Float32) = round(Int32, x)

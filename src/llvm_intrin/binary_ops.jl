@@ -92,6 +92,8 @@ for (op,f) ∈ [("fadd",:vadd),("fsub",:vsub),("fmul",:vmul),("fdiv",:vfdiv),("f
   @eval begin
     @generated  $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($fop_contract, W, T)
     @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = binary_op($fop_fast, W, T)
+    @inline $f(v1::Vec{W,Float16}, v2::Vec{W,Float16}) where {W} = $f(convert(Vec{W,Float32}, v1), convert(Vec{W,Float32}, v2))
+    @inline $ff(v1::Vec{W,Float16}, v2::Vec{W,Float16}) where {W} = $ff(convert(Vec{W,Float32}, v1), convert(Vec{W,Float32}, v2))
   end
 end
 @inline vsub(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.sub_float(a,b)
