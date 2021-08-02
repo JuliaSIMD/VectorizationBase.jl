@@ -380,8 +380,8 @@ function vload_quote(
     if W * sizeof_T > rs
       if ((T_sym === :Int64) | (T_sym === :UInt64)) && ((W * sizeof_T) == 2rs)
         return vload_trunc_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, :(_Vec{$W,$T_sym}))
-      else
-        return vload_split_quote(W, sizeof_T, mask, align, rs, T_sym)
+      # else
+      #   return vload_split_quote(W, sizeof_T, mask, align, rs, T_sym)
       end
     else
       return vload_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs, :(_Vec{$W,$T_sym}))
@@ -399,28 +399,28 @@ function vload_trunc_quote(
   call = Expr(:call, :%, call, Core.ifelse(T_sym === :Int64, :Int32, :UInt32))
   Expr(:block, Expr(:meta,:inline), call)
 end
-function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::Int, T_sym::Symbol)
-    D, r1 = divrem(W * sizeof_T, rs)
-    Wnew, r2 = divrem(W, D)
-    (iszero(r1) & iszero(r2)) || throw(ArgumentError("If loading more than a vector, Must load a multiple of the vector width."))
-    q = Expr(:block,Expr(:meta,:inline))
-    # ind_type = :StaticInt, :Integer, :Vec
-    push!(q.args, :(isplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), i)))
-    mask && push!(q.args, :(msplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), m)))
-    t = Expr(:tuple)
-    alignval = Expr(:call, align ? :True : :False)
-    for d ∈ 1:D
-        call = Expr(:call, :__vload, :ptr)
-        push!(call.args, Expr(:ref, :isplit, d))
-        mask && push!(call.args, Expr(:ref, :msplit, d))
-        push!(call.args, alignval, Expr(:call, Expr(:curly, :StaticInt, rs)))
-        v_d = Symbol(:v_, d)
-        push!(q.args, Expr(:(=), v_d, call))
-        push!(t.args, v_d)
-    end
-    push!(q.args, :(VecUnroll($t)::VecUnroll{$(D-1),$Wnew,$T_sym,Vec{$Wnew,$T_sym}}))
-    q
-end
+# function vload_split_quote(W::Int, sizeof_T::Int, mask::Bool, align::Bool, rs::Int, T_sym::Symbol)
+#     D, r1 = divrem(W * sizeof_T, rs)
+#     Wnew, r2 = divrem(W, D)
+#     (iszero(r1) & iszero(r2)) || throw(ArgumentError("If loading more than a vector, Must load a multiple of the vector width."))
+#     q = Expr(:block,Expr(:meta,:inline))
+#     # ind_type = :StaticInt, :Integer, :Vec
+#     push!(q.args, :(isplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), i)))
+#     mask && push!(q.args, :(msplit = splitvectortotuple(StaticInt{$D}(), StaticInt{$Wnew}(), m)))
+#     t = Expr(:tuple)
+#     alignval = Expr(:call, align ? :True : :False)
+#     for d ∈ 1:D
+#         call = Expr(:call, :__vload, :ptr)
+#         push!(call.args, Expr(:ref, :isplit, d))
+#         mask && push!(call.args, Expr(:ref, :msplit, d))
+#         push!(call.args, alignval, Expr(:call, Expr(:curly, :StaticInt, rs)))
+#         v_d = Symbol(:v_, d)
+#         push!(q.args, Expr(:(=), v_d, call))
+#         push!(t.args, v_d)
+#     end
+#     push!(q.args, :(VecUnroll($t)::VecUnroll{$(D-1),$Wnew,$T_sym,Vec{$Wnew,$T_sym}}))
+#     q
+# end
 
 @inline function _mask_scalar_load(ptr::Ptr{T}, i::IntegerIndex, m::AbstractMask{1}, ::A, ::StaticInt{RS}) where {T,A,RS}
     Bool(m) ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
