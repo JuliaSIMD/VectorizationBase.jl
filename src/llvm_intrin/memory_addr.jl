@@ -791,7 +791,7 @@ end
     ptr::Ptr{T}, v::VT, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, VT <: NativeTypes, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if VT !== T
-        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert($T, v), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert($T, v), $A(), $S(), $NT(), StaticInt{$RS}())))
     end
     vstore_quote(T, Int, :StaticInt, 1, 1, 0, 0, false, A===True, S===True, NT===True, RS)
 end
@@ -800,7 +800,7 @@ end
     ptr::Ptr{T}, v::V, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if V !== Vec{W,T}
-        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), $A(), $S(), $NT(), StaticInt{$RS}())))
     end
     vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, 0, false, A===True, S===True, NT===True, RS)
 end
@@ -811,9 +811,9 @@ end
     IT, ind_type, W, X, M, O = index_summary(I)
     if VT !== T || W > 1
         if W > 1
-            return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+            return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, $A(), $S(), $NT(), StaticInt{$RS}())))
         else
-            return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert($T, v), i, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+            return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert($T, v), i, $A(), $S(), $NT(), StaticInt{$RS}())))
         end
     end
     vstore_quote(T, IT, ind_type, W, X, M, O, false, A===True, S===True, NT===True, RS)
@@ -823,7 +823,7 @@ end
     ptr::Ptr{T}, v::V, i::I, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if V !== Vec{W,T}
-        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, $A(), $S(), $NT(), StaticInt{$RS}())))
     end
     IT, ind_type, _W, X, M, O = index_summary(I)
     # don't want to require vector indices...
@@ -840,31 +840,31 @@ end
     IT, ind_type, _W, X, M, O = index_summary(I)
     (W == _W || _W == 1) || throw(ArgumentError("Vector width: $W, index width: $(_W). They must either be equal, or index width == 1."))
     if W == 1
-        return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $A(), $S(), $NT(), StaticInt{$RS}())))
     else
-        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, m, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, m, $A(), $S(), $NT(), StaticInt{$RS}())))
     end
     # vstore_quote(T, IT, ind_type, W, X, M, O, true, A===True, S===True, NT===True, RS)
 end
 # no index, mask, vector store
 @generated function __vstore!(
     ptr::Ptr{T}, v::V, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T <: NativeTypesExceptBitandFloat16, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
+) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if W == 1
-        return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $A(), $S(), $NT(), StaticInt{$RS}())))
     elseif V !== Vec{W,T}
-        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), m, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), m, $A(), $S(), $NT(), StaticInt{$RS}())))
     end
     vstore_quote(T, Int, :StaticInt, W, sizeof(T), 0, 0, true, A===True, S===True, NT===True, RS)
 end
 # index, mask, vector store
 @generated function __vstore!(
     ptr::Ptr{T}, v::V, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T <: NativeTypesExceptBitandFloat16, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
+) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if W == 1
-        return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $A(), $S(), $NT(), StaticInt{$RS}())))
     elseif V !== Vec{W,T}
-        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, m, $(A()), $(S()), $(NT()), StaticInt{$RS}())))
+        return Expr(:block, Expr(:meta,:inline), :(__vstore!(ptr, convert(Vec{$W,$T}, v), i, m, $A(), $S(), $NT(), StaticInt{$RS}())))
     end
     IT, ind_type, _W, X, M, O = index_summary(I)
     (W == _W || _W == 1) || throw(ArgumentError("Vector width: $W, index width: $(_W). They must either be equal, or index width == 1."))

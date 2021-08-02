@@ -166,73 +166,74 @@ end
     __vload(p, li, A(), StaticInt{RS}())
 end
 @inline function _vload(
-    ptr::AbstractStridedPointer, i::Tuple, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
+  ptr::AbstractStridedPointer, i::Tuple, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
 ) where {A<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vload(p, li, m, A(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vload(p, li, m, A(), StaticInt{RS}())
 end
 @inline function _vload(
-    ptr::AbstractStridedPointer{T}, i::Tuple{I}, ::A, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T}, i::Tuple{I}, ::A, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,RS}
-    p, li = tdot(ptr, i, strides(ptr))
-    __vload(p, li, A(), StaticInt{RS}())
+  p, li = tdot(ptr, i, strides(ptr))
+  __vload(p, li, A(), StaticInt{RS}())
 end
 @inline function _vload(
-    ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T}, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,RS}
-    p, li = tdot(ptr, i, strides(ptr))
-    __vload(p, li, m, A(), StaticInt{RS}())
+  p, li = tdot(ptr, i, strides(ptr))
+  __vload(p, li, m, A(), StaticInt{RS}())
 end
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
 @inline function _vload(
-    ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, ::A, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, ::A, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vload(p, li, A(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vload(p, li, A(), StaticInt{RS}())
 end
 @inline function _vload(
-    ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T,1}, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vload(p, li, m, A(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vload(p, li, m, A(), StaticInt{RS}())
 end
 
 # align, noalias, nontemporal
 @inline function _vstore!(
-    ptr::AbstractStridedPointer, v, i::Tuple, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer, v, i::Tuple, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    ptr::AbstractStridedPointer, v, i::Tuple, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer, v, i::Tuple, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+
+  __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = tdot(ptr, i, strides(ptr))
-    __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
+  p, li = tdot(ptr, i, strides(ptr))
+  __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = tdot(ptr, i, strides(ptr))
-    __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
+  p, li = tdot(ptr, i, strides(ptr))
+  __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 
 
@@ -249,28 +250,28 @@ end
   __vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
+  f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = tdot(ptr, i, strides(ptr))
-    __vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
+  p, li = tdot(ptr, i, strides(ptr))
+  __vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+  f::F, ptr::AbstractStridedPointer{T}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = tdot(ptr, i, strides(ptr))
-    __vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
+  p, li = tdot(ptr, i, strides(ptr))
+  __vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
+  f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
-    f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
+  f::F, ptr::AbstractStridedPointer{T,1}, v, i::Tuple{I}, m::Union{AbstractMask,Bool}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {F, T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-    p, li = linear_index(ptr, i)
-    __vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
+  p, li = linear_index(ptr, i)
+  __vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 
 
@@ -296,12 +297,12 @@ end
 end
 
 struct StridedBitPointer{N,C,B,R,X} <: AbstractStridedPointer{Bit,N,C,B,R,X,NTuple{N,Int}}
-    p::Ptr{Bit}
-    strd::X
-    offsets::NTuple{N,Int}
+  p::Ptr{Bit}
+  strd::X
+  offsets::NTuple{N,Int}
 end
 function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets) where {N,C,B,R,X}
-    StridedBitPointer{N,C,B,R,X}(p, strd, offsets)
+  StridedBitPointer{N,C,B,R,X}(p, strd, offsets)
 end
 @inline Base.pointer(p::StridedBitPointer) = p.p
 # @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
@@ -311,9 +312,9 @@ end
 @inline ArrayInterface.offsets(ptr::StridedBitPointer) = getfield(ptr, :offsets)
 
 @inline function stridedpointer(
-    ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
+  ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
 ) where {C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
-    StridedBitPointer{N,C,B,R,X}(ptr, strd, offsets)
+  StridedBitPointer{N,C,B,R,X}(ptr, strd, offsets)
 end
 
 # @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (1,))
