@@ -811,7 +811,7 @@ include("testsetup.jl")
                 @test convert(Float64, vf2) === v2f32
             end
             vtwosf16 = convert(Float16, vtwos32)
-            @test vtwosf16 isa VectorizationBase.VecUnroll{1,W32,Float16,Vec{W32,Float16}}
+            @test vtwosf16 isa VectorizationBase.VecUnroll{1,Int(W32),Float16,Vec{Int(W32),Float16}}
             @test promote(vtwosf16,vtwosf16) === (vtwos32,vtwos32)
             @test vtwosf16 + vtwosf16 === vtwos32 + vtwos32
             i = rand(1:31)
