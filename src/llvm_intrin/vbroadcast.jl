@@ -78,7 +78,7 @@ end
       T = unsigned(T)
     end
     # ssym = :(s % $T)
-    return Expr(:block, Expr(:meta,:inline), :(_vbroadcast(StaticInt{$W}(), :(convert($T, s)), StaticInt{$RS}())))
+    return Expr(:block, Expr(:meta,:inline), :(_vbroadcast(StaticInt{$W}(), convert($T, s), StaticInt{$RS}())))
   end
   vbroadcast_expr(W, LLVM_TYPES[_T], JULIA_TYPES[_T], sizeof(_T), RS)
 end
