@@ -1,4 +1,4 @@
-function convert_func(op, T1, W1, T2, W2 = W1)
+function convert_func(op::String, @nospecialize(T1), W1::Int, @nospecialize(T2), W2::Int = W1)
     typ1 = LLVM_TYPES[T1]
     typ2 = LLVM_TYPES[T2]
     vtyp1 = vtype(W1, typ1)
@@ -26,12 +26,11 @@ end
 
 ### `vconvert(::Type{<:AbstractSIMDVector}, x)` methods
 ### These are the critical `vconvert` methods; scalar and `VecUnroll` are implemented with respect to them.
-@generated function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:Union{Float32,Float64},T<:IntegerTypesHW}
-    convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
+@generated function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+  convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
 end
-
-@generated function vconvert(::Type{Vec{W,T}}, v::Vec{W,F}) where {W,F<:Union{Float32,Float64},T<:IntegerTypesHW}
-    convert_func(T <: Signed ? "fptosi" : "fptoui", T, W, F)
+@generated function vconvert(::Type{Vec{W,T}}, v::Vec{W,F}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+  convert_func(T <: Signed ? "fptosi" : "fptoui", T, W, F)
 end
 @generated function vconvert(::Type{Vec{W,T1}}, v::Vec{W,T2}) where {W,T1<:IntegerTypesHW,T2<:IntegerTypesHW}
     sz1 = sizeof(T1)::Int; sz2 = sizeof(T2)::Int
@@ -43,15 +42,14 @@ end
         convert_func(((T1 <: Signed) && (T2 <: Signed)) ? "sext" : "zext", T1, W, T2)
     end
 end
-@generated function vconvert(::Type{Vec{W,T2}}, v::Vec{W,T1}) where {W,T1<:FloatingTypes,T2<:FloatingTypes}
-  if sizeof(T1) == sizeof(T2)
-    Expr(:block, Expr(:meta,:inline), :v)
-  elseif sizeof(T1) < sizeof(T2)
-    convert_func("fpext", T2, W, T1, W)
-  else
-    convert_func("fptrunc", T2, W, T1, W)
-  end
-end
+
+@inline vconvert(::Type{Vec{W,Float16}}, v::Vec{W,Float64}) where {W} = vconvert(Vec{W,Float16}, vconvert(Vec{W,Float32}, v))
+@inline vconvert(::Type{Vec{W,Float64}}, v::Vec{W,Float16}) where {W} = vconvert(Vec{W,Float64}, vconvert(Vec{W,Float32}, v))
+@generated vconvert(::Type{Vec{W,Float16}}, v::Vec{W,Float32}) where {W} = convert_func("fptrunc", Float16, W, Float32, W)
+@generated vconvert(::Type{Vec{W,Float32}}, v::Vec{W,Float16}) where {W} = convert_func("fpext", Float32, W, Float16, W)
+@generated vconvert(::Type{Vec{W,Float32}}, v::Vec{W,Float64}) where {W} = convert_func("fptrunc", Float32, W, Float64, W)
+@generated vconvert(::Type{Vec{W,Float64}}, v::Vec{W,Float32}) where {W} = convert_func("fpext", Float64, W, Float32, W)
+
 @inline vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W} = tomask(v)
 @inline vconvert(::Type{M}, v::Vec{W,Bool}) where {W,U,M<:AbstractMask{W,U}} = tomask(v)
 @inline vconvert(::Type{<:VectorizationBase.AbstractMask{W,U} where U}, v::Vec{W,Bool}) where {W} = VectorizationBase.tomask(v)

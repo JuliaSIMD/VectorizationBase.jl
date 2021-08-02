@@ -71,7 +71,7 @@ end
 @inline _vbroadcast_float16(::StaticInt{W}, s::Float16, ::StaticInt{RS}, ::False) where {W,RS} = _vbroadcast(StaticInt{W}(), convert(Float32, s), StaticInt{RS}())
 @generated _vbroadcast_float16(::StaticInt{W}, s::Float16, ::StaticInt{RS}, ::True) where {W,RS} = vbroadcast_expr(W, "half", :Float16, 2, RS)
 @generated function _vbroadcast(::StaticInt{W}, s::_T, ::StaticInt{RS}) where {W,_T<:NativeTypes,RS}
-  if _T <: Integer && sizeof(_T) * W > RS
+  if (_T <: Integer) && (sizeof(_T) * W > RS) && sizeof(_T) ≥ 8
     intbytes = max(4, RS ÷ W)
     T = integer_of_bytes(intbytes)
     if _T <: Unsigned

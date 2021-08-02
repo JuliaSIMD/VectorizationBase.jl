@@ -812,8 +812,10 @@ include("testsetup.jl")
             end
             vtwosf16 = convert(Float16, vtwos32)
             @test vtwosf16 isa VectorizationBase.VecUnroll{1,Int(W32),Float16,Vec{Int(W32),Float16}}
-            @test promote(vtwosf16,vtwosf16) === (vtwos32,vtwos32)
-            @test vtwosf16 + vtwosf16 === vtwos32 + vtwos32
+            vtwosf32 = convert(Float32, vtwos32)
+            @test vtwosf32 isa VectorizationBase.VecUnroll{1,Int(W32),Float32,Vec{Int(W32),Float32}}
+            @test promote(vtwosf16,vtwosf16) === (vtwosf32,vtwosf32)
+            @test vtwosf16 + vtwosf16 === vtwosf32 + vtwosf32
             i = rand(1:31)
             m1 = VectorizationBase.VecUnroll((MM{WI}(7), MM{WI}(1), MM{WI}(13), MM{WI}(18)))
             @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
