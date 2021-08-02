@@ -475,8 +475,9 @@ include("testsetup.jl")
     @test x == 1:100
 
     
-    let ind4 = VectorizationBase.Unroll{1,Int(W64),4,1,Int(W64),zero(UInt)}(1),
+    let ind4 = VectorizationBase.Unroll{1,Int(W64),4,1,Int(W64),zero(UInt)}((1,)),
       xf64 = rand(100), xf16 = rand(Float16, 32)
+      # indu = VectorizationBase.VecUnroll((MM{W64}(1,), MM{W64}(1+W64,), MM{W64}(1+2W64,), MM{W64}(1+3W64,)))
       GC.@preserve xf64 begin
         vxtu = @inferred(vload(stridedpointer(xf64), ind4));
         @test vxtu isa VectorizationBase.VecUnroll{3,Int(W64),Float64,Vec{Int(W64),Float64}}
@@ -486,12 +487,17 @@ include("testsetup.jl")
         @test tovector(@inferred(vload(stridedpointer(xf64), ind4))) == vxtutvmult
         mbig = Mask{4W64}(rand(UInt32)); # TODO: update if any arches support >512 bit vectors
         mbigtv = tovector(mbig);
-        @test tovector(@inferred(vload(stridedpointer(xf64), ind4, mbig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
-        @inferred(vstore!(stridedpointer(xf64), -11 * vxtu, ind4, mbig));
-        @test tovector(@inferred(vload(stridedpointer(xf64), ind4))) == ifelse.(mbigtv, -11 .* vxtutv, vxtutvmult)
+        
+        ubig = VectorizationBase.VecUnroll(VectorizationBase.splitvectortotuple(StaticInt(4), W64S, mbig))
+        # @test tovector(@inferred(vload(stridedpointer(xf64), indu, ubig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
+        @test tovector(@inferred(vload(stridedpointer(xf64), ind4, ubig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
+        # @inferred(vstore!(stridedpointer(xf64), -11 * vxtu, indu, ubig));
+        # @test tovector(@inferred(vload(stridedpointer(xf64), ind4))) == ifelse.(mbigtv, -11 .* vxtutv, vxtutvmult)
+        @inferred(vstore!(stridedpointer(xf64), -77 * vxtu, ind4, ubig));
+        @test tovector(@inferred(vload(stridedpointer(xf64), ind4))) == ifelse.(mbigtv, -77 .* vxtutv, vxtutvmult)
 
         vxf16 = @inferred(vload(stridedpointer(xf16), ind4))
-        @test vxf16 isa VectorizationBase.VecUnroll{3,Int(W64),Float32,Vec{Int(W64),Float32}}
+        @test vxf16 isa VectorizationBase.VecUnroll{3,Int(W64),Float16,Vec{Int(W64),Float16}}
         @test tovector(vxf16) == view(xf16, 1:(4*W64))
       end
     end

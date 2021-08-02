@@ -674,8 +674,8 @@ end
 # Index, so forward to `_vload` to linearize.
 @inline vload(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}) = _vload(ptr, i, False(), register_size())
 @inline vloada(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}) = _vload(ptr, i, True(), register_size())
-@inline vload(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}, m::Union{AbstractMask,Bool}) = _vload(ptr, i, m, False(), register_size())
-@inline vloada(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}, m::Union{AbstractMask,Bool}) = _vload(ptr, i, m, True(), register_size())
+@inline vload(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}, m::Union{AbstractMask,Bool,VecUnroll}) = _vload(ptr, i, m, False(), register_size())
+@inline vloada(ptr::AbstractStridedPointer, i::Union{Tuple,Unroll}, m::Union{AbstractMask,Bool,VecUnroll}) = _vload(ptr, i, m, True(), register_size())
 
 @inline function __vload(ptr::Ptr{T}, i::Number, b::Bool, ::A, ::StaticInt{RS}) where {T,A<:StaticBool,RS}
     b ? __vload(ptr, i, A(), StaticInt{RS}()) : zero(T)
@@ -987,7 +987,7 @@ for (store,align,alias,nontemporal) ∈ [
         @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll})
             _vstore!(ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, m::AbstractMask)
+        @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, m::Union{AbstractMask,VecUnroll})
             _vstore!(ptr, v, i, m, $align, $alias, $nontemporal, register_size())
         end
         @inline function $store(ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, b::Bool)
@@ -1000,7 +1000,7 @@ for (store,align,alias,nontemporal) ∈ [
         @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}) where {F<:Function}
             _vstore!(f, ptr, v, i, $align, $alias, $nontemporal, register_size())
         end
-        @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, m::AbstractMask) where {F<:Function}
+        @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, m::Union{AbstractMask,VecUnroll}) where {F<:Function}
             _vstore!(f, ptr, v, i, m, $align, $alias, $nontemporal, register_size())
         end
         @inline function $store(f::F, ptr::AbstractStridedPointer, v, i::Union{Tuple,Unroll}, b::Bool) where {F<:Function}
