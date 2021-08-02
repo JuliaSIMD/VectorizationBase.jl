@@ -54,7 +54,7 @@ function vbroadcast_expr(W::Int, typ::String, T::Symbol, st::Int, RS::Int)
     for i ∈ 1:d
       push!(t.args, :v)
     end
-    return Expr(:block, Expr(:meta,:inline), :(v = vbroadcast(StaticInt{$Wnew}(), s)), :(VecUnroll($t)))
+    return Expr(:block, Expr(:meta,:inline), :(v = _vbroadcast(StaticInt{$Wnew}(), s, StaticInt{$RS}())), :(VecUnroll($t)))
   end
   vtyp = vtype(W, typ)
   instrs = """

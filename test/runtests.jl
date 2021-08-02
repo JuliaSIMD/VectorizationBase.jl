@@ -295,7 +295,7 @@ include("testsetup.jl")
         end
         @test VectorizationBase.static_sizeof(BigFloat) === VectorizationBase.static_sizeof(Int)
         @test VectorizationBase.static_sizeof(Float32) === VectorizationBase.static_sizeof(Int32) === VectorizationBase.StaticInt(4)
-
+        @test @inferred(VectorizationBase.pick_vector_width(Float16)) === @inferred(VectorizationBase.pick_vector_width(Float32))
         @test @inferred(VectorizationBase.pick_vector_width(Float64, Int32, Float64, Float32, Float64)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.register_size())
         @test @inferred(VectorizationBase.pick_vector_width(Float64, Int32)) * VectorizationBase.static_sizeof(Float64) === @inferred(VectorizationBase.register_size())
 
@@ -802,14 +802,18 @@ include("testsetup.jl")
             ))
             vones32, v2f32, vtwos32 = promote(1.0, vf2, 2f0); # promotes a binary function, right? Even when used with three args?
             if VectorizationBase.simd_integer_register_size() == VectorizationBase.register_size()
-                @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0)))
-                @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0)))
+                @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1f0),vbroadcast(W32, 1f0))) === VectorizationBase.VecUnroll((vbroadcast(W32, Float16(1)),vbroadcast(W32, Float16(1))))
+                @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2f0),vbroadcast(W32, 2f0))) === VectorizationBase.VecUnroll((vbroadcast(W32, Float16(2)),vbroadcast(W32, Float16(2))))
                 @test vf2 === v2f32
             else
                 @test vones32 === VectorizationBase.VecUnroll((vbroadcast(W32, 1.0),vbroadcast(W32, 1.0)))
                 @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(W32, 2.0),vbroadcast(W32, 2.0)))
                 @test convert(Float64, vf2) === v2f32
             end
+            vtwosf16 = convert(Float16, vtwos32)
+            @test vtwosf16 isa VectorizationBase.VecUnroll{3,W32,Float16,Vec{W32,Float16}}
+            @test promote(vtwosf16,vtwosf16) === (vtwos32,vtwos32)
+            @test vtwosf16 + vtwosf16 === vtwos32 + vtwos32
             i = rand(1:31)
             m1 = VectorizationBase.VecUnroll((MM{WI}(7), MM{WI}(1), MM{WI}(13), MM{WI}(18)))
             @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
