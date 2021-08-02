@@ -252,11 +252,10 @@ for (op,f,fast) ∈ [
     ("fma",:vfma,false),("fma",:vfma_fast,true),
     ("fmuladd",:vmuladd,false),("fmuladd",:vmuladd_fast,true)
 ]
-    @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: FloatingTypes}
-        TS = T === Float32 ? :Float32 : :Float64
-        # TS = JULIA_TYPES[T]
-        build_llvmcall_expr($op, W, TS, [W, W, W], [TS, TS, TS], $(fast_flags(fast)))
-    end
+  @eval @generated function $f(v1::Vec{W,T}, v2::Vec{W,T}, v3::Vec{W,T}) where {W, T <: FloatingTypes}
+    TS = JULIA_TYPES[T]
+    build_llvmcall_expr($op, W, TS, [W, W, W], [TS, TS, TS], $(fast_flags(fast)))
+  end
 end
 # @inline Base.fma(a::Vec, b::Vec, c::Vec) = vfma(a,b,c)
 # @inline Base.muladd(a::Vec{W,T}, b::Vec{W,T}, c::Vec{W,T}) where {W,T<:FloatingTypes} = vmuladd(a,b,c)
@@ -309,8 +308,7 @@ for (opname,f) ∈ [
     op = "vector.reduce." * opname
   end
   @eval @generated function $f(v1::T, v2::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    # TS = JULIA_TYPES[T]
-    TS = T === Float32 ? :Float32 : :Float64
+    TS = JULIA_TYPES[T]
     build_llvmcall_expr($op, -1, TS, [1, W], [TS, TS], "nsz arcp contract afn reassoc")
   end
 end
@@ -322,8 +320,7 @@ for (op,f) ∈ [
 ]
   Base.libllvm_version < v"12" && (op = "experimental." * op)
   @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    # TS = JULIA_TYPES[T]
-    TS = T === Float32 ? :Float32 : :Float64
+    TS = JULIA_TYPES[T]
     build_llvmcall_expr($op, -1, TS, [W], [TS], "nsz arcp contract afn reassoc")
   end
 end

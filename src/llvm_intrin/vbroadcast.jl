@@ -1,27 +1,30 @@
 
 @inline vzero(::Val{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @inline vzero(::StaticInt{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
-@generated function _vzero(::StaticInt{W}, ::Type{T}, ::StaticInt{RS}) where {W,T<:NativeTypes,RS}
-    isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
-    if W * sizeof(T) > RS
-        d, r1 = divrem(sizeof(T) * W, RS)
-        Wnew, r2 = divrem(W, d)
-        (iszero(r1) & iszero(r2)) || throw(ArgumentError("If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."))
-        t = Expr(:tuple)
-        for i ∈ 1:d
-            push!(t.args, :v)
-        end
-        # return Expr(:block, Expr(:meta,:inline), :(v = vzero(StaticInt{$Wnew}(), $T)), :(VecUnroll{$(d-1),$Wnew,$T,Vec{$Wnew,$T}}($t)))
-        return Expr(:block, Expr(:meta,:inline), :(v = _vzero(StaticInt{$Wnew}(), $T, StaticInt{$RS}())), :(VecUnroll($t)))
-        # return Expr(:block, Expr(:meta,:inline), :(v = _vzero(StaticInt{$Wnew}(), $T, StaticInt{$RS}())), :(VecUnroll($t)::VecUnroll{$(d-1),$Wnew,$T,Vec{$Wnew,$T}}))
+@inline _vzero(::StaticInt{W}, ::Type{Float16}, ::StaticInt{RS}) where {W, RS} = _vzero_float16(StaticInt{W}(), StaticInt{RS}(), fast_half())
+@inline _vzero_float16(::StaticInt{W}, ::StaticInt{RS}, ::False) where {W,RS} = _vzero(StaticInt{W}(), Float32, StaticInt{RS}())
+function _vzero_expr(W::Int, typ::String, T::Symbol, st::Int, RS::Int)
+  isone(W) && return Expr(:block, Expr(:meta,:inline), Expr(:call, :zero, T))
+  if W * st > RS
+    d, r1 = divrem(st * W, RS)
+    Wnew, r2 = divrem(W, d)
+    (iszero(r1) & iszero(r2)) || throw(ArgumentError("If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."))
+    t = Expr(:tuple)
+    for i ∈ 1:d
+        push!(t.args, :v)
     end
-    typ = LLVM_TYPES[T]
-    instrs = "ret <$W x $typ> zeroinitializer"
-    quote
-        $(Expr(:meta,:inline))
-        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{}))
-    end
+    # return Expr(:block, Expr(:meta,:inline), :(v = vzero(StaticInt{$Wnew}(), $T)), :(VecUnroll{$(d-1),$Wnew,$T,Vec{$Wnew,$T}}($t)))
+    return Expr(:block, Expr(:meta,:inline), :(v = _vzero(StaticInt{$Wnew}(), $T, StaticInt{$RS}())), :(VecUnroll($t)))
+    # return Expr(:block, Expr(:meta,:inline), :(v = _vzero(StaticInt{$Wnew}(), $T, StaticInt{$RS}())), :(VecUnroll($t)::VecUnroll{$(d-1),$Wnew,$T,Vec{$Wnew,$T}}))
+  end
+  instrs = "ret <$W x $typ> zeroinitializer"
+  quote
+    $(Expr(:meta,:inline))
+    Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{}))
+  end  
 end
+@generated _vzero_float16(::StaticInt{W}, ::StaticInt{RS}) where {W,RS} = _vzero_expr(W, "half", :Float16, 2, RS)
+@generated _vzero(::StaticInt{W}, ::Type{T}, ::StaticInt{RS}) where {W,T<:NativeTypes,RS} = _vzero_expr(W, LLVM_TYPES[T], JULIA_TYPES[T], sizeof(T), RS)
 @generated function _vundef(::StaticInt{W}, ::Type{T}) where {W,T<:NativeTypes}
     typ = LLVM_TYPES[T]
     if W == 1
@@ -41,40 +44,43 @@ end
 @inline _vundef(::T) where {T<:NativeTypes} = _vundef(StaticInt{1}(), T)
 @inline _vundef(::Vec{W,T}) where {W,T} = _vundef(StaticInt{W}(), T)
 @generated _vundef(::VecUnroll{N,W,T}) where {N,W,T} = Expr(:block,Expr(:meta,:inline), :(VecUnroll(Base.Cartesian.@ntuple $(N+1) n -> _vundef(StaticInt{$W}(), $T))))
-@generated function _vbroadcast(::StaticInt{W}, s::_T, ::StaticInt{RS}) where {W,_T<:NativeTypes,RS}
-    isone(W) && return :s
-    if _T <: Integer && sizeof(_T) * W > RS
-        intbytes = max(4, RS ÷ W)
-        T = integer_of_bytes(intbytes)
-        if _T <: Unsigned
-            T = unsigned(T)
-        end
-        # ssym = :(s % $T)
-        ssym = :(convert($T, s))
-    elseif sizeof(_T) * W > RS
-        d, r1 = divrem(sizeof(_T) * W, RS)
-        Wnew, r2 = divrem(W, d)
-        (iszero(r1) & iszero(r2)) || throw(ArgumentError("If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."))
-        t = Expr(:tuple)
-        for i ∈ 1:d
-            push!(t.args, :v)
-        end
-        return Expr(:block, Expr(:meta,:inline), :(v = vbroadcast(StaticInt{$Wnew}(), s)), :(VecUnroll($t)))
-    else
-        T = _T
-        ssym = :s
+function vbroadcast_expr(W::Int, typ::String, T::Symbol, st::Int, RS::Int)
+  isone(W) && return :s
+  if st * W > RS
+    d, r1 = divrem(st * W, RS)
+    Wnew, r2 = divrem(W, d)
+    (iszero(r1) & iszero(r2)) || throw(ArgumentError("If broadcasting to greater than 1 vector length, should make it an integer multiple of the number of vectors."))
+    t = Expr(:tuple)
+    for i ∈ 1:d
+      push!(t.args, :v)
     end
-    typ = LLVM_TYPES[T]
-    vtyp = vtype(W, typ)
-    instrs = """
+    return Expr(:block, Expr(:meta,:inline), :(v = vbroadcast(StaticInt{$Wnew}(), s)), :(VecUnroll($t)))
+  end
+  vtyp = vtype(W, typ)
+  instrs = """
         %ie = insertelement $vtyp undef, $typ %0, i32 0
         %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
         ret $vtyp %v
     """
-    quote
-        $(Expr(:meta,:inline))
-        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$T}, $ssym))
+  quote
+    $(Expr(:meta,:inline))
+    Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$T}, s))
+  end
+end
+@inline _vbroadcast(::StaticInt{W}, s::Float16, ::StaticInt{RS}) where {W,RS} = _vbroadcast_float16(StaticInt{W}(), s, StaticInt{RS}(), fast_half())
+@inline _vbroadcast_float16(::StaticInt{W}, s::Float16, ::StaticInt{RS}, ::False) where {W,RS} = _vbroadcast(StaticInt{W}(), convert(Float32, s), StaticInt{RS}())
+@generated _vbroadcast_float16(::StaticInt{W}, s::Float16, ::StaticInt{RS}, ::True) where {W,RS} = vbroadcast_expr(W, "half", :Float16, 2, RS)
+@generated function _vbroadcast(::StaticInt{W}, s::_T, ::StaticInt{RS}) where {W,_T<:NativeTypes,RS}
+  if _T <: Integer && sizeof(_T) * W > RS
+    intbytes = max(4, RS ÷ W)
+    T = integer_of_bytes(intbytes)
+    if _T <: Unsigned
+      T = unsigned(T)
     end
+    # ssym = :(s % $T)
+    return Expr(:block, Expr(:meta,:inline), :(_vbroadcast(StaticInt{$W}(), :(convert($T, s)), StaticInt{$RS}())))
+  end
+  vbroadcast_expr(W, LLVM_TYPES[_T], JULIA_TYPES[_T], sizeof(_T), RS)
 end
 @inline _vbroadcast(::StaticInt{W}, m::EVLMask{W}, ::StaticInt{RS}) where {W,RS} = Mask(m)
 @inline vzero(::Union{Val{W},StaticInt{W}}, ::Type{T}) where {W,T} = _vzero(StaticInt{W}(), T, register_size(T))

@@ -624,7 +624,7 @@ end
 # no index, mask
 @generated function __vload(
     ptr::Ptr{T}, ::A, m::AbstractMask, ::StaticInt{RS}
-) where {T <: NativeTypes, A <: StaticBool, RS}
+) where {T <: NativeTypesExceptFloat16, A <: StaticBool, RS}
     vload_quote(T, Int, :StaticInt, 1, 1, 0, 0, true, A === True, RS)
 end
 # index, no mask
@@ -637,9 +637,21 @@ end
 # index, mask
 @generated function __vload(
     ptr::Ptr{T}, i::I, m::AbstractMask, ::A, ::StaticInt{RS}
-) where {A <: StaticBool, T <: NativeTypes, I <: Index, RS}
+) where {A <: StaticBool, T <: NativeTypesExceptFloat16, I <: Index, RS}
     IT, ind_type, W, X, M, O = index_summary(I)
     vload_quote(T, IT, ind_type, W, X, M, O, true, A === True, RS)
+end
+
+# Float16 with mask
+@inline function __vload(
+    ptr::Ptr{Float16}, ::A, m::AbstractMask, ::StaticInt{RS}
+) where {A <: StaticBool, RS}
+  reinterpret(Float16, __vload(reinterpret(Ptr{Int16}, ptr), A(), m, StaticInt{RS}()))
+end
+@inline function __vload(
+    ptr::Ptr{Float16}, i::I, m::AbstractMask, ::A, ::StaticInt{RS}
+) where {A <: StaticBool, I <: Index, RS}
+  reinterpret(Float16, __vload(reinterpret(Ptr{Int16}, ptr), i, m, A(), StaticInt{RS}()))
 end
 
 
@@ -837,7 +849,7 @@ end
 # no index, mask, vector store
 @generated function __vstore!(
     ptr::Ptr{T}, v::V, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
+) where {T <: NativeTypesExceptBitandFloat16, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if W == 1
         return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
     elseif V !== Vec{W,T}
@@ -848,7 +860,7 @@ end
 # index, mask, vector store
 @generated function __vstore!(
     ptr::Ptr{T}, v::V, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
-) where {T <: NativeTypesExceptBit, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
+) where {T <: NativeTypesExceptBitandFloat16, W, VT <: NativeTypes, V <: AbstractSIMDVector{W,VT}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
     if W == 1
         return Expr(:block, Expr(:meta,:inline), :(Bool(m) && __vstore!(ptr, convert($T, v), data(i), $(A()), $(S()), $(NT()), StaticInt{$RS}())))
     elseif V !== Vec{W,T}
@@ -861,6 +873,21 @@ end
     end
     vstore_quote(T, IT, ind_type, W, X, M, O, true, A===True, S===True, NT===True, RS)
 end
+
+
+# no index, mask, vector store
+@generated function __vstore!(
+  ptr::Ptr{Float16}, v::V, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {W, V <: AbstractSIMDVector{W,Float16}, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
+  __vstore!(reinterpret(Ptr{Int16}, ptr), reinterpret(Int16, v), m, A(), S(), NT(), StaticInt{RS}())
+end
+# index, mask, vector store
+@inline function __vstore!(
+  ptr::Ptr{Float16}, v::V, i::I, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+) where {W, V <: AbstractSIMDVector{W,Float16}, I <: Index, A <: StaticBool, S <: StaticBool, NT <: StaticBool, RS}
+  __vstore!(reinterpret(Ptr{Int16}, ptr), reinterpret(Int16, v), i, m, A(), S(), NT(), StaticInt{RS}())
+end
+
 
 
 

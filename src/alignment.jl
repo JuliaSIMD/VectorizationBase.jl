@@ -20,7 +20,7 @@ alignment(x::Integer, N = 64) = reinterpret(Int, x) % N
 
 function valloc(N::Integer, ::Type{T} = Float64, a = max(register_size(), cache_linesize())) where {T}
     # We want alignment to both vector and cacheline-sized boundaries
-    size_T = max(1, sizeof(T))
-    reinterpret(Ptr{T}, align(reinterpret(UInt,Libc.malloc(size_T*N + a - 1)), a))
+  size_T = max(1, sizeof(T))
+  reinterpret(Ptr{T}, align(reinterpret(UInt,Libc.malloc(size_T*N + a - 1)), a))
 end
 

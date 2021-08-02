@@ -102,7 +102,9 @@ const Boolean = Union{Bit,Bool}
 # end
 
 # const NativeTypesExceptBit = Union{Bool,HWReal,Int128,UInt128,UInt256,UInt512,UInt1024}
+const NativeTypesExceptBitandFloat16 = Union{Bool,HWReal}
 const NativeTypesExceptBit = Union{Bool,HWReal,Float16}
+const NativeTypesExceptFloat16 = Union{Bool,HWReal,Bit}
 const NativeTypes = Union{NativeTypesExceptBit, Bit}
 
 const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
