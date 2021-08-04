@@ -674,7 +674,7 @@ end
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,X,VUT}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, $(A()), $(S()), $(NT()), $(StaticInt(RS)), $(StaticInt(X)))))
-  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+  if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta,:inline))
       __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), $A(), $S(), $NT(), StaticInt{$RS}())
@@ -704,7 +704,7 @@ end
   sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,<:VecOrScalar}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,VUT}
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, $(A()), $(S()), $(NT()), $(StaticInt(RS)), nothing)))
-  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+  if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta,:inline))
       __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), $A(), $S(), $NT(), StaticInt{$RS}())
@@ -764,7 +764,7 @@ end
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar,X,B,C}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, sm, $(A()), $(S()), $(NT()), $(StaticInt(RS)), $(StaticInt(X)))))
-  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+  if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta,:inline))
       msk = flattenmask(sm, Val{$M}(), StaticInt{$N}())
@@ -792,7 +792,7 @@ end
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar,C}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, sm, $(A()), $(S()), $(NT()), $(StaticInt(RS)), nothing)))
-  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+  if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta,:inline))
       msk = flattenmask(sm, Val{$M}(), StaticInt{$N}())
