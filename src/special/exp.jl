@@ -584,11 +584,32 @@ end
 @inline vgetexp(v::VecUnroll) = VecUnroll(fmap(vgetexp, getfield(v, :data)))
 @inline vgetmant(v::VecUnroll) = VecUnroll(fmap(vgetmant, getfield(v, :data)))
 @inline vgetmant(v::VecUnroll,::Union{StaticInt{N},Val{N}}) where {N} = VecUnroll(fmap(vgetmant, getfield(v, :data), StaticInt{N}()))
-@inline vgetmant12(v::VecUnroll) = VecUnroll(fmap(vgetmant12, getfield(v, :data)))
+@inline Base.significand(v::VecUnroll, ::True) = VecUnroll(fmap(vgetmant12, getfield(v, :data)))
 @inline vroundscale(v::VecUnroll,::Union{StaticInt{N},Val{N}}) where {N} = VecUnroll(fmap(vroundscale, getfield(v, :data), StaticInt{N}()))
+@inline Base.significand(v::Vec, ::True) = vgetmant12(v)
+@inline Base.significand(v::AbstractSIMDVector, ::True) = vgetmant12(Vec(v))
 
-@inline Base.significand(v::AbstractSIMD) = vgetmant12(v)
-@inline Base.exponent(v::AbstractSIMD) = vgetexp(v)
+mask_exponent(::Val{Float64}) = 0x000f_ffff_ffff_ffff
+set_exponent(::Val{Float64}) = 0x3ff0_0000_0000_0000
+
+mask_exponent(::Val{Float32}) = 0x007fffff
+set_exponent(::Val{Float32}) = 0x7f800000
+
+@inline function Base.significand(v::AbstractSIMD{W,T}, ::False) where {W,T}
+  reinterpret(T, (reinterpret(Base.uinttype(T), v) & mask_exponent(Val(T))) | set_exponent(Val(T)))
+end
+@inline Base.exponent(v::Vec, ::True)= vgetexp(v)
+@inline Base.exponent(v::AbstractSIMDVector, ::True)= vgetexp(Vec(v))
+@inline Base.exponent(v::VecUnroll, ::True)= VecUnroll(fmap(vgetexp, getfield(v, :data)))
+@inline function Base.exponent(v::AbstractSIMD{W,T}, ::False) where {W,T}
+  U = Base.uinttype(T)
+  vshift = reinterpret(U, v) >> (Base.significand_bits(T)%U)
+  e = ((vshift % UInt) & Base.exponent_raw_max(T)) - U(Base.exponent_bias(T))
+  convert(T, e % UInt32)
+end
+
+@inline Base.significand(v::AbstractSIMD) = significand(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.exponent(v::AbstractSIMD) = exponent(v, has_feature(Val(:x86_64_avx512f)))
 @inline Base.ldexp(v::AbstractSIMD, e::AbstractSIMD) = vscalef(v, e, has_feature(Val(:x86_64_avx512f)))
 
 
