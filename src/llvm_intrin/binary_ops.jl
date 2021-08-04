@@ -85,7 +85,7 @@ for (op,sub) ∈ [
     end
 end
 
-for (op,f) ∈ [("fadd",:vadd),("fsub",:vsub),("fmul",:vmul),("fdiv",:vfdiv),("frem",:vrem)]
+for (op,f) ∈ [("fadd",:vadd),("fsub",:vsub),("fmul",:vmul),("fdiv",:vfdiv)]#,("frem",:vrem)]
   ff = Symbol(f, :_fast)
   fop_fast = f === :vfdiv ? "fdiv fast" : op * ' ' * fast_flags(true)
   fop_contract = op * ' ' * fast_flags(false)
@@ -103,9 +103,10 @@ end
 @inline vadd_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.add_float_fast(a,b)
 @inline vmul_fast(a::T,b::T) where {T<:Union{Float32,Float64}} = Base.mul_float_fast(a,b)
 
-@inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = vfdiv(vsub(v1, vrem(v1, v2)), v2)
-@inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = vfdiv_fast(vsub_fast(v1, vrem_fast(v1, v2)), v2)
-@inline vrem_fast(a,b) = a % b
+@inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
+@inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
+@inline vrem(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
+@inline vrem_fast(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = trunc(T, vfloat_fast(v1) / vfloat_fast(v2))
 @inline function vdiv_fast(v1, v2)
     v3, v4 = promote_div(v1, v2)
