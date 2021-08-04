@@ -593,7 +593,7 @@ mask_exponent(::Val{Float64}) = 0x000f_ffff_ffff_ffff
 set_exponent(::Val{Float64}) = 0x3ff0_0000_0000_0000
 
 mask_exponent(::Val{Float32}) = 0x007fffff
-set_exponent(::Val{Float32}) = 0x7f800000
+set_exponent(::Val{Float32}) = 0x3f800000
 
 @inline function Base.significand(v::AbstractSIMD{W,T}, ::False) where {W,T}
   reinterpret(T, (reinterpret(Base.uinttype(T), v) & mask_exponent(Val(T))) | set_exponent(Val(T)))

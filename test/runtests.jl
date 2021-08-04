@@ -625,7 +625,7 @@ include("testsetup.jl")
           Vec(ntuple(_ -> (randn(T)), W)...)
         ))
       end
-      x = tovector(v)
+      x = tovector(v);
       for f ∈ [
         -, abs, inv, floor, ceil, trunc, round, VectorizationBase.relu, abs2,
         Base.FastMath.abs2_fast, Base.FastMath.sub_fast, sign
@@ -642,8 +642,8 @@ include("testsetup.jl")
           @test vf(i) == bf(i)
         end
       end
-      vxabs = abs(v * 1000)
-      vxabsvec = tovector(vxabs)
+      vxabs = abs(v * 1000);
+      vxabsvec = tovector(vxabs);
       @test tovector(exponent(vxabs)) == exponent.(vxabsvec)
       @test tovector(significand(vxabs)) == significand.(vxabsvec)
       # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
