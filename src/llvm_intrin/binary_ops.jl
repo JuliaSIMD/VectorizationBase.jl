@@ -105,6 +105,7 @@ end
 
 @inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
+@inline vdiv_fast(v1::T, v2::T) where {T<:FloatingTypes} = trunc(Base.FastMath.div_float_fast(v1, v2))
 @inline vrem(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
 @inline vrem_fast(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = trunc(T, vfloat_fast(v1) / vfloat_fast(v2))
