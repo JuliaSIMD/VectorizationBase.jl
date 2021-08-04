@@ -677,7 +677,7 @@ end
   if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta,:inline))
-      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), $A(), $S(), $NT(), StaticInt{$RS}())
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), $A(), $S(), $NT(), StaticInt{$RS}())
     end
   end
   # 1+1
@@ -707,7 +707,7 @@ end
   if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta,:inline))
-      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), $A(), $S(), $NT(), StaticInt{$RS}())
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), $A(), $S(), $NT(), StaticInt{$RS}())
     end
   end
   align =  A === True
@@ -768,7 +768,7 @@ end
     return quote
       $(Expr(:meta,:inline))
       msk = flattenmask(sm, Val{$M}(), StaticInt{$N}())
-      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), msk, $A(), $S(), $NT(), StaticInt{$RS}())
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), msk, $A(), $S(), $NT(), StaticInt{$RS}())
     end
   end
   align =  A === True
@@ -796,7 +796,7 @@ end
     return quote
       $(Expr(:meta,:inline))
       msk = flattenmask(sm, Val{$M}(), StaticInt{$N}())
-      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), msk, $A(), $S(), $NT(), StaticInt{$RS}())
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), msk, $A(), $S(), $NT(), StaticInt{$RS}())
     end    
   end
   align =  A === True
@@ -817,7 +817,7 @@ end
   return quote
     $(Expr(:meta,:inline))
     msk = flattenmask(vm, Val{$M}())
-    __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), msk, $A(), $S(), $NT(), StaticInt{$RS}())
+    __vstore!(pointer(sptr), vu, MM{$(N*W)}(_materialize(data(u))), msk, $A(), $S(), $NT(), StaticInt{$RS}())
   end
   vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A===True, S===True, NT===True, RS, true)
 end
