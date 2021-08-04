@@ -601,8 +601,13 @@ end
 @inline Base.exponent(v::Vec, ::True)= vgetexp(v)
 @inline Base.exponent(v::AbstractSIMDVector, ::True)= vgetexp(Vec(v))
 @inline Base.exponent(v::VecUnroll, ::True)= VecUnroll(fmap(vgetexp, getfield(v, :data)))
+@static if VERSION ≥ v"1.7.0-beta"
+  using Base: inttype
+else
+  @inline inttype(::Type{T}) where {T} = signed(Base.uinttype(T))
+end
 @inline function Base.exponent(v::AbstractSIMD{W,T}, ::False) where {W,T}
-  I = Base.inttype(T)
+  I = inttype(T)
   vshift = reinterpret(I, v) >> (Base.significand_bits(T)%I)
   e = ((vshift % Int) & Base.exponent_raw_max(T)) - I(Base.exponent_bias(T))
   convert(T, e % Int32)
