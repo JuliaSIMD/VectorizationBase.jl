@@ -646,6 +646,8 @@ include("testsetup.jl")
       vxabsvec = tovector(vxabs);
       @test tovector(exponent(vxabs)) == exponent.(vxabsvec)
       @test tovector(significand(vxabs)) == significand.(vxabsvec)
+      @test tovector(exponent(inv(vxabs))) == exponent.(inv.(vxabsvec))
+      @test tovector(significand(inv(vxabs))) == significand.(inv.(vxabsvec))
       # Don't require exact, but `eps(T)` seems like a reasonable `rtol`, at least on AVX512 systems:
       # function relapprox(x::AbstractVector{T},y) where {T}
       #     t = max(norm(x),norm(y)) * eps(T)

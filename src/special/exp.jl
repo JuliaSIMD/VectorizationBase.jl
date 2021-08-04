@@ -602,10 +602,10 @@ end
 @inline Base.exponent(v::AbstractSIMDVector, ::True)= vgetexp(Vec(v))
 @inline Base.exponent(v::VecUnroll, ::True)= VecUnroll(fmap(vgetexp, getfield(v, :data)))
 @inline function Base.exponent(v::AbstractSIMD{W,T}, ::False) where {W,T}
-  U = Base.uinttype(T)
-  vshift = reinterpret(U, v) >> (Base.significand_bits(T)%U)
-  e = ((vshift % UInt) & Base.exponent_raw_max(T)) - U(Base.exponent_bias(T))
-  convert(T, e % UInt32)
+  I = Base.inttype(T)
+  vshift = reinterpret(I, v) >> (Base.significand_bits(T)%I)
+  e = ((vshift % Int) & Base.exponent_raw_max(T)) - I(Base.exponent_bias(T))
+  convert(T, e % Int32)
 end
 
 @inline Base.significand(v::AbstractSIMD) = significand(v, has_feature(Val(:x86_64_avx512f)))
