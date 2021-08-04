@@ -670,11 +670,17 @@ function vstore_transpose_quote(D,AU,F,N,AV,W,X,align,alias,notmp,RS,st,Tsym,M,e
 end
 
 @generated function _vstore_unroll!(
-    sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,<:VecOrScalar}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{X}
+  sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,<:VecOrScalar}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::StaticInt{X}
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,X,VUT}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, $(A()), $(S()), $(NT()), $(StaticInt(RS)), $(StaticInt(X)))))
-    # 1+1
+  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+    return quote
+      $(Expr(:meta,:inline))
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), $A(), $S(), $NT(), StaticInt{$RS}())
+    end
+  end
+  # 1+1
   align =  A === True
   alias =  S === True
   notmp = NT === True
@@ -698,6 +704,12 @@ end
   sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,<:VecOrScalar}, u::Unroll{AU,F,N,AV,W,M,UX,I}, ::A, ::S, ::NT, ::StaticInt{RS}, ::Nothing
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,C,B,UX,VUT}
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, $(A()), $(S()), $(NT()), $(StaticInt(RS)), nothing)))
+  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+    return quote
+      $(Expr(:meta,:inline))
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), $A(), $S(), $NT(), StaticInt{$RS}())
+    end
+  end
   align =  A === True
   alias =  S === True
   notmp = NT === True
@@ -708,12 +720,57 @@ end
     vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, false, align, alias, notmp, RS, false)
   end
 end
+@generated function flattenmask(m::AbstractMask{W}, ::Val{M}, ::StaticInt{N}) where {W,N,M}
+  WN = W*N
+  MT = mask_type(WN)
+  MTS = mask_type_symbol(WN)
+  q = Expr(:block, Expr(:meta,:inline), :(u = zero($MTS)), :(mu = data(m)), :(mf = (one($MTS)<<$W)-one($MTS)))
+  M = (bitreverse(M) >>> (8sizeof(M)-N))
+  n = N
+  while true
+    push!(q.args, :(u |= $(M % Bool ? :mu : :mf)))
+    (n -= 1) == 0 && break
+    push!(q.args, :(u <<= $(MT(W))))
+    M >>= 1
+  end
+  push!(q.args, :(Mask{$WN}(u)))
+  q
+end
+@generated function flattenmask(vm::VecUnroll{Nm1,W,Bit}, ::Val{M}) where {W,Nm1,M}
+  N = Nm1+1
+  WN = W*N
+  MT = mask_type(WN)
+  MTS = mask_type_symbol(WN)
+  q = Expr(:block, Expr(:meta,:inline), :(u = zero($MTS)), :(mu = data(vm)), :(mf = (one($MTS)<<$W)-one($MTS)))
+  M = (bitreverse(M) >>> (8sizeof(M)-N))
+  n = 0
+  while true
+    n += 1
+    if M % Bool
+      push!(q.args, :(u |= data(getfield(mu,$n))))
+    else
+      push!(q.args, :(u |= mf))
+    end
+    n == N && break
+    push!(q.args, :(u <<= $(MT(W))))
+    M >>= 1
+  end
+  push!(q.args, :(Mask{$WN}(u)))
+  q
+end
 @generated function _vstore_unroll!(
   sptr::AbstractStridedPointer{T,D,C,B}, vu::VecUnroll{Nm1,W,VUT,VUV}, u::Unroll{AU,F,N,AV,W,M,UX,I}, sm::EVLMask{W},
   ::A, ::S, ::NT, ::StaticInt{RS},::StaticInt{X}
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar,X,B,C}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, sm, $(A()), $(S()), $(NT()), $(StaticInt(RS)), $(StaticInt(X)))))
+  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+    return quote
+      $(Expr(:meta,:inline))
+      msk = flattenmask(sm, Val{$M}(), StaticInt{$N}())
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), msk, $A(), $S(), $NT(), StaticInt{$RS}())
+    end
+  end
   align =  A === True
   alias =  S === True
   notmp = NT === True
@@ -735,6 +792,13 @@ end
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,VUT,VUV<:VecOrScalar,C}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, sm, $(A()), $(S()), $(NT()), $(StaticInt(RS)), nothing)))
+  if T === Bit
+    return quote
+      $(Expr(:meta,:inline))
+      msk = flattenmask(sm, Val{$M}(), StaticInt{$N}())
+      __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), msk, $A(), $S(), $NT(), StaticInt{$RS}())
+    end    
+  end
   align =  A === True
   alias =  S === True
   notmp = NT === True
@@ -750,22 +814,27 @@ end
 ) where {AU,F,N,AV,W,M,I<:IndexNoUnroll,T,D,Nm1,S<:StaticBool,A<:StaticBool,NT<:StaticBool,RS,UX,B<:Union{Bit,Bool},VUT,VUV<:VecOrScalar}
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
   VUT === T || return Expr(:block,Expr(:meta,:inline), :(_vstore_unroll!(sptr, vconvert($T,vu), u, vm, $(A()), $(S()), $(NT()), $(StaticInt(RS)))))
+  return quote
+    $(Expr(:meta,:inline))
+    msk = flattenmask(vm, Val{$M}())
+    __vstore!(pointer(sptr), vu, MM{$(N*W)}(data(u)), msk, $A(), $S(), $NT(), StaticInt{$RS}())
+  end
   vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, true, A===True, S===True, NT===True, RS, true)
 end
 
 @inline function _vstore!(
     ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,AU,F,N,AV,W,Nm1}
-    p, li = linear_index(ptr, u)
-    sptr = similar_no_offset(ptr, p)
-    _vstore_unroll!(sptr, vu, li, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
+  p, li = linear_index(ptr, u)
+  sptr = similar_no_offset(ptr, p)
+  _vstore_unroll!(sptr, vu, li, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
 end
 @inline function _vstore!(
-    ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
+  ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, m::AbstractMask{W}, ::A, ::S, ::NT, ::StaticInt{RS}
 ) where {A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS,AU,F,N,AV,W,Nm1}
-    p, li = linear_index(ptr, u)
-    sptr = similar_no_offset(ptr, p)
-    _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
+  p, li = linear_index(ptr, u)
+  sptr = similar_no_offset(ptr, p)
+  _vstore_unroll!(sptr, vu, li, m, A(), S(), NT(), StaticInt{RS}(), staticunrolledvectorstride(strides(sptr), u))
 end
 @inline function _vstore!(
     ptr::AbstractStridedPointer, vu::VecUnroll{Nm1,W}, u::Unroll{AU,F,N,AV,W}, m::VecUnroll{Nm1,<:Any,B}, ::A, ::S, ::NT, ::StaticInt{RS}

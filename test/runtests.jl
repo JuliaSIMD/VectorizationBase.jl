@@ -266,15 +266,19 @@ include("testsetup.jl")
     fbitvector1 = falses(20);
     fbitvector2 = falses(20);
     mu = VectorizationBase.VecUnroll((Mask{4}(0x0f),Mask{4}(0x0f)))
-    GC.@preserve fbitvector begin
+    GC.@preserve fbitvector1 fbitvector2 begin
       vstore!(stridedpointer(fbitvector1), mu, (VectorizationBase.MM(StaticInt{8}(), 1),))
       vstore!(stridedpointer(fbitvector2), mu, (VectorizationBase.MM(StaticInt{8}(), 1),), Mask{8}(0x7e))
+      vstore!(stridedpointer(fbitvector1), mu, Unroll{1,4,2,1,4,zero(UInt),1}((9,)))
+      vstore!(stridedpointer(fbitvector2), mu, Unroll{1,4,2,1,4,2%UInt,1}((9,)), Mask{4}(0x03))
     end
-    @test all(fbitvector1[1:8])
-    @test !any(fbitvector1[9:end])
+    @test all(fbitvector1[1:16])
+    @test !any(fbitvector1[17:end])
     @test !fbitvector2[1]
     @test all(fbitvector2[2:7])
-    @test !any(fbitvector2[8:end])
+    @test !fbitvector2[8]
+    @test all(fbitvector2[9:14])
+    @test !any(fbitvector2[15:end])
   end
 
   # @testset "number_vectors.jl" begin
