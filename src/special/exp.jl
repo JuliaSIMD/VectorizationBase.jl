@@ -595,6 +595,9 @@ set_exponent(::Val{Float64}) = 0x3ff0_0000_0000_0000
 mask_exponent(::Val{Float32}) = 0x007fffff
 set_exponent(::Val{Float32}) = 0x3f800000
 
+mask_exponent(::Val{Float16}) = 0x07ff
+set_exponent(::Val{Float16}) = 0x3c00
+
 @inline function Base.significand(v::AbstractSIMD{W,T}, ::False) where {W,T}
   reinterpret(T, (reinterpret(Base.uinttype(T), v) & mask_exponent(Val(T))) | set_exponent(Val(T)))
 end
@@ -613,8 +616,10 @@ end
   convert(T, e % Int32)
 end
 
-@inline Base.significand(v::AbstractSIMD) = significand(v, has_feature(Val(:x86_64_avx512f)))
-@inline Base.exponent(v::AbstractSIMD) = exponent(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.significand(v::AbstractSIMD{W,T}) where {W,T<:Union{Float32,Float64}} = significand(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.exponent(v::AbstractSIMD{W,T}) where {W,T<:Union{Float32,Float64}} = exponent(v, has_feature(Val(:x86_64_avx512f)))
+@inline Base.significand(v::AbstractSIMD{W,Float16}) where {W} = significand(v, False())
+@inline Base.exponent(v::AbstractSIMD{W,Float16}) where {W} = exponent(v, False())
 @inline Base.ldexp(v::AbstractSIMD, e::AbstractSIMD) = vscalef(v, e, has_feature(Val(:x86_64_avx512f)))
 
 
