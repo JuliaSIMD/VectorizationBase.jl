@@ -24,36 +24,39 @@ end
 
 ### `vconvert(::Type{<:AbstractSIMDVector}, x)` methods
 ### These are the critical `vconvert` methods; scalar and `VecUnroll` are implemented with respect to them.
-@generated function _vconvert(::Type{Vec{W,F}}, v::Vec{W,T}, ::True) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
-  convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
-end
-
-@inline reinterpret_half(v::AbstractSIMD{W,Int64}) where {W} = reinterpret(Int32, v)
-@inline reinterpret_half(v::AbstractSIMD{W,UInt64}) where {W} = reinterpret(UInt32, v)
-@inline function _vconvert(::Type{Vec{W,F}}, v::VecUnroll, ::True) where {W,F}
-  VecUnroll(fmap(_vconvert, Vec{W,F}, getfield(v, :data), True()))
-end
-@inline function _vconvert(::Type{Vec{W,F}}, v::AbstractSIMD{W,I}, ::False) where {W, F, I <: Union{Int64,UInt64}}
-  v32 = reinterpret_half(v)
-  vl = extractlower(v32)
-  vu = extractupper(v32)
-  vfmadd_fast(F(4.294967296e9), _vconvert(Vec{W,F}, vl, True()), _vconvert(Vec{W,F}, vu%UInt32, True()))
-end
-@inline function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
-  _vconvert(Vec{W,F}, v, True())
-end
 if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
+  @generated function _vconvert(::Type{Vec{W,F}}, v::Vec{W,T}, ::True) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+    convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
+  end
+  @inline reinterpret_half(v::AbstractSIMD{W,Int64}) where {W} = reinterpret(Int32, v)
+  @inline reinterpret_half(v::AbstractSIMD{W,UInt64}) where {W} = reinterpret(UInt32, v)
+  @inline function _vconvert(::Type{Vec{W,F}}, v::VecUnroll, ::True) where {W,F}
+    VecUnroll(fmap(_vconvert, Vec{W,F}, getfield(v, :data), True()))
+  end
+  @inline function _vconvert(::Type{Vec{W,F}}, v::AbstractSIMD{W,I}, ::False) where {W, F, I <: Union{Int64,UInt64}}
+    v32 = reinterpret_half(v)
+    vl = extractlower(v32)
+    vu = extractupper(v32)
+    vfmadd_fast(F(4.294967296e9), _vconvert(Vec{W,F}, vl, True()), _vconvert(Vec{W,F}, vu%UInt32, True()))
+  end
+  @inline function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+    _vconvert(Vec{W,F}, v, True())
+  end
   @inline function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
   end
-  @inline function vconvert(::Type{F}, v::VecUnroll{N,W,T}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  @inline function vconvert(::Type{F}, v::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
   end
-  @inline function vconvert(::Type{Vec{W,F}}, v::VecUnroll{N,W,T}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  @inline function vconvert(::Type{Vec{W,F}}, v::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
   end
-  @inline function vconvert(::Type{VecUnroll{N,W,F,Vec{W,F}}}, v::VecUnroll{N,W,T}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  @inline function vconvert(::Type{VecUnroll{N,W,F,Vec{W,F}}}, v::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
+  end
+else
+  @generated function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+    convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
   end
 end
 
@@ -189,11 +192,11 @@ end
 end
 
 @generated function vconvert(::Type{VecUnroll{N, W, T, V}}, v::AbstractSIMDVector{L}) where {N, W, T, V, L}
-    if W == L # _vconvert will dispatch to one of the two above
-        Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, v)))
-    else
-        Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll(splitvectortotuple(StaticInt{$(N+1)}(), StaticInt{$W}(), v)))))
-    end
+  if W == L # _vconvert will dispatch to one of the two above
+    Expr(:block, Expr(:meta,:inline), :(_vconvert(VecUnroll{$N,$W,$T,$V}, v)))
+  else
+    Expr(:block, Expr(:meta,:inline), :(vconvert(VecUnroll{$N,$W,$T,$V}, VecUnroll(splitvectortotuple(StaticInt{$(N+1)}(), StaticInt{$W}(), v)))))
+  end
 end
 
 @inline Vec{W,T}(v::Vec{W,S}) where {W,T,S} = vconvert(Vec{W,T}, v)
