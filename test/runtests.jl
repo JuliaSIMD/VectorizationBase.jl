@@ -744,8 +744,8 @@ include("testsetup.jl")
         @test VectorizationBase.vrem(i,j) ≈ vr64_ref atol = 1e-16 rtol=1e-13
         @test VectorizationBase.vrem_fast(i,j) ≈ vr64_ref atol = 1e-16 rtol=1e-13
         vr32_ref = 1f-2*(Float32(1f2i) % Float32(1f2j))
-        @test VectorizationBase.vrem(Float32(i),Float32(j)) ≈ vr32_ref atol=1f-7 rtol=1f-5
-        @test VectorizationBase.vrem_fast(Float32(i),Float32(j)) ≈ vr32_ref atol=1f-7 rtol=1f-5
+        @test VectorizationBase.vrem(Float32(i),Float32(j)) ≈ vr32_ref atol=1f-7 rtol=2f-5
+        @test VectorizationBase.vrem_fast(Float32(i),Float32(j)) ≈ vr32_ref atol=1f-7 rtol=2f-5
       end
     end
     let WI = Int(VectorizationBase.pick_vector_width(Int64))
