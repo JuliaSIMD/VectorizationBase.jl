@@ -1,4 +1,5 @@
-Base.promote(v1::AbstractSIMD{W,Float16}, v2::AbstractSIMD{W,Float16}) where {W} = (convert(Float32,v1), convert(Float32,v2))
+@inline Base.promote(v1::AbstractSIMD{W,Float16}, v2::AbstractSIMD{W,Float16}) where {W} = (convert(Float32,v1), convert(Float32,v2))
+@inline Base.promote(a::VecUnroll{N,W,T,Vec{W,T}}, b::VecUnroll{N,W,T,Vec{W,T}}, c::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T} = (a,b,c)
 ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1,T2,W} = promote_type(T1,T2)
 
 function _ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1, T2, W}

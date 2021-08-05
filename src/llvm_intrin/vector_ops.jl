@@ -359,7 +359,7 @@ end
 
 @inline shufflevector(vxu::VecUnroll, ::Val{I}) where {I} = VecUnroll(fmap(shufflevector, data(vxu), Val{I}()))
 
-shuffleexpr(s) = 
+shuffleexpr(s::Expr) = Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$s}())))
 """
   vpermilps177(vx::AbstractSIMD)
 
@@ -371,7 +371,7 @@ shuffleexpr(s) =
   for w ∈ 1:2:W
     push!(s.args, w, w-1)
   end
-  Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$s}())))
+  shuffleexpr(s)
 end
 """
   vmovsldup(vx::AbstractSIMD)
@@ -384,7 +384,7 @@ end
   for w ∈ 1:2:W
     push!(sl.args, w-1, w-1)
   end
-  Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$sl}())))
+  shuffleexpr(sl)
 end
 """
   vmovshdup(vx::AbstractSIMD)
@@ -397,24 +397,38 @@ end
   for w ∈ 1:2:W
     push!(sh.args, w, w)
   end
-  Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$sh}())))
+  shuffleexpr(sh)
 end
 
-@generated function uppervector(vx::Vec{W}) where {W}
+@generated function uppervector(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
   for i ∈ W>>>1:W-1
     push!(s.args,i)
   end
-  Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$s}())))  
+  shuffleexpr(s)
 end
-@inline uppervector(vx::VecUnroll) = VecUnroll(fmap(uppervector, data(vx)))
-@generated function lowervector(vx::Vec{W}) where {W}
+@generated function lowervector(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
   for i ∈ 0:(W>>>1)-1
     push!(s.args,i)
   end
-  Expr(:block, Expr(:meta,:inline), :(shufflevector(vx, Val{$s}())))  
+  shuffleexpr(s)
 end
-@inline lowervector(vx::VecUnroll) = VecUnroll(fmap(lowervector, data(vx)))
 @inline splitvector(vx::AbstractSIMD) = lowervector(vx), uppervector(vx)
+
+@generated function extractupper(vx::AbstractSIMD{W}) where {W}
+  s = Expr(:tuple)
+  for i ∈ 0:(W>>>1)-1
+    push!(s.args, 2i)
+  end
+  shuffleexpr(s)
+end
+@generated function extractlower(vx::AbstractSIMD{W}) where {W}
+  s = Expr(:tuple)
+  for i ∈ 0:(W>>>1)-1
+    push!(s.args, 2i+1)
+  end
+  shuffleexpr(s)
+end
+
 

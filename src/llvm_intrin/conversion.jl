@@ -14,21 +14,49 @@ function convert_func(op::String, @nospecialize(T1), W1::Int, @nospecialize(T2),
 end
 # For bitcasting between signed and unsigned integers (LLVM does not draw a distinction, but they're separate in Julia)
 function identity_func(W, T1, T2)
-    vtyp1 = vtype(W, LLVM_TYPES[T1])
-    instrs = """
-    ret $vtyp1 %0
-    """
-    quote
-        $(Expr(:meta, :inline))
-        Vec($LLVMCALL($instrs, _Vec{$W,$T1}, Tuple{_Vec{$W,$T2}}, data(v)))
-    end
+  vtyp1 = vtype(W, LLVM_TYPES[T1])
+  instrs = "ret $vtyp1 %0"
+  quote
+    $(Expr(:meta, :inline))
+    Vec($LLVMCALL($instrs, _Vec{$W,$T1}, Tuple{_Vec{$W,$T2}}, data(v)))
+  end
 end
 
 ### `vconvert(::Type{<:AbstractSIMDVector}, x)` methods
 ### These are the critical `vconvert` methods; scalar and `VecUnroll` are implemented with respect to them.
-@generated function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+@generated function _vconvert(::Type{Vec{W,F}}, v::Vec{W,T}, ::True) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
   convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
 end
+
+@inline reinterpret_half(v::AbstractSIMD{W,Int64}) where {W} = reinterpret(Int32, v)
+@inline reinterpret_half(v::AbstractSIMD{W,UInt64}) where {W} = reinterpret(UInt32, v)
+@inline function _vconvert(::Type{Vec{W,F}}, v::VecUnroll, ::True) where {W,F}
+  VecUnroll(fmap(_vconvert, Vec{W,F}, getfield(v, :data), True()))
+end
+@inline function _vconvert(::Type{Vec{W,F}}, v::AbstractSIMD{W,I}, ::False) where {W, F, I <: Union{Int64,UInt64}}
+  v32 = reinterpret_half(v)
+  vl = extractlower(v32)
+  vu = extractupper(v32)
+  vfmadd_fast(F(4.294967296e9), _vconvert(Vec{W,F}, vl, True()), _vconvert(Vec{W,F}, vu%UInt32, True()))
+end
+@inline function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+  _vconvert(Vec{W,F}, v, True())
+end
+if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
+  @inline function vconvert(::Type{Vec{W,F}}, v::Vec{W,T}) where {W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+    _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
+  end
+  @inline function vconvert(::Type{F}, v::VecUnroll{N,W,T}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+    _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
+  end
+  @inline function vconvert(::Type{Vec{W,F}}, v::VecUnroll{N,W,T}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+    _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
+  end
+  @inline function vconvert(::Type{VecUnroll{N,W,F,Vec{W,F}}}, v::VecUnroll{N,W,T}) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+    _vconvert(Vec{W,F}, v, has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2))))
+  end
+end
+
 @generated function vconvert(::Type{Vec{W,T}}, v::Vec{W,F}) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
   convert_func(T <: Signed ? "fptosi" : "fptoui", T, W, F)
 end
@@ -175,17 +203,19 @@ end
 @inline vsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % signed(T)
 @inline vunsigned(v::AbstractSIMD{W,T}) where {W,T <: Base.BitInteger} = v % unsigned(T)
 
-@generated function _vfloat(v::Vec{W,I}, ::StaticInt{RS}) where {W, I <: Integer, RS}
-    ex = if 8W ≤ RS
-        :(vconvert(Vec{$W,Float64}, v))
-    else
-        :(vconvert(Vec{$W,Float32}, v))
-    end
-    Expr(:block, Expr(:meta, :inline), ex)
+@generated function _vfloat(v::AbstractSIMD{W,I}, ::StaticInt{RS}) where {W, I <: Integer, RS}
+  ex = if 8W ≤ RS
+    :(vconvert(Vec{$W,Float64}, v))
+  else
+    :(vconvert(Vec{$W,Float32}, v))
+  end
+  Expr(:block, Expr(:meta, :inline), ex)
 end
-@inline vfloat(v::Vec{W,I}) where {W, I <: Integer} = _vfloat(v, register_size())
+@inline vfloat(v::AbstractSIMD{W,I}) where {W, I <: Integer} = _vfloat(v, register_size())
+
 @inline vfloat(v::AbstractSIMD{W,T}) where {W,T <: Union{Float32,Float64}} = v
-@inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, getfield(vu, :data)))
+@inline vfloat(v::AbstractSIMD{W,Float16}) where {W} = vconvert(Float32, v)
+# @inline vfloat(vu::VecUnroll) = VecUnroll(fmap(vfloat, getfield(vu, :data)))
 @inline vfloat(x::Union{Float32,Float64}) = x
 @inline vfloat(x::UInt64) = Base.uitofp(Float64, x)
 @inline vfloat(x::Int64) = Base.sitofp(Float64, x)

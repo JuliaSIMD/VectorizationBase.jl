@@ -114,18 +114,18 @@ for op ∈ [:rotate_left,:rotate_right,:funnel_shift_left,:funnel_shift_right]
     end
 end
 
-for op ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast, :vfnmadd, :vfmsub, :vfnmsub, :vfnmadd_fast, :vfmsub_fast, :vfnmsub_fast,
-          :vfmadd231, :vfnmadd231, :vfmsub231, :vfnmsub231, :ifmahi, :ifmalo]
-    @eval begin
-      # @generated function $op(v1::VecUnroll{N,W,T1,V1}, v2::VecUnroll{N,W,T2,V2}, v3::VecUnroll{N,W,T3,V3}) where {N,W,T1,T2,T3}
-      #   if T1 <: NativeTypes
-      #   VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data), getfield(v3, :data)))
-      #   Expr(:block, Expr(:meta,:inline), ex)
-      # end
-        @inline function $op(v1::VecUnroll{N,W,<:NativeTypesExceptBit}, v2::VecUnroll{N,W,<:NativeTypesExceptBit}, v3::VecUnroll{N,W}) where {N,W}
-            VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data), getfield(v3, :data)))
-        end
+for op ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast, :vfnmadd, :vfmsub, :vfnmsub, :vfnmadd_fast, :vfmsub_fast, :vfnmsub_fast, :vfmadd231, :vfnmadd231, :vfmsub231, :vfnmsub231, :ifmahi, :ifmalo]
+  @eval begin
+    # @generated function $op(v1::VecUnroll{N,W,T1,V1}, v2::VecUnroll{N,W,T2,V2}, v3::VecUnroll{N,W,T3,V3}) where {N,W,T1,T2,T3}
+    #   if T1 <: NativeTypes
+    #   VecUnroll(fmap($op, getfield(v1, :data), getfield(v2, :data), getfield(v3, :data)))
+    #   Expr(:block, Expr(:meta,:inline), ex)
+    # end
+    @inline function $op(v1::VecUnroll{N,W,<:NativeTypesExceptBit}, v2::VecUnroll{N,W,<:NativeTypesExceptBit}, v3::VecUnroll{N,W}) where {N,W}
+      a, b, c = promote(v1, v2, v3)
+      VecUnroll(fmap($op, getfield(a, :data), getfield(b, :data), getfield(c, :data)))
     end
+  end
 end
 @inline function vifelse(v1::VecUnroll{N,W,<:Boolean}, v2::T, v3::T) where {N,W,T<:NativeTypes}
     VecUnroll(fmap(vifelse, getfield(v1, :data), Vec{W,T}(v2), Vec{W,T}(v3)))

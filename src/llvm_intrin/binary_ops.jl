@@ -111,6 +111,7 @@ end
 @inline vdiv(v1::T, v2::T) where {T <: FloatingTypes} = vdiv_fast(v1, v2)
 @inline vrem(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
 @inline vrem_fast(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
+# @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = trunc(T, vfloat_fast(v1) / vfloat_fast(v2))
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = trunc(T, vfloat(v1) / vfloat(v2))
 @inline function vdiv_fast(v1, v2)
     v3, v4 = promote_div(v1, v2)
