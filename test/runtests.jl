@@ -714,7 +714,7 @@ include("testsetup.jl")
     for (vf,bf,testfloat) ∈ [(VectorizationBase.vadd,+,true),(VectorizationBase.vadd_fast,Base.FastMath.add_fast,true),(VectorizationBase.vadd_nsw,+,false),#(VectorizationBase.vadd_nuw,+,false),(VectorizationBase.vadd_nw,+,false),
                              (VectorizationBase.vsub,-,true),(VectorizationBase.vsub_fast,Base.FastMath.sub_fast,true),(VectorizationBase.vsub_nsw,-,false),#(VectorizationBase.vsub_nuw,-,false),(VectorizationBase.vsub_nw,-,false),
                              (VectorizationBase.vmul,*,true),(VectorizationBase.vmul_fast,Base.FastMath.mul_fast,true),(VectorizationBase.vmul_nsw,*,false),#(VectorizationBase.vmul_nuw,*,false),(VectorizationBase.vmul_nw,*,false),
-                             (VectorizationBase.vrem,%,true),(VectorizationBase.vrem_fast,%,true)]
+                             (VectorizationBase.vrem,%,false),(VectorizationBase.vrem_fast,%,false)]
       for i ∈ -10:10, j ∈ -6:6
         ((j == 0) && (bf === %)) && continue
         @test vf(i%Int8,j%Int8) == bf(i%Int8,j%Int8)
@@ -729,11 +729,23 @@ include("testsetup.jl")
         @test vf(i%UInt128,j%UInt128) == bf(i%UInt128,j%UInt128)
       end
       if testfloat
-        for i ∈ -1.5:0.4:1.8, j ∈ -3:0.1:3.0
+        for i ∈ -1.5:0.39:1.8, j ∈ -3:0.09:3.0
           # `===` for `NaN` to pass
           @test vf(i,j) === bf(i,j)
           @test vf(Float32(i),Float32(j)) === bf(Float32(i),Float32(j))
         end
+      end
+    end
+    for i ∈ -1.5:0.39:1.8, j ∈ -3:0.09:3.0
+      for i ∈ -1.5:0.379:1.8, j ∈ -3:0.089:3.0
+        @test VectorizationBase.vdiv(i,j) == VectorizationBase.vdiv_fast(i,j) == 1e2i ÷ 1e2j
+        @test VectorizationBase.vdiv(Float32(i),Float32(j)) == VectorizationBase.vdiv_fast(Float32(i),Float32(j)) == Float32(1f2i) ÷ Float32(1f2j)
+        vr64_ref = 1e-2*(1e2i % 1e2j)
+        @test VectorizationBase.vrem(i,j) ≈ vr64_ref atol = 1e-16 rtol=1e-13
+        @test VectorizationBase.vrem_fast(i,j) ≈ vr64_ref atol = 1e-16 rtol=1e-13
+        vr32_ref = 1f-2*(Float32(1f2i) % Float32(1f2j))
+        @test VectorizationBase.vrem(Float32(i),Float32(j)) ≈ vr32_ref atol=1f-7 rtol=1f-5
+        @test VectorizationBase.vrem_fast(Float32(i),Float32(j)) ≈ vr32_ref atol=1f-7 rtol=1f-5
       end
     end
     let WI = Int(VectorizationBase.pick_vector_width(Int64))

@@ -106,6 +106,9 @@ end
 @inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
 @inline vdiv_fast(v1::T, v2::T) where {T<:FloatingTypes} = trunc(Base.FastMath.div_float_fast(v1, v2))
+@inline vdiv_fast(v1::T, v2::T) where {T <: Number} = v1 ÷ v2
+@inline vdiv(v1::T, v2::T) where {T <: Number} = v1 ÷ v2
+@inline vdiv(v1::T, v2::T) where {T <: FloatingTypes} = vdiv_fast(v1, v2)
 @inline vrem(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
 @inline vrem_fast(a,b) = vfnmadd(vdiv_fast(a, b), b, a)
 @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = trunc(T, vfloat_fast(v1) / vfloat_fast(v2))
@@ -143,8 +146,8 @@ for (vf,bf) ∈ [
     @inline $vf(a::UInt128, b::UInt128) = Base.$bf(a, b)
   end
 end
-@inline vrem(a::Float32, b::Float32) = Base.rem_float_fast(a, b)
-@inline vrem(a::Float64, b::Float64) = Base.rem_float_fast(a, b)
+# @inline vrem(a::Float32, b::Float32) = Base.rem_float_fast(a, b)
+# @inline vrem(a::Float64, b::Float64) = Base.rem_float_fast(a, b)
 
 @inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
   Base.FastMath.add_fast(Base.FastMath.add_fast(a,b),c)
