@@ -9,6 +9,16 @@ using ArrayInterface:
     static_first, static_last, static_length
 import IfElse: ifelse
 
+using CPUSummary:
+  cache_type, num_cache, num_threads, num_cache_levels, num_cores, num_l1cache,
+  num_l2cache, cache_associativity, num_l3cache, sys_threads, cache_inclusive,
+  num_l4cache, cache_linesize, num_machines, cache_size, num_sockets
+using HostCPUFeatures:
+  register_size, static_sizeof, fast_int64_to_double, pick_vector_width,
+  pick_vector_width_shift, prevpow2, simd_integer_register_size, fma_fast,
+  smax, smin, has_feature, has_opmask_registers, register_count, static_sizeof,
+  cpu_name, register_size, unwrap, intlog2, nextpow2
+
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
 # TODO: see if `@inline` is good enough.
@@ -325,16 +335,6 @@ O: offsets
 abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 include("static.jl")
 include("cartesianvindex.jl")
-include("topology.jl")
-include("cpu_info.jl")
-if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
-    include("cpu_info_x86.jl")
-elseif Sys.ARCH === :aarch64
-    include("cpu_info_aarch64.jl")
-else
-    include("cpu_info_generic.jl")
-end
-# include("cache_inclusivity.jl")
 include("early_definitions.jl")
 include("promotion.jl")
 include("llvm_types.jl")
@@ -429,26 +429,5 @@ end
 
 include("precompile.jl")
 _precompile_()
-
-@noinline function redefine()
-  @debug "Defining CPU name."
-  define_cpu_name()
-
-  reset_features!()
-  reset_extra_features!()
-end
-
-function __init__()
-  ccall(:jl_generating_output, Cint, ()) == 1 && return
-  safe_topology_load!()
-  unwrap(cpu_name()) === Symbol(Sys.CPU_NAME::String) || redefine()
-  if Hwloc.num_physical_cores() ≠ Int(num_cores()) * ((Sys.ARCH === :aarch64) && Sys.isapple() ? 2 : 1)
-    redefine_attr_count()
-    foreach(redefine_cache, 1:4)
-  end
-  redefine_num_threads()
-  return nothing
-end
-
 
 end # module

@@ -4,10 +4,6 @@
 
 @inline static(::Val{N}) where {N} = StaticInt{N}()
 @inline static(::Nothing) = nothing
-@generated function static_sizeof(::Type{T}) where {T}
-    st = Base.allocatedinline(T) ? sizeof(T) : sizeof(Int)
-    Expr(:block, Expr(:meta, :inline), Expr(:call, Expr(:curly, :StaticInt, st)))
-end
 
 @inline maybestaticfirst(a) = static_first(a)
 @inline maybestaticlast(a) = static_last(a)

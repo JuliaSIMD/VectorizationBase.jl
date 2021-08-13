@@ -12,13 +12,6 @@ function _precompile_()
   precompile(vload_quote_llvmcall_core, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int))
   precompile(vstore_quote, (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int))
 
-  precompile(reset_features!, ())
-  precompile(safe_topology_load!, ())
-  precompile(redefine_attr_count, ())
-  precompile(redefine_cache, (Int,))
-
-  precompile(Tuple{typeof(dynamic_cache_summary),Int})   # time: 0.006437437
-  
   precompile(Tuple{typeof(transpose_vecunroll_quote_W_smaller),Int,Int})   # time: 0.02420761
 
   precompile(Tuple{typeof(horizontal_reduce_store_expr),Int,Int,NTuple{4, Int},Symbol,Symbol,Bool,Int,Bool})   # time: 0.02125804

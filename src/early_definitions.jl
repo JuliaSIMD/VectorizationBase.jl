@@ -1,45 +1,5 @@
-intlog2(N::I) where {I <: Integer} = (8sizeof(I) - one(I) - leading_zeros(N)) % I
-intlog2(::Type{T}) where {T} = intlog2(sizeof(T))
-nextpow2(W) = (one(W) << (8sizeof(W) - leading_zeros((W - one(W)))))
-prevpow2(W) = (one(W) << (((8sizeof(W)) % UInt - one(UInt)) - leading_zeros(W) % UInt))
-prevpow2(W::Signed) = prevpow2(W % Unsigned) % Signed
-
-@generated nextpow2(::StaticInt{N}) where {N} = Expr(:call, Expr(:curly, :StaticInt, nextpow2(N)))
-@generated prevpow2(::StaticInt{N}) where {N} = Expr(:call, Expr(:curly, :StaticInt, prevpow2(N)))
-@generated intlog2(::StaticInt{N}) where {N} = Expr(:call, Expr(:curly, :StaticInt, intlog2(N)))
 _ispow2(x::Integer) = count_ones(x) < 2
 @generated _ispow2(::StaticInt{N}) where {N} = Expr(:call, ispow2(N) ? :True : :False)
-
-smax(a::StaticInt, b::StaticInt) = ifelse(ArrayInterface.gt(a, b), a, b)
-smin(a::StaticInt, b::StaticInt) = ifelse(ArrayInterface.lt(a, b), a, b)
-pick_vector_width(::Type{T}) where {T} = register_size(T) ÷ static_sizeof(T)
-pick_vector_width(::Type{Complex{T}}) where {T} = register_size(T) ÷ static_sizeof(T)
-_pick_vector_width_float16(::StaticInt{RS}, ::True) where {RS} = StaticInt{RS}() ÷ StaticInt{2}()
-_pick_vector_width_float16(::StaticInt{RS}, ::False) where {RS} = StaticInt{RS}() ÷ StaticInt{4}()
-pick_vector_width(::Type{Float16}) = _pick_vector_width_float16(register_size(Float32), fast_half())
-  
-@inline function _pick_vector_width(min_W, max_W, ::Type{T}, ::Type{S}, args::Vararg{Any,K}) where {K,S,T}
-    _max_W = smin(max_W, pick_vector_width(T))
-    _pick_vector_width(min_W, _max_W, S, args...)
-end
-# @inline function _pick_vector_width(min_W, max_W, ::Type{Bit}, ::Type{S}, args::Vararg{Any,K}) where {K,S}
-#     _pick_vector_width(StaticInt{8}(), max_W, S, args...)
-# end
-@inline function _pick_vector_width(min_W, max_W, ::Type{T}) where {T}
-    _max_W = smin(max_W, pick_vector_width(T))
-    smax(min_W, _max_W)
-end
-# @inline _pick_vector_width(min_W, max_W, ::Type{Bit}) = smax(StaticInt{8}(), max_W)
-@inline function pick_vector_width(::Type{T}, ::Type{S}, args::Vararg{Any,K}) where {T,S,K}
-    _pick_vector_width(One(), register_size(), T, S, args...)
-end
-@inline function pick_vector_width(::Union{Val{P},StaticInt{P}}, ::Type{T}, ::Type{S}, args::Vararg{Any,K}) where {P,T,S,K}
-    _pick_vector_width(One(), smin(register_size(), nextpow2(StaticInt{P}())), T, S, args...)
-end
-@inline function pick_vector_width(::Union{Val{P},StaticInt{P}}, ::Type{T}) where {P,T}
-    _pick_vector_width(One(), smin(register_size(), nextpow2(StaticInt{P}())), T)
-end
-
 
 function integer_of_bytes_symbol(bytes::Int, unsigned::Bool = false)
     if bytes ≥ 8
@@ -157,7 +117,4 @@ mask_type(::Union{Val{64},StaticInt{64}}) = UInt64
 @inline mask_type(::Type{T}) where {T} = _mask_type(pick_vector_width(T))
 @inline mask_type(::Type{T}, ::Union{StaticInt{P},Val{P}}) where {T,P} = _mask_type(pick_vector_width(StaticInt{P}(), T))
 
-@inline unwrap(::Val{N}) where {N} = N
-@inline unwrap(::StaticInt{N}) where {N} = N
-@inline unwrap(x) = x
 
