@@ -74,14 +74,15 @@ const STORE_SCOPE_FLAGS = ", !noalias !3";
 # !9 = !{!"jtbaa"}
 # """;
 # const TBAA_FLAGS = ", !tbaa !4";
-const TBAA_STR = """
-!4 = !{!"jtbaa", !5, i64 0}
-!5 = !{!"jtbaa"}
-!6 = !{!"jtbaa_data", !4, i64 0}
-!7 = !{!8, !8, i64 0}
-!8 = !{!"jtbaa_arraybuf", !6, i64 0}
-""";
-const TBAA_FLAGS = ", !tbaa !7";
+const TBAA_STR = TBAA_FLAGS = ""
+# const TBAA_STR = """
+# !4 = !{!"jtbaa", !5, i64 0}
+# !5 = !{!"jtbaa"}
+# !6 = !{!"jtbaa_data", !4, i64 0}
+# !7 = !{!8, !8, i64 0}
+# !8 = !{!"jtbaa_arraybuf", !6, i64 0}
+# """;
+# const TBAA_FLAGS = ", !tbaa !7";
 const LOAD_SCOPE_TBAA = SCOPE_METADATA * TBAA_STR
 const LOAD_SCOPE_TBAA_FLAGS = LOAD_SCOPE_FLAGS * TBAA_FLAGS
 
