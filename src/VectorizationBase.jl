@@ -9,6 +9,7 @@ using ArrayInterface:
     static_first, static_last, static_length
 import IfElse: ifelse
 
+const IntegerTypes = Union{StaticInt,IntegerTypesHW}
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
 # TODO: see if `@inline` is good enough.
