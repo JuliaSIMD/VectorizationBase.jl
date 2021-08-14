@@ -15,6 +15,8 @@ Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 
 [compat]
 ArrayInterface = "3.1.2"
+CPUSummary = "0.1.1"
+HostCPUFeatures = "0.1.2"
 Hwloc = "2.0"
 IfElse = "0.1"
 Static = "0.2, 0.3"

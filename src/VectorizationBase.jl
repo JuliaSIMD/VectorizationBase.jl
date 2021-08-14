@@ -17,7 +17,7 @@ using HostCPUFeatures:
   register_size, static_sizeof, fast_int64_to_double, pick_vector_width,
   pick_vector_width_shift, prevpow2, simd_integer_register_size, fma_fast,
   smax, smin, has_feature, has_opmask_registers, register_count, static_sizeof,
-  cpu_name, register_size, unwrap, intlog2, nextpow2
+  cpu_name, register_size, unwrap, intlog2, nextpow2, fast_half
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
