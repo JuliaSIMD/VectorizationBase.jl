@@ -87,11 +87,6 @@
     (vm ≥ first(r)) & (vm ≤ last(r))
 end
 
-@inline function pick_vector_width_shift(args::Vararg{Any,K}) where {K}
-    W = pick_vector_width(args...)
-    W, intlog2(W)
-end
-
 for op ∈ (:(+),:(-))
   @eval begin
     @inline Base.$op(vu::VecUnroll{N,1,T,T}, i::MM) where {N,T<:NativeTypes} = VecUnroll(fmap($op, data(vu), i))
