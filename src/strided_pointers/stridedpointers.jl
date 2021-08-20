@@ -375,39 +375,37 @@ end
 # so initial load is of pointer(A) + 10 -> the 11th element w/ 1-based indexing
 
 
-function double_index_quote(C,B,R::NTuple{N,Int},I1,I2,typ) where {N}
-    # place into position of second arg
-    J1 = I1 + 1; J2 = I2 + 1;
-    @assert (J1 != B) & (J2 != B)
-    Cnew = ((C == J1) | (C == J2)) ? -1 : (C - (J1 < C))
-    push!(typ.args, Cnew); push!(typ.args, B);
-    strd = Expr(:tuple); offs = Expr(:tuple);
-    inds = Expr(:tuple); Rtup = Expr(:tuple)
-    for n in 1:N
-        if n == J1
-            push!(inds.args, :(Zero()))
-        elseif n == J2
-            push!(strd.args, Expr(:call, :vadd_nw, Expr(:ref, :strd, J1), Expr(:ref, :strd, J2)))
-            push!(offs.args, :(Zero()))
-            push!(inds.args, :(Zero()))
-            push!(Rtup.args, max(R[J1], R[J2]))
-        else
-            push!(strd.args, Expr(:ref, :strd, n))
-            push!(offs.args, Expr(:ref, :offs, n))
-            push!(inds.args, Expr(:ref, :offs, n))
-            push!(Rtup.args, R[n])
-        end
+function double_index_quote(C,B,R::NTuple{N,Int},I1::Int,I2::Int) where {N}
+  # place into position of second arg
+  J1 = I1 + 1; J2 = I2 + 1;
+  @assert (J1 != B) & (J2 != B)
+  Cnew = ((C == J1) | (C == J2)) ? -1 : (C - (J1 < C))
+  strd = Expr(:tuple); offs = Expr(:tuple);
+  inds = Expr(:tuple); Rtup = Expr(:tuple)
+  si = Expr(:curly, :StrideIndex, N-1, Rtup, Cnew)
+  for n in 1:N
+    if n == J1
+      push!(inds.args, :(Zero()))
+    elseif n == J2
+      arg1 = Expr(:ref, :strd, J1)
+      arg2 = Expr(:ref, :strd, J2)
+      push!(strd.args, Expr(:call, :*, arg1, arg2))
+      push!(offs.args, :(Zero()))
+      push!(inds.args, :(Zero()))
+      push!(Rtup.args, max(R[J1], R[J2]))
+    else
+      push!(strd.args, Expr(:ref, :strd, n))
+      push!(offs.args, Expr(:ref, :offs, n))
+      push!(inds.args, Expr(:ref, :offs, n))
+      push!(Rtup.args, R[n])
     end
-    push!(typ.args, Rtup)
-    gepedptr = Expr(:call, :gep, :ptr, inds)
-    newptr = Expr(:call, typ, gepedptr, strd, offs)
-    Expr(:block, Expr(:meta,:inline), :(strd = getfield(ptr, :strd)), :(offs = getfield(ptr, :offsets)), newptr)
+  end
+  gepedptr = Expr(:call, :gep, :ptr, inds)
+  newptr = Expr(:call, :stridedpointer, gepedptr, Expr(:call, si, strd, offs, Zero()))
+  Expr(:block, Expr(:meta,:inline), :(strd = strides(ptr)), :(offs = offsets(sptr)), newptr)
 end
-@generated function double_index(ptr::StridedPointer{T,N,C,B,R}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
-    double_index_quote(C,B,R,I1,I2, Expr(:curly, :StridedPointer, :T, N - 1))
-end
-@generated function double_index(ptr::StridedBitPointer{N,C,B,R}, ::Val{I1}, ::Val{I2}) where {N,C,B,R,I1,I2}
-    double_index_quote(C,B,R,I1,I2, Expr(:curly, :StridedBitPointer, N - 1))
+@generated function double_index(ptr::AbstractStridedPointer{T,N,R,C,B}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
+  double_index_quote(C, B, R, I1, I2)
 end
 
 @inline stridedpointer(ptr::AbstractStridedPointer) = ptr

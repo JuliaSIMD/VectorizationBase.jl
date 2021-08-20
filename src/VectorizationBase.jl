@@ -18,6 +18,11 @@ using HostCPUFeatures:
   pick_vector_width_shift, prevpow2, simd_integer_register_size, fma_fast,
   smax, smin, has_feature, has_opmask_registers, register_count, static_sizeof,
   cpu_name, register_size, unwrap, intlog2, nextpow2, fast_half
+using SIMDTypes:
+  Bit, FloatingTypes, SignedHW, UnsignedHW, IntegerTypesHW, NativeTypesExceptBitandFloat16,
+  NativeTypesExceptBit, NativeTypesExceptFloat16, NativeTypes, _Vec
+using LayoutPointers:
+  AbstractStridedPointer, StridedPointer, StridedBitPointer
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
@@ -49,75 +54,7 @@ export Vec, Mask, EVLMask, MM, stridedpointer, vload, vstore!, StaticInt, True, 
 using Base: llvmcall, VecElement, HWReal, tail
 const LLVMCALL = GlobalRef(Base, :llvmcall)
 
-const FloatingTypes = Union{Float32, Float64, Float16}
-
-# const SignedHW = Union{Int8,Int16,Int32,Int64,Int128}
-# const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64,UInt128}
-const SignedHW = Union{Int8,Int16,Int32,Int64}
-const UnsignedHW = Union{UInt8,UInt16,UInt32,UInt64}
-const IntegerTypesHW = Union{SignedHW,UnsignedHW}
-const IntegerTypes = Union{StaticInt,IntegerTypesHW}
-
-struct Bit; data::Bool; end # Dummy for Ptr
 const Boolean = Union{Bit,Bool}
-
-# for N ∈ (256,512,1024)
-#   T = Symbol(:UInt,N)
-#   str = "ret i$(N) "
-#   @eval begin
-#     primitive type $T <: Unsigned $N end
-#     Base.zero(::Type{$T}) = Base.llvmcall($(str*'0'), $T, Tuple{})
-#     Base.typemax(::Type{$T}) = Base.llvmcall($(str*"-1"), $T, Tuple{})
-#     ($T)(x::Integer) = Base.zext_int($T, x)
-#   end
-# end
-# const BigBitUInt = Union{UInt256,UInt512,UInt1024}
-
-# Base.typemin(::Type{T}) where {T <: BigBitUInt} = zero(T)
-
-# Base.:(~)(x::BigBitUInt) = Base.not_int(x)
-# Base.count_ones(x::BigBitUInt) = Base.trunc_int(Int, Base.ctpop_int(x))
-# Base.leading_zeros(x::BigBitUInt) = Base.trunc_int(Int, Base.ctlz_int(x))
-# Base.trailing_zeros(x::BigBitUInt) = Base.trunc_int(Int, Base.cttz_int(x))
-# Base.rem(x::BigBitUInt, ::Type{I}) where {I<:Integer} = Base.trunc_int(I, x)
-# Base.rem(x::T, ::Type{T}) where {T<:BigBitUInt} = x
-# for (f,intrin) ∈ [(:(>>),:lshr_int), (:(>>>),:lshr_int), (:(<<),:shl_int), (:(|), :or_int), (:(&), :and_int), (:(⊻), :xor_int), (:(+), :add_int), (:(-), :sub_int), (:(*), :mul_int)]
-#   @eval Base.$f(x::T, y::T) where {T <: BigBitUInt} = Base.$intrin(x, y)
-# end
-# for f ∈ [:(|),:(&),:(⊻),:(+),:(-),:(*)]
-#   @eval Base.$f(x::T, y::Unsigned) where {T <: BigBitUInt} = $f(x, Base.zext_int(T, y))
-#   @eval Base.$f(y::Unsigned, x::T) where {T <: BigBitUInt} = $f(Base.zext_int(T, y), x)
-#   @eval Base.$f(x::T, y::Signed) where {T <: BigBitUInt} = $f(x, Base.sext_int(T, y))
-#   @eval Base.$f(y::Signed, x::T) where {T <: BigBitUInt} = $f(Base.sext_int(T, y), x)
-# end
-
-# Base.:(>>)(x::T, y::Unsigned) where {T <: BigBitUInt} = Base.lshr_int(x, Base.zext_int(T, y))
-# Base.:(>>>)(x::T, y::Unsigned) where {T <: BigBitUInt} = Base.lshr_int(x, Base.zext_int(T, y))
-# Base.:(<<)(x::T, y::Unsigned) where {T <: BigBitUInt} = Base.shl_int(x, Base.zext_int(T, y))
-
-# Base.:(>>)(x::T, y::Signed) where {T <: BigBitUInt} = x << unsigned(-y)
-# Base.:(>>>)(x::T, y::Signed) where {T <: BigBitUInt} = x << unsigned(-y)
-# Base.:(<<)(x::T, y::Signed) where {T <: BigBitUInt} = x >> unsigned(-y)
-
-# function Base.rand(::Type{UInt256})
-#   x = zero(UInt256)
-#   x |= rand(UInt64)
-#   x <<= 0x0000000000000040
-#   x |= rand(UInt64)
-#   x <<= 0x0000000000000040
-#   x |= rand(UInt64)
-#   x <<= 0x0000000000000040
-#   x |= rand(UInt64)
-#   x
-# end
-
-# const NativeTypesExceptBit = Union{Bool,HWReal,Int128,UInt128,UInt256,UInt512,UInt1024}
-const NativeTypesExceptBitandFloat16 = Union{Bool,HWReal}
-const NativeTypesExceptBit = Union{Bool,HWReal,Float16}
-const NativeTypesExceptFloat16 = Union{Bool,HWReal,Bit}
-const NativeTypes = Union{NativeTypesExceptBit, Bit}
-
-const _Vec{W,T<:Number} = NTuple{W,Core.VecElement{T}}
 
 abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
@@ -135,6 +72,7 @@ struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{
 end
 # @inline VecUnroll(data::Tuple) = VecUnroll(promote(data))
 # const AbstractSIMD{W,T} = Union{AbstractSIMDVector{W,T},VecUnroll{<:Any,W,T}}
+const IntegerTypes = Union{StaticInt,IntegerTypesHW}
 const VecOrScalar = Union{AbstractSIMDVector,NativeTypes}
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
@@ -321,18 +259,6 @@ For use in spin-and-wait loops, like spinlocks.
 #     return nothing
 # end
 
-"""
-  abstract type AbstractStridedPointer{T,N,C,B,R,X,O} end
-
-T: element type
-N: dimensionality
-C: contiguous dim
-B: batch size
-R: rank of strides
-X: strides
-O: offsets
-"""
-abstract type AbstractStridedPointer{T,N,C,B,R,X<:Tuple{Vararg{Any,N}},O<:Tuple{Vararg{Any,N}}} end
 include("static.jl")
 include("cartesianvindex.jl")
 include("early_definitions.jl")
