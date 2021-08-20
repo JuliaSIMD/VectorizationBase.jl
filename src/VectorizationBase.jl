@@ -18,6 +18,7 @@ using HostCPUFeatures:
   pick_vector_width_shift, prevpow2, simd_integer_register_size, fma_fast,
   smax, smin, has_feature, has_opmask_registers, register_count, static_sizeof,
   cpu_name, register_size, unwrap, intlog2, nextpow2, fast_half
+
 using SIMDTypes:
   Bit, FloatingTypes, SignedHW, UnsignedHW, IntegerTypesHW, NativeTypesExceptBitandFloat16,
   NativeTypesExceptBit, NativeTypesExceptFloat16, NativeTypes, _Vec
