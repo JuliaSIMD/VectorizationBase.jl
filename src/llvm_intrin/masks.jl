@@ -288,8 +288,8 @@ end
 #   end
 # end
 
-function mask_shift_quote(W::Int)
-  if ((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))
+function mask_shift_quote(W::Int, bmi::Bool)
+  if (((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))) && bmi
     W ≤ 64 && return Expr(:block, Expr(:meta, :inline), :(_mask_bzhi(StaticInt{$W}(), l)))
   end
   MT = mask_type(W)
@@ -299,6 +299,8 @@ function mask_shift_quote(W::Int)
     EVLMask{$W,$MT}($(typemax(MT)) >>> ($(MT(8sizeof(MT))-1) - evl), evl + one(evl))
   end
 end
+@generated _mask_shift(::StaticInt{W}, l, ::True) where {W} = mask_shift_quote(W, true)
+@generated _mask_shift(::StaticInt{W}, l, ::False) where {W} = mask_shift_quote(W, false)
 @static if Base.libllvm_version ≥ v"12"
   function active_lane_mask_quote(W::Int)
     quote
@@ -316,10 +318,10 @@ else
     end
   end
 end
-function mask_cmp_quote(W::Int, RS::Int)
+function mask_cmp_quote(W::Int, RS::Int, bmi::Bool)
   M = mask_type_symbol(W)
   bytes = min(RS ÷ W, 8)
-  bytes < 4 && return mask_shift_quote(W)
+  bytes < 4 && return mask_shift_quote(W, bmi)
   T = integer_of_bytes_symbol(bytes, true)
   quote
     $(Expr(:meta,:inline))
@@ -327,22 +329,22 @@ function mask_cmp_quote(W::Int, RS::Int)
     EVLMask{$W}(data(evl ≥ MM{$W}(zero($T))), vadd_nw(evl, one(evl)))
   end
 end
-@generated function _mask_cmp(::Union{Val{W},StaticInt{W}}, l::I, ::StaticInt{RS}) where {W,RS,I<:Integer}
-  mask_cmp_quote(W, RS)
-end
-@generated _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer} = mask_shift_quote(W)
+@generated _mask_cmp(::Union{Val{W},StaticInt{W}}, l::I, ::StaticInt{RS}, ::True) where {W,RS,I<:Integer} = mask_cmp_quote(W, RS, true)
+@generated _mask_cmp(::Union{Val{W},StaticInt{W}}, l::I, ::StaticInt{RS}, ::False) where {W,RS,I<:Integer} = mask_cmp_quote(W, RS, false)
+@generated _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer} = mask_shift_quote(W, true)
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
   1+2
   # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
   if W > 16
-    mask_shift_quote(W)
+    Expr(:block, Expr(:meta,:inline), :(_mask_shift(StaticInt{$W}(), l, has_feature(Val(:x86_64_bmi)))))
+    # mask_shift_quote(W)
   # elseif (Base.libllvm_version ≥ v"11") && ispow2(W)
   # elseif ((Sys.ARCH ≢ :x86_64) && (Sys.ARCH ≢ :i686)) && (Base.libllvm_version ≥ v"11") && ispow2(W)
   elseif false
     # cmpval = Base.libllvm_version ≥ v"12" ? -one(I) : zero(I)
     active_lane_mask_quote(W)
   else
-    Expr(:block, Expr(:meta,:inline), :(_mask_cmp(Val{$W}(), l, simd_integer_register_size())))
+    Expr(:block, Expr(:meta,:inline), :(_mask_cmp(Val{$W}(), l, simd_integer_register_size(), has_feature(Val(:x86_64_bmi)))))
   end
 end
 # This `mask` method returns a constant, independent of `has_opmask_registers()`; that only effects method of calculating
