@@ -241,42 +241,45 @@ end
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} = EVLMask{W,U}(one(U)<<W - one(U), W % UInt32)
 
 @generated function valrem(::Union{Val{W},StaticInt{W}}, l::T) where {W,T<:Integer}
-    ex = ispow2(W) ? :(l & $(W - 1)) : Expr(:call, Base.urem_int, :l, T(W))
+    ex = ispow2(W) ? :(l & $(T(W - 1))) : Expr(:call, Base.urem_int, :l, T(W))
     Expr(:block, Expr(:meta, :inline), ex)
 end
-@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
-  # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
-  M = mask_type(W)
+function mask_shift_quote(W::Int)
+  MT = mask_type(W)
   quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
     $(Expr(:meta,:inline))
-    evl = valrem(Val{$W}(), (l % $M) - one($M))
-    EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
+    evl = valrem(Val{$W}(), (l % $MT) - one($MT))
+    EVLMask{$W,$MT}($(typemax(MT)) >>> ($(MT(8sizeof(MT))-1) - evl), evl + one(evl))
   end
 end
-@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
-    # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
-    if (Base.libllvm_version == v"11") && (W ≤ 16) && ispow2(W)
-        quote
-            $(Expr(:meta,:inline))
-            mask(Val{$W}(), zero(l), (vsub_nw(l, one(l)) & $(I(W-1))))
-        end
-    elseif W ≤ 16
-        M = mask_type_symbol(W)
-        quote
-            $(Expr(:meta,:inline))
-            evl = valrem(Val{$W}(), vsub_nw((l % $M), one($M)))
-            EVLMask{$W}(data(evl ≥ MM{$W}(0)), vadd_nw(evl, one(evl)))
-        end
-    else
-        quote
-            $(Expr(:meta,:inline))
-            _mask(StaticInt{$W}(), l, True())
-        end
-    end
+@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::StaticInt{RS}) where {W,RS,I<:Integer}
+  M = mask_type_symbol(W)
+  bytes = min(RS ÷ W, 8)
+  bytes < 4 && return mask_shift_quote(W)
+  T = integer_of_bytes_symbol(bytes, true)
+  quote
+    $(Expr(:meta,:inline))
+    evl = valrem(Val{$W}(), vsub_nw((l % $T), one($T)))
+    EVLMask{$W}(data(evl ≥ MM{$W}(zero($T))), vadd_nw(evl, one(evl)))
+  end
 end
-
-@inline function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W, I <: Integer}
-  _mask(StaticInt{W}(), l, has_opmask_registers())
+@generated function mask(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
+  # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
+  if W > 16
+    mask_shift_quote(W)
+  elseif ((Sys.ARCH ≢ :x86_64) && (Sys.ARCH ≢ :i686)) && (Base.libllvm_version ≥ v"11") && ispow2(W)
+    # cmpval = Base.libllvm_version ≥ v"12" ? -one(I) : zero(I)
+    upper = :(vsub_nw(l, one(l)) & $(I(W-1)))
+    if Base.libllvm_version ≥ v"12"
+      upper = :($upper + one(l))
+    end
+    quote
+      $(Expr(:meta,:inline))
+      mask(Val{$W}(), zero(l), $upper)
+    end
+  else
+    Expr(:block, Expr(:meta,:inline), :(_mask(Val{$W}(), l, simd_integer_register_size())))
+  end
 end
 # This `mask` method returns a constant, independent of `has_opmask_registers()`; that only effects method of calculating
 # the constant. So it'd be safe to bake in a value.
