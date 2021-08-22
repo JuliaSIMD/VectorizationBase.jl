@@ -809,6 +809,7 @@ include("testsetup.jl")
         Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
       ))
       vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
+      @test vf2 * 1//2 === vf2 * 0.5 === vf2 / 2
       xf1 = tovector(vf1); xf2 = tovector(vf2); xf22 = vcat(xf2,xf2)
       a = randn();
       for f ∈ [+, -, *, /, %, max, min, copysign, rem, Base.FastMath.max_fast, Base.FastMath.min_fast, Base.FastMath.div_fast, Base.FastMath.rem_fast, Base.FastMath.hypot_fast]
