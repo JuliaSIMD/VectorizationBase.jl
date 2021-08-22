@@ -267,7 +267,8 @@ end
 # end
 @inline function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
   U = mask_type(StaticInt(W))
-  m = ((l) % UInt32) & ((W-1) % UInt32)
+  # m = ((l) % UInt32) & ((W-1) % UInt32)
+  m = valrem(StaticInt{W}(), l % UInt32)
   m = Core.ifelse((m % UInt8) == 0x00, W % UInt32, m)
   # m = Core.ifelse(zero(m) == m, -1 % UInt32, m)
   EVLMask{W,U}(bzhi(-1 % UInt32, m) % U, m)
