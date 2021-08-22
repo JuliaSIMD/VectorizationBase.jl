@@ -38,7 +38,7 @@ Base.promote_rule(::Type{Mask{W,U}}, ::Type{EVLMask{W,U}}) where {W,U} = Mask{W,
 Base.promote_rule(::Type{EVLMask{W,U}}, ::Type{Mask{W,U}}) where {W,U} = Mask{W,U}
 Base.promote_rule(::Type{Bit}, ::Type{T}) where {T <: Number} = T
 
-Base.promote_rule(::Type{V}, ::Type{T}) where {W,TV,V<:AbstractSIMD{W,TV},T} = Base.promote_rule(V, promote_type(TV,T))
+Base.promote_rule(::Type{V}, ::Type{T}) where {W,TV,V<:AbstractSIMD{W,TV},T<:Rational} = promote_type(V, promote_type(TV,T))
 
 issigned(x) = issigned(typeof(x))
 issigned(::Type{<:Signed}) = True()
