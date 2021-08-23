@@ -298,6 +298,78 @@ end
 # @generated function Base.:(^)(v1::Vec{W,T}, v2::Int32) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("powi", W, T, (W, 1), (T, Int32), "nsz arcp contract afn reassoc")
 # end
+# @inline ifelse_reduce_step(f::F, a::Number, b::Number) where {F} = ifelse(f(a,b), a, b)
+@inline firstelement(x::AbstractSIMDVector) = extractelement(x,0)
+@inline secondelement(x::AbstractSIMDVector) = extractelement(x,1)
+@inline firstelement(x::VecUnroll) = VecUnroll(fmap(extractelement, data(x), 0))
+@inline secondelement(x::VecUnroll) = VecUnroll(fmap(extractelement, data(x), 1))
+
+@inline ifelse_reduce(f::F, x::Number) where {F} = x
+@inline function ifelse_reduce(f::F, x::AbstractSIMD{2,T}) where {F,T}
+  a = firstelement(x)
+  b = secondelement(x)
+  ifelse(f(a,b), a, b)::T
+end
+@inline function ifelse_reduce(f::F, x::AbstractSIMD{W,T}) where {F,W,T}
+  a = uppervector(x)
+  b = lowervector(x)
+  ifelse_reduce(f, ifelse(f(a,b), a, b))::T
+end
+@inline ifelse_reduce(f::F, x::MM) where {F} = ifelse_reduce(f, Vec(x))
+
+# @inline ifelse_reduce(f::F, x::VecUnroll) where {F} = ifelse_reduce(f, ifelse_collapse(f, x))
+
+@inline ifelse_collapse(f::F, a, x::Tuple{}) where {F} = a
+@inline function ifelse_collapse(f::F, a, x::Tuple{T}) where {F,T}
+  b = first(x)
+  ifelse(f(a,b), a, b)::typeof(a)
+end
+@inline function ifelse_collapse(f::F, a, x::Tuple) where {F}
+  b = first(x)
+  ifelse_collapse(f, ifelse(f(a,b), a, b), Base.tail(x))::typeof(a)
+end
+@inline function ifelse_collapse(f::F, x::VecUnroll{N,W,T,V}) where {F,N,W,T,V}
+  d = data(x)
+  ifelse_collapse(f, first(d), Base.tail(d))::V
+end
+# @inline function ifelse_collapse(f::F, x::VecUnroll) where {F}
+#   d = data(x)
+#   ifelse_collapse(f, first(d), Base.tail(d))
+# end
+
+@inline ifelse_reduce_mirror(f::F, x::Number, y::Number) where {F} = x, y
+@inline function ifelse_reduce_mirror(f::F, x::AbstractSIMD{2}, y::AbstractSIMD{2}) where {F}
+  a = firstelement(x); b = secondelement(x)
+  m = firstelement(y); n = secondelement(y)
+  fmn = f(m,n)
+  ifelse(fmn, a, b), ifelse(fmn, m, n)
+end
+@inline function ifelse_reduce_mirror(f::F, x::AbstractSIMD, y::AbstractSIMD) where {F}
+  a = uppervector(x); b = lowervector(x)
+  m = uppervector(y); n = lowervector(y)
+  fmn = f(m,n)
+  ifelse_reduce_mirror(f, ifelse(fmn, a, b), ifelse(fmn, m, n))
+end
+@inline ifelse_reduce_mirror(f::F, x::MM, y::MM) where {F} = ifelse_reduce_mirror(f, Vec(x), Vec(y))
+
+@inline ifelse_collapse_mirror(f::F, a, ::Tuple{}, x, ::Tuple{}) where {F} = a, x
+@inline function ifelse_collapse_mirror(f::F, a, c::Tuple{T}, x, z::Tuple{T}) where {F,T}
+  b = first(c); y = first(z)
+  fxy = f(x,y)  
+  ifelse(fxy, a, b), ifelse(fxy, x, y)
+end
+@inline function ifelse_collapse_mirror(f::F, a, c::Tuple, x, z::Tuple) where {F}
+  b = first(c); y = first(z)
+  fxy = f(x,y)
+  ifelse_collapse_mirror(f, ifelse(fxy, a, b), Base.tail(c), ifelse(fxy, x, y), Base.tail(z))
+end
+@inline function ifelse_collapse_mirror(f::F, x::VecUnroll, y::VecUnroll) where {F}
+  dx = data(x); dy = data(y)
+  ifelse_collapse_mirror(f, first(dx), Base.tail(dx), first(dy), Base.tail(dy))
+end
+
+
+
 for (opname,f) ∈ [
   ("fadd",:vsum),
   ("fmul",:vprod)
@@ -314,16 +386,20 @@ for (opname,f) ∈ [
 end
 @inline vsum(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.add_fast(s, vsum(v))
 @inline vprod(s::S, v::Vec{W,T}) where {W,T,S} = Base.FastMath.mul_fast(s, vprod(v))
-for (op,f) ∈ [
-  ("vector.reduce.fmax",:vmaximum),
-  ("vector.reduce.fmin",:vminimum)
-]
-  Base.libllvm_version < v"12" && (op = "experimental." * op)
-  @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
-    TS = JULIA_TYPES[T]
-    build_llvmcall_expr($op, -1, TS, [W], [TS], "nsz arcp contract afn reassoc")
-  end
-end
+# for (op,f) ∈ [
+#   ("vector.reduce.fmax",:vmaximum),
+#   ("vector.reduce.fmin",:vminimum)
+# ]
+#   Base.libllvm_version < v"12" && (op = "experimental." * op)
+#   @eval @generated function $f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
+#     TS = JULIA_TYPES[T]
+#     build_llvmcall_expr($op, -1, TS, [W], [TS], "nsz arcp contract afn reassoc")
+#   end
+# end
+@inline vminimum(x) =  ifelse_reduce(<, x)
+@inline vmaximum(x) =  ifelse_reduce(>, x)
+# @inline vminimum(x, y) =  ifelse_reduce(<, x)
+# @inline vmaximum(x, y) =  ifelse_reduce(>, (ifelse_reduce(>, x), y))
 for (op,f,S) ∈ [
   ("vector.reduce.add",:vsum,:Integer),
   ("vector.reduce.mul",:vprod,:Integer),
@@ -342,9 +418,9 @@ for (op,f,S) ∈ [
   end
 end
 if Sys.ARCH == :aarch64 # TODO: maybe the default definition will stop segfaulting some day?
-    for I ∈ (:Int64, :UInt64), (f,op) ∈ ((:vmaximum,:max),(:vminimum,:min))
-        @eval @inline $f(v::Vec{W,$I}) where {W} = ArrayInterface.reduce_tup($op, Tuple(v))
-    end
+  for I ∈ (:Int64, :UInt64), (f,op) ∈ ((:vmaximum,:max),(:vminimum,:min))
+    @eval @inline $f(v::Vec{W,$I}) where {W} = ArrayInterface.reduce_tup($op, Tuple(v))
+  end
 end
 
 #         W += W

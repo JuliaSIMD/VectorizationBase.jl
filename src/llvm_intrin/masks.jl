@@ -265,14 +265,24 @@ end
 #     EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
 #   end
 # end
-@inline function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
-  U = mask_type(StaticInt(W))
-  # m = ((l) % UInt32) & ((W-1) % UInt32)
-  m = valrem(StaticInt{W}(), l % UInt32)
-  m = Core.ifelse((m % UInt8) == 0x00, W % UInt32, m)
-  # m = Core.ifelse(zero(m) == m, -1 % UInt32, m)
-  EVLMask{W,U}(bzhi(-1 % UInt32, m) % U, m)
+@generated function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
+  U = mask_type_symbol(W)
+  T = W > 32 ? :UInt64 : :UInt32
+  quote
+    $(Expr(:meta,:inline))
+    m = valrem(StaticInt{$W}(), l % $T)
+    m = Core.ifelse((m % UInt8) == 0x00, $W % $T, m)
+    EVLMask{$W,$U}(bzhi(-1 % $T, m) % $U, m)
+  end
 end
+# @inline function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
+#   U = mask_type(StaticInt(W))
+#   # m = ((l) % UInt32) & ((W-1) % UInt32)
+#   m = valrem(StaticInt{W}(), l % UInt32)
+#   m = Core.ifelse((m % UInt8) == 0x00, W % UInt32, m)
+#   # m = Core.ifelse(zero(m) == m, -1 % UInt32, m)
+#   EVLMask{W,U}(bzhi(-1 % UInt32, m) % U, m)
+# end
 # @inline function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
 #   U = mask_type(StaticInt(W))
 #   m = ((l-one(l)) % UInt32) & ((W-1) % UInt32)
@@ -333,7 +343,6 @@ end
 @generated _mask_cmp(::Union{Val{W},StaticInt{W}}, l::I, ::StaticInt{RS}, ::False) where {W,RS,I<:Integer} = mask_cmp_quote(W, RS, false)
 @generated _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer} = mask_shift_quote(W, true)
 @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
-  1+2
   # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
   if W > 16
     Expr(:block, Expr(:meta,:inline), :(_mask_shift(StaticInt{$W}(), l, has_feature(Val(:x86_64_bmi)))))

@@ -205,6 +205,9 @@ function collapse_expr(N, op, final)
     end
     q
 end
+@generated callapse(f::F, vu::VecUnroll{N}) where {F,N} = collapse_expr(N, :f, 1)
+@generated contract(f::F, vu::VecUnroll{N}, ::StaticInt{C}) where {F,N,C} = collapse_expr(N, :f, C)
+
 @generated collapse_add(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vadd, 1)
 @generated collapse_mul(vu::VecUnroll{N}) where {N} = collapse_expr(N, :vmul, 1)
 @generated collapse_max(vu::VecUnroll{N}) where {N} = collapse_expr(N, :max, 1)
@@ -222,8 +225,8 @@ end
 @inline vsum(s::VecUnroll, vu::VecUnroll) = VecUnroll(fmap(vsum, data(s), data(vu)))
 @inline vprod(vu::VecUnroll) = VecUnroll(fmap(vprod, data(vu)))
 @inline vprod(s::VecUnroll, vu::VecUnroll) = VecUnroll(fmap(vprod, data(s), data(vu)))
-@inline vmaximum(vu::VecUnroll) = VecUnroll(fmap(vmaximum, data(vu)))
-@inline vminimum(vu::VecUnroll) = VecUnroll(fmap(vminimum, data(vu)))
+# @inline vmaximum(vu::VecUnroll) = VecUnroll(fmap(vmaximum, data(vu)))
+# @inline vminimum(vu::VecUnroll) = VecUnroll(fmap(vminimum, data(vu)))
 @inline vall(vu::VecUnroll) = VecUnroll(fmap(vall, data(vu)))
 @inline vany(vu::VecUnroll) = VecUnroll(fmap(vany, data(vu)))
 
