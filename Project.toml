@@ -1,7 +1,7 @@
 name = "VectorizationBase"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
 authors = ["Chris Elrod <elrodc@gmail.com>"]
-version = "0.20.34"
+version = "0.20.37"
 
 [deps]
 ArrayInterface = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
@@ -16,7 +16,7 @@ SIMDTypes = "94e857df-77ce-4151-89e5-788b33177be4"
 Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 
 [compat]
-ArrayInterface = "3.1.2"
+ArrayInterface = "3.1.2 - 3.1.23, 3.1.25"
 CPUSummary = "0.1.1"
 HostCPUFeatures = "0.1.2"
 Hwloc = "2.0"
