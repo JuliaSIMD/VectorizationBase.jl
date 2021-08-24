@@ -798,5 +798,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     vfdiv_afast(a, b, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
   end
   # @inline vfdiv_fast(a::VecUnroll{N,W,Float32,Vec{W,Float32}},b::VecUnroll{N,W,Float32,Vec{W,Float32}}) where {N,W} = vfdiv_afast(a, b, True())
+else
+  ge_one_fma(::Val) = True()
 end
 
