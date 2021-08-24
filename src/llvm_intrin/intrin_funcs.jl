@@ -683,7 +683,7 @@ end
 @inline vinv_fast(v) = vinv(v)
 @inline vinv_fast(v::AbstractSIMD{<:Any,<:Integer}) = vinv_fast(float(v))
 
-if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
+@static if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     
     function inv_approx_expr(W, @nospecialize(T), hasavx512f, hasavx512vl, hasavx, vector::Bool=true)
         bits = 8sizeof(T) * W
@@ -798,5 +798,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     vfdiv_afast(a, b, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
   end
   # @inline vfdiv_fast(a::VecUnroll{N,W,Float32,Vec{W,Float32}},b::VecUnroll{N,W,Float32,Vec{W,Float32}}) where {N,W} = vfdiv_afast(a, b, True())
+else
+  ge_one_fma(::Val) = True()
 end
 
