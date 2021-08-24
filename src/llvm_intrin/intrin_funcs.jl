@@ -683,7 +683,7 @@ end
 @inline vinv_fast(v) = vinv(v)
 @inline vinv_fast(v::AbstractSIMD{<:Any,<:Integer}) = vinv_fast(float(v))
 
-if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
+@static if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     
     function inv_approx_expr(W, @nospecialize(T), hasavx512f, hasavx512vl, hasavx, vector::Bool=true)
         bits = 8sizeof(T) * W
