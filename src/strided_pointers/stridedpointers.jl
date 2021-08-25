@@ -154,56 +154,6 @@ end
   gep(p, li)
 end
 
-struct StridedBitPointer{N,C,B,R,X} <: AbstractStridedPointer{Bit,N,C,B,R,X,NTuple{N,Int}}
-  p::Ptr{Bit}
-  strd::X
-  offsets::NTuple{N,Int}
-end
-function StridedBitPointer{N,C,B,R}(p::Ptr{Bit}, strd::X, offsets) where {N,C,B,R,X}
-  StridedBitPointer{N,C,B,R,X}(p, strd, offsets)
-end
-@inline Base.pointer(p::StridedBitPointer) = p.p
-# @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (StaticInt{1}(),))
-@inline bytestrides(A::StridedBitPointer) = getfield(A, :strd)
-@inline Base.strides(ptr::StridedBitPointer) = getfield(ptr, :strd)
-@inline ArrayInterface.strides(ptr::StridedBitPointer) = getfield(ptr, :strd)
-@inline ArrayInterface.offsets(ptr::StridedBitPointer) = getfield(ptr, :offsets)
-
-@inline function stridedpointer(
-  ptr::Ptr{Bit}, ::StaticInt{C}, ::StaticInt{B}, ::Val{R}, strd::X, offsets::O
-) where {C,B,R,N,X<:Tuple{Vararg{Integer,N}},O<:Tuple{Vararg{Integer,N}}}
-  StridedBitPointer{N,C,B,R,X}(ptr, strd, offsets)
-end
-
-# @inline stridedpointer(A::BitVector) = StridedBitPointer{1,1,0,(1,)}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), (StaticInt{1}(),), (1,))
-# @generated function stridedpointer(A::BitArray{N}) where {N}
-#     q = quote;
-#         s = size(A)
-#         @assert iszero(s[1] & 7) "For performance reasons, `BitArray{N}` where `N > 1` are required to have a multiple of 8 rows.";
-#     end
-#     sone = :(StaticInt{1}());
-#     strd = Expr(:tuple, sone, :s_2); offsets = Expr(:tuple, sone, sone);
-#     last_stride = next_stride = :s_2
-#     push!(q.args, :(s_2 = size(A,1)));
-#     R = Expr(:tuple, 1, 2)
-#     for n ∈ 3:N
-#         next_stride = Symbol(:s_, n)
-#         push!(q.args, Expr(:(=), next_stride, Expr(:call, :(*), Expr(:ref, :s, n-1), last_stride)))
-#         push!(strd.args, next_stride)
-#         # push!(offsets.args, :(StaticInt{1}()))
-#         push!(offsets.args, 1)
-#         last_stride = next_stride
-#         push!(R.args, n)
-#     end
-#     push!(q.args, :(StridedBitPointer{$N,1,0,$R}(Base.unsafe_convert(Ptr{Bit}, pointer(A.chunks)), $strd, $offsets)))
-#     q
-# end
-@inline function similar_with_offset(sptr::StridedBitPointer{N,C,B,R}, ptr::Ptr{Bit}, offset::Tuple{Vararg{Integer,N}}) where {N,C,B,R}
-    StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), offset)
-end
-@inline function similar_no_offset(sptr::StridedBitPointer{N,C,B,R}, ptr::Ptr{Bit}) where {N,C,B,R}
-  StridedBitPointer{N,C,B,R}(ptr, getfield(sptr, :strd), ntuple(zero, Val{N}()))
-end
 
 # There is probably a smarter way to do indexing adjustment here.
 # The reasoning for the current approach of geping for Zero() on extracted inds
@@ -266,35 +216,7 @@ end
   double_index_quote(C, B, R, I1, I2)
 end
 
-@inline stridedpointer(ptr::AbstractStridedPointer) = ptr
-@inline stridedpointer_preserve(ptr::AbstractStridedPointer) = (ptr,nothing)
-
-struct FastRange{T,F,S,O}# <: AbstractStridedPointer{T,1,1,0,(1,),Tuple{S},Tuple{O}}# <: AbstractRange{T}
-  f::F
-  s::S
-  o::O
-end
-FastRange{T}(f::F,s::S) where {T<:Integer,F,S} = FastRange{T,Zero,S,F}(Zero(),s,f)
-FastRange{T}(f::F,s::S,o::O) where {T,F,S,O} = FastRange{T,F,S,O}(f,s,o)
-
-FastRange{T}(f,s) where {T<:FloatingTypes} = FastRange{T}(f,s,fast_int64_to_double())
-FastRange{T}(f::F,s::S,::True) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,Int}(f,s,0)
-FastRange{T}(f::F,s::S,::False) where {T<:FloatingTypes,F,S} = FastRange{T,F,S,Int32}(f,s,zero(Int32))
-
-@inline function memory_reference(r::AbstractRange{T}) where {T}
-  s = ArrayInterface.static_step(r)
-  FastRange{T}(ArrayInterface.static_first(r) - s, s), nothing
-end
-@inline memory_reference(r::FastRange) = (r,nothing)
-@inline bytestrides(::FastRange{T}) where {T} = (static_sizeof(T),)
-@inline ArrayInterface.offsets(::FastRange) = (One(),)
-@inline val_stride_rank(::FastRange) = Val{(1,)}()
-@inline val_dense_dims(::FastRange) = Val{(true,)}()
-@inline ArrayInterface.contiguous_axis(::FastRange) = One()
-@inline ArrayInterface.contiguous_batch_size(::FastRange) = Zero()
-
-@inline stridedpointer(fr::FastRange, ::StaticInt{1}, ::StaticInt{0}, ::Val{(1,)}, ::Tuple{X}, ::Tuple{One}) where {X<:Integer} = fr
-
+using LayoutPointers: FastRange
 # `FastRange{<:Integer}` can ignore the offset
 @inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Integer,I} = convert(T, getfield(r, :o)) + convert(T, getfield(r, :s)) * first(i)
 
@@ -317,21 +239,6 @@ end
 @inline increment_ptr(r::FastRange{T,Zero}, o, i::Tuple{I}) where {I,T} = vadd_nsw(vmul_nsw(only(i), getfield(r, :s)), o)
 
 @inline reconstruct_ptr(r::FastRange{T}, o) where {T} = FastRange{T}(getfield(r,:f), getfield(r, :s), o)
-
-
-@inline function zero_offsets(fr::FastRange{T,Zero}) where {T<:Integer}
-  s = getfield(fr,:s)
-  FastRange{T}(Zero(), s, getfield(fr,:o) + s)
-end
-@inline function zero_offsets(fr::FastRange{T}) where {T<:FloatingTypes}
-  FastRange{T}(getfield(fr,:f), getfield(fr,:s), getfield(fr,:o) + 1)
-end
-
-# `FastRange{<:FloatingTypes}` must use an integer offset because `ptrforcomparison` needs to be exact/integral.
-
-# @inline pointerforcomparison(r::FastRange) = getfield(r, :o)
-# @inline pointerforcomparison(r::FastRange, i::Tuple{I}) where {I} = getfield(r, :o) + first(i)
-
 
 @inline vload(r::FastRange, i, m::AbstractMask) = (v = vload(r, i); ifelse(m, v, zero(v)))
 @inline vload(r::FastRange, i, m::Bool) = (v = vload(r, i); ifelse(m, v, zero(v)))
@@ -360,15 +267,6 @@ function _vload_fastrange_unroll(AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UI
   push!(q.args, :(VecUnroll($t)))
   q
 end  
-# discard unnueeded align/reg size info
-# @inline vload(r::FastRange, i, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i)
-# @inline vload(r::FastRange, i, m, ::A, ::StaticInt{RS}) where {A<:StaticBool,RS} = vload(r,i,m)
-# @inline Base.getindex(r::FastRange, i::Integer) = vload(r, (i,))
-@inline Base.eltype(::FastRange{T}) where {T} = T
-
-# @generated function vload(r::FastRange{T}, i::Unroll{AU,F,N,AV,W,M,X,I}) where {T,I}
-
-# end
 
 """
 For structs wrapping arrays, using `GC.@preserve` can trigger heap allocations.
@@ -431,12 +329,10 @@ BenchmarkTools.Trial:
 @inline preserve_buffer(x) = x
 
 function llvmptr_comp_quote(cmp, Tsym)
-    pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
-    instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
-    Expr(:block, Expr(:meta,:inline), :(llvmcall($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
+  pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
+  instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
+  Expr(:block, Expr(:meta,:inline), :($(Base.llvmcall)($instrs, Bool, Tuple{$pt,$pt}, p1, p2)))
 end
-# @inline llvmptr(p::Ptr{T}) where {T} = reinterpret(Core.LLVMPtr{T,0}, p)
-# @inline llvmptr(p::AbstractStridedPointer) = llvmptr(pointer(p))
 @inline llvmptrd(p::Ptr) = reinterpret(Core.LLVMPtr{Float64,0}, p)
 @inline llvmptrd(p::AbstractStridedPointer) = llvmptrd(pointer(p))
 for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (:(≥),:vge,"uge"), (:(==),:veq,"eq"), (:(≠),:vne,"ne")]
@@ -445,7 +341,6 @@ for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (
       llvmptr_comp_quote($cmp, JULIA_TYPES[T])
     end
     @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $f(llvmptrd(p1), llvmptrd(p2))
-    # @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $f(llvmptr(center(p1)), llvmptr(center(p2)))
     @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
     @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
     @inline $f(p1::Ptr, p2::Ptr, sp::AbstractStridedPointer) = $f(llvmptrd(p1), llvmptrd(p2))
@@ -454,15 +349,4 @@ for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (
   end
 end
 @inline linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
-
-
-
-# for (op) ∈ [(:(<)), (:(>)), (:(≤)), (:(≥)), (:(==)), (:(≠))]
-#     @eval begin
-#         @inline Base.$op(p1::P, p2::P) where {P <: AbstractStridedPointer} = $op(pointer(p1), pointer(p2))
-#         @inline Base.$op(p1::P, p2::P) where {P <: StridedBitPointer} = $op(linearize(p1), linearize(p2))
-#         @inline Base.$op(p1::P, p2::P) where {P <: FastRange} = $op(getfield(p1, :o), getfield(p2, :o))
-#     end
-# end
-
 

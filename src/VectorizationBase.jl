@@ -1,6 +1,6 @@
 module VectorizationBase
 
-import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse
+import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse, LayoutPointers
 using ArrayInterface:
     StaticInt, Zero, One, StaticBool, True, False,
     contiguous_axis, contiguous_axis_indicator, contiguous_batch_size, stride_rank,
@@ -23,7 +23,10 @@ using SIMDTypes:
   Bit, FloatingTypes, SignedHW, UnsignedHW, IntegerTypesHW, NativeTypesExceptBitandFloat16,
   NativeTypesExceptBit, NativeTypesExceptFloat16, NativeTypes, _Vec
 using LayoutPointers:
-  AbstractStridedPointer, StridedPointer, StridedBitPointer
+  AbstractStridedPointer, StridedPointer, StridedBitPointer, memory_reference,
+  stridedpointer, zstridedpointer, similar_no_offset, similar_with_offset,
+  grouped_strided_pointer, stridedpointers, bytestrides, DensePointerWrapper,
+  zero_offsets
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
@@ -269,7 +272,6 @@ include("lazymul.jl")
 include("strided_pointers/stridedpointers.jl")
 # include("strided_pointers/bitpointers.jl")
 include("strided_pointers/cartesian_indexing.jl")
-include("strided_pointers/grouped_strided_pointers.jl")
 include("strided_pointers/cse_stridemultiples.jl")
 include("llvm_intrin/binary_ops.jl")
 include("vector_width.jl")
