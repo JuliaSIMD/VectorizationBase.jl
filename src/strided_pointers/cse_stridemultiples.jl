@@ -1,6 +1,6 @@
 struct OffsetPrecalc{T,N,C,B,R,X,M,P<:AbstractStridedPointer{T,N,C,B,R,X,M},I} <: AbstractStridedPointer{T,N,C,B,R,X,M}
-    ptr::P
-    precalc::I
+  ptr::P
+  precalc::I
 end
 @inline Base.pointer(ptr::OffsetPrecalc) = pointer(getfield(ptr, :ptr))
 @inline Base.similar(ptr::OffsetPrecalc, p::Ptr) = OffsetPrecalc(similar(getfield(ptr, :ptr), p), getfield(ptr, :precalc))
@@ -16,13 +16,13 @@ end
 @inline Base.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 @inline ArrayInterface.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 
-@inline function similar_no_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}) where {T}
-    OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
+@inline function LayoutPointers.similar_no_offset(sptr::OffsetPrecalc, ptr::Ptr)
+  OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
 end
-@inline function similar_with_offset(sptr::OffsetPrecalc{T}, ptr::Ptr{T}, off) where {T}
-    OffsetPrecalc(similar_with_offset(getfield(sptr, :ptr), ptr, off), getfield(sptr, :precalc))
+@inline function LayoutPointers.similar_with_offset(sptr::OffsetPrecalc, ptr::Ptr, off::Tuple)
+  OffsetPrecalc(similar_with_offset(getfield(sptr, :ptr), ptr, off), getfield(sptr, :precalc))
 end
-@inline bytestrides(p::OffsetPrecalc) = bytestrides(getfield(p,:ptr))
+@inline LayoutPointers.bytestrides(p::OffsetPrecalc) = bytestrides(getfield(p,:ptr))
 
 
 """

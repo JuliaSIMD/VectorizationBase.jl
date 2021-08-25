@@ -524,23 +524,25 @@ include("testsetup.jl")
     C = Matrix{Float64}(undef, M, N);
     struct SizedWrapper{M,N,T,AT<:AbstractMatrix{T}} <: AbstractMatrix{T} ; A::AT; end
     SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} = SizedWrapper{M,N,T,AT}(A) 
-    Base.size(::SizedWrapper{M,N}) = (M,N); Base.getindex(A::SizedWrapper, i...) = getindex(parent(A), i...)
+    Base.size(::SizedWrapper{M,N}) where {M,N} = (M,N);
+    VectorizationBase.size(::SizedWrapper{M,N}) where {M,N} = (StaticInt(M),StaticInt(N));
+    Base.getindex(A::SizedWrapper, i...) = getindex(parent(A), i...)
     Base.parent(dw::SizedWrapper) = dw.A
+    VectorizationBase.ArrayInterface.parent_type(::Type{SizedWrapper{M,N,T,AT}}) where {M,N,T,AT} = AT
     VectorizationBase.memory_reference(dw::SizedWrapper) = VectorizationBase.memory_reference(parent(dw))
-    VectorizationBase.contiguous_axis(dw::SizedWrapper) = VectorizationBase.contiguous_axis(parent(dw))
+    VectorizationBase.contiguous_axis(::Type{A}) where {A<:SizedWrapper} = VectorizationBase.contiguous_axis(VectorizationBase.ArrayInterface.parent_type(A))
     VectorizationBase.contiguous_batch_size(dw::SizedWrapper) = VectorizationBase.contiguous_batch_size(parent(dw))
-    VectorizationBase.val_stride_rank(dw::SizedWrapper) = VectorizationBase.val_stride_rank(parent(dw))
-    function VectorizationBase.bytestrides(dw::SizedWrapper{M,N,T}) where {M,N,T}
-      x1 = VectorizationBase.static_sizeof(T)
+    VectorizationBase.stride_rank(::Type{A}) where {A<:SizedWrapper} = VectorizationBase.stride_rank(VectorizationBase.ArrayInterface.parent_type(A))
+    VectorizationBase.offsets(dw::SizedWrapper) = VectorizationBase.offsets(parent(dw))
+    VectorizationBase.val_dense_dims(dw::SizedWrapper{T,N}) where {T,N} = VectorizationBase.val_dense_dims(parent(dw))
+    function VectorizationBase.strides(dw::SizedWrapper{M,N,T}) where {M,N,T}
+      x1 = StaticInt(1)
       if VectorizationBase.val_stride_rank(dw) === Val((1,2))
         return x1, x1 * StaticInt{M}()
       else#if VectorizationBase.val_stride_rank(dw) === Val((2,1))
         return x1 * StaticInt{N}(), x1
       end
     end
-    VectorizationBase.offsets(dw::SizedWrapper) = VectorizationBase.offsets(parent(dw))
-    VectorizationBase.val_dense_dims(dw::SizedWrapper{T,N}) where {T,N} = VectorizationBase.val_dense_dims(parent(dw))
-    
     
     GC.@preserve A B C begin
       fs = (false,true)#[identity, adjoint]
