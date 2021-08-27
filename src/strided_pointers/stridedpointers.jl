@@ -212,7 +212,7 @@ function double_index_quote(C,B,R::NTuple{N,Int},I1::Int,I2::Int) where {N}
   newptr = Expr(:call, :stridedpointer, gepedptr, Expr(:call, si, strd, offs, Zero()))
   Expr(:block, Expr(:meta,:inline), :(strd = strides(ptr)), :(offs = offsets(sptr)), newptr)
 end
-@generated function double_index(ptr::AbstractStridedPointer{T,N,R,C,B}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
+@generated function double_index(ptr::AbstractStridedPointer{T,N,C,B,R}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
   double_index_quote(C, B, R, I1, I2)
 end
 
