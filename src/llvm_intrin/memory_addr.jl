@@ -325,8 +325,8 @@ end
 #   p, li = tdot(ptr, i, strides(ptr))
 #   _gep(p, li, Zero())
 # end
-@inline increment_ptr(p::StridedBitPointer) = getfield(p,:offsets)
-@inline increment_ptr(p::StridedBitPointer, i::Tuple) = map(vsub_nsw, getfield(p,:offsets), i)
+@inline increment_ptr(p::StridedBitPointer) = offsets(p)
+@inline increment_ptr(p::StridedBitPointer, i::Tuple) = map(vsub_nsw, offsets(p), i)
 @inline increment_ptr(p::AbstractStridedPointer, o, i::Tuple) = increment_ptr(reconstruct_ptr(p, o), i)
 @inline function reconstruct_ptr(sp::AbstractStridedPointer, p::Ptr)
   similar_with_offset(sp, p, offsets(sp))
@@ -335,15 +335,15 @@ end
 #   similar_no_offset(sp, p)
 # end
 @inline function reconstruct_ptr(ptr::StridedBitPointer{N,C,B,R}, offs::NTuple{N,Int}) where {N,C,B,R}
-  StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), offs)
+  stridedpointer(pointer(ptr), ArrayInterface.StrideIndex{N,R,C}(strides(ptr), offs), StaticInt{B}())
 end
 
 
 @inline function gesp(ptr::AbstractStridedPointer, i::Tuple{Vararg{IntegerIndex}})
   similar_no_offset(ptr, increment_ptr(ptr, i))
 end
-@inline function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{IntegerIndex}}) where {N,C,B,R}
-  StridedBitPointer{N,C,B,R}(getfield(ptr, :p), getfield(ptr, :strd), increment_ptr(ptr, i))
+@inline function gesp(ptr::StridedBitPointer{N,C,B,R}, i::Tuple{Vararg{IntegerIndex,K}}) where {N,C,B,R,K}
+  stridedpointer(pointer(ptr), ArrayInterface.StrideIndex{N,R,C}(strides(ptr), increment_ptr(ptr, i)), StaticInt{B}())
 end
 @inline vsub_nsw(::NullStep, _) = Zero()
 @inline vsub_nsw(::NullStep, ::LazyMulAdd) = Zero() # avoid ambiguity
