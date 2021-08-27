@@ -190,27 +190,27 @@ function double_index_quote(C,B,R::NTuple{N,Int},I1::Int,I2::Int) where {N}
   Cnew = ((C == J1) | (C == J2)) ? -1 : (C - (J1 < C))
   strd = Expr(:tuple); offs = Expr(:tuple);
   inds = Expr(:tuple); Rtup = Expr(:tuple)
-  si = Expr(:curly, :StrideIndex, N-1, Rtup, Cnew)
+  si = Expr(:curly, GlobalRef(ArrayInterface, :StrideIndex), N-1, Rtup, Cnew)
   for n in 1:N
     if n == J1
       push!(inds.args, :(Zero()))
     elseif n == J2
-      arg1 = Expr(:ref, :strd, J1)
-      arg2 = Expr(:ref, :strd, J2)
-      push!(strd.args, Expr(:call, :*, arg1, arg2))
+      arg1 = Expr(:call, getfield, :strd, J1, false)
+      arg2 = Expr(:call, getfield, :strd, J2, false)
+      push!(strd.args, Expr(:call, :+, arg1, arg2))
       push!(offs.args, :(Zero()))
       push!(inds.args, :(Zero()))
       push!(Rtup.args, max(R[J1], R[J2]))
     else
-      push!(strd.args, Expr(:ref, :strd, n))
-      push!(offs.args, Expr(:ref, :offs, n))
-      push!(inds.args, Expr(:ref, :offs, n))
+      push!(strd.args, Expr(:call, getfield, :strd, n, false))
+      push!(offs.args, Expr(:call, getfield, :offs, n, false))
+      push!(inds.args, Expr(:call, getfield, :offs, n, false))
       push!(Rtup.args, R[n])
     end
   end
   gepedptr = Expr(:call, :gep, :ptr, inds)
-  newptr = Expr(:call, :stridedpointer, gepedptr, Expr(:call, si, strd, offs, Zero()))
-  Expr(:block, Expr(:meta,:inline), :(strd = strides(ptr)), :(offs = offsets(sptr)), newptr)
+  newptr = Expr(:call, :stridedpointer, gepedptr, Expr(:call, si, strd, offs), :(StaticInt{$B}()))
+  Expr(:block, Expr(:meta,:inline), :(strd = strides(ptr)), :(offs = offsets(ptr)), newptr)
 end
 @generated function double_index(ptr::AbstractStridedPointer{T,N,C,B,R}, ::Val{I1}, ::Val{I2}) where {T,N,C,B,R,I1,I2}
   double_index_quote(C, B, R, I1, I2)
@@ -348,5 +348,5 @@ for (op,f,cmp) ∈ [(:(<),:vlt,"ult"), (:(>),:vgt,"ugt"), (:(≤),:vle,"ule"), (
     @inline $f(a,b,c) = $f(a,b)
   end
 end
-@inline linearize(p::StridedBitPointer) = -sum(map(*, getfield(p, :strd), getfield(p, :offsets)))
+@inline linearize(p::StridedBitPointer) = -sum(map(*, strides(p), offsets(p)))
 
