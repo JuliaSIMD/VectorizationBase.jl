@@ -328,30 +328,31 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
     end
 end
 function vec_quote(demote, W, Wpow2, offset::Int = 0)
-    call = Expr(:call, :simd_vec, Expr(:call, demote ? :True : :False)); Wpow2 += offset
-    iszero(offset) && push!(call.args, :y)
-    foreach(w -> push!(call.args, Expr(:ref, :x, w)), max(1,offset):min(W,Wpow2)-1)
-    # foreach(w -> push!(call.args, Expr(:call, :VecElement, Expr(:call, :zero, :T))), W+1:Wpow2)
-    call
+  call = Expr(:call, :simd_vec, Expr(:call, demote ? :True : :False)); Wpow2 += offset
+  iszero(offset) && push!(call.args, :y)
+  foreach(w -> push!(call.args, Expr(:call, getfield, :x, w, false)), max(1,offset):min(W,Wpow2)-1)
+  foreach(w -> push!(call.args, Expr(:call, :zero, :T)), W+1:Wpow2)
+  call
 end
 @generated function _vec(::StaticInt{_Wpow2}, ::DemoteInt, y::T, x::Vararg{T,_W}) where {DemoteInt<:StaticBool, _Wpow2, _W, T <: NativeTypes}
-    W = _W + 1
-    demote = DemoteInt === True
-    Wpow2 = demote ? 2_Wpow2 : _Wpow2
-    if W ≤ Wpow2
-        vec_quote(demote, W, Wpow2)
-    else
-        tup = Expr(:tuple)
-        offset = 0
-        while offset < W
-            push!(tup.args, vec_quote(demote, W, Wpow2, offset)); offset += Wpow2
-        end
-        Expr(:call, :VecUnroll, tup)
+    1+3
+  W = _W + 1
+  demote = DemoteInt === True
+  Wpow2 = demote ? 2_Wpow2 : _Wpow2
+  if W ≤ Wpow2
+    vec_quote(demote, W, Wpow2)
+  else
+    tup = Expr(:tuple)
+    offset = 0
+    while offset < W
+      push!(tup.args, vec_quote(demote, W, Wpow2, offset)); offset += Wpow2
     end
+    Expr(:call, :VecUnroll, tup)
+  end
 end
 @inline function Vec(y::T, x::Vararg{T,_W}) where {_W, T <: NativeTypes}
-    W = StaticInt{_W}() + One()
-    _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
+  W = StaticInt{_W}() + One()
+  _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
 end
 
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} = ArrayInterface.reduce_tup(f, data(vu))
