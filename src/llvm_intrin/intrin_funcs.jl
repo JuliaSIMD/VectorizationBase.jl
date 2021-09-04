@@ -352,21 +352,80 @@ end
 end
 @inline ifelse_reduce_mirror(f::F, x::MM, y::MM) where {F} = ifelse_reduce_mirror(f, Vec(x), Vec(y))
 
-@inline ifelse_collapse_mirror(f::F, a, ::Tuple{}, x, ::Tuple{}) where {F} = a, x
-@inline function ifelse_collapse_mirror(f::F, a, c::Tuple{T}, x, z::Tuple{T}) where {F,T}
-  b = first(c); y = first(z)
-  fxy = f(x,y)  
-  ifelse(fxy, a, b), ifelse(fxy, x, y)
+
+function collapse_mirror_expr(N, op, final)
+  N += 1
+  t = Expr(:tuple); m = Expr(:tuple);
+  s = Vector{Symbol}(undef, N);
+  r = Vector{Symbol}(undef, N);
+  cmp = Vector{Symbol}(undef, N>>>1);
+  for n ∈ 1:N
+    s_n = s[n] = Symbol(:v_, n)
+    push!(t.args, s_n)
+    r_n = r[n] = Symbol(:r_, n)
+    push!(m.args, r_n)
+    n ≤ length(cmp) && (cmp[n] = Symbol(:cmp_, n))
+  end
+  q = quote
+    $(Expr(:meta,:inline))
+    $m = data(a)
+    $t = data(x)
+  end
+  _final = if final == 1
+    1
+  else
+    2final
+  end
+  while N > _final
+    for n ∈ 1:N >>> 1
+      push!(q.args, Expr(:(=), cmp[n], Expr(:call, op, s[n], s[n + (N >>> 1)])))
+      push!(q.args, Expr(:(=), s[n], Expr(:call, ifelse, cmp[n], s[n], s[n + (N >>> 1)])))
+      push!(q.args, Expr(:(=), r[n], Expr(:call, ifelse, cmp[n], r[n], r[n + (N >>> 1)])))
+    end
+    if isodd(N)
+      push!(q.args, Expr(:(=), cmp[1], Expr(:call, op, s[1], s[N])))
+      push!(q.args, Expr(:(=), s[1], Expr(:call, ifelse, cmp[1], s[1], s[N])))
+      push!(q.args, Expr(:(=), r[1], Expr(:call, ifelse, cmp[1], r[1], r[N])))
+    end
+    N >>>= 1
+  end
+  if final ≠ 1
+    for n ∈ final+1:N
+      push!(q.args, Expr(:(=), cmp[n-final], Expr(:call, op, s[n-final], s[n])))
+      push!(q.args, Expr(:(=), s[n-final], Expr(:call, ifelse, cmp[n-final], s[n-final], s[n])))
+      push!(q.args, Expr(:(=), r[n-final], Expr(:call, ifelse, cmp[n-final], r[n-final], r[n])))
+    end
+    # t = Expr(:tuple)
+    m = Expr(:tuple)
+    for n ∈ 1:final
+      # push!(t.args, s[n])
+      push!(m.args, r[n])
+    end
+    push!(q.args, :(VecUnroll($m)))
+    # push!(q.args, :((VecUnroll($t),VecUnroll($m))))
+    # push!(q.args, :(@show(VecUnroll($t),VecUnroll($m))))
+  end
+  q
 end
-@inline function ifelse_collapse_mirror(f::F, a, c::Tuple, x, z::Tuple) where {F}
-  b = first(c); y = first(z)
-  fxy = f(x,y)
-  ifelse_collapse_mirror(f, ifelse(fxy, a, b), Base.tail(c), ifelse(fxy, x, y), Base.tail(z))
-end
-@inline function ifelse_collapse_mirror(f::F, x::VecUnroll, y::VecUnroll) where {F}
-  dx = data(x); dy = data(y)
-  ifelse_collapse_mirror(f, first(dx), Base.tail(dx), first(dy), Base.tail(dy))
-end
+@generated ifelse_collapse_mirror(f::F, a::VecUnroll{N}, x::VecUnroll{N}) where {F,N} = collapse_mirror_expr(N, :f, 1)
+# @generated ifelse_collapse_mirror(f::F, a::VecUnroll{N}, x::VecUnroll{N}, ::StaticInt{C}) where {F,N,C} = collapse_mirror_expr(N, :f, C)
+@generated ifelse_collapse_mirror(f::F, a::VecUnroll{N}, x::VecUnroll{N}, ::StaticInt{C}) where {C,N,F} = collapse_mirror_expr(N, :f, C)
+
+# @inline ifelse_collapse_mirror(f::F, a, ::Tuple{}, x, ::Tuple{}) where {F} = a, x
+# @inline function ifelse_collapse_mirror(f::F, a, c::Tuple{T}, x, z::Tuple{T}) where {F,T}
+#   b = first(c); y = first(z)
+#   fxy = f(x,y)  
+#   ifelse(fxy, a, b), ifelse(fxy, x, y)
+# end
+# @inline function ifelse_collapse_mirror(f::F, a, c::Tuple, x, z::Tuple) where {F}
+#   b = first(c); y = first(z)
+#   fxy = f(x,y)
+#   ifelse_collapse_mirror(f, ifelse(fxy, a, b), Base.tail(c), ifelse(fxy, x, y), Base.tail(z))
+# end
+# @inline function ifelse_collapse_mirror(f::F, x::VecUnroll, y::VecUnroll) where {F}
+#   dx = data(x); dy = data(y)
+#   ifelse_collapse_mirror(f, first(dx), Base.tail(dx), first(dy), Base.tail(dy))
+# end
 
 
 
