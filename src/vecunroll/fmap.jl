@@ -225,8 +225,8 @@ end
 @inline vsum(s::VecUnroll, vu::VecUnroll) = VecUnroll(fmap(vsum, data(s), data(vu)))
 @inline vprod(vu::VecUnroll) = VecUnroll(fmap(vprod, data(vu)))
 @inline vprod(s::VecUnroll, vu::VecUnroll) = VecUnroll(fmap(vprod, data(s), data(vu)))
-# @inline vmaximum(vu::VecUnroll) = VecUnroll(fmap(vmaximum, data(vu)))
-# @inline vminimum(vu::VecUnroll) = VecUnroll(fmap(vminimum, data(vu)))
+@inline vmaximum(vu::VecUnroll) = VecUnroll(fmap(vmaximum, data(vu)))
+@inline vminimum(vu::VecUnroll) = VecUnroll(fmap(vminimum, data(vu)))
 @inline vall(vu::VecUnroll) = VecUnroll(fmap(vall, data(vu)))
 @inline vany(vu::VecUnroll) = VecUnroll(fmap(vany, data(vu)))
 
