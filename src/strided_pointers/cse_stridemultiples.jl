@@ -23,6 +23,7 @@ end
   OffsetPrecalc(similar_with_offset(getfield(sptr, :ptr), ptr, off), getfield(sptr, :precalc))
 end
 @inline LayoutPointers.bytestrides(p::OffsetPrecalc) = bytestrides(getfield(p,:ptr))
+@inline LayoutPointers.bytestrideindex(p::OffsetPrecalc) = LayoutPointers.bytestrideindex(getfield(p,:ptr))
 
 
 """
