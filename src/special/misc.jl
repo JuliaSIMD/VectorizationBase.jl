@@ -1,23 +1,60 @@
 @inline function pow_by_square(_v, e::IntegerTypesHW)
   v = float(_v)
-  x = one(v)
   if e < 0
     v = y = inv(v)
     e = -e
+  elseif e == 0
+    return one(v)
   else
     y = v
   end
+  tz = trailing_zeros(e)
+  e >>= (tz + one(tz))
+  while tz > zero(tz)
+    y = Base.FastMath.mul_fast(y, y)
+    tz -= one(tz)
+  end
+  x = y
   while e ≠ zero(e)
+    y = Base.FastMath.mul_fast(y, y)
     tz = trailing_zeros(e)
     e >>= (tz + one(tz))
     while tz > zero(tz)
-      y *= y
+      y = Base.FastMath.mul_fast(y, y)
       tz -= one(tz)
     end
-    x *= y
-    y *= y
+    x = Base.FastMath.mul_fast(x, y)
   end
   return x
+end
+@generated function pow_by_square(_v, ::StaticInt{E}) where {E}
+  e = E
+  q = Expr(:block, Expr(:meta,:inline), :(v = float(_v)))
+  xdefined = false
+  if e < 0
+    push!(q.args, :(v = y = inv(v)))
+    e = -e
+  else
+    push!(q.args, :(y = v))
+  end
+  mf = Base.FastMath.mul_fast
+  while e ≠ zero(e)
+    xdefined && push!(q.args, :(y = $mf(y, y)))
+    tz = trailing_zeros(e)
+    e >>= (tz + one(tz))
+    while tz > zero(tz)
+      push!(q.args, :(y = $mf(y, y)))
+      tz -= one(tz)
+    end
+    if xdefined
+      push!(q.args, :(x = $mf(x, y)))
+    else
+      xdefined = true
+      push!(q.args, :(x = y))
+    end
+  end
+  push!(q.args, :x)
+  return q
 end
 # 5 = 101 = 2^2 + 2^0 # x^4 * x^1
 # x^5 = x^4 * x
@@ -29,6 +66,7 @@ end
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, x::FloatingTypes) = exp2(Base.FastMath.log2_fast(v) * x)
 @inline Base.FastMath.pow_fast(v::FloatingTypes, x::AbstractSIMD) = exp2(Base.FastMath.log2_fast(v) * x)
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, x::AbstractSIMD) = exp2(Base.FastMath.log2_fast(v) * x)
+@inline Base.literal_pow(::typeof(^), x::AbstractSIMD, ::Val{N}) where {N} = pow_by_square(x, StaticInt(N))
 # @inline relu(x) = (y = zero(x); ifelse(x > y, x, y)) 
 @inline relu(x) = (y = zero(x); ifelse(x < y, y, x))
 
