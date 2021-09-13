@@ -1,15 +1,15 @@
 
-function sub_quote(W, @nospecialize(T), fast::Bool)
-    vtyp = vtype(W, T)
-    instrs = "%res = fneg $(fast_flags(fast)) $vtyp %0\nret $vtyp %res"
-    quote
-        $(Expr(:meta, :inline))
-        Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T}}, data(v)))
-    end
+function sub_quote(W::Int, T::Symbol, fast::Bool)::Expr
+  vtyp = vtype(W, T)
+  instrs = "%res = fneg $(fast_flags(fast)) $vtyp %0\nret $vtyp %res"
+  quote
+    $(Expr(:meta, :inline))
+    Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T}}, data(v)))
+  end
 end
 
-@generated vsub(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, T, false)
-@generated vsub_fast(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, T, true)
+@generated vsub(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, JULIA_TYPES[T], false)
+@generated vsub_fast(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, JULIA_TYPES[T], true)
 
 @inline vsub(v) = -v
 @inline vsub_fast(v) = Base.FastMath.sub_fast(v)
@@ -31,4 +31,22 @@ end
 @inline vround(v) = round(v)
 @inline vround(v::AbstractSIMD{W,<:Integer}) where {W} = v
 @inline vround(v::AbstractSIMD{W,<:Integer}, ::RoundingMode) where {W} = v
+
+
+function bswap_quote(W::Int, T::Symbol, st::Int)::Expr
+  typ = 'i' * string(8st)
+  suffix = 'v' * string(W) * typ
+  vtyp = "<$W x $typ>"
+  decl = "declare $(vtyp) @llvm.bswap.$(suffix)($(vtyp))"
+  instrs = """
+    %res = call $vtyp @llvm.bswap.$(suffix)($vtyp %0)
+    ret $vtyp %res
+  """
+  ret_type = :(_Vec{$W,$T})
+  llvmcall_expr(decl, instrs, ret_type, :(Tuple{$ret_type}), vtyp, [vtyp], [:(data(x))])
+end
+@generated Base.bswap(x::Vec{W,T}) where {T<:IntegerTypesHW,W} = bswap_quote(W, JULIA_TYPES[T], sizeof(T))
+@inline Base.bswap(x::VecUnroll) = VecUnroll(fmap(bswap, data(x)))
+@inline Base.bswap(x::AbstractSIMDVector) = bswap(Vec(x))
+
 

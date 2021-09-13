@@ -1123,7 +1123,7 @@ include("testsetup.jl")
     xi32, yi32 = promote(vxi32, one(Int64))
     @test xi32 === vxi32
     @test yi32 === vbroadcast(VectorizationBase.pick_vector_width(Int32), one(Int32))
-
+    @test ntoh(vxi32) === Vec(map(ntoh, Tuple(vxi32))...)
   end
   println("Lazymul")
   @time @testset "Lazymul" begin
