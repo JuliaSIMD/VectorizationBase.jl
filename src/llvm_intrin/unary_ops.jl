@@ -46,7 +46,10 @@ function bswap_quote(W::Int, T::Symbol, st::Int)::Expr
   llvmcall_expr(decl, instrs, ret_type, :(Tuple{$ret_type}), vtyp, [vtyp], [:(data(x))])
 end
 @generated Base.bswap(x::Vec{W,T}) where {T<:IntegerTypesHW,W} = bswap_quote(W, JULIA_TYPES[T], sizeof(T))
-@inline Base.bswap(x::VecUnroll) = VecUnroll(fmap(bswap, data(x)))
-@inline Base.bswap(x::AbstractSIMDVector) = bswap(Vec(x))
+@inline Base.bswap(x::VecUnroll{<:Any,<:Any,<:IntegerTypesHW}) = VecUnroll(fmap(bswap, data(x)))
+@inline Base.bswap(x::AbstractSIMDVector{<:Any,<:IntegerTypesHW}) = bswap(Vec(x))
+@inline Base.bswap(x::AbstractSIMD{<:Any,Float16}) = reinterpret(Float16, bswap(reinterpret(UInt16, x)))
+@inline Base.bswap(x::AbstractSIMD{<:Any,Float32}) = reinterpret(Float32, bswap(reinterpret(UInt32, x)))
+@inline Base.bswap(x::AbstractSIMD{<:Any,Float64}) = reinterpret(Float64, bswap(reinterpret(UInt64, x)))
 
 

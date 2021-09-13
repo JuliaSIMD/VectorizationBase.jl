@@ -1071,7 +1071,7 @@ include("testsetup.jl")
     @test vones32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 1f0),vbroadcast(StaticInt(W32), 1f0)))
     @test vtwos32 === VectorizationBase.VecUnroll((vbroadcast(StaticInt(W32), 2f0),vbroadcast(StaticInt(W32), 2f0)))
     @test vf2 === v2f32
-
+    @test tovector(@inferred(bswap(vf2))) == map(bswap, tovector(vf2))
 
     vm = if Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq)))
       VectorizationBase.VecUnroll((
