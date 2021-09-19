@@ -187,13 +187,13 @@ end
     x * muladd(muladd(muladd(muladd(0.5393833837413015, x, 1.1712561359457612), x, 2.0346785922926713), x, 2.6509490552382577), x, 2.302585092994046)
 end
 @inline function expb_kernel(::Val{2}, x::FloatType32)
-    muladd(muladd(muladd(muladd(muladd(muladd(0.00015478022f0, x, 0.0013400431f0), x, 0.009617995f0), x, 0.05550327f0), x, 0.24022652f0), x, 0.6931472f0), x, 1.0f0)
+  muladd(muladd(muladd(muladd(muladd(muladd(muladd(1.5316464f-5, x, 0.00015478022f0), x, 0.0013400431f0), x, 0.009617995f0), x, 0.05550327f0), x, 0.24022652f0), x, 0.6931472f0), x, 1.0f0)
 end
 @inline function expb_kernel(::Val{ℯ}, x::FloatType32)
-    muladd(muladd(muladd(muladd(muladd(muladd(0.0013956056f0, x, 0.008375129f0), x, 0.041666083f0), x, 0.16666415f0), x, 0.5f0), x, 1.0f0), x, 1.0f0)
+  muladd(muladd(muladd(muladd(muladd(muladd(muladd(0.00019924171f0, x, 0.0013956056f0), x, 0.008375129f0), x, 0.041666083f0), x, 0.16666415f0), x, 0.5f0), x, 1.0f0), x, 1.0f0)
 end
 @inline function expb_kernel(::Val{10}, x::FloatType32)
-    muladd(muladd(muladd(muladd(muladd(muladd(0.20799689f0, x, 0.54208815f0), x, 1.1712388f0), x, 2.034648f0), x, 2.6509492f0), x, 2.3025851f0), x, 1.0f0)
+  muladd(muladd(muladd(muladd(muladd(muladd(muladd(0.06837386f0, x, 0.20799689f0), x, 0.54208815f0), x, 1.1712388f0), x, 2.034648f0), x, 2.6509492f0), x, 2.3025851f0), x, 1.0f0)
 end
 
 const J_TABLE= Float64[2.0^(big(j-1)/256) for j in 1:256];

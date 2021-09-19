@@ -1238,22 +1238,22 @@ include("testsetup.jl")
     for T ∈ [Float32,Float64]
       min_non_denormal = nextfloat(abs(reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))))
       l2mnd = log2(min_non_denormal)
-      xx = collect(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^20));
+      xx = collect(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^21));
       test_acc(exp2, exp2, T, xx, 3)
 
       lemnd = log(min_non_denormal)
-      xx .= range(T(0.8)*lemnd, T(0.8)*abs(lemnd), length = 2^20);
+      xx .= range(T(0.8)*lemnd, T(0.8)*abs(lemnd), length = 2^21);
       test_acc(exp, exp, T, xx, 3)
       
       l10mnd = log10(min_non_denormal)
-      xx .= range(T(0.8)*l10mnd, T(0.8)*abs(l10mnd), length = 2^20);
+      xx .= range(T(0.8)*l10mnd, T(0.8)*abs(l10mnd), length = 2^21);
       test_acc(exp10, exp10, T, xx, 3)
 
       if T === Float32
-        xx .= range(-4f0, 4f0, length = 2^20);
+        xx .= range(-4f0, 4f0, length = 2^21);
         erftol = 3
       else
-        xx .= range(-6.0, 6.0, length = 2^20);
+        xx .= range(-6.0, 6.0, length = 2^21);
         erftol = 7
       end;
       test_acc(VectorizationBase.verf, erf, T, xx, erftol)

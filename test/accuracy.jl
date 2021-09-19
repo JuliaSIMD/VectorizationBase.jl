@@ -89,44 +89,46 @@ countulp(x::VectorizationBase.AbstractSIMD{W,T}, y::VectorizationBase.AbstractSI
 # xx is an array of values (which may be tuples for multiple arugment functions)
 # tol is the acceptable tolerance to test against
 function test_acc(f1, f2, T, xx, tol, ::StaticInt{W} = pick_vector_width(T); debug = false, tol_debug = 5) where {W}
-    @testset "accuracy $(f1)" begin
+  @testset "accuracy $(f1)" begin
 
-        reference = map(f2 ∘ big, xx)
-        comp = similar(xx)
-        i = 0
-        spc = VectorizationBase.zstridedpointer(comp); spx = VectorizationBase.zstridedpointer(xx);
-        GC.@preserve xx comp begin
-            while i < length(xx)
-                vstore!(spc, f1(vload(spx, (MM{W}(i),))), (MM{W}(i),))
-                i += W
-            end
-        end
-        rmax = 0.0
-        rmean = 0.0
-        xmax = map(zero, first(xx))
-        for i ∈ eachindex(xx)
-            q = comp[i]
-            c = reference[i]
-            u = countulp(T, q, c)
-            rmax = max(rmax, u)
-            xmax = rmax == u ? xx[i] : xmax
-            rmean += u
-            if debug && u > tol_debug
-                @show f1, q, f2, T(c), x, T(c)
-            end
-        end
-        rmean = rmean / length(xx)
-
-        t = @test trunc(rmax, digits=1) <= tol
-
-        
-        fmtxloc = isa(xmax, Tuple) ? join(xmax, ", ") : string(xmax)
-        println(
-            rpad(f1, 18, " "), ": max ", rmax,
-            rpad(" at x = " * fmtxloc, 40, " "),  ": mean ", rmean
-        )
-
+    reference = map(f2 ∘ big, xx)
+    comp = similar(xx)
+    i = 0
+    spc = VectorizationBase.zstridedpointer(comp); spx = VectorizationBase.zstridedpointer(xx);
+    GC.@preserve xx comp begin
+      while i < length(xx)
+        vstore!(spc, f1(vload(spx, (MM{W}(i),))), (MM{W}(i),))
+        i += W
+      end
     end
+    rmax = 0.0
+    rmean = 0.0
+    xmax = map(zero, first(xx))
+    for i ∈ eachindex(xx)
+      q = comp[i]
+      c = reference[i]
+      u = countulp(T, q, c)
+      rmax = max(rmax, u)
+      xmax = rmax == u ? xx[i] : xmax
+      rmean += u
+      if xx[i] == 36.390244f0
+        @show f1, q, f2, T(c), xx[i], T(c)
+      end
+      if debug && u > tol_debug
+        @show f1, q, f2, T(c), xx[i], T(c)
+      end
+    end
+    rmean = rmean / length(xx)
+
+    fmtxloc = isa(xmax, Tuple) ? join(xmax, ", ") : string(xmax)
+    println(
+      rpad(f1, 18, " "), ": max ", rmax,
+      rpad(" at x = " * fmtxloc, 40, " "),  ": mean ", rmean
+    )
+
+    t = @test trunc(rmax, digits=1) <= tol
+
+  end
 end
 
 
