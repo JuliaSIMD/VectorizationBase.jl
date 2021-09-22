@@ -326,7 +326,10 @@ end
 #   _gep(p, li, Zero())
 # end
 @inline increment_ptr(p::StridedBitPointer) = offsets(p)
-@inline increment_ptr(p::StridedBitPointer, i::Tuple) = map(vsub_nsw, offsets(p), i)
+@inline bmap(f::F, x::Tuple{}, y::Tuple{}) where {F} = ()
+@inline bmap(f::F, x::Tuple{X,Vararg{Any,K}}, y::Tuple{}) where {F,X,K} = (first(x), bmap(f, Base.tail(x), ())...)
+@inline bmap(f::F, x::Tuple{X,Vararg{Any,KX}}, y::Tuple{Y,Vararg{Any,KY}}) where {F,X,Y,KX,KY} = (f(first(x), first(y)), bmap(f, Base.tail(x), Base.tail(y))...)
+@inline increment_ptr(p::StridedBitPointer, i::Tuple) = bmap(vsub_nsw, offsets(p), i)
 @inline increment_ptr(p::AbstractStridedPointer, o, i::Tuple) = increment_ptr(reconstruct_ptr(p, o), i)
 @inline function reconstruct_ptr(sp::AbstractStridedPointer, p::Ptr)
   similar_with_offset(sp, p, offsets(sp))
