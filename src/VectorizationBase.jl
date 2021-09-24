@@ -62,6 +62,42 @@ const Boolean = Union{Bit,Bool}
 
 abstract type AbstractSIMD{W,T <: Union{<:StaticInt,NativeTypes}} <: Real end
 abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
+"""
+    VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
+
+`VecUnroll` supports optimizations when interleaving instructions across different memory storage schemes.
+`VecUnroll{N,W,T} is typically a tuple of `N+1` `AbstractSIMDVector{W,T}`s. For example, a `VecUnroll{3,8,Float32}`
+is a collection of 4× `Vec{8,Float32}`.
+
+# Examples
+
+```jldoctest; setup=:(using VectorizationBase)
+julia> rgbs = [(R = Float32(i)/255, G = Float32(i+100)/255, B = Float32(i+200)/255) for i in 0:7:49]
+8-element Vector{NamedTuple{(:R, :G, :B), Tuple{Float32, Float32, Float32}}}:
+ (R = 0.0, G = 0.39215687, B = 0.78431374)
+ (R = 0.02745098, G = 0.41960785, B = 0.8117647)
+ (R = 0.05490196, G = 0.44705883, B = 0.8392157)
+ (R = 0.08235294, G = 0.4745098, B = 0.8666667)
+ (R = 0.10980392, G = 0.5019608, B = 0.89411765)
+ (R = 0.13725491, G = 0.5294118, B = 0.92156863)
+ (R = 0.16470589, G = 0.5568628, B = 0.9490196)
+ (R = 0.19215687, G = 0.58431375, B = 0.9764706)
+
+julia> ret = vload(stridedpointer(reinterpret(reshape, Float32, rgbs)), Unroll{1,1,3,2,8,zero(UInt),1}((1,1)))
+3 x Vec{8, Float32}
+Vec{8, Float32}<0.0f0, 0.02745098f0, 0.05490196f0, 0.08235294f0, 0.10980392f0, 0.13725491f0, 0.16470589f0, 0.19215687f0>
+Vec{8, Float32}<0.39215687f0, 0.41960785f0, 0.44705883f0, 0.4745098f0, 0.5019608f0, 0.5294118f0, 0.5568628f0, 0.58431375f0>
+Vec{8, Float32}<0.78431374f0, 0.8117647f0, 0.8392157f0, 0.8666667f0, 0.89411765f0, 0.92156863f0, 0.9490196f0, 0.9764706f0>
+
+julia> typeof(ret)
+VecUnroll{2, 8, Float32, Vec{8, Float32}}
+```
+While the `R`, `G`, and `B` are interleaved in `rgb`s, they have effectively been split out in `ret`
+(the first contains all 8 `R` values, with `G` and `B` in the second and third, respectively).
+
+To optimize for the user's CPU, in real code it would typically be better to use `Int(pick_vector_width(Float32))`
+in place of `8` (`W`) in the `Unroll` construction.
+"""
 struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
     data::Tuple{V,Vararg{V,N}}
     @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = new{N,W,T,V}(data)
@@ -69,7 +105,7 @@ struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{
     # # following two definitions are for checking that you aren't accidentally creating `VecUnroll{0}`s.
     # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = (@assert(N > 0); new{N,W,T,V}(data))
     # @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}) where {N,T<:NativeTypes} = (@assert(N > 0); new{N,1,T,T}(data))
-    
+
     # @inline VecUnroll{N,W,T,V}(data::Tuple{V,Vararg{V,N}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
     # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,Vec{W,T}}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
     # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMDVector{W,T}} = new{N,W,T,V}(data)
