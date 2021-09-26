@@ -372,8 +372,8 @@ end
   if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
     return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
   end
-  maybeshufflequote = shuffle_load_quote(T, (D, C, B, AU, F, N, AV, W, X), I, align, RS, M)
-  maybeshufflequote === nothing || return maybeshufflequote
+  # maybeshufflequote = shuffle_load_quote(T, (D, C, B, AU, F, N, AV, W, X), I, align, RS, M)
+  # maybeshufflequote === nothing || return maybeshufflequote
   if should_transpose
     return vload_transpose_quote(D,AU,F,N,AV,W,UX,align,RS,sizeof(T),M,true)
   end
@@ -778,8 +778,8 @@ end
   if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
     vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,true)
   end
-  maybeshufflequote = shuffle_store_quote(T,(D,C,B,AU,F,N,AV,W,X), I, align, alias, notmp, RS, true)
-  maybeshufflequote === nothing || return maybeshufflequote
+  # maybeshufflequote = shuffle_store_quote(T,(D,C,B,AU,F,N,AV,W,X), I, align, alias, notmp, RS, true)
+  # maybeshufflequote === nothing || return maybeshufflequote
   if should_transpose
     vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],M,true)
   else
