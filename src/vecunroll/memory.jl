@@ -68,7 +68,7 @@ end
 # )
 
 function interleave_memory_access(AU, C, F, X, UN, size_T, B)
-  ((((AU == C) && (C > 0)) && (F == 1)) && (X == (UN*size_T)) && (B < 1))
+  ((((AU == C) && (C > 0)) && (F == 1)) && (abs(X) == (UN*size_T)) && (B < 1))
 end
 
 # if either
@@ -95,7 +95,7 @@ function shuffle_load_quote(
 end
 function _shuffle_load_quote(
   T_sym::Symbol, size_T::Int, integer_params::NTuple{9,Int}, I_sym::Symbol, ind_type::Symbol, M::Int, O::Int, align::Bool, rs::Int, MASKFLAG::UInt
-  )
+)
   N, C, B, AU, F, UN, AV, W, X = integer_params
   # we don't require vector indices for `Unroll`s...
   # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
@@ -108,6 +108,7 @@ function _shuffle_load_quote(
     return nothing
   end
   # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
+  # @show X, UN, size_T
   ((AV > 0) && interleave_memory_access(AU, C, F, X, UN, size_T, B)) || return nothing
   Wfull = W * UN
   (mask && (Wfull > 128)) && return nothing
@@ -121,12 +122,32 @@ function _shuffle_load_quote(
     ptr = pointer(sptr)
     i = data(u)
   end
-  mask && push!(q.args, :(m = mask(StaticInt{$Wfull}(), vmul_nw($UN, getfield(sm, :evl)))))
+  X < 0 && push!(q.args, :(ptr -= $(size_T*(UN*(W-1)))))
+  if mask
+    return nothing
+    if X > 0
+      mask_expr = :(mask(StaticInt{$W}(), 0, vmul_nw($UN, getfield(sm, :evl))))
+      for n ∈ 1:UN-1
+        mask_expr = :(vcat($mask_expr, mask(StaticInt{$W}(), $(n*W), vmul_nw($UN, getfield(sm, :evl)))))
+      end
+      # push!(q.args, :(m = mask(StaticInt{$Wfull}(), vmul_nw($UN, getfield(sm, :evl)))))
+    else
+      # FIXME
+      return nothing
+      vrange = :(VectorizationBase.vrange(Val{$W}(),$(integer_of_bytes(min(size_T,rs÷W))),Val{0}(),Val{-1}()))
+      mask_expr = :(($vrange + $(UN*W)) ≤ vmul_nw($UN, getfield(sm, :evl)))
+      for n ∈ UN-1:-1:1
+        mask_expr = :(vcat($mask_expr, ($vrange + $(n*W)) ≤ vmul_nw($UN, getfield(sm, :evl))))
+      end
+    end
+    push!(q.args, :(m = $mask_expr))
+  end
   push!(q.args, :(v = $vloadexpr))
   vut = Expr(:tuple)
+  Wrange = X > 0 ? (0:1:W-1) : (W-1:-1:0)
   for n ∈ 0:UN-1
     shufftup = Expr(:tuple)
-    for w ∈ 0:W-1
+    for w ∈ Wrange
       push!(shufftup.args, n + UN*w)
     end
     push!(vut.args, :(shufflevector(v, Val{$shufftup}())))
@@ -323,7 +344,7 @@ end
 
 @generated function _vload_unroll(
   sptr::AbstractStridedPointer{T,N,C,B}, u::Unroll{AU,F,UN,AV,W,M,UX,I}, ::A, ::StaticInt{RS}, ::StaticInt{X}
-  ) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:IndexNoUnroll,A<:StaticBool,RS,X}
+) where {T<:NativeTypes,N,C,B,AU,F,UN,AV,W,M,UX,I<:IndexNoUnroll,A<:StaticBool,RS,X}
   1+2
   if T === Bit
     bitlq = bitload(AU,W,AV,F,UN,RS,false)
@@ -335,7 +356,6 @@ end
     return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
   end
   maybeshufflequote = shuffle_load_quote(T, (N, C, B, AU, F, UN, AV, W, X), I, align, RS, zero(UInt))
-  # `maybeshufflequote` for now requires `mask` to be `false`
   maybeshufflequote === nothing || return maybeshufflequote
   if should_transpose
     vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
@@ -518,6 +538,7 @@ function _shuffle_store_quote(
     t = data(vu)
     i = data(u)
   end
+  X < 0 && push!(q.args, :(ptr -= $(size_T*(UN*(W-1)))))
   syms = Vector{Symbol}(undef, UN)
   gf = GlobalRef(Core, :getfield)
   for n ∈ 1:UN
@@ -546,7 +567,7 @@ function _shuffle_store_quote(
     Wtemp = Wnext
   end
   shufftup = Expr(:tuple)
-  for w ∈ 0:W-1
+  for w ∈ ((X > 0) ? (0:1:W-1) : (W-1:-1:0))
     for n ∈ 0:UN-1
       push!(shufftup.args, W*n + w)
     end

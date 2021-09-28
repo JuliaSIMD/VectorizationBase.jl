@@ -722,28 +722,35 @@ end
 end
 
 
-@generated function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
-    mtyp_input = "i$(max(8,nextpow2(W)))"
-    instrs = String[]
-    truncate_mask!(instrs, '0', W, 0)
-    truncate_mask!(instrs, '1', W, 1)
+@generated function Base.vcat(m1::AbstractMask{_W1}, m2::AbstractMask{_W2}) where {_W1,_W2}
+  if _W1 == _W2
+    W = _W1
+  else
+    W = _W1 + _W2
+    U = integer_of_bytes_symbol(W, true)
+    return Expr(:block, Expr(:meta,:inline), :(Mask{$W}(((data(m1) % $U) << $_W2) | (data(m2) % $U))))
+  end
+  mtyp_input = "i$(max(8,nextpow2(W)))"
+  instrs = String[]
+  truncate_mask!(instrs, '0', W, 0)
+  truncate_mask!(instrs, '1', W, 1)
 
-    W2 = W+W
-    shuffmask = Vector{String}(undef, W2)
-    for w ∈ eachindex(shuffmask)
-        shuffmask[w] = string(w-1)
-    end
-    mask = '<' * join(map(x->string("i32 ", x), shuffmask), ", ") * '>'
-    
-    push!(instrs, "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask")
+  W2 = W+W
+  shuffmask = Vector{String}(undef, W2)
+  for w ∈ eachindex(shuffmask)
+    shuffmask[w] = string(w-1)
+  end
+  mask = '<' * join(map(x->string("i32 ", x), shuffmask), ", ") * '>'
+  
+  push!(instrs, "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask")
 
-    mtyp_output = "i$(max(8,nextpow2(W2)))"
-    zext_mask!(instrs, "combinedmask", W2, 1)
-    push!(instrs, "ret $mtyp_output %res.1")
-    instrj = join(instrs, "\n")
-    U = mask_type_symbol(W)
-    U2 = mask_type_symbol(W2)
-    Expr(:block, Expr(:meta,:inline), :(Mask{$W2}($LLVMCALL($instrj, $U2, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
+  mtyp_output = "i$(max(8,nextpow2(W2)))"
+  zext_mask!(instrs, "combinedmask", W2, 1)
+  push!(instrs, "ret $mtyp_output %res.1")
+  instrj = join(instrs, "\n")
+  U = mask_type_symbol(W)
+  U2 = mask_type_symbol(W2)
+  Expr(:block, Expr(:meta,:inline), :(Mask{$W2}($LLVMCALL($instrj, $U2, Tuple{$U, $U}, getfield(m1, :u), getfield(m2, :u)))))
 end
 # @inline function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
 #     U = mask_type(Val(W))
