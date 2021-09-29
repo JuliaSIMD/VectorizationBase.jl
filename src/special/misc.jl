@@ -61,6 +61,8 @@ end
 
 @inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = pow_by_square(v, i)
 @inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = pow_by_square(v, i)
+@inline Base.:^(v::AbstractSIMD, ::StaticInt{N}) where {N} = pow_by_square(v, StaticInt{N}())
+@inline Base.FastMath.pow_fast(v::AbstractSIMD, ::StaticInt{N}) where {N} = pow_by_square(v, StaticInt{N}())
 @inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = pow_by_square(v, i)
 @inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T<:Union{Float32,Float64}} = pow_by_square(v, i)
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, x::FloatingTypes) = exp2(Base.FastMath.log2_fast(v) * x)
