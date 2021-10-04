@@ -28,11 +28,11 @@ Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,T2,V2
 # Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,V2<:AbstractSIMDVector{W}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
 Base.promote_rule(::Type{VecUnroll{N,W,T,V1}}, ::Type{V2}) where {N,W,T,V1,V2<:AbstractMask{W}} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
 Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,W,T2,V2}}) where {N,W,T1,T2,V1,V2} = _assemble_vec_unroll(Val{N}(), promote_type(V1,V2))
-
+Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,T1,T2} = promote_rule(T1,T2)
 
 Base.promote_rule(::Type{VecUnroll{N,W,T1,V1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,W,T1,T2,V1} = _assemble_vec_unroll(Val{N}(), promote_type(V1,T2))
 Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,W,T2,V2}}) where {N,W,T1,T2,V2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,V2))
-Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,T1,T2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,T2))
+# Base.promote_rule(::Type{VecUnroll{N,1,T1,T1}}, ::Type{VecUnroll{N,1,T2,T2}}) where {N,T1,T2} = _assemble_vec_unroll(Val{N}(), promote_type(T1,T2))
 
 Base.promote_rule(::Type{Mask{W,U}}, ::Type{EVLMask{W,U}}) where {W,U} = Mask{W,U}
 Base.promote_rule(::Type{EVLMask{W,U}}, ::Type{Mask{W,U}}) where {W,U} = Mask{W,U}
