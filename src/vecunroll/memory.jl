@@ -309,7 +309,7 @@ end
 # @inline staticunrolledvectorstride(sp::AbstractStridedPointer, ::Unroll{AU,F,UN,AV,W,M,X}) where {AU,F,UN,AV,W,M,X} = staticunrolledvectorstride(strides(ptr)[AV], StaticInt{X}())
 
 @generated function staticunrolledvectorstride(sptr::T, ::Unroll{AU,F,UN,AV,W,M,X}) where {T,AU,F,UN,AV,W,M,X}
-  AV > 0 || return nothing
+  (0 < AV ≤ length(T.parameters)) || return nothing
   SM = T.parameters[AV]
   if SM <: StaticInt
     return Expr(:block, Expr(:meta,:inline), Expr(:call, *, Expr(:call, SM), Expr(:call, Expr(:curly, :StaticInt, X))))

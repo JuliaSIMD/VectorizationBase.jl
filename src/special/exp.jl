@@ -178,13 +178,13 @@ const FloatType32 = Union{Float32,AbstractSIMD{<:Any,Float32}}
     # x * muladd(muladd(muladd(muladd(muladd(muladd(muladd(muladd(c0,x,c1),x,c2),x,c3),x,c4),x,c5),x,c6),x,c7),x,c8)
     # x * muladd(muladd(muladd(muladd(muladd(muladd(c0,x,c1),x,c2),x,c3),x,c4),x,c5),x,c6)
     # x * muladd(muladd(muladd(muladd(muladd(c0,x,c1),x,c2),x,c3),x,c4),x,c5)
-    x * muladd(muladd(muladd(0.009618130135925114, x, 0.055504115022757844), x, 0.2402265069590989), x, 0.6931471805599393)
+  x * muladd(muladd(muladd(0.009618130135925114, x, 0.055504115022757844), x, 0.2402265069590989), x, 0.6931471805599393)
 end
 @inline function expm1b_kernel(::Val{ℯ}, x::FloatType64)
-    x * muladd(muladd(muladd(0.04166666762124105, x, 0.1666666704849642), x, 0.49999999999999983), x, 0.9999999999999998)
+  x * muladd(muladd(muladd(0.04166666762124105, x, 0.1666666704849642), x, 0.49999999999999983), x, 0.9999999999999998)
 end
 @inline function expm1b_kernel(::Val{10}, x::FloatType64)
-    x * muladd(muladd(muladd(muladd(0.5393833837413015, x, 1.1712561359457612), x, 2.0346785922926713), x, 2.6509490552382577), x, 2.302585092994046)
+  x * muladd(muladd(muladd(muladd(0.5393833837413015, x, 1.1712561359457612), x, 2.0346785922926713), x, 2.6509490552382577), x, 2.302585092994046)
 end
 @inline function expb_kernel(::Val{2}, x::FloatType32)
   muladd(muladd(muladd(muladd(muladd(muladd(muladd(1.5316464f-5, x, 0.00015478022f0), x, 0.0013400431f0), x, 0.009617995f0), x, 0.05550327f0), x, 0.24022652f0), x, 0.6931472f0), x, 1.0f0)
