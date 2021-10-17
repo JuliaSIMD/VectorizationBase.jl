@@ -110,6 +110,7 @@ end
 # @generated function Base.round(::Type{Int32}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("lrint", W, Int32, (W,), (T,), "")
 # end
+@inline vtrunc(::Type{I}, v::VecUnroll{N,1,T,T}) where {N, I<:IntegerTypesHW, T <: NativeTypes} = VecUnroll(fmap(Base.unsafe_trunc, I, data(v)))
 @inline vtrunc(::Type{I}, v::AbstractSIMD{W,T}) where {W, I<:IntegerTypesHW, T <: NativeTypes} = vconvert(I, v)
 for f ∈ [:vround, :vfloor, :vceil]
     @eval @inline $f(::Type{I}, v::AbstractSIMD{W,T}) where {W,I<:IntegerTypesHW,T <: NativeTypes} = vconvert(I, $f(v))

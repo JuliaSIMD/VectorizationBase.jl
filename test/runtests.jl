@@ -874,6 +874,15 @@ include("testsetup.jl")
     if VectorizationBase.simd_integer_register_size() ≥ 16
       @test VecUnroll((Vec(ntuple(Int32,Val(4))...),Vec(ntuple(Int32 ∘ Base.Fix2(+,4), Val(4))...))) << Vec(0x01,0x02,0x03,0x04) === VecUnroll((Vec(map(Int32,(2,8,24,64))...), Vec(map(Int32,(10,24,56,128))...)))
     end
+
+    @test VectorizationBase.vdiv_fast(VecUnroll((11,12,13,14)),3) === VecUnroll((11,12,13,14)) ÷ 3 === VecUnroll((3,4,4,4))
+    @test VectorizationBase.vand(true,true) == true
+    @test VectorizationBase.vand(false,false) == VectorizationBase.vand(false,true) == VectorizationBase.vand(true,false) == false
+    @test VectorizationBase.vor(true,true) == VectorizationBase.vor(false,true) == VectorizationBase.vor(true,false) == true
+    @test VectorizationBase.vor(false,false) == false
+    @test VectorizationBase.vxor(false,true) == VectorizationBase.vxor(true,false) == true
+    @test VectorizationBase.vxor(false,false) == VectorizationBase.vxor(true,true) == false
+    
   end
   println("Ternary Functions")
   @time @testset "Ternary Functions" begin

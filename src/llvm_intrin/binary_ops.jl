@@ -117,12 +117,20 @@ end
     v3, v4 = promote_div(v1, v2)
     vdiv_fast(v3, v4)
 end
+@inline vdiv_fast(v1::VecUnroll{N,1,T,T}, s::T) where {N,T<:SignedHW} = VecUnroll(fmap(Base.sdiv_int, data(v1), s))
+@inline vdiv_fast(v1::VecUnroll{N,1,T,T}, s::T) where {N,T<:UnsignedHW} = VecUnroll(fmap(Base.udiv_int, data(v1), s))
+@inline vdiv_fast(v1::VecUnroll{N,1,T,T}, v2::VecUnroll{N,1,T,T}) where {N,T<:SignedHW} = VecUnroll(fmap(Base.sdiv_int, data(v1), data(v2)))
+@inline vdiv_fast(v1::VecUnroll{N,1,T,T}, v2::VecUnroll{N,1,T,T}) where {N,T<:UnsignedHW} = VecUnroll(fmap(Base.udiv_int, data(v1), data(v2)))
 
 @inline vfdiv(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} = vfdiv(vfloat(a), vfloat(b))
 # @inline vfdiv_fast(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} = vfdiv_fast(vfloat_fast(a), vfloat_fast(b))
 @inline vfdiv_fast(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} = vfdiv_fast(vfloat(a), vfloat(b))
 @inline vfdiv(a, b) = a / b
 @inline vfdiv_fast(a, b) = Base.FastMath.div_fast(a, b)
+
+for (f,op) ∈ ((:vand,:and_int),(:vor,:or_int),(:vxor,:xor_int))
+  @eval @inline $f(b1::Bool, b2::Bool) = Base.$op(b1, b2)
+end
 
 for f ∈ [:vadd,:vsub,:vmul]
   for s ∈ [Symbol(""),:_fast,:_nsw,:_nuw,:_nw]
