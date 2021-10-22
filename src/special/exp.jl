@@ -351,37 +351,37 @@ end
 # invlog2lo(::Val{10}) = 2.803728127785170339013117338996875833689572538872891810725576172209659522828247e-18
 
 
-@inline function vexp_avx512(x::AbstractSIMD{8,Float64}, ::Val{B}) where {B}
-    N_float = round(x*LogBo16INV(Val(B), Float64))
-    r = muladd(N_float, LogBo16U(Val(B), Float64), x)
-    r = muladd(N_float, LogBo16L(Val(B), Float64), r)
-    inds = ((trunc(Int64, N_float)%UInt64)) & 0x000000000000000f
-    expr = expm1b_kernel_16(Val(B), r)
-    js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
-    small_part = vfmadd(js, expr, js)
-    res = vscalef(small_part, 0.0625*N_float)
-    return res
-end
-@inline function vexp_avx512(vu::VecUnroll{1,8,Float64,Vec{8,Float64}}, ::Val{B}) where {B}
-  x, y = data(vu)
-  N_float₁ = round(x*LogBo16INV(Val(B), Float64))
-  N_float₂ = muladd(y, LogBo256INV(Val{B}(), Float64), MAGIC_ROUND_CONST(Float64))
-  r₁ = muladd(N_float₁, LogBo16U(Val(B), Float64), x)
-  N₂ = target_trunc(reinterpret(UInt64, N_float₂))
-  r₁ = muladd(N_float₁, LogBo16L(Val(B), Float64), r₁)
-  js₂ = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N₂ & 0x000000ff,))
-  N_float₂ = N_float₂ - MAGIC_ROUND_CONST(Float64)
-  inds₁ = ((trunc(Int64, N_float₁)%UInt64)) & 0x000000000000000f
-  r₂ = fma(N_float₂, LogBo256U(Val{B}(), Float64), y)
-  expr₁ = expm1b_kernel_16(Val(B), r₁)
-  r₂ = fma(N_float₂, LogBo256L(Val{B}(), Float64), r₂)
-  js₁ = vpermi2pd(inds₁, TABLE_EXP_64_0, TABLE_EXP_64_1)
-  small_part₁ = vfmadd(js₁, expr₁, js₁)
-  small_part₂ = vfmadd(js₂, expm1b_kernel(Val{B}(), r₂), js₂)
-  res₁ = vscalef(small_part₁, 0.0625*N_float₁)
-  res₂ = vscalef(small_part₂, 0.00390625*N_float₂)
-  return VecUnroll((res₁, res₂))
-end
+# @inline function vexp_avx512(x::AbstractSIMD{8,Float64}, ::Val{B}) where {B}
+#     N_float = round(x*LogBo16INV(Val(B), Float64))
+#     r = muladd(N_float, LogBo16U(Val(B), Float64), x)
+#     r = muladd(N_float, LogBo16L(Val(B), Float64), r)
+#     inds = ((trunc(Int64, N_float)%UInt64)) & 0x000000000000000f
+#     expr = expm1b_kernel_16(Val(B), r)
+#     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+#     small_part = vfmadd(js, expr, js)
+#     res = vscalef(small_part, 0.0625*N_float)
+#     return res
+# end
+# @inline function vexp_avx512(vu::VecUnroll{1,8,Float64,Vec{8,Float64}}, ::Val{B}) where {B}
+#   x, y = data(vu)
+#   N_float₁ = round(x*LogBo16INV(Val(B), Float64))
+#   N_float₂ = muladd(y, LogBo256INV(Val{B}(), Float64), MAGIC_ROUND_CONST(Float64))
+#   r₁ = muladd(N_float₁, LogBo16U(Val(B), Float64), x)
+#   N₂ = target_trunc(reinterpret(UInt64, N_float₂))
+#   r₁ = muladd(N_float₁, LogBo16L(Val(B), Float64), r₁)
+#   js₂ = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N₂ & 0x000000ff,))
+#   N_float₂ = N_float₂ - MAGIC_ROUND_CONST(Float64)
+#   inds₁ = ((trunc(Int64, N_float₁)%UInt64)) & 0x000000000000000f
+#   r₂ = fma(N_float₂, LogBo256U(Val{B}(), Float64), y)
+#   expr₁ = expm1b_kernel_16(Val(B), r₁)
+#   r₂ = fma(N_float₂, LogBo256L(Val{B}(), Float64), r₂)
+#   js₁ = vpermi2pd(inds₁, TABLE_EXP_64_0, TABLE_EXP_64_1)
+#   small_part₁ = vfmadd(js₁, expr₁, js₁)
+#   small_part₂ = vfmadd(js₂, expm1b_kernel(Val{B}(), r₂), js₂)
+#   res₁ = vscalef(small_part₁, 0.0625*N_float₁)
+#   res₂ = vscalef(small_part₂, 0.00390625*N_float₂)
+#   return VecUnroll((res₁, res₂))
+# end
 
 # @inline _vexp(x, ::True) = vexp2( 1.4426950408889634 * x, True() )
 # @inline _vexp(x, ::True) = vexp2( mul_ieee(1.4426950408889634, x), True() )
