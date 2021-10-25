@@ -350,18 +350,21 @@ end
 # invlog2hi(::Val{10}) = 0.3010299956639811952137388947244930267681898814621085413104274611271081892744238
 # invlog2lo(::Val{10}) = 2.803728127785170339013117338996875833689572538872891810725576172209659522828247e-18
 
-
-# @inline function vexp_avx512(x::AbstractSIMD{8,Float64}, ::Val{B}) where {B}
-#     N_float = round(x*LogBo16INV(Val(B), Float64))
-#     r = muladd(N_float, LogBo16U(Val(B), Float64), x)
-#     r = muladd(N_float, LogBo16L(Val(B), Float64), r)
-#     inds = ((trunc(Int64, N_float)%UInt64)) & 0x000000000000000f
-#     expr = expm1b_kernel_16(Val(B), r)
-#     js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
-#     small_part = vfmadd(js, expr, js)
-#     res = vscalef(small_part, 0.0625*N_float)
-#     return res
-# end
+# Requires two more floating point μops, but 8 less loading μops than the default version.
+# This thus microbenchmarks a little worse, but the theory is that using less cache than the
+# 256 Float64 * 8 bytes/Float64 = 2 KiB table may improve real world performance / reduce
+# random latency.
+@inline function vexp_avx512(x::AbstractSIMD{8,Float64}, ::Val{B}) where {B}
+    N_float = round(x*LogBo16INV(Val(B), Float64))
+    r = muladd(N_float, LogBo16U(Val(B), Float64), x)
+    r = muladd(N_float, LogBo16L(Val(B), Float64), r)
+    inds = ((trunc(Int64, N_float)%UInt64)) & 0x000000000000000f
+    expr = expm1b_kernel_16(Val(B), r)
+    js = vpermi2pd(inds, TABLE_EXP_64_0, TABLE_EXP_64_1)
+    small_part = vfmadd(js, expr, js)
+    res = vscalef(small_part, 0.0625*N_float)
+    return res
+end
 # @inline function vexp_avx512(vu::VecUnroll{1,8,Float64,Vec{8,Float64}}, ::Val{B}) where {B}
 #   x, y = data(vu)
 #   N_float₁ = round(x*LogBo16INV(Val(B), Float64))

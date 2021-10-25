@@ -93,29 +93,29 @@ logbU(::Type{Float64},::Val{10}) = 0.4342944819032518
 logbL(::Type{Float64},::Val{10}) = 1.098319650216765e-17
 
 @inline function vlog_base(v::AbstractSIMD{W,Float64}) where {W}
-    y = vgetmant12(v)
-    mf = vgetexp(v)
+  y = vgetmant12(v)
+  mf = vgetexp(v)
 
-    y128 = 128.0 * y
-    f128 = vsreduce(y128, Val(0))
-    F128 = y128 - f128# - 128.0
-    jp = convert(UInt,F128) - 0x0000000000000080 # - 128
-    # jp = convert(UInt,F128 - 128.0) # - 128
-    # jp = convert(UInt,F128) - 0x000000000000007f # - 127
-    
-    hi = vload(zstridedpointer(LOGTABLE), (jp,))
-    # l_hi = muladd(0.6931471805601177, mf, hi)
-    l_hi = muladd(0.6931471805599453, mf, hi)
+  y128 = 128.0 * y
+  f128 = vsreduce(y128, Val(0))
+  F128 = y128 - f128# - 128.0
+  jp = convert(UInt,F128) - 0x0000000000000080 # - 128
+  # jp = convert(UInt,F128 - 128.0) # - 128
+  # jp = convert(UInt,F128) - 0x000000000000007f # - 127
+  
+  hi = vload(zstridedpointer(LOGTABLE), (jp,))
+  # l_hi = muladd(0.6931471805601177, mf, hi)
+  l_hi = muladd(0.6931471805599453, mf, hi)
 
-    u = (2.0*f128)/(y128+F128)
-    # u = (2.0*f128)*vinv_fast(y128+F128)
-    v = u*u
-    q = u*v*muladd(0.012500053168098584, v, 0.08333333333303913)
+  u = (2.0*f128)/(y128+F128)
+  # u = (2.0*f128)*vinv_fast(y128+F128)
+  v = u*u
+  q = u*v*muladd(0.012500053168098584, v, 0.08333333333303913)
 
-    ## Step 4
-    m_hi = logbU(Float64, Val(:ℯ))
-    m_lo = logbL(Float64, Val(:ℯ))
-    return fma(m_hi, l_hi, fma(m_hi, (u + q), m_lo*l_hi))
+  ## Step 4
+  m_hi = logbU(Float64, Val(:ℯ))
+  m_lo = logbL(Float64, Val(:ℯ))
+  return fma(m_hi, l_hi, fma(m_hi, (u + q), m_lo*l_hi))
 end
 
 const LOG_TABLE_1 = Vec((
@@ -227,9 +227,9 @@ end
     # log(r+1) = log(m) + log(y₀)
     # log(m) = log(1+r) - log(y₀)
     r = vfmsub(m, y₀, 1.0) # m * y - 1 
-    # log1pr = logkern_5(r)
+    log1pr = logkern_5(r)
     # log1pr = logkern_6(r)
-    log1pr = logkern_7(r)
+    # log1pr = logkern_7(r)
     # log1pr = logkern_9(r)
     # @show r log1pr m
     # log1pr = logkern_8(r)
