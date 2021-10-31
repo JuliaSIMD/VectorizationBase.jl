@@ -351,7 +351,7 @@ end
     bitlq === nothing || return bitlq
   end
   align = A === True
-  should_transpose = should_transpose_memop(F,C,AU,AV,UN,zero(UInt64))
+  should_transpose = should_transpose_memop(F,C,AU,AV,UN,zero(UInt))
   if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
     return vload_transpose_quote(N,AU,F,UN,AV,W,UX,align,RS,sizeof(T),zero(UInt),false)
   end
@@ -372,7 +372,7 @@ end
     bitlq = bitload(AU,W,AV,F,UN,RS,false)
     bitlq === nothing || return bitlq
   end
-  should_transpose = should_transpose_memop(F,C,AU,AV,UN,zero(UInt64))
+  should_transpose = should_transpose_memop(F,C,AU,AV,UN,zero(UInt))
   if should_transpose
     vload_transpose_quote(N,AU,F,UN,AV,W,UX,A === True,RS,sizeof(T),zero(UInt),false)
   else
@@ -705,7 +705,7 @@ end
   align =  A === True
   alias =  S === True
   notmp = NT === True
-  should_transpose = should_transpose_memop(F,C,AU,AV,N,zero(UInt64))
+  should_transpose = should_transpose_memop(F,C,AU,AV,N,zero(UInt))
   if (W == N) & ((sizeof(T)*W) == RS) & should_transpose
         # should transpose means we'll transpose, but we'll only prefer it over the
         # `shuffle_store_quote` implementation if W == N, and we're using the entire register.
@@ -735,7 +735,7 @@ end
   alias =  S === True
   notmp = NT === True
   N == Nm1 + 1 || throw(ArgumentError("The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1)."))
-  if should_transpose_memop(F,C,AU,AV,N,zero(UInt64))
+  if should_transpose_memop(F,C,AU,AV,N,zero(UInt))
     vstore_transpose_quote(D,AU,F,N,AV,W,UX,align,alias,notmp,RS,sizeof(T),JULIA_TYPES[T],zero(UInt),false)
   else
     vstore_unroll_quote(D, AU, F, N, AV, W, M, UX, false, align, alias, notmp, RS, false)
