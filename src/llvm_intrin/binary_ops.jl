@@ -48,15 +48,17 @@ for (op,f) ∈ [("div",:÷),("rem",:%)]
   ff = Symbol('v', op); #_ff = Symbol(:_, ff)
   sbf = Symbol('s', op, :_int)
   ubf = Symbol('u', op, :_int)
-    @eval begin
-      @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
-      @inline $ff(a::I, b::I) where {I<:SignedHW} = Base.$sbf(a, b)
-      @inline $ff(a::I, b::I) where {I<:UnsignedHW} = Base.$ubf(a, b)
-      @inline $ff(a::Int128, b::Int128) = Base.$sbf(a, b)
-      @inline $ff(a::UInt128, b::UInt128) = Base.$ubf(a, b)
-        # @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
-        # @inline $ff(v1::T, v2::T) where {T<:IntegerTypesHW} = $_ff(v1, v2)
-    end
+  sbf128 = Sys.WORD_SIZE == 32 ? f : sbf
+  ubf128 = Sys.WORD_SIZE == 32 ? f : ubf
+  @eval begin
+    @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, W, T)
+    @inline $ff(a::I, b::I) where {I<:SignedHW} = Base.$sbf(a, b)
+    @inline $ff(a::I, b::I) where {I<:UnsignedHW} = Base.$ubf(a, b)
+    @inline $ff(a::Int128, b::Int128) = Base.$sbf128(a, b)
+    @inline $ff(a::UInt128, b::UInt128) = Base.$ubf128(a, b)
+    # @generated $_ff(v1::T, v2::T) where {T<:Integer} = binary_op((T <: Signed ? 's' : 'u') * $op, 1, T)
+    # @inline $ff(v1::T, v2::T) where {T<:IntegerTypesHW} = $_ff(v1, v2)
+  end
 end
 # for (op,f) ∈ [("div",:÷),("rem",:%)]
 #   @eval begin

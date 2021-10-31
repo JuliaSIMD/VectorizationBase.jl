@@ -12,7 +12,7 @@ include("testsetup.jl")
   # @test isempty(detect_ambiguities(VectorizationBase))
 
   W = Int(@inferred(VectorizationBase.pick_vector_width(Float64)))
-  @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.register_size() == VectorizationBase.simd_integer_register_size() ? Int64 : Int32)
+  Sys.WORD_SIZE == 64 && @test @inferred(VectorizationBase.pick_integer(Val(W))) == (VectorizationBase.register_size() == VectorizationBase.simd_integer_register_size() ? Int64 : Int32)
 
 
   @test first(A) === A[1]
