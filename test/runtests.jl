@@ -1093,9 +1093,9 @@ include("testsetup.jl")
     end
     @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
 
-    m = Mask{2W64}(rand(UInt));
-    v64f = Vec(ntuple(_ -> randn(), Val{2W64}())...)
-    v32i = Vec(ntuple(_ -> rand(Int32), Val{2W64}())...)
+    m = VecUnroll((Mask{W64}(rand(UInt)),Mask{W64}(rand(UInt))))
+    v64f = VecUnroll((Vec(ntuple(_ -> randn(), Val{W64}())...), Vec(ntuple(_ -> randn(), Val{W64}())...)))
+    v32i = VecUnroll((Vec(ntuple(_ -> rand(Int32(-100):Int32(100)), Val{W64}())...), Vec(ntuple(_ -> rand(Int32(-100):Int32(100)), Val{W64}())...)))
     mtv = tovector(m); v64ftv = tovector(v64f); v32itv = tovector(v32i);
     vum = @inferred(muladd(v64f, v32i, m))
     @test vum isa VectorizationBase.VecUnroll
