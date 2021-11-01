@@ -1,4 +1,3 @@
-
 const FASTDICT = Dict{Symbol,Expr}([
   :(+) => :(Base.FastMath.add_fast),
   :(-) => :(Base.FastMath.sub_fast),
@@ -190,40 +189,41 @@ end
     a, d, e
 end
 for (op, f, promotef) ∈ [
-    (:(Base.fma), :vfma, :promote),
-    (:(Base.muladd), :vmuladd, :promote),
-    (:(IfElse.ifelse), :vifelse, :promote_except_first)
+  (:(Base.fma), :vfma, :promote),
+  (:(Base.muladd), :vmuladd, :promote),
+  (:(IfElse.ifelse), :vifelse, :promote_except_first)
 ]
-    @eval begin
-        @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end
-        @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::NativeTypes)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end
-        @inline function $op(a::AbstractSIMD, b::NativeTypes, c::AbstractSIMD)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end
-        @inline function $op(a::NativeTypes, b::AbstractSIMD, c::AbstractSIMD)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end
-        @inline function $op(a::AbstractSIMD, b::NativeTypes, c::NativeTypes)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end
-        @inline function $op(a::NativeTypes, b::AbstractSIMD, c::NativeTypes)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end
-        @inline function $op(a::NativeTypes, b::NativeTypes, c::AbstractSIMD)
-            x, y, z = $promotef(a, b, c)
-            $f(x, y, z)
-        end        
+  AT = f === :vifelse ? :Bool : :NativeTypes
+  @eval begin
+    @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
     end
+    @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::NativeTypes)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
+    end
+    @inline function $op(a::AbstractSIMD, b::NativeTypes, c::AbstractSIMD)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
+    end
+    @inline function $op(a::$AT, b::AbstractSIMD, c::AbstractSIMD)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
+    end
+    @inline function $op(a::AbstractSIMD, b::NativeTypes, c::NativeTypes)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
+    end
+    @inline function $op(a::$AT, b::AbstractSIMD, c::NativeTypes)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
+    end
+    @inline function $op(a::$AT, b::NativeTypes, c::AbstractSIMD)
+      x, y, z = $promotef(a, b, c)
+      $f(x, y, z)
+    end
+  end
 end
 @inline IfElse.ifelse(f::F, m::AbstractSIMD{W,B}, args::Vararg{NativeTypesV,K}) where {W,K,B<:Union{Bool,Bit},F<:Function} = vifelse(f, m, args...)
 @inline IfElse.ifelse(f::F, m::Bool, args::Vararg{NativeTypesV,K}) where {K,F<:Function} = vifelse(f, m, args...)
@@ -275,7 +275,7 @@ for (f,add,mul) ∈ [
       @inline $f(b::NativeTypes, a::AnyMask, c::AbstractSIMD{W}) where {W} = vifelse(a, $add(b,c), c)
       @inline $f(b::AbstractSIMD{W}, a::AnyMask, c::NativeTypes) where {W} = vifelse(a, $add(b,c), c)
       @inline $f(b::AbstractSIMD{W}, a::AnyMask, c::AbstractSIMD{W}) where {W} = vifelse(a, $add(b,c), c)
-      
+
       @inline $f(a::AnyMask, b::AnyMask, c::NativeTypes) = vifelse(a & b, c + one(c), c)
       @inline $f(a::AnyMask, b::AnyMask, c::AbstractSIMD{W}) where {W} = vifelse(a & b, c + one(c), c)
     end
@@ -308,4 +308,3 @@ for T ∈ keys(JULIA_TYPE_SIZE)
   T === :Bit && continue
   @eval @inline $T(v::AbstractSIMD) = vconvert($T, v)
 end
-
