@@ -808,7 +808,7 @@ include("testsetup.jl")
             # check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I1), size_trunc_int.(xi4, I1)), I1));
           end
         end
-        @test tovector(@inferred((vi1 % 17) ^ (i%15))) ≈ (xi1 .% 17) .^ (i%15)
+        @test tovector(@inferred((vi1 % 17) ^ (i%15))) ≈ Float64.(xi1 .% 17) .^ (i%15)
         @test @inferred(VectorizationBase.vall(@inferred(1 - MM{WI}(1)) == (1 - Vec(ntuple(identity, Val(WI))...)) ))
       end
       vf1 = VectorizationBase.VecUnroll((
