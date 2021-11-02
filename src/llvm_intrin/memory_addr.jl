@@ -507,7 +507,7 @@ function vload_quote_llvmcall_core(
     vtyp = vtype(W, typ)
     if mask
         if reverse_load
-            decl *= truncate_mask!(instrs, '1' + dynamic_index, W, 0, true)
+            decl *= truncate_mask!(instrs, '1' + dynamic_index, W, 0, true) * "\n"
         else
             truncate_mask!(instrs, '1' + dynamic_index, W, 0, false)
         end
@@ -754,7 +754,7 @@ function vstore_quote(
   lret = vtyp = vtype(W, typ)
   if mask
     if reverse_store
-      decl *= truncate_mask!(instrs, '2' + dynamic_index, W, 0, true)
+      decl *= truncate_mask!(instrs, '2' + dynamic_index, W, 0, true) * "\n"
     else
       truncate_mask!(instrs, '2' + dynamic_index, W, 0, false)
     end
