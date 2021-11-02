@@ -18,7 +18,6 @@ jobs:
           - '^1.6.0-0'
         os:
           - ubuntu-latest
-          - windows-latest
         arch:
           - x86
     steps:
