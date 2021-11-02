@@ -723,71 +723,91 @@ function vstore_quote(
     vstore_quote(T_sym, I_sym, ind_type, W, X, M, O, mask, align, noalias, nontemporal, rs)
 end
 function vstore_quote(
-    T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
-    mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
+  T_sym::Symbol, I_sym::Symbol, ind_type::Symbol, W::Int, X::Int, M::Int, O::Int,
+  mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int
 )
-    sizeof_T = JULIA_TYPE_SIZE[T_sym]
-    sizeof_I = JULIA_TYPE_SIZE[I_sym]
-    ibits = 8sizeof_I
-    if W > 1 && ind_type !== :Vec
-        X, Xr = divrem(X, sizeof_T)
-        iszero(Xr) || throw(ArgumentError("sizeof($T_sym) == $sizeof_T, but stride between vector loads is given as $X, which is not a positive integer multiple."))
-    end
-    instrs, i = offset_ptr(T_sym, ind_type, '2', ibits, W, X, M, O, false, rs)
+  sizeof_T = JULIA_TYPE_SIZE[T_sym]
+  sizeof_I = JULIA_TYPE_SIZE[I_sym]
+  ibits = 8sizeof_I
 
-    grv = gep_returns_vector(W, X, M, ind_type)
-    align != nontemporal # should I do this?
-    alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
+  reverse_store = (((W > 1) & (X == -sizeof_T)) & (ind_type !== :Vec)) & (T_sym ≢ :Bit) # TODO: check if `T_sym` can actually be `Bit`; don't we cast?
+  if reverse_store
+    X = sizeof_T
+    O -= (W - 1) * sizeof_T
+  end
 
-    decl = noalias ? SCOPE_METADATA * TBAA_STR : TBAA_STR
-    metadata = noalias ? STORE_SCOPE_FLAGS * TBAA_FLAGS : TBAA_FLAGS
-    dynamic_index = !(iszero(M) || ind_type === :StaticInt)
+  if W > 1 && ind_type !== :Vec
+    X, Xr = divrem(X, sizeof_T)
+    iszero(Xr) || throw(ArgumentError("sizeof($T_sym) == $sizeof_T, but stride between vector loads is given as $X, which is not a positive integer multiple."))
+  end
+  instrs, i = offset_ptr(T_sym, ind_type, '2', ibits, W, X, M, O, false, rs)
 
-    typ = LLVM_TYPES_SYM[T_sym]
-    lret = vtyp = vtype(W, typ)
-    mask && truncate_mask!(instrs, '2' + dynamic_index, W, 0)
-    if grv
-        storeinstr = "void @llvm.masked.scatter." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
-        decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
-        m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
-        push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" * metadata)
-        # push!(instrs, "call $storeinstr($vtyp %1, <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
-    elseif mask
-        suff = suffix(W, T_sym)
-        storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
-        decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
-        push!(instrs, "call $storeinstr($vtyp %1, $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" * metadata)
-    elseif nontemporal
-        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}" * metadata)
+  grv = gep_returns_vector(W, X, M, ind_type)
+  align != nontemporal # should I do this?
+  alignment = (align & (!grv)) ? _get_alignment(W, T_sym) : _get_alignment(0, T_sym)
+
+  decl = noalias ? SCOPE_METADATA * TBAA_STR : TBAA_STR
+  metadata = noalias ? STORE_SCOPE_FLAGS * TBAA_FLAGS : TBAA_FLAGS
+  dynamic_index = !(iszero(M) || ind_type === :StaticInt)
+
+  typ = LLVM_TYPES_SYM[T_sym]
+  lret = vtyp = vtype(W, typ)
+  if mask
+    if reverse_store
+      decl *= truncate_mask!(instrs, '2' + dynamic_index, W, 0, true)
     else
-        push!(instrs, "store $vtyp %1, $vtyp* %ptr.$(i-1), align $alignment" * metadata)
+      truncate_mask!(instrs, '2' + dynamic_index, W, 0, false)
     end
-    push!(instrs, "ret void")
-    ret = :Cvoid; lret = "void"
-    ptrtyp = Expr(:curly, :Ptr, T_sym)
-    args = if W > 1
-        Expr(:curly, :Tuple, ptrtyp, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, T_sym)))
+  end
+  if reverse_store
+    reversemask = '<' * join(map(x->string("i32 ", W-x), 1:W), ", ") * '>'
+    push!(instrs, "%argreversed = shufflevector $vtyp %1, $vtyp undef, <$W x i32> $reversemask")
+    argtostore = "%argreversed"
+  else
+    argtostore = "%1"
+  end
+  if grv
+    storeinstr = "void @llvm.masked.scatter." * suffix(W, T_sym) * '.' * ptr_suffix(W, T_sym)
+    decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
+    m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
+    push!(instrs, "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" * metadata)
+    # push!(instrs, "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
+  elseif mask
+    suff = suffix(W, T_sym)
+    storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
+    decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
+    push!(instrs, "call $storeinstr($vtyp $(argtostore), $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" * metadata)
+  elseif nontemporal
+    push!(instrs, "store $vtyp $(argtostore), $vtyp* %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}" * metadata)
+  else
+    push!(instrs, "store $vtyp $(argtostore), $vtyp* %ptr.$(i-1), align $alignment" * metadata)
+  end
+  push!(instrs, "ret void")
+  ret = :Cvoid; lret = "void"
+  ptrtyp = Expr(:curly, :Ptr, T_sym)
+  args = if W > 1
+    Expr(:curly, :Tuple, ptrtyp, Expr(:curly, :NTuple, W, Expr(:curly, :VecElement, T_sym)))
+  else
+    Expr(:curly, :Tuple, ptrtyp, T_sym)
+  end
+  largs = String[JULIAPOINTERTYPE, vtyp]
+  arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
+  if dynamic_index
+    push!(arg_syms, :(data(i)))
+    if ind_type === :Integer
+      push!(args.args, I_sym)
+      push!(largs, "i$(ibits)")
     else
-        Expr(:curly, :Tuple, ptrtyp, T_sym)
+      push!(args.args, :(_Vec{$W,$I_sym}))
+      push!(largs, "<$W x i$(ibits)>")
     end
-    largs = String[JULIAPOINTERTYPE, vtyp]
-    arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
-    if dynamic_index
-        push!(arg_syms, :(data(i)))
-        if ind_type === :Integer
-            push!(args.args, I_sym)
-            push!(largs, "i$(ibits)")
-        else
-            push!(args.args, :(_Vec{$W,$I_sym}))
-            push!(largs, "<$W x i$(ibits)>")
-        end
-    end
-    if mask
-        push!(arg_syms, :(data(m)))
-        push!(args.args, mask_type(W))
-        push!(largs, "i$(max(8,nextpow2(W)))")
-    end
-    llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
+  end
+  if mask
+    push!(arg_syms, :(data(m)))
+    push!(args.args, mask_type(W))
+    push!(largs, "i$(max(8,nextpow2(W)))")
+  end
+  llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
 end
 
 # no index, no mask, scalar store
