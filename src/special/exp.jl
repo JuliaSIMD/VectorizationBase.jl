@@ -197,6 +197,14 @@ end
 end
 
 const J_TABLE= Float64[2.0^(big(j-1)/256) for j in 1:256];
+
+@inline fast_fma(a, b, c, ::True) = fma(a, b, c)
+@inline function fast_fma(a, b, c, ::False)
+    d = dadd(dmul(Double(a),Double(b),False()),Double(c))
+    add_ieee(d.hi, d.lo)
+end
+
+@static if (Sys.ARCH === :x86_64) | (Sys.ARCH === :i686)
 const TABLE_EXP_64_0= Vec(ntuple(j -> Core.VecElement(Float64(2.0^(big(j-1)/16))), Val(8)))
 const TABLE_EXP_64_1= Vec(ntuple(j -> Core.VecElement(Float64(2.0^(big(j+7)/16))), Val(8)))
 
@@ -204,11 +212,6 @@ const TABLE_EXP_64_1= Vec(ntuple(j -> Core.VecElement(Float64(2.0^(big(j+7)/16))
 @inline target_trunc(v, ::VectorizationBase.False) = v % UInt32
 @inline target_trunc(v) = target_trunc(v, VectorizationBase.has_feature(Val(:x86_64_avx512dq)))
 
-@inline fast_fma(a, b, c, ::True) = fma(a, b, c)
-@inline function fast_fma(a, b, c, ::False)
-    d = dadd(dmul(Double(a),Double(b),False()),Double(c))
-    add_ieee(d.hi, d.lo)
-end
 
 
 # @inline function vexp2_v1(x::AbstractSIMD{8,Float64})
@@ -365,6 +368,45 @@ end
     res = vscalef(small_part, 0.0625*N_float)
     return res
 end
+
+@inline function vexp_avx512(x::AbstractSIMD{W,Float64}, ::Val{B}) where {W,B}
+    N_float = muladd(x, LogBo256INV(Val{B}(), Float64), MAGIC_ROUND_CONST(Float64))
+    N = target_trunc(reinterpret(UInt64, N_float))
+    N_float = N_float - MAGIC_ROUND_CONST(Float64)
+    r = fma(N_float, LogBo256U(Val{B}(), Float64), x)
+    r = fma(N_float, LogBo256L(Val{B}(), Float64), r)
+    # @show (N & 0x000000ff) % Int
+    # @show N N & 0x000000ff
+    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
+    # k = N >>> 0x00000008
+    # small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
+    small_part = vfmadd(js, expm1b_kernel(Val{B}(), r), js)
+    # return reinterpret(Float64, small_part), r, k, N_float, js
+    res = vscalef(small_part, 0.00390625*N_float)
+    # twopk = (k % UInt64) << 0x0000000000000034
+    # res = reinterpret(Float64, twopk + small_part)
+    return res
+end
+@inline function vexp_avx512(x::Union{Float32,AbstractSIMD{<:Any,Float32}}, ::Val{B}) where {B}
+    N_float = vfmadd(x, LogBINV(Val{B}(), Float32), MAGIC_ROUND_CONST(Float32))
+    N = reinterpret(UInt32, N_float)
+    N_float = (N_float - MAGIC_ROUND_CONST(Float32))
+
+    r = fast_fma(N_float, LogBU(Val{B}(), Float32), x, fma_fast())
+    r = fast_fma(N_float, LogBL(Val{B}(), Float32), r, fma_fast())
+    
+    small_part = expb_kernel(Val{B}(), r)
+    res = vscalef(small_part, N_float)
+    # twopk = N << 0x00000017
+    # res = reinterpret(Float32, twopk + small_part)
+    return res
+end
+
+  
+else# if !((Sys.ARCH === :x86_64) | (Sys.ARCH === :i686))
+  const target_trunc = identity
+end
+
 # @inline function vexp_avx512(vu::VecUnroll{1,8,Float64,Vec{8,Float64}}, ::Val{B}) where {B}
 #   x, y = data(vu)
 #   N_float₁ = round(x*LogBo16INV(Val(B), Float64))
@@ -402,7 +444,7 @@ end
 @inline Base.exp(v::AbstractSIMD{W}) where {W} = vexp(float(v))
 @inline Base.exp2(v::AbstractSIMD{W}) where {W} = vexp2(float(v))
 @inline Base.exp10(v::AbstractSIMD{W}) where {W} = vexp10(float(v))
-@static if Base.libllvm_version ≥ v"11"
+@static if (Base.libllvm_version ≥ v"11") & ((Sys.ARCH === :x86_64) | (Sys.ARCH === :i686))
     @inline vexp(v::AbstractSIMD) = vexp(v, has_feature(Val(:x86_64_avx512f)))
     @inline vexp2(v::AbstractSIMD) = vexp2(v, has_feature(Val(:x86_64_avx512f)))
     @inline vexp10(v::AbstractSIMD) = vexp10(v, has_feature(Val(:x86_64_avx512f)))
@@ -419,38 +461,6 @@ end
 @inline vexp10(v::AbstractSIMD{2,Float32}) = vexp10(v, False())
 
 
-@inline function vexp_avx512(x::AbstractSIMD{W,Float64}, ::Val{B}) where {W,B}
-    N_float = muladd(x, LogBo256INV(Val{B}(), Float64), MAGIC_ROUND_CONST(Float64))
-    N = target_trunc(reinterpret(UInt64, N_float))
-    N_float = N_float - MAGIC_ROUND_CONST(Float64)
-    r = fma(N_float, LogBo256U(Val{B}(), Float64), x)
-    r = fma(N_float, LogBo256L(Val{B}(), Float64), r)
-    # @show (N & 0x000000ff) % Int
-    # @show N N & 0x000000ff
-    js = vload(VectorizationBase.zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
-    # k = N >>> 0x00000008
-    # small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
-    small_part = vfmadd(js, expm1b_kernel(Val{B}(), r), js)
-    # return reinterpret(Float64, small_part), r, k, N_float, js
-    res = vscalef(small_part, 0.00390625*N_float)
-    # twopk = (k % UInt64) << 0x0000000000000034
-    # res = reinterpret(Float64, twopk + small_part)
-    return res
-end
-@inline function vexp_avx512(x::Union{Float32,AbstractSIMD{<:Any,Float32}}, ::Val{B}) where {B}
-    N_float = vfmadd(x, LogBINV(Val{B}(), Float32), MAGIC_ROUND_CONST(Float32))
-    N = reinterpret(UInt32, N_float)
-    N_float = (N_float - MAGIC_ROUND_CONST(Float32))
-
-    r = fast_fma(N_float, LogBU(Val{B}(), Float32), x, fma_fast())
-    r = fast_fma(N_float, LogBL(Val{B}(), Float32), r, fma_fast())
-    
-    small_part = expb_kernel(Val{B}(), r)
-    res = vscalef(small_part, N_float)
-    # twopk = N << 0x00000017
-    # res = reinterpret(Float32, twopk + small_part)
-    return res
-end
 
 
 ####################################################################################################
