@@ -862,3 +862,8 @@ else
   ge_one_fma(::Val) = True()
 end
 
+@inline function Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:FloatingTypes}
+    vfnmadd_fast(y, vfloor(vfdiv_fast(x, y)), x)
+end
+
+
