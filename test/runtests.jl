@@ -279,6 +279,23 @@ include("testsetup.jl")
     @test !fbitvector2[8]
     @test all(fbitvector2[9:14])
     @test !any(fbitvector2[15:end])
+
+    @test convert(Mask{4,UInt8}, true) === EVLMask{4}(0x0f,4)
+    @test convert(Mask{4,UInt8}, false) === EVLMask{4}(0x00,0)
+    @test convert(Mask{4}, true) === EVLMask{4}(0x0f,4)
+    @test convert(Mask{4}, false) === EVLMask{4}(0x00,0)
+    @test convert(Mask{16,UInt16}, true) === EVLMask{16}(0xffff,16)
+    @test convert(Mask{16,UInt16}, false) === EVLMask{16}(0x0000,0)
+    @test convert(Mask{16}, true) === EVLMask{16}(0xffff,16)
+    @test convert(Mask{16}, false) === EVLMask{16}(0x0000,0)
+    @test convert(EVLMask{4,UInt8}, true) === EVLMask{4}(0x0f,4)
+    @test convert(EVLMask{4,UInt8}, false) === EVLMask{4}(0x00,0)
+    @test convert(EVLMask{4}, true) === EVLMask{4}(0x0f,4)
+    @test convert(EVLMask{4}, false) === EVLMask{4}(0x00,0)
+    @test convert(EVLMask{16,UInt16}, true) === EVLMask{16}(0xffff,16)
+    @test convert(EVLMask{16,UInt16}, false) === EVLMask{16}(0x0000,0)
+    @test convert(EVLMask{16}, true) === EVLMask{16}(0xffff,16)
+    @test convert(EVLMask{16}, false) === EVLMask{16}(0x0000,0)
   end
 
   # @testset "number_vectors.jl" begin

@@ -464,7 +464,6 @@ end
   _vload_fastrange_unroll(AU,F,N,AV,W,M,X,false,true)
 end
 
-
 function vstore_unroll_quote(
   D::Int, AU::Int, F::Int, N::Int, AV::Int, W::Int, M::UInt, X::Int, mask::Bool, align::Bool, noalias::Bool, nontemporal::Bool, rs::Int, vecunrollmask::Bool
   )

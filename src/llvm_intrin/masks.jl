@@ -764,3 +764,7 @@ end
 @inline ifelse(b::Bool, m1::EVLMask{W}, m2::Mask{W})    where {W} = Mask{W}(   Core.ifelse(b, getfield(m1,:u), getfield(m2,:u)))
 @inline ifelse(b::Bool, m1::EVLMask{W}, m2::EVLMask{W}) where {W} = EVLMask{W}(Core.ifelse(b, getfield(m1,:u), getfield(m2,:u)),Core.ifelse(b, getfield(m1,:evl), getfield(m2,:evl)))
 
+@inline vconvert(::Type{<:AbstractMask{W}}, b::Bool) where {W} = b ? max_mask(Val(W)) : zero_mask(Val(W))
+@inline vconvert(::Type{Mask{W}}, b::Bool) where {W} = b ? max_mask(Val(W)) : zero_mask(Val(W))
+@inline vconvert(::Type{EVLMask{W}}, b::Bool) where {W} = b ? max_mask(Val(W)) : zero_mask(Val(W))
+
