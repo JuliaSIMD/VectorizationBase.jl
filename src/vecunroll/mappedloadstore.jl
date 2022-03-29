@@ -15,9 +15,9 @@ end
 
 @inline function _vload(
   p::AbstractStridedPointer,
-  i::Tuple{Vararg{Union{IntegerIndex,MM,VecUnroll{N,<:Any,I,<:IntegerIndex}}}},
+  i::Tuple{Vararg{Union{IntegerIndex,MM,VecUnroll{N,<:Any,<:Any,<:IntegerIndex}}}},
   m::VecUnroll{N,<:Any,Bit}, ::J, ::A
-) where {N,J,A,I}
+) where {N,J,A}
   VecUnroll(_vload_map(p, i, data(m), J(), A()))
 end
 
