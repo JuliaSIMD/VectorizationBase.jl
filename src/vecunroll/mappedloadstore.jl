@@ -9,15 +9,16 @@
 @inline _vload_map(_, ::Tuple, ::Tuple{}, __, ___) = ()
 @inline function _vload_map(p, i, m, ::J, ::A) where {J,A}
   x = _vload(p, map(_maybefirst, i), first(m), J(), A())
-  r = _vload_map(p, map(_maybetail,i), Base.tail(m), J(), A())
+  r = _vload_map(p, map(_maybetail, i), Base.tail(m), J(), A())
   (x, r...)
 end
 
 @inline function _vload(
   p::AbstractStridedPointer,
   i::Tuple{Vararg{Union{IntegerIndex,MM,VecUnroll{N,<:Any,<:Any,<:IntegerIndex}}}},
-  m::VecUnroll{N,<:Any,Bit}, ::J, ::A
+  m::VecUnroll{N,<:Any,Bit},
+  ::J,
+  ::A,
 ) where {N,J,A}
   VecUnroll(_vload_map(p, i, data(m), J(), A()))
 end
-

@@ -27,7 +27,8 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-@inline integer(v::AbstractSIMD{W,Float64}) where {W} = _integer(v, has_feature(Val(:x86_64_avx512dq)))
+@inline integer(v::AbstractSIMD{W,Float64}) where {W} =
+  _integer(v, has_feature(Val(:x86_64_avx512dq)))
 @inline _integer(v::AbstractSIMD{W,Float64}, ::True) where {W} = vconvert(Int64, v)
 @inline _integer(v::AbstractSIMD{W,Float64}, ::False) where {W} = vconvert(Int32, v)
 
@@ -43,7 +44,11 @@
   y = vfmadd(x, y, 1.12837916709551)
   z = vfmadd(x, z, 1.0)
   res = y / z
-  res + vfnmadd(8.13035732583580548119176214095147680242299108680658322550212199643608432312984e-16,x,2.679870718713541577762315771546743935213688171443421284936882991116060314650674e-15)
+  res + vfnmadd(
+    8.13035732583580548119176214095147680242299108680658322550212199643608432312984e-16,
+    x,
+    2.679870718713541577762315771546743935213688171443421284936882991116060314650674e-15,
+  )
   # Base.FastMath.div_fast(w * y, z)
 end
 # erf(x)/x = erf_poly_l9(x*x) # r = x^2; x = sqrt(r)
@@ -93,7 +98,7 @@ end
   v95f = vfmadd(v3f, v94f, 2.75143870676376)
   v90f = vfmadd(v3f, v89f, 0.99992114009714)
   v96f = vfmadd(v3f, v95f, 1.0)
-  v97f = v90f / v96f  
+  v97f = v90f / v96f
 end
 @inline function erf_v71_kernel(v3f)
   v65f = vfmadd(v3f, 0.0125304936549413, 0.126579413030178)
@@ -114,12 +119,12 @@ end
   # v2 = v1 & 0x7fffffffffffffff
   # v3 = reinterpret(Float64, v2)
   v3f = abs(v0f)
-  v4f = v0f*v0f
+  v4f = v0f * v0f
   # m6 = v3f < 0.65
   # m6 = v3f < 0.68
   m6 = v3f < 0.675
   if vany(collapse_or(m6))
-    v19f = v0f*erf_kernel_l9(v4f)
+    v19f = v0f * erf_kernel_l9(v4f)
     vall(collapse_and(m6)) && return v19f
   else
     # v19f = zero(v0f)
@@ -182,7 +187,7 @@ end
   else
     v17f = _vundef(v0f)
   end
-  v18f = v3f + 1f0
+  v18f = v3f + 1.0f0
   v19f = Base.FastMath.div_fast(v3f, v18f)
   v20f = v19f - 0.4f0
   v23f = -1.442695f0 * v8f
@@ -195,7 +200,7 @@ end
   v29f = vfmadd(v26f, v28f, 0.16666277f0)
   v30f = vfmadd(v26f, v29f, 0.5f0)
   v32f = vfmadd(v30f, v31f, v26f)
-  v33f = v32f + 1f0
+  v33f = v32f + 1.0f0
   m34 = v8f ≤ 88.37626f0
   v42f = vscalef(m34, v33f, v24f, zero(v0f))
   v43f = vfmadd(v20f, -2.6283f0, 6.702909f0)
@@ -209,7 +214,7 @@ end
   v51f = vfmadd(v20f, v50f, -1.1370356f0)
   v52f = vfmadd(v20f, v51f, 0.5392844f0)
   v53f = v52f * v42f
-  v54f = 1f0 - v53f
+  v54f = 1.0f0 - v53f
   m55 = v0f < zero(v0f)
   v56f = -v54f
   v57f = ifelse(m55, v56f, v54f)
@@ -223,5 +228,3 @@ end
   v66f = ifelse(m59, v58f, v65f)
   return v66f
 end
-
-

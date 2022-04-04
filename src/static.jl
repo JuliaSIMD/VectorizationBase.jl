@@ -10,31 +10,50 @@
 @inline maybestaticlength(a) = static_length(a)
 @inline maybestaticlength(a::UnitRange{T}) where {T} = last(a) - first(a) + oneunit(T)
 
-@inline maybestaticrange(r::Base.OneTo{T}) where {T} = ArrayInterface.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
+@inline maybestaticrange(r::Base.OneTo{T}) where {T} =
+  ArrayInterface.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
 @inline maybestaticrange(r::UnitRange) = r
 @inline maybestaticrange(r) = maybestaticfirst(r):maybestaticlast(r)
 
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = StaticInt{N}() # should we assert that i == 1?
-@inline maybestaticsize(::LinearAlgebra.Adjoint{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
-@inline maybestaticsize(::LinearAlgebra.Transpose{T,V}, ::Val{1}) where {T,V<:AbstractVector{T}} = One()
+@inline maybestaticsize(
+  ::LinearAlgebra.Adjoint{T,V},
+  ::Val{1},
+) where {T,V<:AbstractVector{T}} = One()
+@inline maybestaticsize(
+  ::LinearAlgebra.Transpose{T,V},
+  ::Val{1},
+) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticsize(A, ::Val{N}) where {N} = ArrayInterface.size(A)[N]
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.
-for (f,ff) ∈ [
-  (:(Base.:+),:vadd_fast), (:(Base.:-),:vsub_fast), (:(Base.:*),:vmul_fast),
-  (:(Base.:+),:vadd_nsw), (:(Base.:-),:vsub_nsw), (:(Base.:*),:vmul_nsw),
-  (:(Base.:+),:vadd_nuw), (:(Base.:-),:vsub_nuw), (:(Base.:*),:vmul_nuw),
-  (:(Base.:+),:vadd_nw), (:(Base.:-),:vsub_nw), (:(Base.:*),:vmul_nw),
-  (:(Base.:<<),:vshl), (:(Base.:÷),:vdiv), (:(Base.:%), :vrem), (:(Base.:>>>),:vashr)
+for (f, ff) ∈ [
+  (:(Base.:+), :vadd_fast),
+  (:(Base.:-), :vsub_fast),
+  (:(Base.:*), :vmul_fast),
+  (:(Base.:+), :vadd_nsw),
+  (:(Base.:-), :vsub_nsw),
+  (:(Base.:*), :vmul_nsw),
+  (:(Base.:+), :vadd_nuw),
+  (:(Base.:-), :vsub_nuw),
+  (:(Base.:*), :vmul_nuw),
+  (:(Base.:+), :vadd_nw),
+  (:(Base.:-), :vsub_nw),
+  (:(Base.:*), :vmul_nw),
+  (:(Base.:<<), :vshl),
+  (:(Base.:÷), :vdiv),
+  (:(Base.:%), :vrem),
+  (:(Base.:>>>), :vashr),
 ]
   @eval begin
     # @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
     # If `M` and `N` are known at compile time, there's no need to add nsw/nuw flags.
-    @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M, N} = $f(StaticInt{M}(),StaticInt{N}())
+    @inline $ff(::StaticInt{M}, ::StaticInt{N}) where {M,N} =
+      $f(StaticInt{M}(), StaticInt{N}())
     # @inline $f(::StaticInt{M}, x) where {M} = $ff(M, x)
     # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
-    @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} = $ff(M%T, x)
-    @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} = $ff(x, M%T)
+    @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} = $ff(M % T, x)
+    @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} = $ff(x, M % T)
     @inline $ff(::StaticInt{M}, x::T) where {M,T} = $ff(T(M), x)
     @inline $ff(x::T, ::StaticInt{M}) where {M,T} = $ff(x, T(M))
   end
@@ -49,8 +68,8 @@ for f ∈ [:vsub, :vsub_fast, :vsub_nsw, :vsub_nuw, :vsub_nw]
   @eval begin
     @inline $f(::Zero, m::Number) = -m
     @inline $f(::Zero, m::IntegerTypesHW) = -m
-    @inline $f(m::Number, ::Zero) =  m
-    @inline $f(m::IntegerTypesHW, ::Zero) =  m
+    @inline $f(m::Number, ::Zero) = m
+    @inline $f(m::IntegerTypesHW, ::Zero) = m
     @inline $f(::Zero, ::Zero) = Zero()
     @inline $f(::Zero, ::StaticInt{N}) where {N} = -StaticInt{N}()
     @inline $f(::StaticInt{N}, ::Zero) where {N} = StaticInt{N}()
@@ -84,18 +103,20 @@ end
 @inline vmul_fast(::One, ::Zero) = Zero()
 
 for T ∈ [:VecUnroll, :AbstractMask, :MM]
-    @eval begin
-        @inline Base.:(+)(x::$T, ::Zero) = x
-        @inline Base.:(+)(::Zero, x::$T) = x
-        @inline Base.:(-)(x::$T, ::Zero) = x
-        @inline Base.:(*)(x::$T, ::One) = x
-        @inline Base.:(*)(::One, x::$T) = x
-        @inline Base.:(*)(::$T, ::Zero) = Zero()
-        @inline Base.:(*)(::Zero, ::$T) = Zero()
-    end
+  @eval begin
+    @inline Base.:(+)(x::$T, ::Zero) = x
+    @inline Base.:(+)(::Zero, x::$T) = x
+    @inline Base.:(-)(x::$T, ::Zero) = x
+    @inline Base.:(*)(x::$T, ::One) = x
+    @inline Base.:(*)(::One, x::$T) = x
+    @inline Base.:(*)(::$T, ::Zero) = Zero()
+    @inline Base.:(*)(::Zero, ::$T) = Zero()
+  end
 end
-@inline Base.:(+)(m::AbstractMask{W}, ::StaticInt{N}) where {N,W} = m + vbroadcast(Val{W}(), N)
-@inline Base.:(+)(::StaticInt{N}, m::AbstractMask{W}) where {N,W} = vbroadcast(Val{W}(), N) + m
+@inline Base.:(+)(m::AbstractMask{W}, ::StaticInt{N}) where {N,W} =
+  m + vbroadcast(Val{W}(), N)
+@inline Base.:(+)(::StaticInt{N}, m::AbstractMask{W}) where {N,W} =
+  vbroadcast(Val{W}(), N) + m
 # @inline Base.:(*)(::StaticInt{N}, m::Mask{W}) where {N,W} = vbroadcast(Val{W}(), N) * m
 @inline vadd_fast(x::VecUnroll, ::Zero) = x
 @inline vadd_fast(::Zero, x::VecUnroll) = x
@@ -106,19 +127,16 @@ end
 @inline vmul_fast(::Zero, ::VecUnroll) = Zero()
 
 for V ∈ [:AbstractSIMD, :MM]
-    @eval begin
-        @inline Base.FastMath.mul_fast(::Zero, x::$V) = Zero()
-        @inline Base.FastMath.mul_fast(::One, x::$V) = x
-        @inline Base.FastMath.mul_fast(x::$V, ::Zero) = Zero()
-        @inline Base.FastMath.mul_fast(x::$V, ::One) = x
+  @eval begin
+    @inline Base.FastMath.mul_fast(::Zero, x::$V) = Zero()
+    @inline Base.FastMath.mul_fast(::One, x::$V) = x
+    @inline Base.FastMath.mul_fast(x::$V, ::Zero) = Zero()
+    @inline Base.FastMath.mul_fast(x::$V, ::One) = x
 
-        @inline Base.FastMath.add_fast(::Zero, x::$V) = x
-        @inline Base.FastMath.add_fast(x::$V, ::Zero) = x
+    @inline Base.FastMath.add_fast(::Zero, x::$V) = x
+    @inline Base.FastMath.add_fast(x::$V, ::Zero) = x
 
-        @inline Base.FastMath.sub_fast(::Zero, x::$V) = -x
-        @inline Base.FastMath.sub_fast(x::$V, ::Zero) =  x
-    end
+    @inline Base.FastMath.sub_fast(::Zero, x::$V) = -x
+    @inline Base.FastMath.sub_fast(x::$V, ::Zero) = x
+  end
 end
-
-
-

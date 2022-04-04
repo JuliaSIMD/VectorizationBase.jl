@@ -8,8 +8,10 @@ function sub_quote(W::Int, T::Symbol, fast::Bool)::Expr
   end
 end
 
-@generated vsub(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, JULIA_TYPES[T], false)
-@generated vsub_fast(v::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = sub_quote(W, JULIA_TYPES[T], true)
+@generated vsub(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
+  sub_quote(W, JULIA_TYPES[T], false)
+@generated vsub_fast(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
+  sub_quote(W, JULIA_TYPES[T], true)
 
 @inline vsub(v) = -v
 @inline vsub_fast(v) = Base.FastMath.sub_fast(v)
@@ -45,11 +47,14 @@ function bswap_quote(W::Int, T::Symbol, st::Int)::Expr
   ret_type = :(_Vec{$W,$T})
   llvmcall_expr(decl, instrs, ret_type, :(Tuple{$ret_type}), vtyp, [vtyp], [:(data(x))])
 end
-@generated Base.bswap(x::Vec{W,T}) where {T<:IntegerTypesHW,W} = bswap_quote(W, JULIA_TYPES[T], sizeof(T))
-@inline Base.bswap(x::VecUnroll{<:Any,<:Any,<:IntegerTypesHW}) = VecUnroll(fmap(bswap, data(x)))
+@generated Base.bswap(x::Vec{W,T}) where {T<:IntegerTypesHW,W} =
+  bswap_quote(W, JULIA_TYPES[T], sizeof(T))
+@inline Base.bswap(x::VecUnroll{<:Any,<:Any,<:IntegerTypesHW}) =
+  VecUnroll(fmap(bswap, data(x)))
 @inline Base.bswap(x::AbstractSIMDVector{<:Any,<:IntegerTypesHW}) = bswap(Vec(x))
-@inline Base.bswap(x::AbstractSIMD{<:Any,Float16}) = reinterpret(Float16, bswap(reinterpret(UInt16, x)))
-@inline Base.bswap(x::AbstractSIMD{<:Any,Float32}) = reinterpret(Float32, bswap(reinterpret(UInt32, x)))
-@inline Base.bswap(x::AbstractSIMD{<:Any,Float64}) = reinterpret(Float64, bswap(reinterpret(UInt64, x)))
-
-
+@inline Base.bswap(x::AbstractSIMD{<:Any,Float16}) =
+  reinterpret(Float16, bswap(reinterpret(UInt16, x)))
+@inline Base.bswap(x::AbstractSIMD{<:Any,Float32}) =
+  reinterpret(Float32, bswap(reinterpret(UInt32, x)))
+@inline Base.bswap(x::AbstractSIMD{<:Any,Float64}) =
+  reinterpret(Float64, bswap(reinterpret(UInt64, x)))
