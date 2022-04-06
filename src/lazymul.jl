@@ -177,11 +177,17 @@ end
 # because we should hit this instead:
 @inline add_indices(p::Ptr, b::Integer, a::LazyMulAdd{M,O}) where {M,O} = (p + b, a)
 @inline add_indices(p::Ptr, a::LazyMulAdd{M,O}, b::Integer) where {M,O} = (p + b, a)
+@inline add_indices(p::Ptr{Bit}, b::Integer, a::LazyMulAdd{M,O}) where {M,O} = (p, vadd_nsw(a, b))
+@inline add_indices(p::Ptr{Bit}, a::LazyMulAdd{M,O}, b::Integer) where {M,O} = (p, vadd_nsw(a, b))
 # but in the case of `VecUnroll`s, which skip the `add_indices`, it's useful to still have the former two definitions.
 # However, this also forces us to write:
 @inline add_indices(p::Ptr, ::StaticInt{N}, a::LazyMulAdd{M,O}) where {M,O,N} =
   (p, vadd_nsw(a, StaticInt{N}()))
 @inline add_indices(p::Ptr, a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N} =
+  (p, vadd_nsw(a, StaticInt{N}()))
+@inline add_indices(p::Ptr{Bit}, ::StaticInt{N}, a::LazyMulAdd{M,O}) where {M,O,N} =
+  (p, vadd_nsw(a, StaticInt{N}()))
+@inline add_indices(p::Ptr{Bit}, a::LazyMulAdd{M,O}, ::StaticInt{N}) where {M,O,N} =
   (p, vadd_nsw(a, StaticInt{N}()))
 
 @inline function vadd_nsw(::StaticInt{N}, a::LazyMulAdd{M,O}) where {N,M,O}
@@ -257,6 +263,26 @@ end
   b::LazyMulAdd{M,P,J},
   a::LazyMulAdd{M,O,V},
 ) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_nsw(a, b))
+@inline add_indices(
+  p::Ptr{Bit},
+  a::LazyMulAdd{M,O,V},
+  b::LazyMulAdd{N,P,J},
+) where {M,O,V<:AbstractSIMDVector,N,P,J<:IntegerTypes} = (p, vadd_nsw(a, b))
+@inline add_indices(
+  p::Ptr{Bit},
+  b::LazyMulAdd{N,P,J},
+  a::LazyMulAdd{M,O,V},
+) where {M,O,V<:AbstractSIMDVector,N,P,J<:IntegerTypes} = (p, vadd_nsw(a, b))
+@inline add_indices(
+  p::Ptr{Bit},
+  a::LazyMulAdd{M,O,V},
+  b::LazyMulAdd{M,P,J},
+) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_nsw(a, b))
+@inline add_indices(
+  p::Ptr{Bit},
+  b::LazyMulAdd{M,P,J},
+  a::LazyMulAdd{M,O,V},
+) where {M,O,V<:AbstractSIMDVector,P,J<:IntegerTypes} = (p, vadd_nsw(a, b))
 
 
 @inline add_indices(
@@ -269,6 +295,16 @@ end
   b::LazyMulAdd{M,O,I},
   a::AbstractSIMDVector,
 ) where {M,O,I<:IntegerTypes} = (gep(p, b), a)
+@inline add_indices(
+  p::Ptr{Bit},
+  a::AbstractSIMDVector,
+  b::LazyMulAdd{M,O,I},
+) where {M,O,I<:IntegerTypes} = (p, vadd_nsw(a, b))
+@inline add_indices(
+  p::Ptr{Bit},
+  b::LazyMulAdd{M,O,I},
+  a::AbstractSIMDVector,
+) where {M,O,I<:IntegerTypes} = (p, vadd_nsw(a, b))
 @inline function add_indices(
   p::Ptr,
   ::MM{W,X,StaticInt{A}},
@@ -282,6 +318,20 @@ end
   ::MM{W,X,StaticInt{A}},
 ) where {M,O,T<:IntegerTypes,A,W,X}
   gep(p, a), MM{W,X}(StaticInt{A}())
+end
+@inline function add_indices(
+  p::Ptr{Bit},
+  ::MM{W,X,StaticInt{A}},
+  a::LazyMulAdd{M,O,T},
+  ) where {M,O,T<:IntegerTypes,A,W,X}
+  p, vadd_nsw(MM{W,X}(StaticInt{A}()), _materialize(a))
+end
+@inline function add_indices(
+  p::Ptr{Bit},
+  a::LazyMulAdd{M,O,T},
+  ::MM{W,X,StaticInt{A}},
+) where {M,O,T<:IntegerTypes,A,W,X}
+  p, vadd_nsw(MM{W,X}(StaticInt{A}()), _materialize(a))
 end
 
 @generated function add_indices(
@@ -302,8 +352,31 @@ end
     end
   end
 end
+@generated function add_indices(
+  p::Ptr{Bit},
+  a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}},
+  b::LazyMulAdd{N,P,J},
+) where {M,O,W,X,I,N,P,J<:IntegerTypes}
+  d, r = divrem(M, N)
+  if iszero(r)
+    quote
+      $(Expr(:meta, :inline))
+      p, VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
+    end
+  else
+    quote
+      $(Expr(:meta,:inline))
+      p, vadd_nsw(_materialize(a), _materialize(b))
+    end
+  end
+end
 @inline add_indices(
   p::Ptr,
+  b::LazyMulAdd{N,P,J},
+  a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}},
+) where {M,O,W,X,I,N,P,J<:IntegerTypes} = add_indices(p, a, b)
+@inline add_indices(
+  p::Ptr{Bit},
   b::LazyMulAdd{N,P,J},
   a::LazyMulAdd{M,O,MM{W,X,StaticInt{I}}},
 ) where {M,O,W,X,I,N,P,J<:IntegerTypes} = add_indices(p, a, b)
@@ -315,12 +388,12 @@ end
   if iszero(r)
     quote
       $(Expr(:meta, :inline))
-      VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
+      p, VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
     end
   else
     quote
       $(Expr(:meta, :inline))
-      vadd_nsw(a, _materialize(b))
+      p, vadd_nsw(a, _materialize(b))
     end
   end
 end
