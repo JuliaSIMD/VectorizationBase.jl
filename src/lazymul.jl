@@ -388,12 +388,12 @@ end
   if iszero(r)
     quote
       $(Expr(:meta, :inline))
-      p, VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
+      VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
     end
   else
     quote
       $(Expr(:meta, :inline))
-      p, vadd_nsw(a, _materialize(b))
+      vadd_nsw(a, _materialize(b))
     end
   end
 end
