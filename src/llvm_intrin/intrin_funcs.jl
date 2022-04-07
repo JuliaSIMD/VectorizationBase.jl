@@ -133,16 +133,9 @@ for (op, f) ∈ [
   ("nearbyint", :vround),#,("roundeven",:roundeven)
 ]
   # @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
-  @eval @generated $f(v1::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = (
-    TS = T === Float32 ? :Float32 : :Float64; build_llvmcall_expr(
-      $op,
-      W,
-      TS,
-      [W],
-      [TS],
-      "fast",
-    )
-  )
+  @eval @generated $f(v1::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
+    (TS = T === Float32 ? :Float32 : :Float64;
+    build_llvmcall_expr($op, W, TS, [W], [TS], "fast"))
 end
 @inline vsqrt(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} = vsqrt(float(v))
 @inline vsqrt(v::FloatingTypes) = Base.sqrt_llvm_fast(v)

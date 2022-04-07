@@ -2044,7 +2044,8 @@ end
         unsafe_store!(
           Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p) + convert(Int, i),
           Base.pointer_from_objref(v),
-        ); return nothing
+        );
+        return nothing
       ),
     )
   end

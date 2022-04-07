@@ -177,8 +177,10 @@ end
 # because we should hit this instead:
 @inline add_indices(p::Ptr, b::Integer, a::LazyMulAdd{M,O}) where {M,O} = (p + b, a)
 @inline add_indices(p::Ptr, a::LazyMulAdd{M,O}, b::Integer) where {M,O} = (p + b, a)
-@inline add_indices(p::Ptr{Bit}, b::Integer, a::LazyMulAdd{M,O}) where {M,O} = (p, vadd_nsw(a, b))
-@inline add_indices(p::Ptr{Bit}, a::LazyMulAdd{M,O}, b::Integer) where {M,O} = (p, vadd_nsw(a, b))
+@inline add_indices(p::Ptr{Bit}, b::Integer, a::LazyMulAdd{M,O}) where {M,O} =
+  (p, vadd_nsw(a, b))
+@inline add_indices(p::Ptr{Bit}, a::LazyMulAdd{M,O}, b::Integer) where {M,O} =
+  (p, vadd_nsw(a, b))
 # but in the case of `VecUnroll`s, which skip the `add_indices`, it's useful to still have the former two definitions.
 # However, this also forces us to write:
 @inline add_indices(p::Ptr, ::StaticInt{N}, a::LazyMulAdd{M,O}) where {M,O,N} =
@@ -323,7 +325,7 @@ end
   p::Ptr{Bit},
   ::MM{W,X,StaticInt{A}},
   a::LazyMulAdd{M,O,T},
-  ) where {M,O,T<:IntegerTypes,A,W,X}
+) where {M,O,T<:IntegerTypes,A,W,X}
   p, vadd_nsw(MM{W,X}(StaticInt{A}()), _materialize(a))
 end
 @inline function add_indices(
@@ -365,7 +367,7 @@ end
     end
   else
     quote
-      $(Expr(:meta,:inline))
+      $(Expr(:meta, :inline))
       p, vadd_nsw(_materialize(a), _materialize(b))
     end
   end
