@@ -2443,7 +2443,8 @@ function vstorebit_unroll_i_quote(
   )
   # W == 8 || throw(ArgumentError("There is only a need for splitting a mask of size 8, but the mask is of size $W."))
   # q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(im = _materialize(i)), :(u = 0x00))
-  q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(u = 0x00))
+  U = mask_type(W)
+  q = Expr(:block, Expr(:meta, :inline), :(vt = data(v)), :(u = zero($U)))
   j = 0
   gf = GlobalRef(Core, :getfield)
   while true
@@ -2471,7 +2472,7 @@ function vstorebit_unroll_i_quote(
       )
     ),
   )
-  call = Expr(:call, :__vstore!, :(reinterpret(Ptr{UInt8}, ptr)), :u, :(data(i) >> 3))
+  call = Expr(:call, :__vstore!, :(reinterpret(Ptr{$U}, ptr)), :u, :(data(i) >> 3))
   push!(call.args, alignval, aliasval, notmpval, rsexpr)
   push!(q.args, call)
   q
