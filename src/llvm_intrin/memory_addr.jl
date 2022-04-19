@@ -1578,6 +1578,10 @@ end
     StaticInt{RS}(),
   )
 end
+@inline bytetobit(x::Union{Vec,VecUnroll}) = x >> 3
+@inline bytetobit(x::Union{MM,LazyMulAdd}) = data(x) >> 3
+@inline bytetobit(x::Union{MM,LazyMulAdd,Unroll}) = data(x) >> 3
+
 @inline function __vstore!(
   ptr::Ptr{Bit},
   v::AbstractSIMDVector{W,B},
@@ -1590,7 +1594,7 @@ end
   __vstore!(
     Base.unsafe_convert(Ptr{mask_type(StaticInt{W}())}, ptr),
     tounsigned(v),
-    data(i) >> 3,
+    bytetobit(i),
     A(),
     S(),
     NT(),
