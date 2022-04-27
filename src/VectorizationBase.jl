@@ -186,10 +186,10 @@ in place of `8` (`W`) in the `Unroll` construction.
 struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
   data::Tuple{V,Vararg{V,N}}
   @inline (
-    VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}
+    VecUnroll(data::Tuple{V,Vararg{V,N}})
   ) where {N,W,T,V<:AbstractSIMD{W,T}} = new{N,W,T,V}(data)
   @inline (
-    VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}
+    VecUnroll(data::Tuple{T,Vararg{T,N}})
   ) where {N,T<:NativeTypes} = new{N,1,T,T}(data)
   # # following two definitions are for checking that you aren't accidentally creating `VecUnroll{0}`s.
   # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = (@assert(N > 0); new{N,W,T,V}(data))
@@ -206,6 +206,8 @@ const VecOrScalar = Union{AbstractSIMDVector,NativeTypes}
 const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}
+
+
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
   data::NTuple{W,Core.VecElement{T}}
   @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:NativeTypes} = new{W,T}(x)
