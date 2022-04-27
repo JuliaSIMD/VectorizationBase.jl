@@ -438,9 +438,10 @@ end
 #   _gep(p, li, Zero())
 # end
 @inline increment_ptr(p::StridedBitPointer) = offsets(p)
-@inline bmap(f::F, x::Tuple{}, y::Tuple{}) where {F} = ()
-@inline bmap(f::F, x::Tuple{X,Vararg{Any,K}}, y::Tuple{}) where {F,X,K} =
-  (first(x), bmap(f, Base.tail(x), ())...)
+@inline bmap(::F, ::Tuple{}, y::Tuple{}) where {F} = ()
+@inline bmap(::F, ::Tuple{}, y::Tuple) where {F} = ()
+@inline bmap(::F, x::Tuple{X,Vararg{Any,K}}, ::Tuple{}) where {F,X,K} = x
+#  (first(x), bmap(f, Base.tail(x), ())...)
 @inline bmap(
   f::F,
   x::Tuple{X,Vararg{Any,KX}},
