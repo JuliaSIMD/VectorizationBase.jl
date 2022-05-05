@@ -34,7 +34,9 @@ end
 ) where {W,T<:NativeTypesExceptFloat16,RS} =
   _vzero_expr(W, LLVM_TYPES[T], JULIA_TYPES[T], sizeof(T), RS)
 function vundef_expr(W::Int, typ::String, T::Symbol)
-  if W == 1
+  if T === :Bit
+    W == 1 ? false : Mask(zero_mask(Val(W)))
+  elseif W == 1
     instrs = "ret $typ undef"
     quote
       $(Expr(:meta, :inline))

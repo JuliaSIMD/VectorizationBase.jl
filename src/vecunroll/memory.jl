@@ -520,7 +520,7 @@ end
     bitlq === nothing || return bitlq
   end
   align = A === True
-  should_transpose = should_transpose_memop(F, C, AU, AV, UN, zero(UInt))
+  should_transpose = T !== Bit && should_transpose_memop(F, C, AU, AV, UN, zero(UInt))
   if (W == N) & ((sizeof(T) * W) == RS) & should_transpose
     return vload_transpose_quote(
       N,
@@ -559,7 +559,7 @@ end
     bitlq = bitload(AU, W, AV, F, UN, RS, false)
     bitlq === nothing || return bitlq
   end
-  should_transpose = should_transpose_memop(F, C, AU, AV, UN, zero(UInt))
+  should_transpose = T !== Bit && should_transpose_memop(F, C, AU, AV, UN, zero(UInt))
   if should_transpose
     vload_transpose_quote(
       N,
@@ -592,7 +592,7 @@ end
     bitlq === nothing || return bitlq
   end
   1 + 2
-  should_transpose = should_transpose_memop(F, C, AU, AV, N, M)
+  should_transpose = T !== Bit && should_transpose_memop(F, C, AU, AV, N, M)
   align = A === True
   if (W == N) & ((sizeof(T) * W) == RS) & should_transpose
     return vload_transpose_quote(D, AU, F, N, AV, W, UX, align, RS, sizeof(T), M, true)
@@ -618,7 +618,7 @@ end
     bitlq === nothing || return bitlq
   end
   align = A === True
-  if should_transpose_memop(F, C, AU, AV, N, M)
+  if T !== Bit && should_transpose_memop(F, C, AU, AV, N, M)
     isevl = sm <: EVLMask
     return vload_transpose_quote(D, AU, F, N, AV, W, UX, align, RS, sizeof(T), M, isevl)
   end
@@ -1090,7 +1090,7 @@ end
   align = A === True
   alias = S === True
   notmp = NT === True
-  should_transpose = should_transpose_memop(F, C, AU, AV, N, zero(UInt))
+  should_transpose = T !== Bit && should_transpose_memop(F, C, AU, AV, N, zero(UInt))
   if (W == N) & ((sizeof(T) * W) == RS) & should_transpose
     # should transpose means we'll transpose, but we'll only prefer it over the
     # `shuffle_store_quote` implementation if W == N, and we're using the entire register.
@@ -1204,7 +1204,7 @@ end
       "The unrolled index specifies unrolling by $N, but sored `VecUnroll` is unrolled by $(Nm1+1).",
     ),
   )
-  if should_transpose_memop(F, C, AU, AV, N, zero(UInt))
+  if T !== Bit && should_transpose_memop(F, C, AU, AV, N, zero(UInt))
     vstore_transpose_quote(
       D,
       AU,
@@ -1347,7 +1347,7 @@ end
   align = A === True
   alias = S === True
   notmp = NT === True
-  should_transpose = should_transpose_memop(F, C, AU, AV, N, M)
+  should_transpose = T !== Bit && should_transpose_memop(F, C, AU, AV, N, M)
   if (W == N) & ((sizeof(T) * W) == RS) & should_transpose
     vstore_transpose_quote(
       D,
@@ -1460,7 +1460,7 @@ end
   align = A === True
   alias = S === True
   notmp = NT === True
-  if should_transpose_memop(F, C, AU, AV, N, M)
+  if T !== Bit && should_transpose_memop(F, C, AU, AV, N, M)
     vstore_transpose_quote(
       D,
       AU,
