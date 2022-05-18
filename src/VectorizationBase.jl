@@ -2,12 +2,6 @@ module VectorizationBase
 
 import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse, LayoutPointers
 using ArrayInterface:
-  StaticInt,
-  Zero,
-  One,
-  StaticBool,
-  True,
-  False,
   contiguous_axis,
   contiguous_axis_indicator,
   contiguous_batch_size,
@@ -15,12 +9,6 @@ using ArrayInterface:
   device,
   CPUPointer,
   CPUIndex,
-  eq,
-  ne,
-  lt,
-  le,
-  gt,
-  ge,
   known_length,
   known_first,
   known_last,
@@ -95,6 +83,9 @@ using LayoutPointers:
   bytestrides,
   DensePointerWrapper,
   zero_offsets
+
+using Static
+using Static: One, Zero, eq, ne, lt, le, gt, ge
 
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
