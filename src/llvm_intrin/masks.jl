@@ -333,7 +333,7 @@ function bzhi_quote(b)
   instr = "i$b @llvm.x86.bmi.bzhi.$b"
   decl = "declare $instr(i$b, i$b) nounwind readnone"
   instrs = "%res = call $instr(i$b %0, i$b %1)\n ret i$b %res"
-  llvmcall_expr(decl, instrs, T, :(Tuple{$T,$T}), typ, [typ, typ, typ], [:a, :b])
+  llvmcall_expr(decl, instrs, T, :(Tuple{$T,$T}), typ, [typ, typ], [:a, :b])
 end
 @generated bzhi(a::UInt32, b::UInt32) = bzhi_quote(32)
 @generated bzhi(a::UInt64, b::UInt64) = bzhi_quote(64)
