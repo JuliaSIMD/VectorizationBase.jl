@@ -1,6 +1,6 @@
 module VectorizationBase
 
-import ArrayInterface, LinearAlgebra, Libdl, Hwloc, IfElse, LayoutPointers
+import ArrayInterface, LinearAlgebra, Libdl, IfElse, LayoutPointers
 using ArrayInterface:
   contiguous_axis,
   contiguous_axis_indicator,
