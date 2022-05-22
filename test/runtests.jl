@@ -1,4 +1,4 @@
-import InteractiveUtils, Aqua
+import InteractiveUtils, Aqua, ArrayInterfaceOffsetArrays
 InteractiveUtils.versioninfo(stdout; verbose = true)
 
 include("testsetup.jl")
