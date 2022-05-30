@@ -1019,3 +1019,9 @@ end
   b ? max_mask(Val(W)) : zero_mask(Val(W))
 @inline vconvert(::Type{EVLMask{W}}, b::Bool) where {W} =
   b ? max_mask(Val(W)) : zero_mask(Val(W))
+
+@inline Base.max(x::AbstractMask, y::AbstractMask) = x | y
+@inline Base.min(x::AbstractMask, y::AbstractMask) = x & y
+@inline Base.FastMath.max_fast(x::AbstractMask, y::AbstractMask) = x | y
+@inline Base.FastMath.min_fast(x::AbstractMask, y::AbstractMask) = x & y
+
