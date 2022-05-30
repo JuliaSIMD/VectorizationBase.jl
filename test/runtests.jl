@@ -2060,6 +2060,14 @@ include("testsetup.jl")
     @test VectorizationBase.vmin(1.0, 3.0) === 1.0
   end
 
+  @time @testset "vmax/vmin Bool" begin
+    t, f = Vec{4,Bool}(true, true, false, false), Vec{4,Bool}(true, false, true, false)
+    @test VectorizationBase.vmax_fast(t, f) === Vec{4,Bool}(true, true, true, false)
+    @test VectorizationBase.vmin_fast(t, f) === Vec{4,Bool}(true, false, false, false)
+    @test VectorizationBase.vmax(t, f) === Vec{4,Bool}(true, true, true, false)
+    @test VectorizationBase.vmin(t, f) === Vec{4,Bool}(true, false, false, false)
+  end
+
   @time @testset "Generic strided pointer" begin
     A = rand(ComplexF64, 3, 4)
     x = ["hi" "howdy"; "greetings" "hello"]

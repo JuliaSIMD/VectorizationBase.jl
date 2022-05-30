@@ -122,6 +122,8 @@ else
 end
 @inline vmax_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmax(v1, v2)
 @inline vmin_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmin(v1, v2)
+@inline vmax(v1::Vec{W,Bool}, v2::Vec{W,Bool}) where {W} = vor(v1, v2)
+@inline vmin(v1::Vec{W,Bool}, v2::Vec{W,Bool}) where {W} = vand(v1, v2)
 
 # floating point
 for (op, f) ∈ [
