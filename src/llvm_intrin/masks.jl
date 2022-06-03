@@ -607,7 +607,7 @@ for (f, cond) ∈ [(:veq, "eq"), (:vne, "ne")]
   @eval @generated function $f(
     v1::Vec{W,T1},
     v2::Vec{W,T2},
-  ) where {W,T1<:Union{Integer,StaticInt},T2<:Union{Integer,StaticInt}}
+  ) where {W,T1<:IntegerTypesHW,T2<:IntegerTypesHW}
     if sizeof(T1) != sizeof(T2)
       return Expr(
         :block,
