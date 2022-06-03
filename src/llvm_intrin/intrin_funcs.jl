@@ -623,11 +623,11 @@ end
 # @inline vminimum(x, y) =  ifelse_reduce(<, x)
 # @inline vmaximum(x, y) =  ifelse_reduce(>, (ifelse_reduce(>, x), y))
 for (op, f, S) ∈ [
-  ("vector.reduce.add", :vsum, :(Union{Integer,StaticInt})),
-  ("vector.reduce.mul", :vprod, :(Union{Integer,StaticInt})),
-  ("vector.reduce.and", :vall, :(Union{Integer,StaticInt})),
-  ("vector.reduce.or", :vany, :(Union{Integer,StaticInt})),
-  ("vector.reduce.xor", :vxorreduce, :(Union{Integer,StaticInt})),
+  ("vector.reduce.add", :vsum, :Integer),
+  ("vector.reduce.mul", :vprod, :Integer),
+  ("vector.reduce.and", :vall, :Integer),
+  ("vector.reduce.or", :vany, :Integer),
+  ("vector.reduce.xor", :vxorreduce, :Integer),
   ("vector.reduce.smax", :vmaximum, :Signed),
   ("vector.reduce.smin", :vminimum, :Signed),
   ("vector.reduce.umax", :vmaximum, :Unsigned),
