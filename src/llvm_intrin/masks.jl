@@ -322,7 +322,7 @@ end
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} =
   EVLMask{W,U}(one(U) << W - one(U), W % UInt32)
 
-@generated function valrem(::Union{Val{W},StaticInt{W}}, l::T) where {W,T<:Integer}
+@generated function valrem(::Union{Val{W},StaticInt{W}}, l::T) where {W,T<:Union{Integer,StaticInt}}
   ex = ispow2(W) ? :(l & $(T(W - 1))) : Expr(:call, Base.urem_int, :l, T(W))
   Expr(:block, Expr(:meta, :inline), ex)
 end
@@ -338,7 +338,7 @@ end
 @generated bzhi(a::UInt32, b::UInt32) = bzhi_quote(32)
 @generated bzhi(a::UInt64, b::UInt64) = bzhi_quote(64)
 
-# @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
+# @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Union{Integer,StaticInt}}
 #   # if `has_opmask_registers()` then we can use bitmasks directly, so we create them via bittwiddling
 #   M = mask_type(W)
 #   quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
@@ -347,7 +347,7 @@ end
 #     EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
 #   end
 # end
-@generated function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
+@generated function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Union{Integer,StaticInt}}
   U = mask_type_symbol(W)
   T = W > 32 ? :UInt64 : :UInt32
   quote
@@ -357,7 +357,7 @@ end
     EVLMask{$W,$U}(bzhi(-1 % $T, m) % $U, m)
   end
 end
-# @inline function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Integer}
+# @inline function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Union{Integer,StaticInt}}
 #   U = mask_type(StaticInt(W))
 #   # m = ((l) % UInt32) & ((W-1) % UInt32)
 #   m = valrem(StaticInt{W}(), l % UInt32)
@@ -365,13 +365,13 @@ end
 #   # m = Core.ifelse(zero(m) == m, -1 % UInt32, m)
 #   EVLMask{W,U}(bzhi(-1 % UInt32, m) % U, m)
 # end
-# @inline function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
+# @inline function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Union{Integer,StaticInt}}
 #   U = mask_type(StaticInt(W))
 #   m = ((l-one(l)) % UInt32) & ((W-1) % UInt32)
 #   m += one(m)
 #   EVLMask{W,U}(bzhi(-1 % UInt32, m) % U, m)
 # end
-# @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer}
+# @generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Union{Integer,StaticInt}}
 #   M = mask_type_symbol(W)
 #   quote
 #     $(Expr(:meta,:inline))
@@ -426,16 +426,16 @@ end
   l::I,
   ::StaticInt{RS},
   ::True,
-) where {W,RS,I<:Integer} = mask_cmp_quote(W, RS, true)
+) where {W,RS,I<:Union{Integer,StaticInt}} = mask_cmp_quote(W, RS, true)
 @generated _mask_cmp(
   ::Union{Val{W},StaticInt{W}},
   l::I,
   ::StaticInt{RS},
   ::False,
-) where {W,RS,I<:Integer} = mask_cmp_quote(W, RS, false)
-@generated _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Integer} =
+) where {W,RS,I<:Union{Integer,StaticInt}} = mask_cmp_quote(W, RS, false)
+@generated _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Union{Integer,StaticInt}} =
   mask_shift_quote(W, true)
-@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Integer}
+@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Union{Integer,StaticInt}}
   # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
   if W > 16
     Expr(
@@ -468,10 +468,10 @@ end
   _mask(StaticInt(W), L, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
 @inline mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W,L} =
   _mask(StaticInt(W), L, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
-@inline mask(::Type{T}, l::Integer) where {T} =
+@inline mask(::Type{T}, l::Union{Integer,StaticInt}) where {T} =
   _mask(pick_vector_width(T), l, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
 
-# @generated function masktable(::Union{Val{W},StaticInt{W}}, rem::Integer) where {W}
+# @generated function masktable(::Union{Val{W},StaticInt{W}}, rem::Union{Integer,StaticInt}) where {W}
 #     masks = Expr(:tuple)
 #     for w ∈ 0:W-1
 #         push!(masks.args, data(mask(Val(W), w == 0 ? W : w)))
@@ -507,7 +507,7 @@ end
 # @inline tounsigned(m::Vec{W,Bool}) where {W} = getfield(tomask(m), :u)
 @inline tounsigned(v) = getfield(tomask(v), :u)
 
-@generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Integer}
+@generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Union{Integer,StaticInt}}
   bits = 8sizeof(I)
   instrs = String[]
   truncate_mask!(instrs, '0', W, 0)
@@ -523,7 +523,7 @@ end
 Vec(m::Mask{W}) where {W} = m % int_type(Val{W}())
 
 # @inline getindexzerobased(m::Mask, i) = (getfield(m, :u) >>> i) % Bool
-# @inline function extractelement(m::Mask{W}, i::Integer) where {W}
+# @inline function extractelement(m::Mask{W}, i::Union{Integer,StaticInt}) where {W}
 #     @boundscheck i > W && throw(BoundsError(m, i))
 #     getindexzerobased(m, i)
 # end
@@ -607,7 +607,7 @@ for (f, cond) ∈ [(:veq, "eq"), (:vne, "ne")]
   @eval @generated function $f(
     v1::Vec{W,T1},
     v2::Vec{W,T2},
-  ) where {W,T1<:Integer,T2<:Integer}
+  ) where {W,T1<:Union{Integer,StaticInt},T2<:Union{Integer,StaticInt}}
     if sizeof(T1) != sizeof(T2)
       return Expr(
         :block,
@@ -782,8 +782,8 @@ end
 @inline Base.flipsign(x::AbstractSIMD, y::Real) = ifelse(y > zero(y), x, -x)
 @inline Base.flipsign(x::Real, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
-@inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) != zero(T)
-@inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Integer} = (x & one(T)) == zero(T)
+@inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} = (x & one(T)) != zero(T)
+@inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} = (x & one(T)) == zero(T)
 
 @generated function vifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
   typ = LLVM_TYPES[T]
@@ -1024,4 +1024,3 @@ end
 @inline Base.min(x::AbstractMask, y::AbstractMask) = x & y
 @inline Base.FastMath.max_fast(x::AbstractMask, y::AbstractMask) = x | y
 @inline Base.FastMath.min_fast(x::AbstractMask, y::AbstractMask) = x & y
-

@@ -953,7 +953,7 @@ end
 
 @inline function _vload_scalar(
   ptr::Ptr{Bit},
-  i::Integer,
+  i::Union{Integer,StaticInt},
   ::A,
   ::StaticInt{RS},
 ) where {RS,A<:StaticBool}

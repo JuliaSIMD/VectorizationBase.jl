@@ -35,7 +35,7 @@ F - static multiplicative factor
   ::Val{O},
   ::Val{F},
   ::StaticInt{SIRS},
-) where {W,I<:Integer,O,F,SIRS}
+) where {W,I<:Union{Integer,StaticInt},O,F,SIRS}
   isone(W) && return Expr(:block, Expr(:meta, :inline), :(Base.add_int(i, $(O % I))))
   bytes = pick_integer_bytes(W, sizeof(I), SIRS)
   bits = 8bytes
@@ -55,7 +55,7 @@ F - static multiplicative factor
     Vec($LLVMCALL($instrs, _Vec{$W,$jtypesym}, Tuple{$jtypesym}, $iexpr))
   end
 end
-@inline function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Integer,O,F}
+@inline function vrangeincr(::Val{W}, i::I, ::Val{O}, ::Val{F}) where {W,I<:Union{Integer,StaticInt},O,F}
   _vrangeincr(Val{W}(), i, Val{O}(), Val{F}(), simd_integer_register_size())
 end
 @generated function vrangeincr(

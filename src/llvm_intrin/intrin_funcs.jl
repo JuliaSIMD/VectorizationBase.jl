@@ -83,7 +83,7 @@ end
 #     %byte = zext i1 %actual to i8
 #     ret i8 %byte""", :Bool, :(Tuple{Bool}), "i8", ["i8"], [:b]))
 # end
-# @generated function expect(i::I, ::Val{N}) where {I <: Integer, N}
+# @generated function expect(i::I, ::Val{N}) where {I <: Union{Integer,StaticInt}, N}
 #     ityp = 'i' * string(8sizeof(I))
 #     llvmcall_expr("declare i1 @llvm.expect.$ityp($ityp, i1)", """
 #     %actual = call $ityp @llvm.expect.$ityp($ityp %0, $ityp $N)
@@ -115,13 +115,13 @@ if Base.libllvm_version ≥ v"12"
   @inline vmin(v1::Vec{W,<:Unsigned}, v2::Vec{W,<:Signed}) where {W} =
     vifelse(v1 < v2, v1, v2)
 else
-  @inline vmax(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} =
+  @inline vmax(v1::Vec{W,<:Union{Integer,StaticInt}}, v2::Vec{W,<:Union{Integer,StaticInt}}) where {W} =
     vifelse(v1 > v2, v1, v2)
-  @inline vmin(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} =
+  @inline vmin(v1::Vec{W,<:Union{Integer,StaticInt}}, v2::Vec{W,<:Union{Integer,StaticInt}}) where {W} =
     vifelse(v1 < v2, v1, v2)
 end
-@inline vmax_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmax(v1, v2)
-@inline vmin_fast(v1::Vec{W,<:Integer}, v2::Vec{W,<:Integer}) where {W} = vmin(v1, v2)
+@inline vmax_fast(v1::Vec{W,<:Union{Integer,StaticInt}}, v2::Vec{W,<:Union{Integer,StaticInt}}) where {W} = vmax(v1, v2)
+@inline vmin_fast(v1::Vec{W,<:Union{Integer,StaticInt}}, v2::Vec{W,<:Union{Integer,StaticInt}}) where {W} = vmin(v1, v2)
 @inline vmax(v1::Vec{W,Bool}, v2::Vec{W,Bool}) where {W} = vor(v1, v2)
 @inline vmin(v1::Vec{W,Bool}, v2::Vec{W,Bool}) where {W} = vand(v1, v2)
 
@@ -141,7 +141,7 @@ for (op, f) ∈ [
 end
 @inline vsqrt(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} = vsqrt(float(v))
 @inline vsqrt(v::FloatingTypes) = Base.sqrt_llvm_fast(v)
-@inline vsqrt(v::Integer) = Base.sqrt_llvm_fast(float(v))
+@inline vsqrt(v::Union{Integer,StaticInt}) = Base.sqrt_llvm_fast(float(v))
 # @inline roundeven(v::VecUnroll) = VecUnroll(fmap(roundeven, getfield(v,:data)))
 # @generated function Base.round(::Type{Int64}, v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}}
 #     llvmcall_expr("lrint", W, Int64, (W,), (T,), "")
@@ -366,7 +366,7 @@ for (f, fl) ∈
     @inline $f(s::IntegerTypesHW, v::Vec{W,<:IntegerTypesHW}) where {W} =
       $f(vbroadcast(Val{W}(), s), v)
     @inline $f(a::FloatingTypes, b::FloatingTypes) = Base.FastMath.$fl(a, b)
-    @inline $f(a::Integer, b::Integer) = Base.FastMath.$fl(a, b)
+    @inline $f(a::Union{Integer,StaticInt}, b::Union{Integer,StaticInt}) = Base.FastMath.$fl(a, b)
   end
 end
 
@@ -580,7 +580,7 @@ end
 # @inline ifelse_collapse_mirror(f::F, a, ::Tuple{}, x, ::Tuple{}) where {F} = a, x
 # @inline function ifelse_collapse_mirror(f::F, a, c::Tuple{T}, x, z::Tuple{T}) where {F,T}
 #   b = first(c); y = first(z)
-#   fxy = f(x,y)  
+#   fxy = f(x,y)
 #   ifelse(fxy, a, b), ifelse(fxy, x, y)
 # end
 # @inline function ifelse_collapse_mirror(f::F, a, c::Tuple, x, z::Tuple) where {F}
@@ -623,11 +623,11 @@ end
 # @inline vminimum(x, y) =  ifelse_reduce(<, x)
 # @inline vmaximum(x, y) =  ifelse_reduce(>, (ifelse_reduce(>, x), y))
 for (op, f, S) ∈ [
-  ("vector.reduce.add", :vsum, :Integer),
-  ("vector.reduce.mul", :vprod, :Integer),
-  ("vector.reduce.and", :vall, :Integer),
-  ("vector.reduce.or", :vany, :Integer),
-  ("vector.reduce.xor", :vxorreduce, :Integer),
+  ("vector.reduce.add", :vsum, :(Union{Integer,StaticInt})),
+  ("vector.reduce.mul", :vprod, :(Union{Integer,StaticInt})),
+  ("vector.reduce.and", :vall, :(Union{Integer,StaticInt})),
+  ("vector.reduce.or", :vany, :(Union{Integer,StaticInt})),
+  ("vector.reduce.xor", :vxorreduce, :(Union{Integer,StaticInt})),
   ("vector.reduce.smax", :vmaximum, :Signed),
   ("vector.reduce.smin", :vminimum, :Signed),
   ("vector.reduce.umax", :vmaximum, :Unsigned),
@@ -727,9 +727,9 @@ function count_zeros_func(W, I, op, tf = 1)
   rettypexpr = :(_Vec{$W,$I})
   llvmcall_expr(decl, instrs, rettypexpr, :(Tuple{$rettypexpr}), vtyp, [vtyp], [:(data(v))])
 end
-# @generated Base.abs(v::Vec{W,I}) where {W, I <: Integer} = count_zeros_func(W, I, "abs", 0)
-@generated vleading_zeros(v::Vec{W,I}) where {W,I<:Integer} = count_zeros_func(W, I, "ctlz")
-@generated vtrailing_zeros(v::Vec{W,I}) where {W,I<:Integer} =
+# @generated Base.abs(v::Vec{W,I}) where {W, I <: Union{Integer,StaticInt}} = count_zeros_func(W, I, "abs", 0)
+@generated vleading_zeros(v::Vec{W,I}) where {W,I<:Union{Integer,StaticInt}} = count_zeros_func(W, I, "ctlz")
+@generated vtrailing_zeros(v::Vec{W,I}) where {W,I<:Union{Integer,StaticInt}} =
   count_zeros_func(W, I, "cttz")
 
 
@@ -1128,7 +1128,7 @@ end
 @inline inv_approx(v::VecUnroll) = VecUnroll(fmap(inv_approx, getfield(v, :data)))
 
 @inline vinv_fast(v) = vinv(v)
-@inline vinv_fast(v::AbstractSIMD{<:Any,<:Integer}) = vinv_fast(float(v))
+@inline vinv_fast(v::AbstractSIMD{<:Any,<:Union{Integer,StaticInt}}) = vinv_fast(float(v))
 
 @static if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
 
@@ -1258,7 +1258,7 @@ end
   yₙ₊₁ = yₙ - f(yₙ)/f′(yₙ)
   f(yₙ) = 1/yₙ - x
   f′(yₙ) = -1/yₙ²
-  yₙ₊₁ = yₙ + (1/yₙ - x) * yₙ² = yₙ + yₙ - x * yₙ² = 2yₙ - x * yₙ² = yₙ * ( 2 - x * yₙ ) 
+  yₙ₊₁ = yₙ + (1/yₙ - x) * yₙ² = yₙ + yₙ - x * yₙ² = 2yₙ - x * yₙ² = yₙ * ( 2 - x * yₙ )
   yₙ₊₁ = yₙ * ( 2 - x * yₙ )
   """
   @inline function vinv_fast(v::AbstractSIMD{W,Float32}) where {W}

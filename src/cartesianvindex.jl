@@ -1,9 +1,9 @@
 
 struct NullStep end
-struct CartesianVIndex{N,T<:Tuple{Vararg{Union{Integer,NullStep},N}}} <:
+struct CartesianVIndex{N,T<:Tuple{Vararg{Union{Union{Int,StaticInt},NullStep},N}}} <:
        Base.AbstractCartesianIndex{N}
   I::T
-  @inline CartesianVIndex(I::T) where {N,T<:Tuple{Vararg{Union{Integer,NullStep},N}}} =
+  @inline CartesianVIndex(I::T) where {N,T<:Tuple{Vararg{Union{Union{Int,StaticInt},NullStep},N}}} =
     new{N,T}(I)
 end
 Base.length(::CartesianVIndex{N}) where {N} = N
@@ -19,7 +19,7 @@ _ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
 # _ndim(::Type{<:AbstractArray{N}}) where {N} = N
 @generated function CartesianVIndex(
   I::T,
-) where {T<:Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,NullStep}}}}
+) where {T<:Tuple{Vararg{Union{Union{Int,StaticInt},CartesianIndex,CartesianVIndex,NullStep}}}}
   iexpr = Expr(:tuple)
   Tp = T.parameters
   q = Expr(:block)
@@ -45,7 +45,7 @@ _ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
   )
 end
 
-# @inline Base.CartesianIndex(I::Tuple{Vararg{Union{Integer,CartesianIndex,CartesianVIndex,StaticInt}}}) = CartesianVIndex(I)
+# @inline Base.CartesianIndex(I::Tuple{Vararg{Union{Union{Int,StaticInt},CartesianIndex,CartesianVIndex,StaticInt}}}) = CartesianVIndex(I)
 
 @generated function _maybestaticfirst(a::Tuple{Vararg{Any,N}}) where {N}
   quote
