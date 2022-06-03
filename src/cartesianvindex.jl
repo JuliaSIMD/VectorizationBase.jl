@@ -45,7 +45,6 @@ _ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
   )
 end
 
-# @inline Base.CartesianIndex(I::Tuple{Vararg{Union{Union{Int,StaticInt},CartesianIndex,CartesianVIndex,StaticInt}}}) = CartesianVIndex(I)
 
 @generated function _maybestaticfirst(a::Tuple{Vararg{Any,N}}) where {N}
   quote
