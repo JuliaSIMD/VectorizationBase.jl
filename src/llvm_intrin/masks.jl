@@ -507,7 +507,7 @@ end
 # @inline tounsigned(m::Vec{W,Bool}) where {W} = getfield(tomask(m), :u)
 @inline tounsigned(v) = getfield(tomask(v), :u)
 
-@generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:Union{Integer,StaticInt}}
+@generated function vrem(m::Mask{W,U}, ::Type{I}) where {W,U,I<:IntegerTypesHW}
   bits = 8sizeof(I)
   instrs = String[]
   truncate_mask!(instrs, '0', W, 0)
