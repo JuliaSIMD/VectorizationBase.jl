@@ -19,7 +19,7 @@ _ndim(::Type{<:Base.AbstractCartesianIndex{N}}) where {N} = N
 # _ndim(::Type{<:AbstractArray{N}}) where {N} = N
 @generated function CartesianVIndex(
   I::T,
-) where {T<:Tuple{Vararg{Union{Union{Int,StaticInt},CartesianIndex,CartesianVIndex,NullStep}}}}
+) where {T<:Tuple{Vararg{Union{Int,StaticInt,CartesianIndex,CartesianVIndex,NullStep}}}}
   iexpr = Expr(:tuple)
   Tp = T.parameters
   q = Expr(:block)
