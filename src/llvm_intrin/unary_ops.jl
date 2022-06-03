@@ -31,8 +31,8 @@ end
 @inline vabs(v::AbstractSIMD{W,<:Signed}) where {W} = ifelse(v > 0, v, -v)
 
 @inline vround(v) = round(v)
-@inline vround(v::AbstractSIMD{W,<:Integer}) where {W} = v
-@inline vround(v::AbstractSIMD{W,<:Integer}, ::RoundingMode) where {W} = v
+@inline vround(v::AbstractSIMD{W,<:Union{Integer,StaticInt}}) where {W} = v
+@inline vround(v::AbstractSIMD{W,<:Union{Integer,StaticInt}}, ::RoundingMode) where {W} = v
 
 
 function bswap_quote(W::Int, T::Symbol, st::Int)::Expr

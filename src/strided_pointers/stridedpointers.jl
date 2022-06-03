@@ -357,26 +357,26 @@ end
 end
 
 using LayoutPointers: FastRange
-# `FastRange{<:Integer}` can ignore the offset
-@inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Integer,I} =
+# `FastRange{<:Union{Integer,StaticInt}}` can ignore the offset
+@inline vload(r::FastRange{T,Zero}, i::Tuple{I}) where {T<:Union{Integer,StaticInt},I} =
   convert(T, getfield(r, :o)) + convert(T, getfield(r, :s)) * first(i)
 
 @inline function vload(r::FastRange{T}, i::Tuple{I}) where {T<:FloatingTypes,I}
   convert(T, getfield(r, :f)) +
   convert(T, getfield(r, :s)) * (only(i) + convert(T, getfield(r, :o)))
 end
-@inline function gesp(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer}
+@inline function gesp(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Union{Integer,StaticInt}}
   s = getfield(r, :s)
   FastRange{T}(Zero(), s, only(i) * s + getfield(r, :o))
 end
 @inline function gesp(r::FastRange{T}, i::Tuple{I}) where {I,T<:FloatingTypes}
   FastRange{T}(getfield(r, :f), getfield(r, :s), only(i) + getfield(r, :o))
 end
-@inline gesp(r::FastRange{T,Zero}, i::Tuple{NullStep}) where {T<:Integer} = r
+@inline gesp(r::FastRange{T,Zero}, i::Tuple{NullStep}) where {T<:Union{Integer,StaticInt}} = r
 @inline gesp(r::FastRange{T}, i::Tuple{NullStep}) where {T<:FloatingTypes} = r
-@inline increment_ptr(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Integer} =
+@inline increment_ptr(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Union{Integer,StaticInt}} =
   only(i) * s + getfield(r, :o)
-@inline increment_ptr(r::FastRange{T}, i::Tuple{I}) where {I,T<:Integer} =
+@inline increment_ptr(r::FastRange{T}, i::Tuple{I}) where {I,T<:Union{Integer,StaticInt}} =
   only(i) + getfield(r, :o)
 @inline increment_ptr(r::FastRange) = getfield(r, :o)
 @inline increment_ptr(r::FastRange{T}, o, i::Tuple{I}) where {I,T} = vadd_nsw(only(i), o)

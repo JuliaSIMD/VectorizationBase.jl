@@ -29,7 +29,7 @@ function _ff_promote_rule(
   ::Type{T1},
   ::Type{T2},
   ::Val{W},
-) where {T1<:Integer,T2<:Integer,W}
+) where {T1<:Union{Integer,StaticInt},T2<:Union{Integer,StaticInt},W}
   T_canon = promote_type(T1, T2)
   __ff_maybe_promote_int(
     lt(pick_vector_width(T_canon), StaticInt{W}()),
@@ -38,7 +38,7 @@ function _ff_promote_rule(
     Val{W}(),
   )
 end
-ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1<:Integer,T2<:Integer,W} =
+ff_promote_rule(::Type{T1}, ::Type{T2}, ::Val{W}) where {T1<:Union{Integer,StaticInt},T2<:Union{Integer,StaticInt},W} =
   _ff_promote_rule(T1, T2, Val{W}())
 ff_promote_rule(
   ::Type{T1},
@@ -107,11 +107,11 @@ issigned(::Type{T}) where {T} = nothing
  Promote, favoring <:Signed or <:Unsigned of first arg.
 """
 @inline promote_div(
-  x::Union{Integer,AbstractSIMD{<:Any,<:Integer}},
-  y::Union{Integer,AbstractSIMD{<:Any,<:Integer}},
+  x::Union{Integer,StaticInt,AbstractSIMD{<:Any,<:Union{Integer,StaticInt}}},
+  y::Union{Integer,StaticInt,AbstractSIMD{<:Any,<:Union{Integer,StaticInt}}},
 ) = promote_div(x, y, issigned(x))
 @inline promote_div(x, y) = promote(x, y)
-@inline promote_div(x, y, ::Nothing) = promote(x, y) # for Integers that are neither Signed or Unsigned, e.g. Bool
+@inline promote_div(x, y, ::Nothing) = promote(x, y) # for Union{Integer,StaticInt}s that are neither Signed or Unsigned, e.g. Bool
 @inline function promote_div(x::T1, y::T2, ::True) where {T1,T2}
   T = promote_type(T1, T2)
   signed(x % T), signed(y % T)
