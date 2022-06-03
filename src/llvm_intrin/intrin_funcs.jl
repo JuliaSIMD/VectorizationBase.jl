@@ -729,7 +729,7 @@ function count_zeros_func(W, I, op, tf = 1)
 end
 # @generated Base.abs(v::Vec{W,I}) where {W, I <: Union{Integer,StaticInt}} = count_zeros_func(W, I, "abs", 0)
 @generated vleading_zeros(v::Vec{W,I}) where {W,I<:Union{Integer,StaticInt}} = count_zeros_func(W, I, "ctlz")
-@generated vtrailing_zeros(v::Vec{W,I}) where {W,I<:Union{Integer,StaticInt}} =
+@generated vtrailing_zeros(v::Vec{W,I}) where {W,I<:IntegerTypesHW} =
   count_zeros_func(W, I, "cttz")
 
 
