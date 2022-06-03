@@ -95,12 +95,12 @@ Base.sign(v::AbstractSIMD) = ifelse(v > 0, one(v), -one(v))
   x::AbstractSIMD{W,T},
   y::AbstractSIMD{W,T},
   ::RoundingMode{:Down},
-) where {W,T<:Union{Integer,StaticInt}}
+) where {W,T<:IntegerTypes}
   d = div(x, y)
   d - (signbit(x ⊻ y) & (d * y != x))
 end
 
-@inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} =
+@inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} =
   ifelse(y == -1, zero(x), x - fld(x, y) * y)
 
 @inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:Unsigned} =
@@ -135,7 +135,7 @@ end
   signed(mod(_x, _y))
 end
 
-@inline Base.mod(i::AbstractSIMD{<:Any,<:Union{Integer,StaticInt}}, r::AbstractUnitRange{<:Union{Integer,StaticInt}}) =
+@inline Base.mod(i::AbstractSIMD{<:Any,<:IntegerTypes}, r::AbstractUnitRange{<:IntegerTypes}) =
   mod(i - first(r), length(r)) + first(r)
 
 @inline Base.mod(x::AbstractSIMD, y::NativeTypes) = mod(promote_div(x, y)...)
@@ -154,7 +154,7 @@ end
 @inline Base.FastMath.hypot_fast(x::AbstractSIMD, y::AbstractSIMD) =
   sqrt(Base.FastMath.add_fast(Base.FastMath.mul_fast(x, x), Base.FastMath.mul_fast(y, y)))
 
-@inline Base.clamp(x::AbstractSIMD{<:Any,<:Union{Integer,StaticInt}}, r::AbstractUnitRange{<:Union{Integer,StaticInt}}) =
+@inline Base.clamp(x::AbstractSIMD{<:Any,<:IntegerTypes}, r::AbstractUnitRange{<:IntegerTypes}) =
   clamp(x, first(r), last(r))
 
 @inline function Base.gcd(
