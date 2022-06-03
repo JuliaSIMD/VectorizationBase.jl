@@ -1,6 +1,6 @@
 
 struct NullStep end
-struct CartesianVIndex{N,T<:Tuple{Vararg{Union{Union{Int,StaticInt},NullStep},N}}} <:
+struct CartesianVIndex{N,T<:Tuple{Vararg{Union{Int,StaticInt,NullStep},N}}} <:
        Base.AbstractCartesianIndex{N}
   I::T
   @inline CartesianVIndex(I::T) where {N,T<:Tuple{Vararg{Union{Union{Int,StaticInt},NullStep},N}}} =
