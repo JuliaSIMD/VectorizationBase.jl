@@ -1,5 +1,5 @@
 # Seperate file to make it easier to include separately from REPL for running pieces
-using VectorizationBase, OffsetArrays
+using VectorizationBase, OffsetArrays, ArrayInterfaceOffsetArrays
 using VectorizationBase: data
 using Test
 
