@@ -808,6 +808,7 @@ include("testsetup.jl")
     VectorizationBase.offsets(dw::SizedWrapper) = VectorizationBase.offsets(parent(dw))
     VectorizationBase.val_dense_dims(dw::SizedWrapper{T,N}) where {T,N} =
       VectorizationBase.val_dense_dims(parent(dw))
+    VectorizationBase.ArrayInterface.is_forwarding_wrapper(::Type{<:SizedWrapper}) = true
     function VectorizationBase.strides(dw::SizedWrapper{M,N,T}) where {M,N,T}
       x1 = StaticInt(1)
       if VectorizationBase.val_stride_rank(dw) === Val((1, 2))
