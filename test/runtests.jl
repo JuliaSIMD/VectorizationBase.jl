@@ -7,7 +7,7 @@ include("testsetup.jl")
   # Write your own tests here.
   # Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
   println("Aqua.test_all")
-  @time Aqua.test_all(VectorizationBase)
+  @time Aqua.test_all(VectorizationBase, deps_compat = VERSION <= v"1.8" || VERSION.prerelease[1] != "DEV")
   # @test isempty(detect_unbound_args(VectorizationBase))
   # @test isempty(detect_ambiguities(VectorizationBase))
 
@@ -808,6 +808,7 @@ include("testsetup.jl")
     VectorizationBase.offsets(dw::SizedWrapper) = VectorizationBase.offsets(parent(dw))
     VectorizationBase.val_dense_dims(dw::SizedWrapper{T,N}) where {T,N} =
       VectorizationBase.val_dense_dims(parent(dw))
+    VectorizationBase.ArrayInterface.is_forwarding_wrapper(::Type{<:SizedWrapper}) = true
     function VectorizationBase.strides(dw::SizedWrapper{M,N,T}) where {M,N,T}
       x1 = StaticInt(1)
       if VectorizationBase.val_stride_rank(dw) === Val((1, 2))
