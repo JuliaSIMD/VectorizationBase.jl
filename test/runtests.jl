@@ -1,4 +1,4 @@
-import InteractiveUtils, Aqua, ArrayInterfaceOffsetArrays
+import InteractiveUtils, Aqua, ArrayInterface, ArrayInterfaceOffsetArrays
 InteractiveUtils.versioninfo(stdout; verbose = true)
 
 include("testsetup.jl")
@@ -789,6 +789,7 @@ include("testsetup.jl")
     struct SizedWrapper{M,N,T,AT<:AbstractMatrix{T}} <: AbstractMatrix{T}
       A::AT
     end
+    ArrayInterface.is_forwarding_wrapper(::Type{<:SizedWrapper}) = true
     SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} = SizedWrapper{M,N,T,AT}(A)
     Base.size(::SizedWrapper{M,N}) where {M,N} = (M, N)
     VectorizationBase.size(::SizedWrapper{M,N}) where {M,N} = (StaticInt(M), StaticInt(N))
