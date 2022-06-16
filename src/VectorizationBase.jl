@@ -218,6 +218,8 @@ struct Vec{W,T} <: AbstractSIMDVector{W,T}
   # end
 end
 
+Base.:*(::Vec, y::Zero) = y
+Base.:*(x::Zero, ::Vec) = x
 
 @inline Base.copy(v::AbstractSIMDVector) = v
 @inline asvec(x::_Vec) = Vec(x)
