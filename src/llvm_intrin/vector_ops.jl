@@ -53,7 +53,12 @@ end
     )
   end
 end
+@inline shufflevector(x::T, y::T, ::Val{(0,1)}) where {T<:NativeTypes} = Vec(x, y)
+@inline shufflevector(x::T, y::T, ::Val{(1,0)}) where {T<:NativeTypes} = Vec(y, x)
 @generated function shufflevector(v1::Vec{W,T}, ::Val{I}) where {W,T,I}
+  if length(I) == 1
+    return Expr(:block, Expr(:meta,:inline), :(extractelement(v1, $(only(I)))))
+  end
   M, instrs = shufflevector_instrs(W, T, tupletostringvector(I), 0)
   quote
     $(Expr(:meta, :inline))
