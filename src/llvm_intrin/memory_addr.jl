@@ -1916,16 +1916,22 @@ end
 # @inline prefetch2(x, i, j, oi, oj) = prefetch(gep(stridedpointer(x), (data(i) + data(oi) - 1, data(j) + data(oj) - 1)), Val{1}(), Val{0}())
 
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
-  decl = "declare void @llvm.lifetime.start(i64, i8* nocapture)"
-  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.start(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
+  ptyp = LLVM_TYPES[T]
+  decl = "declare void @llvm.lifetime.start(i64, $ptyp* nocapture)"
+  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.start(i64 $L, $ptyp* %ptr)\nret void"
   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.end(i64, $ptyp* nocapture)"
-  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), $ptyp* %ptr)\nret void"
+  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.end(i64 $L, $ptyp* %ptr)\nret void"
   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
+# @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
+#   decl = "declare void @llvm.lifetime.start(i64, i8* nocapture)"
+#   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.start(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
+#   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+# end
 # @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
 #   decl = "declare void @llvm.lifetime.end(i64, i8* nocapture)"
 #   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
