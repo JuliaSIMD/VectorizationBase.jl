@@ -111,21 +111,6 @@ For this last issue, an alternate workaround would be to wrap a `Vec` of 32-bit 
 internal llvmcall functions, but I haven't really explored this optimization.
 """
 function offset_ptr(
-  ::Type{T},
-  ind_type::Symbol,
-  indargname::Char,
-  ibits::Int,
-  W::Int,
-  X::Int,
-  M::Int,
-  O::Int,
-  forgep::Bool,
-  rs::Int,
-) where {T}
-  T_sym = JULIA_TYPES[T]
-  offset_ptr(T_sym, sizeof_T, ind_type, indargname, ibits, W, X, M, O, forgep, rs)
-end
-function offset_ptr(
   T_sym::Symbol,
   ind_type::Symbol,
   indargname::Char,
@@ -330,12 +315,11 @@ function gep_quote(
   X::Int,
   M::Int,
   O::Int,
-  forgep::Bool,
   rs::Int,
 ) where {T,I}
   T_sym = JULIA_TYPES[T]
   I_sym = JULIA_TYPES[I]
-  gep_quote(T_sym, ind_type, I_sym, W, X, M, O, forgep, rs)
+  gep_quote(T_sym, ind_type, I_sym, W, X, M, O, rs)
 end
 function gep_quote(
   T_sym::Symbol,
@@ -345,8 +329,7 @@ function gep_quote(
   X::Int,
   M::Int,
   O::Int,
-  forgep::Bool,
-  rs,
+  rs::Int,
 )
   sizeof_T = JULIA_TYPE_SIZE[T_sym]
   sizeof_I = JULIA_TYPE_SIZE[I_sym]
@@ -394,21 +377,21 @@ end
   i::I,
   ::StaticInt{RS},
 ) where {I<:IntegerTypes,T<:NativeTypes,RS}
-  gep_quote(T, :Integer, I, 1, 1, 1, 0, true, RS)
+  gep_quote(T, :Integer, I, 1, 1, 1, 0, RS)
 end
 @generated function _gep(
   ptr::Ptr{T},
   ::StaticInt{N},
   ::StaticInt{RS},
 ) where {N,T<:NativeTypes,RS}
-  gep_quote(T, :StaticInt, Int, 1, 1, 0, N, true, RS)
+  gep_quote(T, :StaticInt, Int, 1, 1, 0, N, RS)
 end
 @generated function _gep(
   ptr::Ptr{T},
   i::LazyMulAdd{M,O,I},
   ::StaticInt{RS},
 ) where {T<:NativeTypes,I<:IntegerTypes,O,M,RS}
-  gep_quote(T, :Integer, I, 1, 1, M, O, true, RS)
+  gep_quote(T, :Integer, I, 1, 1, M, O, RS)
 end
 @inline _gep(ptr, i::IntegerIndex, ::StaticInt) = ptr + _materialize(i)
 @generated function _gep(
@@ -416,14 +399,14 @@ end
   i::Vec{W,I},
   ::StaticInt{RS},
 ) where {W,T<:NativeTypes,I<:IntegerTypes,RS}
-  gep_quote(T, :Vec, I, W, 1, 1, 0, true, RS)
+  gep_quote(T, :Vec, I, W, 1, 1, 0, RS)
 end
 @generated function _gep(
   ptr::Ptr{T},
   i::LazyMulAdd{M,O,Vec{W,I}},
   ::StaticInt{RS},
 ) where {W,T<:NativeTypes,I<:IntegerTypes,M,O,RS}
-  gep_quote(T, :Vec, I, W, 1, M, O, true, RS)
+  gep_quote(T, :Vec, I, W, 1, M, O, RS)
 end
 @inline gep(ptr::Ptr, i) = _gep(ptr, i, register_size())
 
@@ -1938,10 +1921,16 @@ end
   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
-  decl = "declare void @llvm.lifetime.end(i64, i8* nocapture)"
-  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
+  ptyp = LLVM_TYPES[T]
+  decl = "declare void @llvm.lifetime.end(i64, $ptyp* nocapture)"
+  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), $ptyp* %ptr)\nret void"
   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
 end
+# @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
+#   decl = "declare void @llvm.lifetime.end(i64, i8* nocapture)"
+#   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
+#   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+# end
 
 @inline lifetime_start!(ptr::Ptr) = lifetime_start!(ptr, Val{-1}())
 @inline lifetime_end!(ptr::Ptr) = lifetime_end!(ptr, Val{-1}())

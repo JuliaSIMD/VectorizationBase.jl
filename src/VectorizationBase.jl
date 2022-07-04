@@ -355,7 +355,8 @@ end
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = getfield(i, :i)
 
-@inline extractelement(i::MM{W,X,I}, j) where {W,X,I} = getfield(i, :i) + (X % I) * (j % I)
+@inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:HWReal} = getfield(i, :i) + (X % I) * (j % I)
+@inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:StaticInt} = getfield(i, :i) + X * j
 
 function Base.getproperty(::AbstractSIMD, ::Symbol)
   throw(

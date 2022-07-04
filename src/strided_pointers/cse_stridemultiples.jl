@@ -74,7 +74,7 @@ end
 _unwrap(@nospecialize(_::Type{StaticInt{N}})) where {N} = N
 _unwrap(@nospecialize(_)) = nothing
 # descript is a tuple of (unrollfactor) for each ind; if it shouldn't preallocate, unrollfactor may be set to 1
-function precalc_quote_from_descript(descript, contig, X)
+function precalc_quote_from_descript(@nospecialize(descript), contig::Int, @nospecialize(X))
   precalc = Expr(:tuple)
   anyprecalcs = anydynamicprecals = false
   pstrideextracts = Expr(:block)
@@ -85,7 +85,7 @@ function precalc_quote_from_descript(descript, contig, X)
       push!(precalc.args, nothing)
     else
       t = Expr(:tuple)
-      Xᵢ = _unwrap(X[i])
+      Xᵢ = X[i]
       anyprecalcs = true
       if Xᵢ === nothing
         anydynamicprecals = true
@@ -98,9 +98,13 @@ function precalc_quote_from_descript(descript, contig, X)
             Expr(:call, GlobalRef(Core, :getfield), :pstride, i, false),
           ),
         )
-        foreach(u -> push!(t.args, Expr(:call, :vmul_nw, u, pstride_i)), 3:2:uf)
+        for u = 3:2:uf
+          push!(t.args, Expr(:call, :vmul_nw, u, pstride_i))
+        end
       else
-        foreach(u -> push!(t.args, u * Xᵢ), 3:2:uf)
+        for u = 3:2:uf
+          push!(t.args, static(u * Xᵢ))
+        end
       end
       push!(precalc.args, t)
     end
@@ -121,7 +125,9 @@ end
   p::AbstractStridedPointer{T,N,C,B,R,X,O},
   ::Val{descript},
 ) where {T,N,C,B,R,X,O,descript}
-  precalc_quote_from_descript(descript, C, X.parameters)
+  x = known(X)
+  any(isnothing, x) || return Expr(:block, Expr(:meta,:inline), :p)
+  precalc_quote_from_descript(descript, C, x)
 end
 
 @inline tdot(ptr::OffsetPrecalc{T}, a, b) where {T} =

@@ -5,7 +5,8 @@ Return aligned memory address with minimum increment. `align` assumes `n` is a
 power of 2.
 """
 function align end
-@inline align(x::Union{Integer,StaticInt}) = (x + Int(register_size() - One())) & Int(-register_size())
+@inline align(x::Base.Integer) = (x + Int(register_size() - One())) & Int(-register_size())
+@inline align(x::StaticInt) = (x + register_size() - One()) & -register_size()
 @inline align(x::Ptr{T}, arg) where {T} =
   reinterpret(Ptr{T}, align(reinterpret(UInt, x), arg))
 @inline align(x::Ptr{T}) where {T} = reinterpret(Ptr{T}, align(reinterpret(UInt, x)))
