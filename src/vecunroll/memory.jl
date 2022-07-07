@@ -816,7 +816,7 @@ function _shuffle_store_quote(
   mask::Bool,
 )
   N, C, B, AU, F, UN, AV, W, X = integer_params
-
+  W == 1 && return nothing
   # we don't require vector indices for `Unroll`s...
   # @assert _W == W "W from index $(_W) didn't equal W from Unroll $W."
   # We need to unroll in a contiguous dimension for this to be a shuffle store, and we need the step between the start of the vectors to be `1`
@@ -843,7 +843,7 @@ function _shuffle_store_quote(
   gf = GlobalRef(Core, :getfield)
   for n ∈ 1:UN
     syms[n] = vs = Symbol(:v_, n)
-    push!(q.args, Expr(:(=), vs, Expr(:call, gf, :t, n, false)))
+    push!(q.args, Expr(:(=), vs, Expr(:call, gf, :t, n)))
   end
   Wtemp = W
   Nvec = UN

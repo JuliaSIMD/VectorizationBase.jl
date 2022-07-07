@@ -55,6 +55,9 @@ end
 end
 @inline shufflevector(x::T, y::T, ::Val{(0,1)}) where {T<:NativeTypes} = Vec(x, y)
 @inline shufflevector(x::T, y::T, ::Val{(1,0)}) where {T<:NativeTypes} = Vec(y, x)
+# @inline function shufflevector(v::Vec{W,T} x::T, ::Val{I}) where {I}
+  
+# end
 @generated function shufflevector(v1::Vec{W,T}, ::Val{I}) where {W,T,I}
   if length(I) == 1
     return Expr(:block, Expr(:meta,:inline), :(extractelement(v1, $(only(I)))))
