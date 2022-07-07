@@ -954,7 +954,7 @@ end
 end
 
 
-@generated function Base.vcat(m1::AbstractMask{_W1}, m2::AbstractMask{_W2}) where {_W1,_W2}
+@generated function vcat(m1::AbstractMask{_W1}, m2::AbstractMask{_W2}) where {_W1,_W2}
   if _W1 == _W2
     W = _W1
   else
@@ -995,7 +995,7 @@ end
     :(Mask{$W2}($LLVMCALL($instrj, $U2, Tuple{$U,$U}, getfield(m1, :u), getfield(m2, :u)))),
   )
 end
-# @inline function Base.vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
+# @inline function vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
 #     U = mask_type(Val(W))
 #     u1 = data(m1) % U
 #     u2 = data(m2) % U

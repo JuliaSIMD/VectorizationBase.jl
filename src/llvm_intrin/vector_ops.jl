@@ -99,7 +99,7 @@ end
   allincr || return Expr(:block, Expr(:meta, :inline), :(shufflevector(Vec(i), Val{$I}())))
   Expr(:block, Expr(:meta, :inline), :(MM{$L,$X}(extractelement(i, $(first(I))))))
 end
-@generated function Base.vcat(a::Vec{W1,T}, b::Vec{W2,T}) where {W1,W2,T}
+@generated function vcat(a::Vec{W1,T}, b::Vec{W2,T}) where {W1,W2,T}
   W1 ≥ W2 || throw(
     ArgumentError(
       "`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W1,$T}` and `v2` is a `Vec{$W2,$T}`.",
@@ -119,11 +119,12 @@ end
   end
 end
 
-@inline Base.vcat(
+@inline vcat(x::Base.HWReal, y::Base.HWReal) = Vec(x,y)
+@inline vcat(
   a::VecUnroll{N,W1,T,Vec{W1,T}},
   b::VecUnroll{N,W2,T,Vec{W2,T}},
 ) where {N,W1,W2,T} = VecUnroll(fmap(vcat, data(a), data(b)))
-@generated function Base.hcat(
+@generated function hcat(
   a::VecUnroll{N1,W,T,V},
   b::VecUnroll{N2,W,T,V},
 ) where {N1,N2,W,T,V}
