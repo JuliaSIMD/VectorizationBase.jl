@@ -292,10 +292,6 @@ function transpose_vecunroll_quote_W_smaller(N, W)
   # Wtemp = W >>> 1
   Wratio_init = W ÷ N
   Wratio = Wratio_init
-  1, 3
-  2, 4
-  vcat(vcat(1, 3), vcat(5, 7))
-  vcat(vcat(2, 4), vcat(6, 8))
   while Wratio > 1
     Wratioh = Wratio >>> 1
     for w ∈ 0:(Wratioh)-1
