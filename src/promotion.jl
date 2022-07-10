@@ -154,7 +154,17 @@ end
   ::Type{V2},
   ::StaticInt{RS},
 ) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2},RS}
-  T = promote_type(T1, T2) # `T1` and `T2` should be defined in `Base`
+  T = if T1 <: StaticInt
+    if T2 <: StaticInt
+      Int
+    else
+      T2
+    end
+  elseif T2 <: StaticInt
+    T1
+  else
+    promote_type(T1, T2) # `T1` and `T2` should be defined in `Base`
+  end
   if RS ≥ W * sizeof(T)
     return :(Vec{$W,$T})
   end
@@ -186,7 +196,7 @@ end
 @inline function Base.promote_rule(
   ::Type{V1},
   ::Type{V2},
-) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2}}
+  ) where {W,T1,T2,V1<:AbstractSIMDVector{W,T1},V2<:AbstractSIMDVector{W,T2}}
   _promote_rule(V1, V2, register_size(promote_type(T1, T2)))
 end
 
