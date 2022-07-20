@@ -681,7 +681,7 @@ function vload_quote_llvmcall(
   decl, instrs, args, lret, largs, arg_syms =
     vload_quote_llvmcall_core(T_sym, I_sym, ind_type, W, X, M, O, mask, align, rs)
 
-  return llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true)
+  return llvmcall_expr(decl, instrs, ret, args, lret, largs, arg_syms, true, true)
 end
 function vload_quote_llvmcall_core(
   T_sym::Symbol,
@@ -1190,7 +1190,7 @@ function vstore_quote(
     push!(args.args, mask_type(W))
     push!(largs, "i$(max(8,nextpow2(W)))")
   end
-  llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms)
+  llvmcall_expr(decl, join(instrs, "\n"), ret, args, lret, largs, arg_syms, false, true)
 end
 
 # no index, no mask, scalar store
@@ -1880,6 +1880,8 @@ end
     "void",
     [JULIAPOINTERTYPE],
     [:ptr],
+    false,
+    true
   )
 end
 @inline prefetch(ptr::Ptr{T}, ::Val{L}, ::Val{R}) where {T,L,R} =
@@ -1919,23 +1921,23 @@ end
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.start(i64, $ptyp* nocapture)"
   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.start(i64 $L, $ptyp* %ptr)\nret void"
-  llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+  llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr], false, true)
 end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.end(i64, $ptyp* nocapture)"
   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.end(i64 $L, $ptyp* %ptr)\nret void"
-  llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+  llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr], false, true)
 end
 # @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
 #   decl = "declare void @llvm.lifetime.start(i64, i8* nocapture)"
 #   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.start(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
-#   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+#   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr], false, true)
 # end
 # @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
 #   decl = "declare void @llvm.lifetime.end(i64, i8* nocapture)"
 #   instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to i8*\ncall void @llvm.lifetime.end(i64 $(L*sizeof(T)), i8* %ptr)\nret void"
-#   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr])
+#   llvmcall_expr(decl, instrs, :Cvoid, :(Tuple{Ptr{$T}}), "void", [JULIAPOINTERTYPE], [:ptr], false, true)
 # end
 
 @inline lifetime_start!(ptr::Ptr) = lifetime_start!(ptr, Val{-1}())
@@ -1968,6 +1970,8 @@ end
     "void",
     [vtyp, JULIAPOINTERTYPE, "i$(8sizeof(U))"],
     [:(data(v)), :ptr, :(data(mask))],
+    false,
+    true
   )
 end
 
@@ -2001,6 +2005,8 @@ end
     vtyp,
     [JULIAPOINTERTYPE, "i$(8sizeof(U))"],
     [:ptr, :(data(mask))],
+    false,
+    true,
   )
 end
 

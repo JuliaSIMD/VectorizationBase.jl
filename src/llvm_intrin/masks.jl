@@ -836,6 +836,7 @@ end
 @inline vmul(b::Bool, v::AbstractSIMDVector) = b ? v : zero(v)
 @inline vmul(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
 @inline vmul(b::Bool, v::VecUnroll{N,W,T}) where {N,W,T} = b ? v : zero(v)
+@inline vmul_fast(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = m1 & m2
 
 
 
@@ -1024,3 +1025,5 @@ end
 @inline Base.min(x::AbstractMask, y::AbstractMask) = x & y
 @inline Base.FastMath.max_fast(x::AbstractMask, y::AbstractMask) = x | y
 @inline Base.FastMath.min_fast(x::AbstractMask, y::AbstractMask) = x & y
+
+

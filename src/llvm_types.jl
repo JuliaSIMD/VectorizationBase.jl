@@ -246,6 +246,7 @@ end
     largs::Vector{String},
     arg_syms::Vector,
     callonly::Bool = false,
+    touchesmemory::Bool = false
   )
     mod = """
         $decl
@@ -265,7 +266,12 @@ end
       call = Expr(:call, :Vec, call)
     end
     callonly && return call
-    Expr(:block, Expr(:meta, :inline), call)
+    meta = if VERSION ≥ v"1.8.0-beta" && (!touchesmemory)
+      Expr(:meta,Expr(:purity,true,true,true,true,false),:inline)
+    else
+      Expr(:meta, :inline)
+    end
+    Expr(:block, meta, call)
     # Expr(:block, Expr(:meta, :inline), )
   end
 else
@@ -278,6 +284,7 @@ else
     largs::Vector{String},
     arg_syms::Vector,
     callonly::Bool = false,
+    touchesmemory::Bool = false
   )
     call = Expr(:call, LLVMCALL, (decl, instr), ret, args)
     foreach(arg -> push!(call.args, arg), arg_syms)
