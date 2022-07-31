@@ -105,8 +105,8 @@ Base.issubnormal(d::Double) = issubnormal(d.hi) | issubnormal(d.lo)
 
 @inline Base.eltype(d::Double{T}) where {T<:IEEEFloat} = T
 @inline Base.eltype(d::Double{S}) where {N,T,S<:Union{Vec{N,T},Vec{N,T}}} = T
-@inline ifelse(u::Bool, v1::Double, v2::Double) =
-  Double(ifelse(u, v1.hi, v2.hi), ifelse(u, v1.lo, v2.lo))
+# @inline ifelse(u::Bool, v1::Double, v2::Double) =
+#   Double(ifelse(u, v1.hi, v2.hi), ifelse(u, v1.lo, v2.lo))
 @inline ifelse(u::Mask, v1::Double, v2::Double) =
   Double(ifelse(u, v1.hi, v2.hi), ifelse(u, v1.lo, v2.lo))
 @generated function ifelse(
