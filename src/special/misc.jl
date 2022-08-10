@@ -192,3 +192,26 @@ end
 end
 @inline Base.lcm(a::AbstractSIMD, b::Real) = ((c, d) = promote(a, b); lcm(c, d))
 @inline Base.lcm(a::Real, b::AbstractSIMD) = ((c, d) = promote(a, b); lcm(c, d))
+
+@inline function Base.getindex(A::AbstractArray, i::AbstractSIMD...)
+  vload(stridedpointer(A), i)
+end
+
+@inline Base.Sort.midpoint(lo::AbstractSIMDVector{W,I}, hi::AbstractSIMDVector{W,I}) where {W,I<:Integer} = lo + ((hi - lo) >>> 0x01)
+@inline function Base.searchsortedlast(v::AbstractVector, x::AbstractSIMDVector{W,I}, lo::T, hi::T, o::Base.Ordering) where {W,I,T<:Integer}
+  u = convert(T, typeof(x)(1))
+  lo = lo - u
+  hi = hi + u
+  st = lo < hi - u
+  @inbounds while vany(st)
+      m = Base.Sort.midpoint(lo, hi)
+      b = Base.Order.lt(o, x, v[m]) & st
+      hi = ifelse(b, m, hi)
+      lo = ifelse(b, lo, m)
+      st = lo < hi - u
+  end
+  return lo
+end
+@inline function Base.searchsortedlast(v::AbstractVector, x::VecUnroll, lo::T, hi::T, o::Base.Ordering) where {T<:Integer} 
+  VecUnroll(fmap(searchsortedlast,v, data(x), lo, hi, o))
+end
