@@ -1047,6 +1047,9 @@ include("testsetup.jl")
     # for f ∈ [sqrt]
     #     @test tovector(f(vpos)) == map(f, tovector(vpos))
     # end
+
+    @test getindex([2,4,6,8],Vec(1,2,3,4)) === Vec(2,4,6,8)
+    @test searchsortedlast([1, 2, 4, 5, 5, 7], Vec(4,5,3,0)) === Vec(3,5,2,0)
   end
   println("Binary Functions")
   @time @testset "Binary Functions" begin
@@ -1338,9 +1341,6 @@ include("testsetup.jl")
 
       @test gcd(Vec(42, 64, 0, -37), Vec(18, 96, -38, 0)) === Vec(6, 32, 38, 37)
       @test lcm(Vec(24, 16, 42, 0), Vec(18, 12, 18, 17)) === Vec(72, 48, 126, 0)
-
-      @test getindex([2,4,6,8],Vec(1,2,3,4)) === Vec(2,4,6,8)
-      @test searchsortedlast([1, 2, 4, 5, 5, 7], Vec(4,5,3,0)) === Vec(3,5,2,0)
     end
     if VectorizationBase.simd_integer_register_size() ≥ 16
       @test VecUnroll((
