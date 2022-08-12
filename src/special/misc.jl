@@ -193,8 +193,8 @@ end
 @inline Base.lcm(a::AbstractSIMD, b::Real) = ((c, d) = promote(a, b); lcm(c, d))
 @inline Base.lcm(a::Real, b::AbstractSIMD) = ((c, d) = promote(a, b); lcm(c, d))
 
-@inline function Base.getindex(A::Array, i::AbstractSIMD...)
-  vload(stridedpointer(A), i)
+@inline function Base.getindex(A::Array, i::AbstractSIMD, j::Vararg{AbstractSIMD,K}) where {K}
+  vload(stridedpointer(A), (i, j...))
 end
 
 @inline Base.Sort.midpoint(lo::AbstractSIMDVector{W,I}, hi::AbstractSIMDVector{W,I}) where {W,I<:Integer} = lo + ((hi - lo) >>> 0x01)
