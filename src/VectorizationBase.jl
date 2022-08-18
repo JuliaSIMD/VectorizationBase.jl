@@ -358,6 +358,7 @@ end
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:HWReal} = getfield(i, :i) + (X % I) * (j % I)
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:StaticInt} = getfield(i, :i) + X * j
 
+Base.propertynames(::AbstractSIMD) = ()
 function Base.getproperty(::AbstractSIMD, ::Symbol)
   throw(
     ErrorException(
