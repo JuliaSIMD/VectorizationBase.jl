@@ -266,8 +266,14 @@ end
       call = Expr(:call, :Vec, call)
     end
     callonly && return call
-    meta = if VERSION ≥ v"1.8.0-beta" && (!touchesmemory)
-      Expr(:meta,Expr(:purity,true,true,true,true,false),:inline)
+    meta = if VERSION ≥ v"1.8.0-beta"
+      purity = if touchesmemory
+        Expr(:purity,false,false,true,true,false)
+      else
+        Expr(:purity,true,true,true,true,false)
+      end
+      VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
+      Expr(:meta, purity, :inline)
     else
       Expr(:meta, :inline)
     end
