@@ -391,7 +391,7 @@ end
 # Generic fallbacks
 @inline vfma(a::NativeTypes, b::NativeTypes, c::NativeTypes) = fma(a, b, c)
 @inline vmuladd(a::NativeTypes, b::NativeTypes, c::NativeTypes) = muladd(a, b, c)
-@inline vfma_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) = fma(a, b, c)
+@inline vfma_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) = muladd(a, b, c)
 @inline vmuladd_fast(a::Float32, b::Float32, c::Float32) =
   Base.FastMath.add_float_fast(Base.FastMath.mul_float_fast(a, b), c)
 @inline vmuladd_fast(a::Float64, b::Float64, c::Float64) =
@@ -414,9 +414,10 @@ end
 
 # vfmadd -> muladd -> promotes arguments to hit definitions from VectorizationBase
 # const vfmadd = FMA_FAST ? vfma : vmuladd
-@inline _vfmadd(a, b, c, ::True) = vfma(a, b, c)
-@inline _vfmadd(a, b, c, ::False) = vmuladd(a, b, c)
-@inline vfmadd(a, b, c) = _vfmadd(a, b, c, fma_fast())
+@inline vfmadd(a, b, c) = vmuladd(a, b, c)
+# @inline _vfmadd(a, b, c, ::True) = vfma(a, b, c)
+# @inline _vfmadd(a, b, c, ::False) = vmuladd(a, b, c)
+# @inline vfmadd(a, b, c) = _vfmadd(a, b, c, fma_fast())
 @inline vfnmadd(a, b, c) = vfmadd(-a, b, c)
 @inline vfmsub(a, b, c) = vfmadd(a, b, -c)
 @inline vfnmsub(a, b, c) = -vfmadd(a, b, c)
