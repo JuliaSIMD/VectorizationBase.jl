@@ -91,6 +91,20 @@ end
   __vload(p, li, m, A(), StaticInt{RS}())
 end
 
+@generated function _vload(
+  ptr::AbstractStridedPointer{T,1},
+  i::Tuple{I},
+  m::VecUnroll{Nm1},
+  ::A,
+  ::StaticInt{RS},
+) where {T,Nm1,I<:VecUnroll{Nm1},A<:StaticBool,RS}
+  t = Expr(:tuple)
+  for n = 1:Nm1+1
+    push!(t.args, :(_vload(ptr, (getfield(ii, $n),), getfield(mm, $n), $(A()), $(StaticInt{RS}()))))
+  end
+  Expr(:block,Expr(:meta,:inline), :(ii = getfield(getfield(i,1),1)), :(mm = getfield(m,1)), Expr(:call, VecUnroll, t))
+end
+
 # align, noalias, nontemporal
 @inline function _vstore!(
   ptr::AbstractStridedPointer,
