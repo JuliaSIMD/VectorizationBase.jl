@@ -460,8 +460,12 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
     trunc && (ref = Expr(:call, :%, ref, T))
     push!(llvmc.args, ref)
   end
+  meta = Expr(:meta, :inline)
+  if VERSION >= v"1.8.0-beta"
+    push!(meta.args, Expr(:purity,true,true,true,true,false))
+  end
   quote
-    $(Expr(:meta, :inline))
+    $meta
     Vec($llvmc)
   end
 end
@@ -482,7 +486,6 @@ end
   y::T,
   x::Vararg{T,_W},
 ) where {DemoteInt<:StaticBool,_Wpow2,_W,T<:NativeTypes}
-  1 + 3
   W = _W + 1
   demote = DemoteInt === True
   Wpow2 = demote ? 2_Wpow2 : _Wpow2
@@ -498,11 +501,17 @@ end
     Expr(:call, :VecUnroll, tup)
   end
 end
+if VERSION >= v"1.8.0-beta"
+Base.@assume_effects total @inline function Vec(y::T, x::Vararg{T,_W}) where {_W,T<:NativeTypes}
+  W = StaticInt{_W}() + One()
+  _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
+end
+else
 @inline function Vec(y::T, x::Vararg{T,_W}) where {_W,T<:NativeTypes}
   W = StaticInt{_W}() + One()
   _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
 end
-
+end
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} =
   ArrayInterface.reduce_tup(f, data(vu))
 
