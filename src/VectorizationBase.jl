@@ -501,7 +501,7 @@ end
     Expr(:call, :VecUnroll, tup)
   end
 end
-if VERSION >= v"1.8.0-beta"
+@static if VERSION >= v"1.8.0-beta"
 Base.@assume_effects total @inline function Vec(y::T, x::Vararg{T,_W}) where {_W,T<:NativeTypes}
   W = StaticInt{_W}() + One()
   _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
