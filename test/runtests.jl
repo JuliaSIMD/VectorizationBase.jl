@@ -7,7 +7,9 @@ include("testsetup.jl")
   # Write your own tests here.
   # Aqua.test_all(VectorizationBase, ambiguities = VERSION < v"1.6-DEV")
   println("Aqua.test_all")
-  @time Aqua.test_all(VectorizationBase, deps_compat = VERSION <= v"1.8" || VERSION.prerelease[1] != "DEV")
+  t0 = time_ns()
+  Aqua.test_all(VectorizationBase, deps_compat = VERSION <= v"1.8" || VERSION.prerelease[1] != "DEV")
+  println("Aqua took $((time_ns() - t0)*1e-9) seconds")
   # @test isempty(detect_unbound_args(VectorizationBase))
   # @test isempty(detect_ambiguities(VectorizationBase))
 
