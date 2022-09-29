@@ -43,8 +43,8 @@ end
   v2::Vec{W,T},
   ::True,
 ) where {W,T<:Union{Float32,Float64}}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]
@@ -78,8 +78,8 @@ end
   v3::Vec{W,T},
   ::True,
 ) where {W,T<:Union{Float32,Float64}}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]
@@ -108,8 +108,8 @@ end
   )
 end
 @generated function vsreduce(v::Vec{W,T}, ::Val{M}) where {W,T<:Union{Float32,Float64},M}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   M isa Integer ||
@@ -133,7 +133,7 @@ end
 @generated function vpermi2pd(c::Vec{8,UInt64}, v1::Vec{8,Float64}, v2::Vec{8,Float64}) #where {W,T<:Union{Float32,Float64}, M}
   W = 8
   T = Float64
-  bits = 8W * sizeof(T)
+  bits = (8W * sizeof(T))::Int
   # bits ∈ (128,256,512) || throw(ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."))
   ityp = "i$(8sizeof(T))"
   vityp = "<$W x $ityp>"
@@ -715,8 +715,8 @@ end
 # TODO: move these back to log.jl when when the log implementations there are good & well tested enough to use.
 
 @generated function vgetexp(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]
@@ -735,8 +735,8 @@ end
   llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
 end
 @generated function vgetmant(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]
@@ -758,8 +758,8 @@ end
   v::Vec{W,T},
   ::Union{StaticInt{N},Val{N}},
 ) where {W,T<:Union{Float32,Float64},N}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]
@@ -778,8 +778,8 @@ end
   llvmcall_expr(decl, instrs, :(_Vec{$W,$T}), :(Tuple{_Vec{$W,$T}}), vtyp, [vtyp], arg_syms)
 end
 @generated function vgetmant12(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]
@@ -799,8 +799,8 @@ end
 end
 
 @generated function vroundscale(v::Vec{W,T}, ::Union{Val{N},StaticInt{N}}) where {W,T,N}
-  bits = 8W * sizeof(T)
-  bits ∈ (128, 256, 512) || throw(
+  bits = (8W * sizeof(T))::Int
+  any(==(bits), (128, 256, 512)) || throw(
     ArgumentError("Vectors are $bits bits, but only 128, 256, and 512 bits are supported."),
   )
   ltyp = LLVM_TYPES[T]

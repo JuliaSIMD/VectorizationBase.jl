@@ -389,11 +389,11 @@ end
 @inline gesp(r::FastRange{T,Zero}, i::Tuple{NullStep}) where {T<:Union{Integer,StaticInt}} = r
 @inline gesp(r::FastRange{T}, i::Tuple{NullStep}) where {T<:FloatingTypes} = r
 @inline increment_ptr(r::FastRange{T,Zero}, i::Tuple{I}) where {I,T<:Union{Integer,StaticInt}} =
-  only(i) * s + getfield(r, :o)
+  only(i) * getfield(r,:s) + getfield(r, :o)
 @inline increment_ptr(r::FastRange{T}, i::Tuple{I}) where {I,T<:Union{Integer,StaticInt}} =
   only(i) + getfield(r, :o)
 @inline increment_ptr(r::FastRange) = getfield(r, :o)
-@inline increment_ptr(r::FastRange{T}, o, i::Tuple{I}) where {I,T} = vadd_nsw(only(i), o)
+@inline increment_ptr(::FastRange{T}, o, i::Tuple{I}) where {I,T} = vadd_nsw(only(i), o)
 @inline increment_ptr(r::FastRange{T,Zero}, o, i::Tuple{I}) where {I,T} =
   vadd_nsw(vmul_nsw(only(i), getfield(r, :s)), o)
 

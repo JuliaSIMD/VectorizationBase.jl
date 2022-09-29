@@ -118,9 +118,9 @@ end
 
 const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
-vtype(W, typ::String) = isone(abs(W)) ? typ : "<$W x $typ>"
-vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])
-vtype(W, T::Symbol) = vtype(W, get(LLVM_TYPES_SYM, T, T))
+vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
+vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])::String
+vtype(W, T::Symbol) = vtype(W, get(LLVM_TYPES_SYM, T, T))::String
 function push_julia_type!(x, W, T)
   if W ≤ 1
     push!(x, T)
@@ -141,7 +141,7 @@ ptr_suffix(W, T) = suffix(W, ptr_suffix(T))
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
 suffix(W::Int, T) = suffix(W, suffix(T))
 suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
-suffix_jlsym(W::Int, s::Symbol) = suffix(W, suffix(T))
+suffix_jlsym(W::Int, s::Symbol) = suffix(W, suffix(s))
 function suffix(T::Symbol)::String
   if T === :Float64
     "f64"
@@ -208,9 +208,9 @@ function build_llvmcall_expr(op, WR, R::Symbol, WA, TA, flags::String)
   lret = LLVM_TYPES_SYM[R]
   lvret = vtype(WR, lret)
   lop = llvmname(op, WR, WA, R, first(TA))
-  instr = "$lvret $flags @$lop"
-  larg_types = map(vtype, WA, TA)
-  decl = "declare $lvret @$(lop)(" * join(larg_types, ", ") * ')'
+  # instr = "$lvret $flags @$lop"
+  larg_types = map(vtype, WA, TA)::Vector{String}
+  decl = "declare $lvret @$(lop)(" * join(larg_types, ", ")::String * ')'
   args_for_call = ("$T %$(n-1)" for (n, T) ∈ enumerate(larg_types))
   instrs = """%res = call $flags $lvret @$(lop)($(join(args_for_call, ", ")))
       ret $lvret %res"""
@@ -220,7 +220,6 @@ function build_llvmcall_expr(op, WR, R::Symbol, WA, TA, flags::String)
   for n ∈ eachindex(TA)
     arg_syms[n] = Expr(:call, :data, Symbol(:v, n))
   end
-  # println(instrs)
   if WR ≤ 1
     llvmcall_expr(decl, instrs, R, args, lvret, larg_types, arg_syms)
   else

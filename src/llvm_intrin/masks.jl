@@ -235,11 +235,11 @@ end
   Mask{W,U}(Core.ifelse(b, ~getfield(m, :u), getfield(m, :u)))
 
 @inline vshl(m::AbstractMask{W,U}, i::IntegerTypesHW) where {W,U} =
-  Mask{W,U}(shl(getfield(m, :u), i))
+  Mask{W,U}(vshl(getfield(m, :u), i))
 @inline vashr(m::AbstractMask{W,U}, i::IntegerTypesHW) where {W,U} =
-  Mask{W,U}(shr(getfield(m, :u), i))
+  Mask{W,U}(vashr(getfield(m, :u), i))
 @inline vlshr(m::AbstractMask{W,U}, i::IntegerTypesHW) where {W,U} =
-  Mask{W,U}(shr(getfield(m, :u), i))
+  Mask{W,U}(vlshr(getfield(m, :u), i))
 
 @inline zero_mask(::AbstractSIMDVector{W}) where {W} = Mask(zero_mask(Val(W)))
 @inline zero_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(zero_mask(Val(W))))
@@ -249,8 +249,9 @@ end
 @inline max_mask(::NativeTypes) = true
 
 for (U, W) in [(UInt8, 8), (UInt16, 16), (UInt32, 32), (UInt64, 64)]
-  @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $(zero(U))
-  @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $(typemax(U))
+  z = zero(U); tm = typemax(U);
+  @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $z
+  @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $tm
 end
 # TODO: use vector reduction intrsincs
 @inline function vany(m::AbstractMask{W}) where {W}

@@ -118,7 +118,7 @@ end
   c::Vec{W,UInt64},
   ::False,
 ) where {W}
-  add_fast(mul_fast(a, b), c)
+  Base.FastMath.add_fast(Base.FastMath.mul_fast(a, b), c)
 end
 
 @inline function vfmadd_fast(a::Vec{W,UInt64}, b::Vec{W,UInt64}, c::Vec{W,UInt64}) where {W}

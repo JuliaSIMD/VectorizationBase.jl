@@ -1072,20 +1072,20 @@ end
       $(StaticInt(X)),
     )),
   )
-  if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
-    return quote
-      $(Expr(:meta, :inline))
-      __vstore!(
-        pointer(sptr),
-        vu,
-        MM{$(N * W)}(_materialize(data(u))),
-        $A(),
-        $S(),
-        $NT(),
-        StaticInt{$RS}(),
-      )
-    end
-  end
+  # if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
+  #   return quote
+  #     $(Expr(:meta, :inline))
+  #     __vstore!(
+  #       pointer(sptr),
+  #       vu,
+  #       MM{$(N * W)}(_materialize(data(u))),
+  #       $A(),
+  #       $S(),
+  #       $NT(),
+  #       StaticInt{$RS}(),
+  #     )
+  #   end
+  # end
   # 1+1
   align = A === True
   alias = S === True
@@ -1546,7 +1546,7 @@ end
       $(StaticInt(RS)),
     )),
   )
-  if (T === Bit) && (F == W < 8) && (X == 1) && (AV == AU == C > 0)
+  if (T === Bit) && (F == W < 8) && (UX == 1) && (AV == AU == C > 0)
     return quote
       $(Expr(:meta, :inline))
       msk = flattenmask(vm, Val{$M}())

@@ -169,8 +169,8 @@ end
     return :(Vec{$W,$T})
   end
   if T === Float64 || T === Float32
-    N, r1 = (sizeof(T) * W) ÷ RS
-    Wnew, r2 = divrem(W, N)
+    N = (sizeof(T) * W) ÷ RS
+    Wnew, r = divrem(W, N)
     @assert iszero(r)
 
     return :(VecUnroll{$(N - 1),$Wnew,$T,Vec{$Wnew,$T}})

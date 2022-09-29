@@ -56,7 +56,7 @@ c = b .* [3, 5, 7, 9]
   Is = (I - 1) >> 1
   ex = if (isodd(I) && 1 ≤ Is ≤ N) && (c.parameters[Is] !== nothing)
     Expr(:call, GlobalRef(Core, :getfield), :c, Is, false)
-  elseif (I ∈ (6, 10) && (I >> 2 ≤ N)) && (c.parameters[I>>2] !== nothing)
+  elseif ((I ∈ (6, 10)) && ((I >> 2) ≤ N)) && (c.parameters[I>>2] !== nothing)
     Expr(
       :call,
       :lazymul,

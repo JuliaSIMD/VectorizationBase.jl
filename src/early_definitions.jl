@@ -77,14 +77,14 @@ function mask_type_symbol(W)
     return :UInt32
   elseif W <= 64
     return :UInt64
-  elseif W <= 128
+  else#if W <= 128
     return :UInt128
-  elseif W <= 256
-    return :UInt256
-  elseif W <= 512
-    return :UInt512
-  else#if W <= 1024
-    return :UInt1024
+  # elseif W <= 256
+  #   return :UInt256
+  # elseif W <= 512
+  #   return :UInt512
+  # else#if W <= 1024
+  #   return :UInt1024
   end
 end
 function mask_type(W)
@@ -96,14 +96,14 @@ function mask_type(W)
     return UInt32
   elseif W <= 64
     return UInt64
-  elseif W <= 128
+  else#if W <= 128
     return UInt128
-  elseif W <= 256
-    return UInt256
-  elseif W <= 512
-    return UInt512
-  else#if W <= 1024
-    return UInt1024
+  # elseif W <= 256
+  #   return UInt256
+  # elseif W <= 512
+  #   return UInt512
+  # else#if W <= 1024
+  #   return UInt1024
   end
 end
 mask_type(::Union{Val{1},StaticInt{1}}) = UInt8#Bool
