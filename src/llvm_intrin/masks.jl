@@ -568,10 +568,10 @@ end
 #     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (getfield(i, :i) & 0x03))))
 # end
 @inline Base.isodd(i::MM{W,1}) where {W} = Mask{W}(
-  (0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>> (getfield(i, :i) & 0x03),
+  (0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>> (getfield(i, :i) & 0x01),
 )
 @inline Base.iseven(i::MM{W,1}) where {W} = Mask{W}(
-  (0x55555555555555555555555555555555 % mask_type(Val{W}())) >>> (getfield(i, :i) & 0x03),
+  (0x55555555555555555555555555555555 % mask_type(Val{W}())) << (getfield(i, :i) & 0x01),
 )
 
 function cmp_quote(W, cond, vtyp, T1, T2 = T1)
