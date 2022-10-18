@@ -573,6 +573,10 @@ end
 @inline Base.iseven(i::MM{W,1}) where {W} = Mask{W}(
   (0x55555555555555555555555555555555 % mask_type(Val{W}())) << (getfield(i, :i) & 0x01),
 )
+@inline Base.isodd(m::AbstractMask) = m
+@inline Base.iseven(m::AbstractMask) = !m
+@inline Base.isodd(m::VecUnroll{<:Any,<:Any,Bit,<:AbstractMask}) = m
+@inline Base.iseven(m::VecUnroll{<:Any,<:Any,Bit,<:AbstractMask}) = !m
 
 function cmp_quote(W, cond, vtyp, T1, T2 = T1)
   instrs = String["%m = $cond $vtyp %0, %1"]
