@@ -756,6 +756,7 @@ end
   ((x1, x2) = promote(s1, s2); vifelse(m, x1, x2))
 @inline vifelse(m::AbstractMask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} =
   VecUnroll(fmap(vifelse, m, getfield(v1, :data), getfield(v2, :data)))
+@inline vifelse(m::AbstractMask, a::MM, b::MM) = vifelse(m, Vec(a), Vec(b))
 
 @inline Base.Bool(m::AbstractMask{1,UInt8}) = (getfield(m, :u) & 0x01) === 0x01
 @inline vconvert(::Type{Bool}, m::AbstractMask{1,UInt8}) = (getfield(m, :u) & 0x01) === 0x01
