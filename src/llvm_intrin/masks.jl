@@ -442,7 +442,7 @@ end
     Expr(
       :block,
       Expr(:meta, :inline),
-      :(_mask_shift(StaticInt{$W}(), l, has_feature(Val(:x86_64_bmi)))),
+      :(_mask_shift(StaticInt{$W}(), l, has_feature(Val(:x86_64_bmi2)))),
     )
     # mask_shift_quote(W)
     # elseif (Base.libllvm_version ≥ v"11") && ispow2(W)
@@ -458,7 +458,7 @@ end
         Val{$W}(),
         l,
         simd_integer_register_size(),
-        has_feature(Val(:x86_64_bmi)),
+        has_feature(Val(:x86_64_bmi2)),
       )),
     )
   end
