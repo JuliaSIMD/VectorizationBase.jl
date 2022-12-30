@@ -20,6 +20,7 @@ jobs:
           - {user: JuliaSIMD, repo: LoopVectorization.jl, group: Interface}
           - {user: JuliaSIMD, repo: TriangularSolve.jl, group: Interface}
           - {user: JuliaSIMD, repo: SLEEFPirates.jl, group: Interface}
+          - {user: JuliaSIMD, repo: VectorizedRNG.jl, group: Interface}
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
