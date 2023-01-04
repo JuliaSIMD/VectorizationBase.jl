@@ -16,7 +16,7 @@ Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 
 [compat]
 ArrayInterface = "6.0.1"
-CPUSummary = "0.1.1 - 0.1.8, 0.1.11"
+CPUSummary = "0.1.1 - 0.1.8, 0.1.11, 0.2"
 HostCPUFeatures = "0.1"
 IfElse = "0.1"
 LayoutPointers = "0.1"
