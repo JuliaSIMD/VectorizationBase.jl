@@ -386,13 +386,6 @@ For use in spin-and-wait loops, like spinlocks.
 """
 @inline pause() = ccall(:jl_cpu_pause, Cvoid, ())
 
-# notinthreadedregion() = iszero(ccall(:jl_in_threaded_region, Cint, ()))
-# function assert_init_has_finished()
-#     _init_has_finished[] || throw(ErrorException("bad stuff happened"))
-#     return nothing
-# end
-
-
 include("static.jl")
 include("cartesianvindex.jl")
 include("early_definitions.jl")

@@ -249,7 +249,8 @@ end
 @inline max_mask(::NativeTypes) = true
 
 for (U, W) in [(UInt8, 8), (UInt16, 16), (UInt32, 32), (UInt64, 64)]
-  z = zero(U); tm = typemax(U);
+  z = zero(U)
+  tm = typemax(U)
   @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $z
   @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $tm
 end
@@ -323,7 +324,10 @@ end
 @generated max_mask(::Type{Mask{W,U}}) where {W,U} =
   EVLMask{W,U}(one(U) << W - one(U), W % UInt32)
 
-@generated function valrem(::Union{Val{W},StaticInt{W}}, l::T) where {W,T<:Union{Integer,StaticInt}}
+@generated function valrem(
+  ::Union{Val{W},StaticInt{W}},
+  l::T,
+) where {W,T<:Union{Integer,StaticInt}}
   ex = ispow2(W) ? :(l & $(T(W - 1))) : Expr(:call, Base.urem_int, :l, T(W))
   Expr(:block, Expr(:meta, :inline), ex)
 end
@@ -348,7 +352,10 @@ end
 #     EVLMask{$W,$M}($(typemax(M)) >>> ($(M(8sizeof(M))-1) - evl), evl + one(evl))
 #   end
 # end
-@generated function _mask_bzhi(::Union{Val{W},StaticInt{W}}, l::I) where {W,I<:Union{Integer,StaticInt}}
+@generated function _mask_bzhi(
+  ::Union{Val{W},StaticInt{W}},
+  l::I,
+) where {W,I<:Union{Integer,StaticInt}}
   U = mask_type_symbol(W)
   T = W > 32 ? :UInt64 : :UInt32
   quote
@@ -382,8 +389,11 @@ end
 # end
 
 function mask_shift_quote(W::Int, bmi::Bool)
-  if (((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))) && bmi
-    W ≤ 64 && return Expr(:block, Expr(:meta, :inline), :(_mask_bzhi(StaticInt{$W}(), l)))
+  if (((Sys.ARCH === :x86_64) || (Sys.ARCH === :i686))) &&
+     bmi &&
+     (W <= 64) &&
+     (ccall(:jl_generating_output, Cint, ()) != 1)
+    return Expr(:block, Expr(:meta, :inline), :(_mask_bzhi(StaticInt{$W}(), l)))
   end
   MT = mask_type(W)
   quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
@@ -434,9 +444,16 @@ end
   ::StaticInt{RS},
   ::False,
 ) where {W,RS,I<:Union{Integer,StaticInt}} = mask_cmp_quote(W, RS, false)
-@generated _mask(::Union{Val{W},StaticInt{W}}, l::I, ::True) where {W,I<:Union{Integer,StaticInt}} =
-  mask_shift_quote(W, true)
-@generated function _mask(::Union{Val{W},StaticInt{W}}, l::I, ::False) where {W,I<:Union{Integer,StaticInt}}
+@generated _mask(
+  ::Union{Val{W},StaticInt{W}},
+  l::I,
+  ::True,
+) where {W,I<:Union{Integer,StaticInt}} = mask_shift_quote(W, true)
+@generated function _mask(
+  ::Union{Val{W},StaticInt{W}},
+  l::I,
+  ::False,
+) where {W,I<:Union{Integer,StaticInt}}
   # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
   if W > 16
     Expr(
@@ -788,8 +805,10 @@ end
 @inline Base.flipsign(x::AbstractSIMD, y::Real) = ifelse(y > zero(y), x, -x)
 @inline Base.flipsign(x::Real, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
-@inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} = (x & one(T)) != zero(T)
-@inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} = (x & one(T)) == zero(T)
+@inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} =
+  (x & one(T)) != zero(T)
+@inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} =
+  (x & one(T)) == zero(T)
 
 @generated function vifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
   typ = LLVM_TYPES[T]
