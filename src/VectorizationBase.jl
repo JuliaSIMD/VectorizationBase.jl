@@ -22,7 +22,6 @@ import IfElse: ifelse
 using CPUSummary:
   cache_type,
   num_cache,
-  num_threads,
   num_cache_levels,
   num_cores,
   num_l1cache,
@@ -176,12 +175,10 @@ in place of `8` (`W`) in the `Unroll` construction.
 """
 struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
   data::Tuple{V,Vararg{V,N}}
-  @inline (
-    VecUnroll(data::Tuple{V,Vararg{V,N}})
-  ) where {N,W,T,V<:AbstractSIMD{W,T}} = new{N,W,T,V}(data)
-  @inline (
-    VecUnroll(data::Tuple{T,Vararg{T,N}})
-  ) where {N,T<:NativeTypes} = new{N,1,T,T}(data)
+  @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})) where {N,W,T,V<:AbstractSIMD{W,T}} =
+    new{N,W,T,V}(data)
+  @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})) where {N,T<:NativeTypes} =
+    new{N,1,T,T}(data)
   # # following two definitions are for checking that you aren't accidentally creating `VecUnroll{0}`s.
   # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = (@assert(N > 0); new{N,W,T,V}(data))
   # @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})::VecUnroll{N,T,T}) where {N,T<:NativeTypes} = (@assert(N > 0); new{N,1,T,T}(data))
@@ -355,7 +352,8 @@ end
 @inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
 @inline data(i::MM) = getfield(i, :i)
 
-@inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:HWReal} = getfield(i, :i) + (X % I) * (j % I)
+@inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:HWReal} =
+  getfield(i, :i) + (X % I) * (j % I)
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:StaticInt} = getfield(i, :i) + X * j
 
 Base.propertynames(::AbstractSIMD) = ()
@@ -462,7 +460,7 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
   end
   meta = Expr(:meta, :inline)
   if VERSION >= v"1.8.0-beta"
-    push!(meta.args, Expr(:purity,true,true,true,true,false))
+    push!(meta.args, Expr(:purity, true, true, true, true, false))
   end
   quote
     $meta
@@ -502,15 +500,18 @@ end
   end
 end
 @static if VERSION >= v"1.8.0-beta"
-Base.@assume_effects total @inline function Vec(y::T, x::Vararg{T,_W}) where {_W,T<:NativeTypes}
-  W = StaticInt{_W}() + One()
-  _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
-end
+  Base.@assume_effects total @inline function Vec(
+    y::T,
+    x::Vararg{T,_W},
+  ) where {_W,T<:NativeTypes}
+    W = StaticInt{_W}() + One()
+    _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
+  end
 else
-@inline function Vec(y::T, x::Vararg{T,_W}) where {_W,T<:NativeTypes}
-  W = StaticInt{_W}() + One()
-  _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
-end
+  @inline function Vec(y::T, x::Vararg{T,_W}) where {_W,T<:NativeTypes}
+    W = StaticInt{_W}() + One()
+    _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)
+  end
 end
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} =
   ArrayInterface.reduce_tup(f, data(vu))
