@@ -22,11 +22,16 @@ for (op, f) ∈ [("add", :+), ("sub", :-), ("mul", :*), ("shl", :<<)]
   ff_fast = Symbol(ff, :_fast)
   @eval begin
     # @inline $ff(a,b) = $ff_fast(a,b)
-    @inline $ff(a::T, b::T) where {T<:Union{FloatingTypes,IntegerTypesHW,AbstractSIMD}} =
+    @inline $ff(
+      a::T,
+      b::T
+    ) where {T<:Union{FloatingTypes,IntegerTypesHW,AbstractSIMD}} =
       $ff_fast(a, b)
     # @generated $ff_fast(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} = binary_op($op * (T <: Signed ? " nsw" : " nuw"), W, T)
-    @generated $ff_fast(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} =
-      binary_op($op, W, T)
+    @generated $ff_fast(
+      v1::Vec{W,T},
+      v2::Vec{W,T}
+    ) where {W,T<:IntegerTypesHW} = binary_op($op, W, T)
     @generated $fnsw(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} =
       binary_op($(op * " nsw"), W, T)
     @generated $fnuw(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:IntegerTypesHW} =
@@ -88,41 +93,57 @@ for (op, sub) ∈ [
   ("lshr", :IntegerTypesHW),
   ("and", :IntegerTypesHW),
   ("or", :IntegerTypesHW),
-  ("xor", :IntegerTypesHW),
+  ("xor", :IntegerTypesHW)
 ]
   ff = sub === :UnsignedHW ? :vashr : Symbol('v', op)
   @eval begin
-    @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:$sub} = binary_op($op, W, T)
+    @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:$sub} =
+      binary_op($op, W, T)
     @generated $ff(v1::T, v2::T) where {T<:$sub} = binary_op($op, 1, T)
   end
 end
 
-for (op, f) ∈ [("fadd", :vadd), ("fsub", :vsub), ("fmul", :vmul), ("fdiv", :vfdiv)]#,("frem",:vrem)]
+for (op, f) ∈
+    [("fadd", :vadd), ("fsub", :vsub), ("fmul", :vmul), ("fdiv", :vfdiv)]#,("frem",:vrem)]
   ff = Symbol(f, :_fast)
   fop_fast = f === :vfdiv ? "fdiv fast" : op * ' ' * fast_flags(true)
   fop_contract = op * ' ' * fast_flags(false)
   @eval begin
-    @generated $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
-      binary_op($fop_contract, W, T)
-    @generated $ff(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
-      binary_op($fop_fast, W, T)
+    @generated $f(
+      v1::Vec{W,T},
+      v2::Vec{W,T}
+    ) where {W,T<:Union{Float32,Float64}} = binary_op($fop_contract, W, T)
+    @generated $ff(
+      v1::Vec{W,T},
+      v2::Vec{W,T}
+    ) where {W,T<:Union{Float32,Float64}} = binary_op($fop_fast, W, T)
     @inline $f(v1::Vec{W,Float16}, v2::Vec{W,Float16}) where {W} =
       $f(convert(Vec{W,Float32}, v1), convert(Vec{W,Float32}, v2))
     @inline $ff(v1::Vec{W,Float16}, v2::Vec{W,Float16}) where {W} =
       $ff(convert(Vec{W,Float32}, v1), convert(Vec{W,Float32}, v2))
   end
 end
-@inline vsub(a::T, b::T) where {T<:Union{Float32,Float64}} = Base.sub_float(a, b)
-@inline vadd(a::T, b::T) where {T<:Union{Float32,Float64}} = Base.add_float(a, b)
-@inline vmul(a::T, b::T) where {T<:Union{Float32,Float64}} = Base.mul_float(a, b)
-@inline vsub_fast(a::T, b::T) where {T<:Union{Float32,Float64}} = Base.sub_float_fast(a, b)
-@inline vadd_fast(a::T, b::T) where {T<:Union{Float32,Float64}} = Base.add_float_fast(a, b)
-@inline vmul_fast(a::T, b::T) where {T<:Union{Float32,Float64}} = Base.mul_float_fast(a, b)
+@inline vsub(a::T, b::T) where {T<:Union{Float32,Float64}} =
+  Base.sub_float(a, b)
+@inline vadd(a::T, b::T) where {T<:Union{Float32,Float64}} =
+  Base.add_float(a, b)
+@inline vmul(a::T, b::T) where {T<:Union{Float32,Float64}} =
+  Base.mul_float(a, b)
+@inline vsub_fast(a::T, b::T) where {T<:Union{Float32,Float64}} =
+  Base.sub_float_fast(a, b)
+@inline vadd_fast(a::T, b::T) where {T<:Union{Float32,Float64}} =
+  Base.add_float_fast(a, b)
+@inline vmul_fast(a::T, b::T) where {T<:Union{Float32,Float64}} =
+  Base.mul_float_fast(a, b)
 
-@inline vdiv(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} =
-  trunc(vfdiv_fast(v1, v2))
-@inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:FloatingTypes} =
-  trunc(vfdiv_fast(v1, v2))
+@inline vdiv(
+  v1::AbstractSIMD{W,T},
+  v2::AbstractSIMD{W,T}
+) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
+@inline vdiv_fast(
+  v1::AbstractSIMD{W,T},
+  v2::AbstractSIMD{W,T}
+) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
 @inline vdiv_fast(v1::T, v2::T) where {T<:FloatingTypes} =
   trunc(Base.FastMath.div_float_fast(v1, v2))
 @inline vdiv_fast(v1::T, v2::T) where {T<:Number} = v1 ÷ v2
@@ -133,7 +154,7 @@ end
 # @inline vdiv_fast(v1::AbstractSIMD{W,T}, v2::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} = trunc(T, vfloat_fast(v1) / vfloat_fast(v2))
 @inline vdiv_fast(
   v1::AbstractSIMD{W,T},
-  v2::AbstractSIMD{W,T},
+  v2::AbstractSIMD{W,T}
 ) where {W,T<:IntegerTypesHW} = trunc(T, vfloat(v1) / vfloat(v2))
 @inline function vdiv_fast(v1, v2)
   v3, v4 = promote_div(v1, v2)
@@ -143,16 +164,22 @@ end
   VecUnroll(fmap(Base.sdiv_int, data(v1), s))
 @inline vdiv_fast(v1::VecUnroll{N,1,T,T}, s::T) where {N,T<:UnsignedHW} =
   VecUnroll(fmap(Base.udiv_int, data(v1), s))
-@inline vdiv_fast(v1::VecUnroll{N,1,T,T}, v2::VecUnroll{N,1,T,T}) where {N,T<:SignedHW} =
-  VecUnroll(fmap(Base.sdiv_int, data(v1), data(v2)))
-@inline vdiv_fast(v1::VecUnroll{N,1,T,T}, v2::VecUnroll{N,1,T,T}) where {N,T<:UnsignedHW} =
-  VecUnroll(fmap(Base.udiv_int, data(v1), data(v2)))
+@inline vdiv_fast(
+  v1::VecUnroll{N,1,T,T},
+  v2::VecUnroll{N,1,T,T}
+) where {N,T<:SignedHW} = VecUnroll(fmap(Base.sdiv_int, data(v1), data(v2)))
+@inline vdiv_fast(
+  v1::VecUnroll{N,1,T,T},
+  v2::VecUnroll{N,1,T,T}
+) where {N,T<:UnsignedHW} = VecUnroll(fmap(Base.udiv_int, data(v1), data(v2)))
 
 @inline vfdiv(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} =
   vfdiv(vfloat(a), vfloat(b))
 # @inline vfdiv_fast(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} = vfdiv_fast(vfloat_fast(a), vfloat_fast(b))
-@inline vfdiv_fast(a::AbstractSIMDVector{W}, b::AbstractSIMDVector{W}) where {W} =
-  vfdiv_fast(vfloat(a), vfloat(b))
+@inline vfdiv_fast(
+  a::AbstractSIMDVector{W},
+  b::AbstractSIMDVector{W}
+) where {W} = vfdiv_fast(vfloat(a), vfloat(b))
 @inline vfdiv(a, b) = a / b
 @inline vfdiv_fast(a, b) = Base.FastMath.div_fast(a, b)
 
@@ -166,7 +193,7 @@ for f ∈ [:vadd, :vsub, :vmul]
     @eval begin
       @inline function $fs(
         a::Union{FloatingTypes,IntegerTypesHW,AbstractSIMD},
-        b::Union{FloatingTypes,IntegerTypesHW,AbstractSIMD},
+        b::Union{FloatingTypes,IntegerTypesHW,AbstractSIMD}
       )
         c, d = promote(a, b)
         $fs(c, d)
@@ -190,7 +217,7 @@ for (vf, bf) ∈ [
   (:vmul_nuw, :mul_int),
   (:vadd_nw, :add_int),
   (:vsub_nw, :sub_int),
-  (:vmul_nw, :mul_int),
+  (:vmul_nw, :mul_int)
 ]
   @eval begin
     @inline $vf(a::Int128, b::Int128) = Base.$bf(a, b)
@@ -200,10 +227,18 @@ end
 # @inline vrem(a::Float32, b::Float32) = Base.rem_float_fast(a, b)
 # @inline vrem(a::Float64, b::Float64) = Base.rem_float_fast(a, b)
 
-@inline function Base.FastMath.add_fast(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
+@inline function Base.FastMath.add_fast(
+  a::AbstractSIMD,
+  b::AbstractSIMD,
+  c::AbstractSIMD
+)
   Base.FastMath.add_fast(Base.FastMath.add_fast(a, b), c)
 end
-@inline function Base.FastMath.add_fast(a::T, b::T, c::T) where {T<:AbstractSIMD}
+@inline function Base.FastMath.add_fast(
+  a::T,
+  b::T,
+  c::T
+) where {T<:AbstractSIMD}
   Base.FastMath.add_fast(Base.FastMath.add_fast(a, b), c)
 end
 
@@ -211,13 +246,18 @@ end
   a::AbstractSIMD,
   b::AbstractSIMD,
   c::AbstractSIMD,
-  d::AbstractSIMD,
+  d::AbstractSIMD
 )
   x = Base.FastMath.add_fast(a, b)
   y = Base.FastMath.add_fast(c, d)
   Base.FastMath.add_fast(x, y)
 end
-@inline function Base.FastMath.add_fast(a::T, b::T, c::T, d::T) where {T<:AbstractSIMD}
+@inline function Base.FastMath.add_fast(
+  a::T,
+  b::T,
+  c::T,
+  d::T
+) where {T<:AbstractSIMD}
   x = Base.FastMath.add_fast(a, b)
   y = Base.FastMath.add_fast(c, d)
   Base.FastMath.add_fast(x, y)
@@ -229,7 +269,7 @@ end
   c::AbstractSIMD,
   d::AbstractSIMD,
   e::AbstractSIMD,
-  f::Vararg{Number,K},
+  f::Vararg{Number,K}
 ) where {K}
   x = Base.FastMath.add_fast(a, b)
   y = Base.FastMath.add_fast(c, d)
@@ -241,7 +281,7 @@ end
   c::T,
   d::T,
   e::T,
-  f::Vararg{T,K},
+  f::Vararg{T,K}
 ) where {T<:AbstractSIMD,K}
   x = Base.FastMath.add_fast(a, b)
   y = Base.FastMath.add_fast(c, d)

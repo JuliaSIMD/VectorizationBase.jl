@@ -3,7 +3,7 @@
   x::AbstractSIMD{W},
   y::AbstractSIMD{W},
   z::AbstractSIMD{W},
-  ::False,
+  ::False
 ) where {W}
   muladd(x, y, ifelse(isodd(MM{W}(Zero())), z, -z))
 end
@@ -11,7 +11,7 @@ end
   x::AbstractSIMD{W},
   y::AbstractSIMD{W},
   z::AbstractSIMD{W},
-  ::False,
+  ::False
 ) where {W}
   muladd(x, y, ifelse(iseven(MM{W}(Zero())), z, -z))
 end
@@ -47,7 +47,7 @@ function vfmaddsub_expr(W::Int, double::Bool, addsub::Bool, avx512::Bool)
     :(Tuple{_Vec{$W,$jtyp},_Vec{$W,$jtyp},_Vec{$W,$jtyp}}),
     vtyp,
     [vtyp, vtyp, vtyp],
-    [:(data(x)), :(data(y)), :(data(z))],
+    [:(data(x)), :(data(y)), :(data(z))]
   )
 end
 
@@ -62,7 +62,7 @@ for (f, b) ∈ [(:vfmaddsub, true), (:vfmsubadd, false)]
       y::Vec{W,T},
       z::Vec{W,T},
       ::True,
-      ::True,
+      ::True
     ) where {W,T<:Union{Float32,Float64}}
       vfmaddsub_expr(W, T === Float64, $b, true)
     end
@@ -71,7 +71,7 @@ for (f, b) ∈ [(:vfmaddsub, true), (:vfmsubadd, false)]
       y::Vec{W,T},
       z::Vec{W,T},
       ::True,
-      ::False,
+      ::False
     ) where {W,T<:Union{Float32,Float64}}
       vfmaddsub_expr(W, T === Float64, $b, false)
     end
@@ -79,14 +79,15 @@ for (f, b) ∈ [(:vfmaddsub, true), (:vfmsubadd, false)]
     @inline $f(
       x::AbstractSIMD{W,T},
       y::AbstractSIMD{W,T},
-      z::AbstractSIMD{W,T},
-    ) where {W,T<:Union{Float32,Float64}} = $f(x, y, z, has_feature(Val(:x86_64_fma)))
+      z::AbstractSIMD{W,T}
+    ) where {W,T<:Union{Float32,Float64}} =
+      $f(x, y, z, has_feature(Val(:x86_64_fma)))
 
     @inline $f(
       x::Vec{W,T},
       y::Vec{W,T},
       z::Vec{W,T},
-      ::True,
+      ::True
     ) where {W,T<:Union{Float32,Float64}} =
       $f(x, y, z, True(), has_feature(Val(:x86_64_avx512f)))
 
@@ -94,10 +95,16 @@ for (f, b) ∈ [(:vfmaddsub, true), (:vfmsubadd, false)]
       x::AbstractSIMD{W,T},
       y::AbstractSIMD{W,T},
       z::AbstractSIMD{W,T},
-      ::True,
+      ::True
     ) where {W,T<:Union{Float32,Float64}}
       VecUnroll(
-        fmap($f, unwrapvecunroll(x), unwrapvecunroll(y), unwrapvecunroll(z), True()),
+        fmap(
+          $f,
+          unwrapvecunroll(x),
+          unwrapvecunroll(y),
+          unwrapvecunroll(z),
+          True()
+        )
       )
     end
   end

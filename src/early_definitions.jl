@@ -1,5 +1,6 @@
 _ispow2(x::Integer) = count_ones(x) < 2
-@generated _ispow2(::StaticInt{N}) where {N} = Expr(:call, ispow2(N) ? :True : :False)
+@generated _ispow2(::StaticInt{N}) where {N} =
+  Expr(:call, ispow2(N) ? :True : :False)
 
 function integer_of_bytes_symbol(bytes::Int, unsigned::Bool = false)
   if bytes ≥ 8
@@ -35,7 +36,7 @@ end
   ::Val{W},
   ::Type{T2},
   ::StaticInt{RS},
-  ::StaticInt{SIRS},
+  ::StaticInt{SIRS}
 ) where {W,T2<:NativeTypes,RS,SIRS}
   if RS ≥ sizeof(T2) * W
     return :(Vec{$W,$T2})
@@ -49,7 +50,7 @@ end
 end
 @inline function Base.promote_rule(
   ::Type{MM{W,X,I}},
-  ::Type{T2},
+  ::Type{T2}
 ) where {W,X,I,T2<:NativeTypes}
   _promote_rule(Val{W}(), T2, register_size(T2), simd_integer_register_size())
 end
@@ -67,9 +68,7 @@ end
   signorunsign(I, issigned(T))
 end
 
-
-function mask_type_symbol(W)
-  if W <= 8
+mask_type_symbol(W) = if W <= 8
     return :UInt8
   elseif W <= 16
     return :UInt16
@@ -79,16 +78,14 @@ function mask_type_symbol(W)
     return :UInt64
   else#if W <= 128
     return :UInt128
-  # elseif W <= 256
-  #   return :UInt256
-  # elseif W <= 512
-  #   return :UInt512
-  # else#if W <= 1024
-  #   return :UInt1024
+    # elseif W <= 256
+    #   return :UInt256
+    # elseif W <= 512
+    #   return :UInt512
+    # else#if W <= 1024
+    #   return :UInt1024
   end
-end
-function mask_type(W)
-  if W <= 8
+mask_type(W) = if W <= 8
     return UInt8
   elseif W <= 16
     return UInt16
@@ -98,14 +95,13 @@ function mask_type(W)
     return UInt64
   else#if W <= 128
     return UInt128
-  # elseif W <= 256
-  #   return UInt256
-  # elseif W <= 512
-  #   return UInt512
-  # else#if W <= 1024
-  #   return UInt1024
+    # elseif W <= 256
+    #   return UInt256
+    # elseif W <= 512
+    #   return UInt512
+    # else#if W <= 1024
+    #   return UInt1024
   end
-end
 mask_type(::Union{Val{1},StaticInt{1}}) = UInt8#Bool
 mask_type(::Union{Val{2},StaticInt{2}}) = UInt8
 mask_type(::Union{Val{4},StaticInt{4}}) = UInt8

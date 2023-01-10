@@ -15,7 +15,7 @@ const LLVM_TYPES = IdDict{Type{<:NativeTypes},String}(
   Int32 => "i32",
   UInt32 => "i32",
   Int64 => "i64",
-  UInt64 => "i64",
+  UInt64 => "i64"
   # Int128 => "i128",
   # UInt128 => "i128",
   # UInt256 => "i256",
@@ -37,7 +37,7 @@ const JULIA_TYPES = IdDict{Type{<:NativeTypes},Symbol}(
   UInt64 => :UInt64,
   # UInt128 => :UInt128,
   Bool => :Bool,
-  Bit => :Bit,
+  Bit => :Bit
   # UInt256 => :UInt256,
   # UInt512 => :UInt512,
   # UInt1024 => :UInt1024,
@@ -58,7 +58,7 @@ const LLVM_TYPES_SYM = IdDict{Symbol,String}(
   # :UInt128 => "i128",
   :Bool => "i8",
   :Bit => "i1",
-  :Nothing => "void",
+  :Nothing => "void"
   # :UInt256 => "i256",
   # :UInt512 => "i512",
   # :UInt1024 => "i1024",
@@ -78,7 +78,7 @@ const TYPE_LOOKUP = IdDict{Symbol,Type{<:NativeTypes}}(
   :UInt64 => UInt64,
   # :UInt128 => UInt128,
   :Bool => Bool,
-  :Bit => Bit,
+  :Bit => Bit
   # :UInt256 => UInt256,
   # :UInt512 => UInt512,
   # :UInt1024 => UInt1024
@@ -98,12 +98,11 @@ const JULIA_TYPE_SIZE = IdDict{Symbol,Int}(
   :UInt64 => 8,
   # :UInt128 => 16,
   :Bool => 1,
-  :Bit => 1,
+  :Bit => 1
   # :UInt256 => 32,
   # :UInt512 => 64,
   # :UInt1024 => 128,
 )
-
 
 function _get_alignment(W::Int, sym::Symbol)::Int
   sym === :Bit && return 1
@@ -115,26 +114,21 @@ function _get_alignment(W::Int, sym::Symbol)::Int
   end
 end
 
-
 const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
 vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])::String
 vtype(W, T::Symbol) = vtype(W, get(LLVM_TYPES_SYM, T, T))::String
-function push_julia_type!(x, W, T)
-  if W ≤ 1
+push_julia_type!(x, W, T) = if W ≤ 1
     push!(x, T)
     nothing
   else
     push!(x, Expr(:curly, :_Vec, W, T))
     nothing
   end
-end
-function append_julia_type!(x, Ws, Ts)
-  for i ∈ eachindex(Ws)
+append_julia_type!(x, Ws, Ts) = for i ∈ eachindex(Ws)
     push_julia_type!(x, Ws[i], Ts[i])
   end
-end
 
 ptr_suffix(T) = "p0" * suffix(T)
 ptr_suffix(W, T) = suffix(W, ptr_suffix(T))
@@ -166,7 +160,8 @@ function llvmconst(W::Int, @nospecialize(T), val)::String
   '<' * join(("$typ $(val)" for _ in Base.OneTo(W)), ", ") * '>'
 end
 function llvmconst(W::Int, ::Type{Bool}, val)::String
-  Bool(val) ? '<' * join(("i1 $(Int(val))" for _ in Base.OneTo(W)), ", ") * '>' :
+  Bool(val) ?
+  '<' * join(("i1 $(Int(val))" for _ in Base.OneTo(W)), ", ") * '>' :
   "zeroinitializer"
 end
 function llvmconst(W::Int, v::String)::String
@@ -202,7 +197,11 @@ function build_llvmcall_expr(op, WR, R::Symbol, WA, TA, ::Nothing = nothing)
   for n ∈ eachindex(TA)
     push!(call.args, Expr(:call, :data, Symbol(:v, n)))
   end
-  Expr(:block, Expr(:meta, :inline), isone(abs(WR)) ? call : Expr(:call, :Vec, call))
+  Expr(
+    :block,
+    Expr(:meta, :inline),
+    isone(abs(WR)) ? call : Expr(:call, :Vec, call)
+  )
 end
 function build_llvmcall_expr(op, WR, R::Symbol, WA, TA, flags::String)
   lret = LLVM_TYPES_SYM[R]
@@ -230,7 +229,7 @@ function build_llvmcall_expr(op, WR, R::Symbol, WA, TA, flags::String)
       args,
       lvret,
       larg_types,
-      arg_syms,
+      arg_syms
     )
   end
 end
@@ -256,7 +255,13 @@ end
         }
     """
     # attributes #0 = { alwaysinline }
-    call = Expr(:call, LLVMCALL, (mod::String, "entry")::Tuple{String,String}, ret, args)
+    call = Expr(
+      :call,
+      LLVMCALL,
+      (mod::String, "entry")::Tuple{String,String},
+      ret,
+      args
+    )
     for arg ∈ arg_syms
       push!(call.args, arg)
     end
@@ -267,9 +272,9 @@ end
     callonly && return call
     meta = if VERSION ≥ v"1.8.0-beta"
       purity = if touchesmemory
-        Expr(:purity,false,false,true,true,false)
+        Expr(:purity, false, false, true, true, false)
       else
-        Expr(:purity,true,true,true,true,false)
+        Expr(:purity, true, true, true, true, false)
       end
       VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
       Expr(:meta, purity, :inline)

@@ -24,7 +24,8 @@ end
 @inline vinv(v) = inv(v)
 @inline vinv(v::AbstractSIMD{W,<:FloatingTypes}) where {W} = vfdiv(one(v), v)
 @inline vinv(v::AbstractSIMD{W,<:IntegerTypesHW}) where {W} = inv(float(v))
-@inline Base.FastMath.inv_fast(v::AbstractSIMD) = Base.FastMath.div_fast(one(v), v)
+@inline Base.FastMath.inv_fast(v::AbstractSIMD) =
+  Base.FastMath.div_fast(one(v), v)
 
 @inline vabs(v) = abs(v)
 @inline vabs(v::AbstractSIMD{W,<:Unsigned}) where {W} = v
@@ -32,8 +33,10 @@ end
 
 @inline vround(v) = round(v)
 @inline vround(v::AbstractSIMD{W,<:Union{Integer,StaticInt}}) where {W} = v
-@inline vround(v::AbstractSIMD{W,<:Union{Integer,StaticInt}}, ::RoundingMode) where {W} = v
-
+@inline vround(
+  v::AbstractSIMD{W,<:Union{Integer,StaticInt}},
+  ::RoundingMode
+) where {W} = v
 
 function bswap_quote(W::Int, T::Symbol, st::Int)::Expr
   typ = 'i' * string(8st)
@@ -45,13 +48,22 @@ function bswap_quote(W::Int, T::Symbol, st::Int)::Expr
     ret $vtyp %res
   """
   ret_type = :(_Vec{$W,$T})
-  llvmcall_expr(decl, instrs, ret_type, :(Tuple{$ret_type}), vtyp, [vtyp], [:(data(x))])
+  llvmcall_expr(
+    decl,
+    instrs,
+    ret_type,
+    :(Tuple{$ret_type}),
+    vtyp,
+    [vtyp],
+    [:(data(x))]
+  )
 end
 @generated Base.bswap(x::Vec{W,T}) where {T<:IntegerTypesHW,W} =
   bswap_quote(W, JULIA_TYPES[T], sizeof(T))
 @inline Base.bswap(x::VecUnroll{<:Any,<:Any,<:IntegerTypesHW}) =
   VecUnroll(fmap(bswap, data(x)))
-@inline Base.bswap(x::AbstractSIMDVector{<:Any,<:IntegerTypesHW}) = bswap(Vec(x))
+@inline Base.bswap(x::AbstractSIMDVector{<:Any,<:IntegerTypesHW}) =
+  bswap(Vec(x))
 @inline Base.bswap(x::AbstractSIMD{<:Any,Float16}) =
   reinterpret(Float16, bswap(reinterpret(UInt16, x)))
 @inline Base.bswap(x::AbstractSIMD{<:Any,Float32}) =

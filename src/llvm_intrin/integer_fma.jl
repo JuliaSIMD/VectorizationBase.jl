@@ -21,16 +21,22 @@ function ifmahi_quote(W)
       ret $t64 %res
   """
   jt = W > 1 ? :(_Vec{$W,UInt64}) : :UInt64
-  call = :($LLVMCALL($instrs, $jt, Tuple{$jt,$jt,$jt}, data(v1), data(v2), data(v3)))
+  call =
+    :($LLVMCALL($instrs, $jt, Tuple{$jt,$jt,$jt}, data(v1), data(v2), data(v3)))
   W > 1 && (call = Expr(:call, :Vec, call))
   Expr(:block, Expr(:meta, :inline), call)
 end
 @generated _ifmahi(v1::UInt64, v2::UInt64, v3::UInt64) = ifmahi_quote(1)
-@generated __ifmahi(v1::Vec{W,UInt64}, v2::Vec{W,UInt64}, v3::Vec{W,UInt64}) where {W} =
-  ifmahi_quote(W)
+@generated __ifmahi(
+  v1::Vec{W,UInt64},
+  v2::Vec{W,UInt64},
+  v3::Vec{W,UInt64}
+) where {W} = ifmahi_quote(W)
 
 function ifmaquote(W::Int, lo::Bool)
-  op = lo ? "@llvm.x86.avx512.vpmadd52l.uq.$(64W)" : "@llvm.x86.avx512.vpmadd52h.uq.$(64W)"
+  op =
+    lo ? "@llvm.x86.avx512.vpmadd52l.uq.$(64W)" :
+    "@llvm.x86.avx512.vpmadd52h.uq.$(64W)"
   decl = "declare <$W x i64> $op(<$W x i64>, <$W x i64>, <$W x i64>)"
   instrs = "%res = call <$W x i64> $op(<$W x i64> %0, <$W x i64> %1, <$W x i64> %2)\n ret <$W x i64> %res"
   llvmcall_expr(
@@ -40,36 +46,40 @@ function ifmaquote(W::Int, lo::Bool)
     :(Tuple{_Vec{$W,UInt64},_Vec{$W,UInt64},_Vec{$W,UInt64}}),
     "<$W x i64>",
     ["<$W x i64>", "<$W x i64>", "<$W x i64>"],
-    [:(data(v3)), :(data(v1)), :(data(v2))],
+    [:(data(v3)), :(data(v1)), :(data(v2))]
   )
 end
 @generated _ifmalo(
   v1::Vec{W,UInt64},
   v2::Vec{W,UInt64},
   v3::Vec{W,UInt64},
-  ::True,
+  ::True
 ) where {W} = ifmaquote(W, true)
 @generated _ifmahi(
   v1::Vec{W,UInt64},
   v2::Vec{W,UInt64},
   v3::Vec{W,UInt64},
-  ::True,
+  ::True
 ) where {W} = ifmaquote(W, false)
 
 @inline _ifmalo(
   v1::Vec{W,UInt64},
   v2::Vec{W,UInt64},
   v3::Vec{W,UInt64},
-  ::False,
+  ::False
 ) where {W} = __ifmalo(v1, v2, v3)
 @inline _ifmahi(
   v1::Vec{W,UInt64},
   v2::Vec{W,UInt64},
   v3::Vec{W,UInt64},
-  ::False,
+  ::False
 ) where {W} = __ifmahi(v1, v2, v3)
 
-@inline function _ifmalo(v1::Vec{W,UInt64}, v2::Vec{W,UInt64}, v3::Vec{W,UInt64}) where {W}
+@inline function _ifmalo(
+  v1::Vec{W,UInt64},
+  v2::Vec{W,UInt64},
+  v3::Vec{W,UInt64}
+) where {W}
   use_ifma =
     (has_feature(Val(:x86_64_avx512ifma)) & _ispow2(StaticInt{W}())) & (
       gt(StaticInt{W}(), StaticInt{8}()) &
@@ -77,7 +87,11 @@ end
     )
   _ifmalo(v1, v2, v3, use_ifma)
 end
-@inline function _ifmahi(v1::Vec{W,UInt64}, v2::Vec{W,UInt64}, v3::Vec{W,UInt64}) where {W}
+@inline function _ifmahi(
+  v1::Vec{W,UInt64},
+  v2::Vec{W,UInt64},
+  v3::Vec{W,UInt64}
+) where {W}
   use_ifma =
     (has_feature(Val(:x86_64_avx512ifma)) & _ispow2(StaticInt{W}())) & (
       gt(StaticInt{W}(), StaticInt{8}()) &
@@ -108,7 +122,7 @@ Requires `has_feature(Val(:x86_64_avx512ifma))` to be fast.
   a::Vec{W,UInt64},
   b::Vec{W,UInt64},
   c::Vec{W,UInt64},
-  ::True,
+  ::True
 ) where {W}
   ifmalo(a, b, c)
 end
@@ -116,11 +130,15 @@ end
   a::Vec{W,UInt64},
   b::Vec{W,UInt64},
   c::Vec{W,UInt64},
-  ::False,
+  ::False
 ) where {W}
   Base.FastMath.add_fast(Base.FastMath.mul_fast(a, b), c)
 end
 
-@inline function vfmadd_fast(a::Vec{W,UInt64}, b::Vec{W,UInt64}, c::Vec{W,UInt64}) where {W}
+@inline function vfmadd_fast(
+  a::Vec{W,UInt64},
+  b::Vec{W,UInt64},
+  c::Vec{W,UInt64}
+) where {W}
   _vfmadd_fast_uint64(a, b, c, has_feature(Val(:x86_64_avx512ifma)))
 end

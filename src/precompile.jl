@@ -7,15 +7,17 @@ function _precompile_()
   #   end
   # end
 
-
-  precompile(offset_ptr, (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int))
+  precompile(
+    offset_ptr,
+    (Symbol, Symbol, Char, Int, Int, Int, Int, Int, Bool, Int)
+  )
   precompile(
     vload_quote_llvmcall_core,
-    (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int),
+    (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Int)
   )
   precompile(
     vstore_quote,
-    (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int),
+    (Symbol, Symbol, Symbol, Int, Int, Int, Int, Bool, Bool, Bool, Bool, Int)
   )
 
   precompile(Tuple{typeof(transpose_vecunroll_quote_W_smaller),Int,Int})   # time: 0.02420761
@@ -30,8 +32,8 @@ function _precompile_()
       Symbol,
       Bool,
       Int,
-      Bool,
-    },
+      Bool
+    }
   )   # time: 0.02125804
   precompile(Tuple{typeof(transpose_vecunroll_quote_W_larger),Int,Int})   # time: 0.01755242
   precompile(Tuple{typeof(shufflevector_instrs),Int,Type,Vector{String},Int})   # time: 0.0159487
@@ -56,11 +58,21 @@ function _precompile_()
       Int64,
       Symbol,
       UInt64,
-      Bool,
-    },
+      Bool
+    }
   )   # time: 0.006213663
   precompile(
-    Tuple{typeof(vstore_unroll_i_quote),Int64,Int64,Int64,Bool,Bool,Bool,Int64,Bool},
+    Tuple{
+      typeof(vstore_unroll_i_quote),
+      Int64,
+      Int64,
+      Int64,
+      Bool,
+      Bool,
+      Bool,
+      Int64,
+      Bool
+    }
   )   # time: 0.002936335
 
   precompile(
@@ -75,8 +87,8 @@ function _precompile_()
       Int,
       Bool,
       Int,
-      UInt,
-    },
+      UInt
+    }
   )
   precompile(
     Tuple{
@@ -92,8 +104,8 @@ function _precompile_()
       Bool,
       Bool,
       Int,
-      Bool,
-    },
+      Bool
+    }
   )
 
   precompile(Tuple{typeof(collapse_expr),Int64,Symbol,Int64})   # time: 0.003906299

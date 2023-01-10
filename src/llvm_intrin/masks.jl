@@ -57,7 +57,15 @@ function binary_mask_op(W, U, op, evl::Symbol = Symbol(""))
   gf = GlobalRef(Core, :getfield)
   gf1 = Expr(:call, gf, :m1, 1, false)
   gf2 = Expr(:call, gf, :m2, 1, false)
-  llvmc = Expr(:call, GlobalRef(Base, :llvmcall), instrs, U, :(Tuple{$U,$U}), gf1, gf2)
+  llvmc = Expr(
+    :call,
+    GlobalRef(Base, :llvmcall),
+    instrs,
+    U,
+    :(Tuple{$U,$U}),
+    gf1,
+    gf2
+  )
   call = Expr(:call, mask, llvmc)
   evl === Symbol("") ||
     push!(call.args, Expr(:call, evl, :($gf(m1, :evl)), :($gf(m2, :evl))))
@@ -73,15 +81,18 @@ for (f, op, evl) ∈ [
   (:vor, "or", :max),
   (:vxor, "xor", Symbol("")),
   (:veq, "icmp eq", Symbol("")),
-  (:vne, "icmp ne", Symbol("")),
+  (:vne, "icmp ne", Symbol(""))
 ]
   @eval begin
-    @generated function $f(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U}
+    @generated function $f(
+      m1::AbstractMask{W,U},
+      m2::AbstractMask{W,U}
+    ) where {W,U}
       binary_mask_op(
         W,
         U,
         $op,
-        ((m1 <: EVLMask) && (m2 <: EVLMask)) ? $(QuoteNode(evl)) : Symbol(""),
+        ((m1 <: EVLMask) && (m2 <: EVLMask)) ? $(QuoteNode(evl)) : Symbol("")
       )
     end
   end
@@ -97,14 +108,14 @@ end
 
 @generated function vconvert(
   ::Type{Vec{W,I}},
-  m::AbstractMask{W,U},
+  m::AbstractMask{W,U}
 ) where {W,I<:IntegerTypesHW,U<:Union{UInt8,UInt16,UInt32,UInt64}}
   bits = 8sizeof(I)
   instrs = String[]
   truncate_mask!(instrs, '0', W, 0)
   push!(
     instrs,
-    "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res",
+    "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res"
   )
   gf = Expr(:call, GlobalRef(Core, :getfield), :m, 1, false)
   llvmc = Expr(
@@ -113,15 +124,14 @@ end
     join(instrs, "\n"),
     :(_Vec{$W,$I}),
     :(Tuple{$U}),
-    gf,
+    gf
   )
   Expr(:block, Expr(:meta, :inline), Expr(:call, :Vec, llvmc))
 end
 
-
 @generated function splitint(
   i::S,
-  ::Type{T},
+  ::Type{T}
 ) where {S<:Base.BitInteger,T<:Union{Bool,Base.BitInteger}}
   sizeof_S = sizeof(S)
   sizeof_T = sizeof(T)
@@ -142,7 +152,9 @@ end
     Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{$S}, i))
   end
 end
-@generated function fuseint(v::Vec{W,I}) where {W,I<:Union{Bool,Base.BitInteger}}
+@generated function fuseint(
+  v::Vec{W,I}
+) where {W,I<:Union{Bool,Base.BitInteger}}
   @assert ispow2(W)
   bytes = W * sizeof(I)
   bits = 8bytes
@@ -160,7 +172,6 @@ end
   end
 end
 
-
 function vadd_expr(W, U, instr)
   instrs = String[]
   truncate_mask!(instrs, '0', W, 0)
@@ -170,7 +181,7 @@ function vadd_expr(W, U, instr)
     """%uv.0 = zext <$W x i1> %mask.0 to <$W x i8>
 %uv.1 = zext <$W x i1> %mask.1 to <$W x i8>
 %res = $instr <$W x i8> %uv.0, %uv.1
-ret <$W x i8> %res""",
+ret <$W x i8> %res"""
   )
   Expr(
     :block,
@@ -181,17 +192,19 @@ ret <$W x i8> %res""",
         _Vec{$W,UInt8},
         Tuple{$U,$U},
         getfield(m1, :u),
-        getfield(m2, :u),
-      ),
-    )),
+        getfield(m2, :u)
+      )
+    ))
   )
 end
 @generated vadd_fast(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} =
   vadd_expr(W, U, "add")
 @generated vsub_fast(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} =
   vadd_expr(W, U, "sub")
-@inline vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vadd_fast(m1, m2)
-@inline vsub(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} = vsub_fast(m1, m2)
+@inline vadd(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} =
+  vadd_fast(m1, m2)
+@inline vsub(m1::AbstractMask{W,U}, m2::AbstractMask{W,U}) where {W,U} =
+  vsub_fast(m1, m2)
 
 @inline Base.:(&)(m::AbstractMask{W,U}, b::Bool) where {W,U} =
   Mask{W,U}(Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))))
@@ -206,26 +219,26 @@ end
 @inline function Base.:(&)(m::EVLMask{W,U}, b::Bool) where {W,U}
   EVLMask{W,U}(
     Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))),
-    Core.ifelse(b, getfield(m, :evl), 0x00000000),
+    Core.ifelse(b, getfield(m, :evl), 0x00000000)
   )
 end
 @inline function Base.:(&)(b::Bool, m::EVLMask{W,U}) where {W,U}
   EVLMask{W,U}(
     Core.ifelse(b, getfield(m, :u), zero(getfield(m, :u))),
-    Core.ifelse(b, getfield(m, :evl), 0x00000000),
+    Core.ifelse(b, getfield(m, :evl), 0x00000000)
   )
 end
 
 @inline function Base.:(|)(m::EVLMask{W,U}, b::Bool) where {W,U}
   EVLMask{W,U}(
     Core.ifelse(b, getfield(max_mask(Mask{W,U}), :u), getfield(m, :u)),
-    Core.ifelse(b, W % UInt32, getfield(m, :evl)),
+    Core.ifelse(b, W % UInt32, getfield(m, :evl))
   )
 end
 @inline function Base.:(|)(b::Bool, m::EVLMask{W,U}) where {W,U}
   EVLMask{W,U}(
     Core.ifelse(b, getfield(max_mask(Mask{W,U}), :u), getfield(m, :u)),
-    Core.ifelse(b, W % UInt32, getfield(m, :evl)),
+    Core.ifelse(b, W % UInt32, getfield(m, :evl))
   )
 end
 
@@ -242,9 +255,11 @@ end
   Mask{W,U}(vlshr(getfield(m, :u), i))
 
 @inline zero_mask(::AbstractSIMDVector{W}) where {W} = Mask(zero_mask(Val(W)))
-@inline zero_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(zero_mask(Val(W))))
+@inline zero_mask(::VecUnroll{N,W}) where {N,W} =
+  VecUnroll{N}(Mask(zero_mask(Val(W))))
 @inline max_mask(::AbstractSIMDVector{W}) where {W} = Mask(max_mask(Val(W)))
-@inline max_mask(::VecUnroll{N,W}) where {N,W} = VecUnroll{N}(Mask(max_mask(Val(W))))
+@inline max_mask(::VecUnroll{N,W}) where {N,W} =
+  VecUnroll{N}(Mask(max_mask(Val(W))))
 @inline zero_mask(::NativeTypes) = false
 @inline max_mask(::NativeTypes) = true
 
@@ -295,7 +310,11 @@ end
   Expr(
     :block,
     Expr(:meta, :inline),
-    Expr(:call, Expr(:curly, :Mask, W), Expr(:call, :zero, mask_type_symbol(W))),
+    Expr(
+      :call,
+      Expr(:curly, :Mask, W),
+      Expr(:call, :zero, mask_type_symbol(W))
+    )
   )
 end
 @generated function vzero(::Type{M}) where {W,M<:EVLMask{W}}
@@ -306,8 +325,8 @@ end
       :call,
       Expr(:curly, :EVLMask, W),
       Expr(:call, :zero, mask_type_symbol(W)),
-      0x00000000,
-    ),
+      0x00000000
+    )
   )
 end
 @inline vzero(::Mask{W,U}) where {W,U} = Mask{W}(zero(U))
@@ -326,7 +345,7 @@ end
 
 @generated function valrem(
   ::Union{Val{W},StaticInt{W}},
-  l::T,
+  l::T
 ) where {W,T<:Union{Integer,StaticInt}}
   ex = ispow2(W) ? :(l & $(T(W - 1))) : Expr(:call, Base.urem_int, :l, T(W))
   Expr(:block, Expr(:meta, :inline), ex)
@@ -354,7 +373,7 @@ end
 # end
 @generated function _mask_bzhi(
   ::Union{Val{W},StaticInt{W}},
-  l::I,
+  l::I
 ) where {W,I<:Union{Integer,StaticInt}}
   U = mask_type_symbol(W)
   T = W > 32 ? :UInt64 : :UInt32
@@ -399,11 +418,16 @@ function mask_shift_quote(W::Int, bmi::Bool)
   quote # If the arch has opmask registers, we can generate a bitmask and then move it into the opmask register
     $(Expr(:meta, :inline))
     evl = valrem(Val{$W}(), (l % $MT) - one($MT))
-    EVLMask{$W,$MT}($(typemax(MT)) >>> ($(MT(8sizeof(MT)) - 1) - evl), evl + one(evl))
+    EVLMask{$W,$MT}(
+      $(typemax(MT)) >>> ($(MT(8sizeof(MT)) - 1) - evl),
+      evl + one(evl)
+    )
   end
 end
-@generated _mask_shift(::StaticInt{W}, l, ::True) where {W} = mask_shift_quote(W, true)
-@generated _mask_shift(::StaticInt{W}, l, ::False) where {W} = mask_shift_quote(W, false)
+@generated _mask_shift(::StaticInt{W}, l, ::True) where {W} =
+  mask_shift_quote(W, true)
+@generated _mask_shift(::StaticInt{W}, l, ::False) where {W} =
+  mask_shift_quote(W, false)
 @static if Base.libllvm_version ≥ v"12"
   function active_lane_mask_quote(W::Int)
     quote
@@ -417,7 +441,11 @@ else
   function active_lane_mask_quote(W::Int)
     quote
       $(Expr(:meta, :inline))
-      mask(Val{$W}(), 0x00000000, vsub_nw(l % UInt32, 0x00000001) & $(UInt32(W - 1)))
+      mask(
+        Val{$W}(),
+        0x00000000,
+        vsub_nw(l % UInt32, 0x00000001) & $(UInt32(W - 1))
+      )
     end
   end
 end
@@ -436,30 +464,30 @@ end
   ::Union{Val{W},StaticInt{W}},
   l::I,
   ::StaticInt{RS},
-  ::True,
+  ::True
 ) where {W,RS,I<:Union{Integer,StaticInt}} = mask_cmp_quote(W, RS, true)
 @generated _mask_cmp(
   ::Union{Val{W},StaticInt{W}},
   l::I,
   ::StaticInt{RS},
-  ::False,
+  ::False
 ) where {W,RS,I<:Union{Integer,StaticInt}} = mask_cmp_quote(W, RS, false)
 @generated _mask(
   ::Union{Val{W},StaticInt{W}},
   l::I,
-  ::True,
+  ::True
 ) where {W,I<:Union{Integer,StaticInt}} = mask_shift_quote(W, true)
 @generated function _mask(
   ::Union{Val{W},StaticInt{W}},
   l::I,
-  ::False,
+  ::False
 ) where {W,I<:Union{Integer,StaticInt}}
   # Otherwise, it's probably more efficient to use a comparison, as this will probably create some type that can be used directly for masked moves/blends/etc
   if W > 16
     Expr(
       :block,
       Expr(:meta, :inline),
-      :(_mask_shift(StaticInt{$W}(), l, has_feature(Val(:x86_64_bmi2)))),
+      :(_mask_shift(StaticInt{$W}(), l, has_feature(Val(:x86_64_bmi2))))
     )
     # mask_shift_quote(W)
     # elseif (Base.libllvm_version ≥ v"11") && ispow2(W)
@@ -475,19 +503,28 @@ end
         Val{$W}(),
         l,
         simd_integer_register_size(),
-        has_feature(Val(:x86_64_bmi2)),
-      )),
+        has_feature(Val(:x86_64_bmi2))
+      ))
     )
   end
 end
 # This `mask` method returns a constant, independent of `has_opmask_registers()`; that only effects method of calculating
 # the constant. So it'd be safe to bake in a value.
-@inline mask(::Union{Val{W},StaticInt{W}}, L) where {W} =
-  _mask(StaticInt(W), L, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
-@inline mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W,L} =
-  _mask(StaticInt(W), L, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
-@inline mask(::Type{T}, l::Union{Integer,StaticInt}) where {T} =
-  _mask(pick_vector_width(T), l, has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name()))
+@inline mask(::Union{Val{W},StaticInt{W}}, L) where {W} = _mask(
+  StaticInt(W),
+  L,
+  has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name())
+)
+@inline mask(::Union{Val{W},StaticInt{W}}, ::StaticInt{L}) where {W,L} = _mask(
+  StaticInt(W),
+  L,
+  has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name())
+)
+@inline mask(::Type{T}, l::Union{Integer,StaticInt}) where {T} = _mask(
+  pick_vector_width(T),
+  l,
+  has_feature(Val(:x86_64_avx512f)) & ge_one_fma(cpu_name())
+)
 
 # @generated function masktable(::Union{Val{W},StaticInt{W}}, rem::Union{Integer,StaticInt}) where {W}
 #     masks = Expr(:tuple)
@@ -516,7 +553,9 @@ end
   push!(instrs, "ret i$(usize) %res.0")
   quote
     $(Expr(:meta, :inline))
-    Mask{$W}($LLVMCALL($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v)))
+    Mask{$W}(
+      $LLVMCALL($(join(instrs, "\n")), $U, Tuple{_Vec{$W,Bool}}, data(v))
+    )
   end
 end
 @inline tomask(v::AbstractSIMDVector{W,Bool}) where {W} =
@@ -531,7 +570,7 @@ end
   truncate_mask!(instrs, '0', W, 0)
   push!(
     instrs,
-    "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res",
+    "%res = zext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res"
   )
   quote
     $(Expr(:meta, :inline))
@@ -557,19 +596,22 @@ end
 @generated function insertelement(
   v::Mask{W,U},
   x::T,
-  i::I,
+  i::I
 ) where {W,T,U,I<:Union{Bool,IntegerTypesHW}}
   mtyp_input = "i$(max(8,nextpow2(W)))"
   instrs = String["%bit = trunc i$(8sizeof(T)) %1 to i1"]
   truncate_mask!(instrs, '0', W, 0)
-  push!(instrs, "%bitvec = insertelement <$W x i1> %mask.0, i1 %bit, i$(8sizeof(I)) %2")
+  push!(
+    instrs,
+    "%bitvec = insertelement <$W x i1> %mask.0, i1 %bit, i$(8sizeof(I)) %2"
+  )
   zext_mask!(instrs, "bitvec", W, 1)
   push!(instrs, "ret $(mtyp_input) %res.1")
   instrs_string = join(instrs, "\n")
-  call = :(Mask{$W}($LLVMCALL($instrs_string, $U, Tuple{$U,$T,$I}, data(v), x, i)))
+  call =
+    :(Mask{$W}($LLVMCALL($instrs_string, $U, Tuple{$U,$T,$I}, data(v), x, i)))
   Expr(:block, Expr(:meta, :inline), call)
 end
-
 
 # @generated function Base.isodd(i::MM{W,1}) where {W}
 #     U = mask_type(W)
@@ -585,10 +627,12 @@ end
 #     Expr(:block, Expr(:meta, :inline), :(Mask{$W}($oddfirst >> (getfield(i, :i) & 0x03))))
 # end
 @inline Base.isodd(i::MM{W,1}) where {W} = Mask{W}(
-  (0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>> (getfield(i, :i) & 0x01),
+  (0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa % mask_type(Val{W}())) >>>
+  (getfield(i, :i) & 0x01)
 )
 @inline Base.iseven(i::MM{W,1}) where {W} = Mask{W}(
-  (0x55555555555555555555555555555555 % mask_type(Val{W}())) << (getfield(i, :i) & 0x01),
+  (0x55555555555555555555555555555555 % mask_type(Val{W}())) <<
+  (getfield(i, :i) & 0x01)
 )
 @inline Base.isodd(m::AbstractMask) = m
 @inline Base.iseven(m::AbstractMask) = !m
@@ -608,8 +652,8 @@ function cmp_quote(W, cond, vtyp, T1, T2 = T1)
         $U,
         Tuple{_Vec{$W,$T1},_Vec{$W,$T2}},
         data(v1),
-        data(v2),
-      ),
+        data(v2)
+      )
     )
   end
 end
@@ -628,14 +672,14 @@ end
 for (f, cond) ∈ [(:veq, "eq"), (:vne, "ne")]
   @eval @generated function $f(
     v1::Vec{W,T1},
-    v2::Vec{W,T2},
+    v2::Vec{W,T2}
   ) where {W,T1<:IntegerTypesHW,T2<:IntegerTypesHW}
     if sizeof(T1) != sizeof(T2)
       return Expr(
         :block,
         Expr(:meta, :inline),
         :((v3, v4) = promote(v1, v2)),
-        Expr(:call, $f, :v3, :v4),
+        Expr(:call, $f, :v3, :v4)
       )
     end
     icmp_quote(W, $cond, sizeof(T1), T1, T2)
@@ -659,12 +703,12 @@ for (f, cond) ∈ [
   (:vge, "oge"),
   (:vlt, "olt"),
   (:vle, "ole"),
-  (:vne, "une"),
+  (:vne, "une")
 ]
   # for (f,cond) ∈ [(:veq, "ueq"), (:vgt, "ugt"), (:vge, "uge"), (:vlt, "ult"), (:vle, "ule"), (:vne, "une")]
   @eval @generated function $f(
     v1::Vec{W,T},
-    v2::Vec{W,T},
+    v2::Vec{W,T}
   ) where {W,T<:Union{Float32,Float64}}
     fcmp_quote(W, $cond, T)
   end
@@ -672,54 +716,54 @@ end
 
 @inline function vgt(
   v1::AbstractSIMDVector{W,S},
-  v2::AbstractSIMDVector{W,U},
+  v2::AbstractSIMDVector{W,U}
 ) where {W,S<:SignedHW,U<:UnsignedHW}
   (v1 > zero(S)) & (vconvert(U, v1) > v2)
 end
 @inline function vgt(
   v1::AbstractSIMDVector{W,U},
-  v2::AbstractSIMDVector{W,S},
+  v2::AbstractSIMDVector{W,S}
 ) where {W,S<:SignedHW,U<:UnsignedHW}
   (v2 < zero(S)) | (vconvert(S, v1) > v2)
 end
 
 @inline function vge(
   v1::AbstractSIMDVector{W,S},
-  v2::AbstractSIMDVector{W,U},
+  v2::AbstractSIMDVector{W,U}
 ) where {W,S<:SignedHW,U<:UnsignedHW}
   (v1 ≥ zero(S)) & (vconvert(U, v1) ≥ v2)
 end
 @inline function vge(
   v1::AbstractSIMDVector{W,U},
-  v2::AbstractSIMDVector{W,S},
+  v2::AbstractSIMDVector{W,S}
 ) where {W,S<:SignedHW,U<:UnsignedHW}
   (v2 < zero(S)) | (vconvert(S, v1) ≥ v2)
 end
 
 @inline vlt(
   v1::AbstractSIMDVector{W,S},
-  v2::AbstractSIMDVector{W,U},
+  v2::AbstractSIMDVector{W,U}
 ) where {W,S<:SignedHW,U<:UnsignedHW} = vgt(v2, v1)
 @inline vlt(
   v1::AbstractSIMDVector{W,U},
-  v2::AbstractSIMDVector{W,S},
+  v2::AbstractSIMDVector{W,S}
 ) where {W,S<:SignedHW,U<:UnsignedHW} = vgt(v2, v1)
 @inline vle(
   v1::AbstractSIMDVector{W,S},
-  v2::AbstractSIMDVector{W,U},
+  v2::AbstractSIMDVector{W,U}
 ) where {W,S<:SignedHW,U<:UnsignedHW} = vge(v2, v1)
 @inline vle(
   v1::AbstractSIMDVector{W,U},
-  v2::AbstractSIMDVector{W,S},
+  v2::AbstractSIMDVector{W,S}
 ) where {W,S<:SignedHW,U<:UnsignedHW} = vge(v2, v1)
 for (op, f) ∈ [(:vgt, :(>)), (:vge, :(≥)), (:vlt, :(<)), (:vle, :(≤))]
   @eval begin
     @inline function $op(
       v1::V1,
-      v2::V2,
+      v2::V2
     ) where {
       V1<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}},
-      V2<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}},
+      V2<:Union{IntegerTypesHW,AbstractSIMDVector{<:Any,<:IntegerTypesHW}}
     }
       V3 = promote_type(V1, V2)
       $op(itosize(v1, V3), itosize(v2, V3))
@@ -729,7 +773,8 @@ for (op, f) ∈ [(:vgt, :(>)), (:vge, :(≥)), (:vlt, :(<)), (:vle, :(≤))]
       $op(v3, v4)
     end
     @inline $op(s1::IntegerTypesHW, s2::IntegerTypesHW) = $f(s1, s2)
-    @inline $op(s1::Union{Float32,Float64}, s2::Union{Float32,Float64}) = $f(s1, s2)
+    @inline $op(s1::Union{Float32,Float64}, s2::Union{Float32,Float64}) =
+      $f(s1, s2)
   end
 end
 for (op, f) ∈ [(:veq, :(==)), (:vne, :(≠))]
@@ -739,7 +784,11 @@ for (op, f) ∈ [(:veq, :(==)), (:vne, :(≠))]
   end
 end
 
-@generated function vifelse(m::AbstractMask{W,U}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,U,T}
+@generated function vifelse(
+  m::AbstractMask{W,U},
+  v1::Vec{W,T},
+  v2::Vec{W,T}
+) where {W,U,T}
   typ = LLVM_TYPES[T]
   vtyp = vtype(W, typ)
   selty = vtype(W, "i1")
@@ -759,8 +808,8 @@ end
         Tuple{$U,_Vec{$W,$T},_Vec{$W,$T}},
         data(m),
         data(v1),
-        data(v2),
-      ),
+        data(v2)
+      )
     )
   end
 end
@@ -771,31 +820,44 @@ end
   vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
 @inline vifelse(m::AbstractMask{W,U}, s1, s2) where {W,U} =
   ((x1, x2) = promote(s1, s2); vifelse(m, x1, x2))
-@inline vifelse(m::AbstractMask{W}, v1::VecUnroll{N,W}, v2::VecUnroll{N,W}) where {N,W} =
+@inline vifelse(
+  m::AbstractMask{W},
+  v1::VecUnroll{N,W},
+  v2::VecUnroll{N,W}
+) where {N,W} =
   VecUnroll(fmap(vifelse, m, getfield(v1, :data), getfield(v2, :data)))
 @inline vifelse(m::AbstractMask, a::MM, b::MM) = vifelse(m, Vec(a), Vec(b))
 
 @inline Base.Bool(m::AbstractMask{1,UInt8}) = (getfield(m, :u) & 0x01) === 0x01
-@inline vconvert(::Type{Bool}, m::AbstractMask{1,UInt8}) = (getfield(m, :u) & 0x01) === 0x01
+@inline vconvert(::Type{Bool}, m::AbstractMask{1,UInt8}) =
+  (getfield(m, :u) & 0x01) === 0x01
 @inline vifelse(m::AbstractMask{1}, s1::T, s2::T) where {T<:NativeTypes} =
   Base.ifelse(Bool(m), s1, s2)
 @inline vifelse(
   f::F,
   m::AbstractSIMD{W,B},
-  a::Vararg{NativeTypesV,K},
+  a::Vararg{NativeTypesV,K}
 ) where {F<:Function,K,W,B<:Union{Bool,Bit}} = vifelse(m, f(a...), a[K])
-@inline vifelse(f::F, m::Bool, a::Vararg{NativeTypesV,K}) where {F<:Function,K} =
-  ifelse(m, f(a...), a[K])
+@inline vifelse(
+  f::F,
+  m::Bool,
+  a::Vararg{NativeTypesV,K}
+) where {F<:Function,K} = ifelse(m, f(a...), a[K])
 
-@inline vconvert(::Type{EVLMask{W,U}}, b::Bool) where {W,U} = b & max_mask(StaticInt{W}())
+@inline vconvert(::Type{EVLMask{W,U}}, b::Bool) where {W,U} =
+  b & max_mask(StaticInt{W}())
 
-@inline vifelse(m::AbstractMask{W}, a::AbstractMask{W}, b::AbstractMask{W}) where {W} =
-  bitselect(m, b, a)
+@inline vifelse(
+  m::AbstractMask{W},
+  a::AbstractMask{W},
+  b::AbstractMask{W}
+) where {W} = bitselect(m, b, a)
 
 @inline Base.isnan(v::AbstractSIMD) = v != v
 @inline Base.isfinite(x::AbstractSIMD) = iszero(x - x)
 
-@inline Base.flipsign(x::AbstractSIMD, y::AbstractSIMD) = vifelse(y > zero(y), x, -x)
+@inline Base.flipsign(x::AbstractSIMD, y::AbstractSIMD) =
+  vifelse(y > zero(y), x, -x)
 for T ∈ [:Float32, :Float64]
   @eval begin
     @inline Base.flipsign(x::AbstractSIMD, y::$T) = vifelse(y > zero(y), x, -x)
@@ -807,10 +869,15 @@ end
 @inline Base.flipsign(x::Signed, y::AbstractSIMD) = ifelse(y > zero(y), x, -x)
 @inline Base.isodd(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} =
   (x & one(T)) != zero(T)
-@inline Base.iseven(x::AbstractSIMD{W,T}) where {W,T<:Union{Integer,StaticInt}} =
-  (x & one(T)) == zero(T)
+@inline Base.iseven(
+  x::AbstractSIMD{W,T}
+) where {W,T<:Union{Integer,StaticInt}} = (x & one(T)) == zero(T)
 
-@generated function vifelse(m::Vec{W,Bool}, v1::Vec{W,T}, v2::Vec{W,T}) where {W,T}
+@generated function vifelse(
+  m::Vec{W,Bool},
+  v1::Vec{W,T},
+  v2::Vec{W,T}
+) where {W,T}
   typ = LLVM_TYPES[T]
   vtyp = vtype(W, typ)
   selty = vtype(W, "i1")
@@ -829,21 +896,24 @@ end
         Tuple{_Vec{$W,Bool},_Vec{$W,$T},_Vec{$W,$T}},
         data(m),
         data(v1),
-        data(v2),
-      ),
+        data(v2)
+      )
     )
   end
 end
 @inline vifelse(b::Bool, w, x) = ((y, z) = promote(w, x); vifelse(b, y, z))
-@inline vifelse(b::Bool, w::T, x::T) where {T<:Union{NativeTypes,AbstractSIMDVector}} =
-  Core.ifelse(b, w, x)
+@inline vifelse(
+  b::Bool,
+  w::T,
+  x::T
+) where {T<:Union{NativeTypes,AbstractSIMDVector}} = Core.ifelse(b, w, x)
 @inline vifelse(b::Bool, w::T, x::T) where {T<:VecUnroll} =
   VecUnroll(fmap(Core.ifelse, b, getfield(w, :data), getfield(x, :data)))
 
 @generated function vifelse(
   m::AbstractMask{W},
   vu1::VecUnroll{Nm1,Wsplit},
-  vu2::VecUnroll{Nm1,Wsplit},
+  vu2::VecUnroll{Nm1,Wsplit}
 ) where {W,Wsplit,Nm1}
   N = Nm1 + 1
   @assert N * Wsplit == W
@@ -862,8 +932,6 @@ end
 @inline vmul(v::VecUnroll{N,W,T}, b::Bool) where {N,W,T} = b ? v : zero(v)
 @inline vmul(b::Bool, v::VecUnroll{N,W,T}) where {N,W,T} = b ? v : zero(v)
 @inline vmul_fast(m1::Mask{W,U}, m2::Mask{W,U}) where {W,U} = m1 & m2
-
-
 
 @static if Base.libllvm_version ≥ v"11"
   """
@@ -947,14 +1015,14 @@ end
   @generated function mask(
     ::Union{Val{W},StaticInt{W}},
     base::T,
-    N::T,
+    N::T
   ) where {W,T<:IntegerTypesHW}
     # declare <8 x i1> @llvm.get.active.lane.mask.v8i1.i64(i64 %base, i64 %n)
     bits = 8sizeof(T)
     typ = "i$(bits)"
     decl = "declare <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ), $(typ))"
     instrs = [
-      "%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)",
+      "%m = call <$W x i1> @llvm.get.active.lane.mask.v$(W)i1.$(typ)($(typ) %0, $(typ) %1)"
     ]
     zext_mask!(instrs, 'm', W, 0)
     push!(instrs, "ret i$(max(nextpow2(W),8)) %res.0")
@@ -967,20 +1035,22 @@ end
       "i$(max(nextpow2(W),8))",
       [typ, typ],
       args,
-      true,
+      true
     )
     Expr(
       :block,
       Expr(:meta, :inline),
-      :(EVLMask{$W}($call, ((N % UInt32) - (base % UInt32)) + 0x00000001)),
+      :(EVLMask{$W}($call, ((N % UInt32) - (base % UInt32)) + 0x00000001))
     )
   end
   @inline mask(i::MM{W}, N::T) where {W,T<:IntegerTypesHW} =
     mask(Val{W}(), getfield(i, :i), N)
 end
 
-
-@generated function vcat(m1::AbstractMask{_W1}, m2::AbstractMask{_W2}) where {_W1,_W2}
+@generated function vcat(
+  m1::AbstractMask{_W1},
+  m2::AbstractMask{_W2}
+) where {_W1,_W2}
   if _W1 == _W2
     W = _W1
   else
@@ -989,7 +1059,7 @@ end
     return Expr(
       :block,
       Expr(:meta, :inline),
-      :(Mask{$W}(((data(m1) % $U) << $_W2) | (data(m2) % $U))),
+      :(Mask{$W}(((data(m1) % $U) << $_W2) | (data(m2) % $U)))
     )
   end
   mtyp_input = "i$(max(8,nextpow2(W)))"
@@ -1006,7 +1076,7 @@ end
 
   push!(
     instrs,
-    "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask",
+    "%combinedmask = shufflevector <$W x i1> %mask.0, <$W x i1> %mask.1, <$(W2) x i32> $mask"
   )
 
   mtyp_output = "i$(max(8,nextpow2(W2)))"
@@ -1018,7 +1088,9 @@ end
   Expr(
     :block,
     Expr(:meta, :inline),
-    :(Mask{$W2}($LLVMCALL($instrj, $U2, Tuple{$U,$U}, getfield(m1, :u), getfield(m2, :u)))),
+    :(Mask{$W2}(
+      $LLVMCALL($instrj, $U2, Tuple{$U,$U}, getfield(m1, :u), getfield(m2, :u))
+    ))
   )
 end
 # @inline function vcat(m1::AbstractMask{W}, m2::AbstractMask{W}) where {W}
@@ -1036,7 +1108,7 @@ end
   Mask{W}(Core.ifelse(b, getfield(m1, :u), getfield(m2, :u)))
 @inline ifelse(b::Bool, m1::EVLMask{W}, m2::EVLMask{W}) where {W} = EVLMask{W}(
   Core.ifelse(b, getfield(m1, :u), getfield(m2, :u)),
-  Core.ifelse(b, getfield(m1, :evl), getfield(m2, :evl)),
+  Core.ifelse(b, getfield(m1, :evl), getfield(m2, :evl))
 )
 
 @inline vconvert(::Type{<:AbstractMask{W}}, b::Bool) where {W} =
@@ -1050,5 +1122,3 @@ end
 @inline Base.min(x::AbstractMask, y::AbstractMask) = x & y
 @inline Base.FastMath.max_fast(x::AbstractMask, y::AbstractMask) = x | y
 @inline Base.FastMath.min_fast(x::AbstractMask, y::AbstractMask) = x & y
-
-

@@ -59,20 +59,23 @@ end
 # 5 = 101 = 2^2 + 2^0 # x^4 * x^1
 # x^5 = x^4 * x
 
-@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} = pow_by_square(v, i)
+@inline Base.:^(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} =
+  pow_by_square(v, i)
 @inline Base.:^(
   v::AbstractSIMD{W,T},
-  i::IntegerTypesHW,
+  i::IntegerTypesHW
 ) where {W,T<:Union{Float32,Float64}} = pow_by_square(v, i)
 @inline Base.:^(v::AbstractSIMD, ::StaticInt{N}) where {N} =
   pow_by_square(v, StaticInt{N}())
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, ::StaticInt{N}) where {N} =
   pow_by_square(v, StaticInt{N}())
-@inline Base.FastMath.pow_fast(v::AbstractSIMD{W,T}, i::IntegerTypesHW) where {W,T} =
-  pow_by_square(v, i)
 @inline Base.FastMath.pow_fast(
   v::AbstractSIMD{W,T},
-  i::IntegerTypesHW,
+  i::IntegerTypesHW
+) where {W,T} = pow_by_square(v, i)
+@inline Base.FastMath.pow_fast(
+  v::AbstractSIMD{W,T},
+  i::IntegerTypesHW
 ) where {W,T<:Union{Float32,Float64}} = pow_by_square(v, i)
 @inline Base.FastMath.pow_fast(v::AbstractSIMD, x::FloatingTypes) =
   exp2(Base.FastMath.log2_fast(v) * x)
@@ -87,56 +90,65 @@ end
 
 Base.sign(v::AbstractSIMD) = ifelse(v > 0, one(v), -one(v))
 
-@inline Base.fld(x::AbstractSIMD, y::AbstractSIMD) = div(promote_div(x, y)..., RoundDown)
-@inline Base.fld(x::AbstractSIMD, y::Real) = div(promote_div(x, y)..., RoundDown)
-@inline Base.fld(x::Real, y::AbstractSIMD) = div(promote_div(x, y)..., RoundDown)
+@inline Base.fld(x::AbstractSIMD, y::AbstractSIMD) =
+  div(promote_div(x, y)..., RoundDown)
+@inline Base.fld(x::AbstractSIMD, y::Real) =
+  div(promote_div(x, y)..., RoundDown)
+@inline Base.fld(x::Real, y::AbstractSIMD) =
+  div(promote_div(x, y)..., RoundDown)
 
 @inline function Base.div(
   x::AbstractSIMD{W,T},
   y::AbstractSIMD{W,T},
-  ::RoundingMode{:Down},
+  ::RoundingMode{:Down}
 ) where {W,T<:IntegerTypes}
   d = div(x, y)
   d - (signbit(x ⊻ y) & (d * y != x))
 end
 
-@inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} =
-  ifelse(y == -1, zero(x), x - fld(x, y) * y)
+@inline Base.mod(
+  x::AbstractSIMD{W,T},
+  y::AbstractSIMD{W,T}
+) where {W,T<:IntegerTypes} = ifelse(y == -1, zero(x), x - fld(x, y) * y)
 
-@inline Base.mod(x::AbstractSIMD{W,T}, y::AbstractSIMD{W,T}) where {W,T<:Unsigned} =
-  rem(x, y)
+@inline Base.mod(
+  x::AbstractSIMD{W,T},
+  y::AbstractSIMD{W,T}
+) where {W,T<:Unsigned} = rem(x, y)
 
 @inline function Base.mod(
   x::AbstractSIMD{W,T1},
-  y::T2,
+  y::T2
 ) where {W,T1<:SignedHW,T2<:UnsignedHW}
   _x, _y = promote_div(x, y)
   unsigned(mod(_x, _y))
 end
 @inline function Base.mod(
   x::AbstractSIMD{W,T1},
-  y::T2,
+  y::T2
 ) where {W,T1<:UnsignedHW,T2<:SignedHW}
   _x, _y = promote_div(x, y)
   signed(mod(_x, _y))
 end
 @inline function Base.mod(
   x::AbstractSIMD{W,T1},
-  y::AbstractSIMD{W,T2},
+  y::AbstractSIMD{W,T2}
 ) where {W,T1<:SignedHW,T2<:UnsignedHW}
   _x, _y = promote_div(x, y)
   unsigned(mod(_x, _y))
 end
 @inline function Base.mod(
   x::AbstractSIMD{W,T1},
-  y::AbstractSIMD{W,T2},
+  y::AbstractSIMD{W,T2}
 ) where {W,T1<:UnsignedHW,T2<:SignedHW}
   _x, _y = promote_div(x, y)
   signed(mod(_x, _y))
 end
 
-@inline Base.mod(i::AbstractSIMD{<:Any,<:IntegerTypes}, r::AbstractUnitRange{<:IntegerTypes}) =
-  mod(i - first(r), length(r)) + first(r)
+@inline Base.mod(
+  i::AbstractSIMD{<:Any,<:IntegerTypes},
+  r::AbstractUnitRange{<:IntegerTypes}
+) = mod(i - first(r), length(r)) + first(r)
 
 @inline Base.mod(x::AbstractSIMD, y::NativeTypes) = mod(promote_div(x, y)...)
 @inline Base.mod(x::NativeTypes, y::AbstractSIMD) = mod(promote_div(x, y)...)
@@ -151,15 +163,21 @@ for (X, L, H) in Iterators.product(fill([:Any, :Missing, :AbstractSIMD], 3)...)
   end
 end
 
-@inline Base.FastMath.hypot_fast(x::AbstractSIMD, y::AbstractSIMD) =
-  sqrt(Base.FastMath.add_fast(Base.FastMath.mul_fast(x, x), Base.FastMath.mul_fast(y, y)))
+@inline Base.FastMath.hypot_fast(x::AbstractSIMD, y::AbstractSIMD) = sqrt(
+  Base.FastMath.add_fast(
+    Base.FastMath.mul_fast(x, x),
+    Base.FastMath.mul_fast(y, y)
+  )
+)
 
-@inline Base.clamp(x::AbstractSIMD{<:Any,<:IntegerTypes}, r::AbstractUnitRange{<:IntegerTypes}) =
-  clamp(x, first(r), last(r))
+@inline Base.clamp(
+  x::AbstractSIMD{<:Any,<:IntegerTypes},
+  r::AbstractUnitRange{<:IntegerTypes}
+) = clamp(x, first(r), last(r))
 
 @inline function Base.gcd(
   a::AbstractSIMDVector{W,I},
-  b::AbstractSIMDVector{W,I},
+  b::AbstractSIMDVector{W,I}
 ) where {W,I<:Base.HWReal}
   aiszero = a == zero(a)
   biszero = b == zero(b)
@@ -184,7 +202,8 @@ end
 end
 @inline Base.gcd(a::VecUnroll, b::Real) = VecUnroll(fmap(gcd, data(a), b))
 @inline Base.gcd(a::Real, b::VecUnroll) = VecUnroll(fmap(gcd, a, data(b)))
-@inline Base.gcd(a::VecUnroll, b::VecUnroll) = VecUnroll(fmap(gcd, data(a), data(b)))
+@inline Base.gcd(a::VecUnroll, b::VecUnroll) =
+  VecUnroll(fmap(gcd, data(a), data(b)))
 @inline function Base.lcm(a::AbstractSIMD, b::AbstractSIMD)
   z = zero(a)
   isz = (a == z) | (b == z)
@@ -193,25 +212,44 @@ end
 @inline Base.lcm(a::AbstractSIMD, b::Real) = ((c, d) = promote(a, b); lcm(c, d))
 @inline Base.lcm(a::Real, b::AbstractSIMD) = ((c, d) = promote(a, b); lcm(c, d))
 
-@inline function Base.getindex(A::Array, i::AbstractSIMD, j::Vararg{AbstractSIMD,K}) where {K}
+@inline function Base.getindex(
+  A::Array,
+  i::AbstractSIMD,
+  j::Vararg{AbstractSIMD,K}
+) where {K}
   vload(stridedpointer(A), (i, j...))
 end
 
-@inline Base.Sort.midpoint(lo::AbstractSIMDVector{W,I}, hi::AbstractSIMDVector{W,I}) where {W,I<:Integer} = lo + ((hi - lo) >>> 0x01)
-@inline function Base.searchsortedlast(v::Array, x::AbstractSIMDVector{W,I}, lo::T, hi::T, o::Base.Ordering) where {W,I,T<:Integer}
+@inline Base.Sort.midpoint(
+  lo::AbstractSIMDVector{W,I},
+  hi::AbstractSIMDVector{W,I}
+) where {W,I<:Integer} = lo + ((hi - lo) >>> 0x01)
+@inline function Base.searchsortedlast(
+  v::Array,
+  x::AbstractSIMDVector{W,I},
+  lo::T,
+  hi::T,
+  o::Base.Ordering
+) where {W,I,T<:Integer}
   u = convert(T, typeof(x)(1))
   lo = lo - u
   hi = hi + u
   st = lo < hi - u
   @inbounds while vany(st)
-      m = Base.Sort.midpoint(lo, hi)
-      b = Base.Order.lt(o, x, v[m]) & st
-      hi = ifelse(b, m, hi)
-      lo = ifelse(b, lo, m)
-      st = lo < hi - u
+    m = Base.Sort.midpoint(lo, hi)
+    b = Base.Order.lt(o, x, v[m]) & st
+    hi = ifelse(b, m, hi)
+    lo = ifelse(b, lo, m)
+    st = lo < hi - u
   end
   return lo
 end
-@inline function Base.searchsortedlast(v::Array, x::VecUnroll, lo::T, hi::T, o::Base.Ordering) where {T<:Integer} 
-  VecUnroll(fmap(searchsortedlast,v, data(x), lo, hi, o))
+@inline function Base.searchsortedlast(
+  v::Array,
+  x::VecUnroll,
+  lo::T,
+  hi::T,
+  o::Base.Ordering
+) where {T<:Integer}
+  VecUnroll(fmap(searchsortedlast, v, data(x), lo, hi, o))
 end

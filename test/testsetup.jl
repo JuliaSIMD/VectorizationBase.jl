@@ -23,13 +23,14 @@ function tovector(u::VectorizationBase.VecUnroll{_N,W,_T}) where {_N,W,_T}
 end
 tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} =
   [VectorizationBase.extractelement(v, w) for w ∈ 0:W-1]
-tovector(v::VectorizationBase.LazyMulAdd) = tovector(VectorizationBase._materialize(v))
+tovector(v::VectorizationBase.LazyMulAdd) =
+  tovector(VectorizationBase._materialize(v))
 tovector(x) = x
-tovector(i::MM{W,X}) where {W,X} = collect(range(data(i), step = X, length = W))
+tovector(i::MM{W,X}) where {W,X} = collect(range(data(i); step = X, length = W))
 tovector(
-  i::MM{W,X,I},
+  i::MM{W,X,I}
 ) where {W,X,I<:Union{Int8,Int16,Int32,Int64,UInt8,UInt16,UInt32,UInt64}} =
-  collect(range(data(i), step = I(X), length = I(W)))
+  collect(range(data(i); step = I(X), length = I(W)))
 A = randn(13, 17);
 L = length(A);
 M, N = size(A);

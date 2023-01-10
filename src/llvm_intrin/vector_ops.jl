@@ -1,9 +1,14 @@
 
-function shufflevector_instrs(W::Int, @nospecialize(T), I::Vector{String}, W2::Int)
+function shufflevector_instrs(
+  W::Int,
+  @nospecialize(T),
+  I::Vector{String},
+  W2::Int
+)
   W2 > W && throw(
     ArgumentError(
-      "W for vector 1 must be at least W for vector two, but W₁ = $W < W₂ = $W2.",
-    ),
+      "W for vector 1 must be at least W for vector two, but W₁ = $W < W₂ = $W2."
+    )
   )
   typ::String = (LLVM_TYPES[T])::String
   vtyp1::String = "<$W x $typ>"
@@ -22,7 +27,10 @@ function shufflevector_instrs(W::Int, @nospecialize(T), I::Vector{String}, W2::I
     vtyp0 = "<$W2 x $typ>"
     maskpad =
       '<' *
-      join(map(w -> string("i32 ", w > W2 ? "undef" : string(w - 1)), 1:W), ", ") *
+      join(
+        map(w -> string("i32 ", w > W2 ? "undef" : string(w - 1)), 1:W),
+        ", "
+      ) *
       '>'
     M,
     """
@@ -39,28 +47,40 @@ function tupletostringvector(@nospecialize(x::NTuple{N,Int})) where {N}
   end
   y
 end
-@generated function shufflevector(v1::Vec{W,T}, v2::Vec{W2,T}, ::Val{I}) where {W,W2,T,I}
+@generated function shufflevector(
+  v1::Vec{W,T},
+  v2::Vec{W2,T},
+  ::Val{I}
+) where {W,W2,T,I}
   W ≥ W2 || throw(
     ArgumentError(
-      "`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W,$T}` and `v2` is a `Vec{$W2,$T}`.",
-    ),
+      "`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W,$T}` and `v2` is a `Vec{$W2,$T}`."
+    )
   )
   M, instrs = shufflevector_instrs(W, T, tupletostringvector(I), W2)
   quote
     $(Expr(:meta, :inline))
     Vec(
-      $LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T},_Vec{$W2,$T}}, data(v1), data(v2)),
+      $LLVMCALL(
+        $instrs,
+        _Vec{$M,$T},
+        Tuple{_Vec{$W,$T},_Vec{$W2,$T}},
+        data(v1),
+        data(v2)
+      )
     )
   end
 end
-@inline shufflevector(x::T, y::T, ::Val{(0,1)}) where {T<:NativeTypes} = Vec(x, y)
-@inline shufflevector(x::T, y::T, ::Val{(1,0)}) where {T<:NativeTypes} = Vec(y, x)
+@inline shufflevector(x::T, y::T, ::Val{(0, 1)}) where {T<:NativeTypes} =
+  Vec(x, y)
+@inline shufflevector(x::T, y::T, ::Val{(1, 0)}) where {T<:NativeTypes} =
+  Vec(y, x)
 # @inline function shufflevector(v::Vec{W,T} x::T, ::Val{I}) where {I}
-  
+
 # end
 @generated function shufflevector(v1::Vec{W,T}, ::Val{I}) where {W,T,I}
   if length(I) == 1
-    return Expr(:block, Expr(:meta,:inline), :(extractelement(v1, $(only(I)))))
+    return Expr(:block, Expr(:meta, :inline), :(extractelement(v1, $(only(I)))))
   end
   M, instrs = shufflevector_instrs(W, T, tupletostringvector(I), 0)
   quote
@@ -68,10 +88,15 @@ end
     Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W,$T}}, data(v1)))
   end
 end
-@generated function vresize(::Union{StaticInt{W},Val{W}}, v::Vec{L,T}) where {W,L,T}
+@generated function vresize(
+  ::Union{StaticInt{W},Val{W}},
+  v::Vec{L,T}
+) where {W,L,T}
   typ = LLVM_TYPES[T]
   mask =
-    '<' * join(map(x -> string("i32 ", x ≥ L ? "undef" : string(x)), 0:W-1), ", ") * '>'
+    '<' *
+    join(map(x -> string("i32 ", x ≥ L ? "undef" : string(x)), 0:W-1), ", ") *
+    '>'
   instrs = """
       %res = shufflevector <$L x $typ> %0, <$L x $typ> undef, <$W x i32> $mask
       ret <$W x $typ> %res
@@ -81,7 +106,10 @@ end
     Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$L,$T}}, data(v)))
   end
 end
-@generated function vresize(::Union{StaticInt{W},Val{W}}, v::T) where {W,T<:NativeTypes}
+@generated function vresize(
+  ::Union{StaticInt{W},Val{W}},
+  v::T
+) where {W,T<:NativeTypes}
   typ = LLVM_TYPES[T]
   vtyp = vtype(W, typ)
   instrs = """
@@ -99,14 +127,22 @@ end
   for l ∈ 2:L
     allincr &= (I[l] == I[l-1] + 1)
   end
-  allincr || return Expr(:block, Expr(:meta, :inline), :(shufflevector(Vec(i), Val{$I}())))
-  Expr(:block, Expr(:meta, :inline), :(MM{$L,$X}(extractelement(i, $(first(I))))))
+  allincr || return Expr(
+    :block,
+    Expr(:meta, :inline),
+    :(shufflevector(Vec(i), Val{$I}()))
+  )
+  Expr(
+    :block,
+    Expr(:meta, :inline),
+    :(MM{$L,$X}(extractelement(i, $(first(I)))))
+  )
 end
 @generated function vcat(a::Vec{W1,T}, b::Vec{W2,T}) where {W1,W2,T}
   W1 ≥ W2 || throw(
     ArgumentError(
-      "`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W1,$T}` and `v2` is a `Vec{$W2,$T}`.",
-    ),
+      "`v1` should be at least as long as `v2`, but `v1` is a `Vec{$W1,$T}` and `v2` is a `Vec{$W2,$T}`."
+    )
   )
   mask = Vector{String}(undef, 2W1)
   for w ∈ 0:W1+W2-1
@@ -118,18 +154,26 @@ end
   M, instrs = shufflevector_instrs(W1, T, mask, W2)
   quote
     $(Expr(:meta, :inline))
-    Vec($LLVMCALL($instrs, _Vec{$M,$T}, Tuple{_Vec{$W1,$T},_Vec{$W2,$T}}, data(a), data(b)))
+    Vec(
+      $LLVMCALL(
+        $instrs,
+        _Vec{$M,$T},
+        Tuple{_Vec{$W1,$T},_Vec{$W2,$T}},
+        data(a),
+        data(b)
+      )
+    )
   end
 end
 
-@inline vcat(x::Base.HWReal, y::Base.HWReal) = Vec(x,y)
+@inline vcat(x::Base.HWReal, y::Base.HWReal) = Vec(x, y)
 @inline vcat(
   a::VecUnroll{N,W1,T,Vec{W1,T}},
-  b::VecUnroll{N,W2,T,Vec{W2,T}},
+  b::VecUnroll{N,W2,T,Vec{W2,T}}
 ) where {N,W1,W2,T} = VecUnroll(fmap(vcat, data(a), data(b)))
 @generated function hcat(
   a::VecUnroll{N1,W,T,V},
-  b::VecUnroll{N2,W,T,V},
+  b::VecUnroll{N2,W,T,V}
 ) where {N1,N2,W,T,V}
   q = Expr(:block, Expr(:meta, :inline), :(da = data(a)), :(db = data(b)))
   t = Expr(:tuple)
@@ -142,12 +186,11 @@ end
   q
 end
 
-
 function transpose_vecunroll_quote(W)
   ispow2(W) || throw(
     ArgumentError(
-      "Only supports powers of 2 for vector width and unrolling factor, but recieved $W = $W.",
-    ),
+      "Only supports powers of 2 for vector width and unrolling factor, but recieved $W = $W."
+    )
   )
   log2W = intlog2(W)
   q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
@@ -159,7 +202,10 @@ function transpose_vecunroll_quote(W)
   #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
   # end
   for n ∈ 1:N
-    push!(q.args, Expr(:(=), vectors1[n], Expr(:call, :getfield, :vud, n, false)))
+    push!(
+      q.args,
+      Expr(:(=), vectors1[n], Expr(:call, :getfield, :vud, n, false))
+    )
   end
   Nhalf = N >>> 1
   vecstride = 1
@@ -206,8 +252,8 @@ end
 function transpose_vecunroll_quote_W_larger(N, W)
   (ispow2(W) & ispow2(N)) || throw(
     ArgumentError(
-      "Only supports powers of 2 for vector width and unrolling factor, but recieved $N and $W.",
-    ),
+      "Only supports powers of 2 for vector width and unrolling factor, but recieved $N and $W."
+    )
   )
   log2W = intlog2(W)
   log2N = intlog2(N)
@@ -220,7 +266,10 @@ function transpose_vecunroll_quote_W_larger(N, W)
   #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
   # end
   for n ∈ 1:N
-    push!(q.args, Expr(:(=), vectors1[n], Expr(:call, :getfield, :vud, n, false)))
+    push!(
+      q.args,
+      Expr(:(=), vectors1[n], Expr(:call, :getfield, :vud, n, false))
+    )
   end
   Nhalf = N >>> 1
   vecstride = 1
@@ -266,8 +315,8 @@ end
 function transpose_vecunroll_quote_W_smaller(N, W)
   (ispow2(W) & ispow2(N)) || throw(
     ArgumentError(
-      "Only supports powers of 2 for vector width and unrolling factor, but recieved $N and $W.",
-    ),
+      "Only supports powers of 2 for vector width and unrolling factor, but recieved $N and $W."
+    )
   )
   N, W = W, N
   log2W = intlog2(W)
@@ -282,7 +331,10 @@ function transpose_vecunroll_quote_W_smaller(N, W)
   # end
   vectors3 = [Symbol(:vpiece_, w) for w ∈ 0:W-1]
   for w ∈ 1:W
-    push!(q.args, Expr(:(=), vectors3[w], Expr(:call, :getfield, :vud, w, false)))
+    push!(
+      q.args,
+      Expr(:(=), vectors3[w], Expr(:call, :getfield, :vud, w, false))
+    )
   end
   Wtemp = W
   exprs = Vector{Expr}(undef, W >>> 1)
@@ -403,12 +455,13 @@ end
 @inline shufflevector(vxu::VecUnroll, ::Val{I}) where {I} =
   VecUnroll(fmap(shufflevector, data(vxu), Val{I}()))
 
-shuffleexpr(s::Expr) = Expr(:block, Expr(:meta, :inline), :(shufflevector(vx, Val{$s}())))
+shuffleexpr(s::Expr) =
+  Expr(:block, Expr(:meta, :inline), :(shufflevector(vx, Val{$s}())))
 """
-  vpermilps177(vx::AbstractSIMD)
+vpermilps177(vx::AbstractSIMD)
 
-  Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
-    Vec(1, 0, 3, 2, 5, 4, 7, 6)
+Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
+Vec(1, 0, 3, 2, 5, 4, 7, 6)
 """
 @generated function vpermilps177(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
@@ -418,10 +471,10 @@ shuffleexpr(s::Expr) = Expr(:block, Expr(:meta, :inline), :(shufflevector(vx, Va
   shuffleexpr(s)
 end
 """
-  vmovsldup(vx::AbstractSIMD)
+vmovsldup(vx::AbstractSIMD)
 
-  Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
-    Vec(0, 0, 2, 2, 4, 4, 6, 6),
+Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
+Vec(0, 0, 2, 2, 4, 4, 6, 6),
 """
 @generated function vmovsldup(vx::AbstractSIMD{W}) where {W}
   sl = Expr(:tuple)
@@ -431,10 +484,10 @@ end
   shuffleexpr(sl)
 end
 """
-  vmovshdup(vx::AbstractSIMD)
+vmovshdup(vx::AbstractSIMD)
 
-  Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
-    Vec(1, 1, 3, 3, 5, 5, 7, 7)
+Vec(0, 1, 2, 3, 4, 5, 6, 7) ->
+Vec(1, 1, 3, 3, 5, 5, 7, 7)
 """
 @generated function vmovshdup(vx::AbstractSIMD{W}) where {W}
   sh = Expr(:tuple)

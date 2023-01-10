@@ -1,5 +1,14 @@
-struct OffsetPrecalc{T,N,C,B,R,X,M,P<:AbstractStridedPointer{T,N,C,B,R,X,M},I} <:
-       AbstractStridedPointer{T,N,C,B,R,X,M}
+struct OffsetPrecalc{
+  T,
+  N,
+  C,
+  B,
+  R,
+  X,
+  M,
+  P<:AbstractStridedPointer{T,N,C,B,R,X,M},
+  I
+} <: AbstractStridedPointer{T,N,C,B,R,X,M}
   ptr::P
   precalc::I
 end
@@ -19,40 +28,44 @@ end
 @inline ArrayInterface.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
 
 @inline function LayoutPointers.similar_no_offset(sptr::OffsetPrecalc, ptr::Ptr)
-  OffsetPrecalc(similar_no_offset(getfield(sptr, :ptr), ptr), getfield(sptr, :precalc))
+  OffsetPrecalc(
+    similar_no_offset(getfield(sptr, :ptr), ptr),
+    getfield(sptr, :precalc)
+  )
 end
 @inline function LayoutPointers.similar_with_offset(
   sptr::OffsetPrecalc,
   ptr::Ptr,
-  off::Tuple,
+  off::Tuple
 )
   OffsetPrecalc(
     similar_with_offset(getfield(sptr, :ptr), ptr, off),
-    getfield(sptr, :precalc),
+    getfield(sptr, :precalc)
   )
 end
-@inline LayoutPointers.bytestrides(p::OffsetPrecalc) = bytestrides(getfield(p, :ptr))
+@inline LayoutPointers.bytestrides(p::OffsetPrecalc) =
+  bytestrides(getfield(p, :ptr))
 @inline LayoutPointers.bytestrideindex(p::OffsetPrecalc) =
   LayoutPointers.bytestrideindex(getfield(p, :ptr))
 
-
 """
-
 Basically:
 
 if I ∈ [3,5,7,9]
-    c[(I - 1) >> 1]
+c[(I - 1) >> 1]
 else
-    b * I
+b * I
 end
 
 because
 
 c = b .* [3, 5, 7, 9]
-
-
 """
-@generated function lazymul(::StaticInt{I}, b, c::Tuple{Vararg{Any,N}}) where {I,N}
+@generated function lazymul(
+  ::StaticInt{I},
+  b,
+  c::Tuple{Vararg{Any,N}}
+) where {I,N}
   Is = (I - 1) >> 1
   ex = if (isodd(I) && 1 ≤ Is ≤ N) && (c.parameters[Is] !== nothing)
     Expr(:call, GlobalRef(Core, :getfield), :c, Is, false)
@@ -61,7 +74,7 @@ c = b .* [3, 5, 7, 9]
       :call,
       :lazymul,
       Expr(:call, Expr(:curly, :StaticInt, 2)),
-      Expr(:call, GlobalRef(Core, :getfield), :c, I >> 2, false),
+      Expr(:call, GlobalRef(Core, :getfield), :c, I >> 2, false)
     )
   else
     Expr(:call, :lazymul, Expr(:call, Expr(:curly, :StaticInt, I)), :b)
@@ -74,7 +87,11 @@ end
 _unwrap(@nospecialize(_::Type{StaticInt{N}})) where {N} = N
 _unwrap(@nospecialize(_)) = nothing
 # descript is a tuple of (unrollfactor) for each ind; if it shouldn't preallocate, unrollfactor may be set to 1
-function precalc_quote_from_descript(@nospecialize(descript), contig::Int, @nospecialize(X))
+function precalc_quote_from_descript(
+  @nospecialize(descript),
+  contig::Int,
+  @nospecialize(X)
+)
   precalc = Expr(:tuple)
   anyprecalcs = anydynamicprecals = false
   pstrideextracts = Expr(:block)
@@ -95,8 +112,8 @@ function precalc_quote_from_descript(@nospecialize(descript), contig::Int, @nosp
           Expr(
             :(=),
             pstride_i,
-            Expr(:call, GlobalRef(Core, :getfield), :pstride, i, false),
-          ),
+            Expr(:call, GlobalRef(Core, :getfield), :pstride, i, false)
+          )
         )
         for u = 3:2:uf
           push!(t.args, Expr(:call, :vmul_nw, u, pstride_i))
@@ -123,10 +140,10 @@ function precalc_quote_from_descript(@nospecialize(descript), contig::Int, @nosp
 end
 @generated function offsetprecalc(
   p::AbstractStridedPointer{T,N,C,B,R,X,O},
-  ::Val{descript},
+  ::Val{descript}
 ) where {T,N,C,B,R,X,O,descript}
   x = known(X)
-  any(isnothing, x) || return Expr(:block, Expr(:meta,:inline), :p)
+  any(isnothing, x) || return Expr(:block, Expr(:meta, :inline), :p)
   precalc_quote_from_descript(descript, C, x)
 end
 

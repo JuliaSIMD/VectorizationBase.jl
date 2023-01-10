@@ -27,9 +27,6 @@
 
 #     - [SLEEF](https://github.com/shibatch/SLEEF) [public domain] Author Naoki Shibata
 
-
-
-
 using Base.Math: significand_bits
 
 isnzero(x::T) where {T<:AbstractFloat} = signbit(x)
@@ -61,19 +58,22 @@ function countulp(::Type{T}, __x, __y) where {T}
   iszero(y) && return iszero(x) ? zero(x) : T(1004)
   ulpc = convert(T, abs(_x - _y) / ulp(y))
   nanulp = VectorizationBase.ifelse(isnan(x) ⊻ isnan(y), T(10000), T(0))
-  infulp =
-    VectorizationBase.ifelse((sign(x) == sign(y)) & (abs(y) > infh(T)), T(0), T(10001))
+  infulp = VectorizationBase.ifelse(
+    (sign(x) == sign(y)) & (abs(y) > infh(T)),
+    T(0),
+    T(10001)
+  )
 
   ulpc = VectorizationBase.ifelse(
     isinf(x),
     infulp,
-    VectorizationBase.ifelse(isfinite(y), ulpc, T(10003)),
+    VectorizationBase.ifelse(isfinite(y), ulpc, T(10003))
   )
   ulpc = VectorizationBase.ifelse(isnan(x) | isnan(y), nanulp, ulpc)
   ulpc = VectorizationBase.ifelse(
     iszero(y),
     VectorizationBase.ifelse(iszero(x), T(0), T(10002)),
-    ulpc,
+    ulpc
   )
   return ulpc
 end
@@ -81,7 +81,9 @@ end
 DENORMAL_MIN(::Type{Float64}) = 2.0^-1074
 DENORMAL_MIN(::Type{Float32}) = 2.0f0^-149
 
-function ulp(x::Union{<:VectorizationBase.AbstractSIMD{<:Any,T},T}) where {T<:AbstractFloat}
+function ulp(
+  x::Union{<:VectorizationBase.AbstractSIMD{<:Any,T},T}
+) where {T<:AbstractFloat}
   e = exponent(x)
   # ulpc = max(VectorizationBase.vscalef(T(1.0), e - significand_bits(T)), DENORMAL_MIN(T))
   ulpc = max(ldexp(T(1.0), e - significand_bits(T)), DENORMAL_MIN(T))
@@ -92,9 +94,8 @@ end
 countulp(x::T, y::T) where {T<:AbstractFloat} = countulp(T, x, y)
 countulp(
   x::VectorizationBase.AbstractSIMD{W,T},
-  y::VectorizationBase.AbstractSIMD{W,T},
+  y::VectorizationBase.AbstractSIMD{W,T}
 ) where {W,T<:AbstractFloat} = countulp(T, x, y)
-
 
 # test the accuracy of a function where fun_table is a Dict mapping the function you want
 # to test to a reference function
@@ -108,10 +109,9 @@ function test_acc(
   tol,
   ::StaticInt{W} = pick_vector_width(T);
   debug = false,
-  tol_debug = 5,
+  tol_debug = 5
 ) where {W}
   @testset "accuracy $(f1)" begin
-
     reference = map(f2 ∘ big, xx)
     comp = similar(xx)
     i = 0
@@ -149,10 +149,9 @@ function test_acc(
       rmax,
       rpad(" at x = " * fmtxloc, 40, " "),
       ": mean ",
-      rmean,
+      rmean
     )
 
-    t = @test trunc(rmax, digits = 1) <= tol
-
+    t = @test trunc(rmax; digits = 1) <= tol
   end
 end

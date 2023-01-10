@@ -9,17 +9,17 @@ include("testsetup.jl")
   println("Aqua.test_all")
   t0 = time_ns()
   deps_compat = VERSION <= v"1.8" || isempty(VERSION.prerelease)
-  Aqua.test_all(VectorizationBase, deps_compat = deps_compat)
+  Aqua.test_all(VectorizationBase; deps_compat = deps_compat)
   println("Aqua took $((time_ns() - t0)*1e-9) seconds")
   # @test isempty(detect_unbound_args(VectorizationBase))
   # @test isempty(detect_ambiguities(VectorizationBase))
 
   W = Int(@inferred(VectorizationBase.pick_vector_width(Float64)))
-  Sys.WORD_SIZE == 64 && @test @inferred(VectorizationBase.pick_integer(Val(W))) == (
-    VectorizationBase.register_size() == VectorizationBase.simd_integer_register_size() ?
-    Int64 : Int32
-  )
-
+  Sys.WORD_SIZE == 64 &&
+    @test @inferred(VectorizationBase.pick_integer(Val(W))) == (
+      VectorizationBase.register_size() ==
+      VectorizationBase.simd_integer_register_size() ? Int64 : Int32
+    )
 
   @test first(A) === A[1]
   @test W64S == W64
@@ -33,7 +33,11 @@ include("testsetup.jl")
           data(Vec{W64,Float64}(1.0)) ===
           data(data(Vec{W64,Float64}(1.0)))
     v = Vec((VE(1.0), VE(2.0), VE(3.0), VE(4.0)))
-    @test v === Vec{4,Float64}(1, 2, 3, 4) === conj(v) === v' === Vec{4,Float64}(v)
+    @test v ===
+          Vec{4,Float64}(1, 2, 3, 4) ===
+          conj(v) ===
+          v' ===
+          Vec{4,Float64}(v)
     @test length(v) == 4 == first(size(v))
     @test eltype(v) == Float64
     for i = 1:4
@@ -53,7 +57,8 @@ include("testsetup.jl")
     @test vu(1, 2) === VectorizationBase.data(vu)[2](1)
     @test vu(2, 2) === VectorizationBase.data(vu)[2](2)
     if W64 == 8
-      @test VectorizationBase.data(vu)[1] === Vec(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
+      @test VectorizationBase.data(vu)[1] ===
+            Vec(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
       @test VectorizationBase.data(vu)[2] ===
             Vec(11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0)
     elseif W64 == 4
@@ -72,7 +77,6 @@ include("testsetup.jl")
       @test VectorizationBase.data(vu)[7] === Vec(15.0, 16.0)
       @test VectorizationBase.data(vu)[8] === Vec(17.0, 18.0)
     end
-
   end
 
   println("alignment.jl")
@@ -80,21 +84,27 @@ include("testsetup.jl")
     for i ∈ 1:VectorizationBase.register_size()
       @test VectorizationBase.align(i) == VectorizationBase.register_size()
     end
-    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+    for i ∈
+        1+VectorizationBase.register_size():2VectorizationBase.register_size()
       @test VectorizationBase.align(i) == 2VectorizationBase.register_size()
     end
-    for i ∈ (1:VectorizationBase.register_size()) .+ 9VectorizationBase.register_size()
+    for i ∈
+        (1:VectorizationBase.register_size()) .+
+        9VectorizationBase.register_size()
       @test VectorizationBase.align(i) == 10VectorizationBase.register_size()
     end
     for i ∈ 1:VectorizationBase.register_size()
       @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) ==
             reinterpret(Ptr{Cvoid}, Int(VectorizationBase.register_size()))
     end
-    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+    for i ∈
+        1+VectorizationBase.register_size():2VectorizationBase.register_size()
       @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) ==
             reinterpret(Ptr{Cvoid}, 2Int(VectorizationBase.register_size()))
     end
-    for i ∈ (1:VectorizationBase.register_size()) .+ 19VectorizationBase.register_size()
+    for i ∈
+        (1:VectorizationBase.register_size()) .+
+        19VectorizationBase.register_size()
       @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) ==
             reinterpret(Ptr{Cvoid}, 20Int(VectorizationBase.register_size()))
     end
@@ -104,13 +114,16 @@ include("testsetup.jl")
             VectorizationBase.align(i, Int32) ==
             W32 * cld(i, W32)
     end
-    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+    for i ∈
+        1+VectorizationBase.register_size():2VectorizationBase.register_size()
       @test VectorizationBase.align(i, W32) ==
             VectorizationBase.align(i, Float32) ==
             VectorizationBase.align(i, Int32) ==
             W32 * cld(i, W32)
     end
-    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+    for i ∈
+        (1:VectorizationBase.register_size()) .+
+        29VectorizationBase.register_size()
       @test VectorizationBase.align(i, W32) ==
             VectorizationBase.align(i, Float32) ==
             VectorizationBase.align(i, Int32) ==
@@ -123,13 +136,16 @@ include("testsetup.jl")
             VectorizationBase.align(i, Int64) ==
             W64 * cld(i, W64)
     end
-    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+    for i ∈
+        1+VectorizationBase.register_size():2VectorizationBase.register_size()
       @test VectorizationBase.align(i, W64) ==
             VectorizationBase.align(i, Float64) ==
             VectorizationBase.align(i, Int64) ==
             W64 * cld(i, W64)
     end
-    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+    for i ∈
+        (1:VectorizationBase.register_size()) .+
+        29VectorizationBase.register_size()
       @test VectorizationBase.align(i, W64) ==
             VectorizationBase.align(i, Float64) ==
             VectorizationBase.align(i, Int64) ==
@@ -142,11 +158,15 @@ include("testsetup.jl")
     for i ∈ 0:VectorizationBase.register_size()-1
       @test VectorizationBase.aligntrunc(i) == 0
     end
-    for i ∈ VectorizationBase.register_size():2VectorizationBase.register_size()-1
+    for i ∈
+        VectorizationBase.register_size():2VectorizationBase.register_size()-1
       @test VectorizationBase.aligntrunc(i) == VectorizationBase.register_size()
     end
-    for i ∈ (0:VectorizationBase.register_size()-1) .+ 9VectorizationBase.register_size()
-      @test VectorizationBase.aligntrunc(i) == 9VectorizationBase.register_size()
+    for i ∈
+        (0:VectorizationBase.register_size()-1) .+
+        9VectorizationBase.register_size()
+      @test VectorizationBase.aligntrunc(i) ==
+            9VectorizationBase.register_size()
     end
 
     for i ∈ 1:VectorizationBase.register_size()
@@ -155,13 +175,16 @@ include("testsetup.jl")
             VectorizationBase.aligntrunc(i, Int32) ==
             W32 * div(i, W32)
     end
-    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+    for i ∈
+        1+VectorizationBase.register_size():2VectorizationBase.register_size()
       @test VectorizationBase.aligntrunc(i, W32) ==
             VectorizationBase.aligntrunc(i, Float32) ==
             VectorizationBase.aligntrunc(i, Int32) ==
             W32 * div(i, W32)
     end
-    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+    for i ∈
+        (1:VectorizationBase.register_size()) .+
+        29VectorizationBase.register_size()
       @test VectorizationBase.aligntrunc(i, W32) ==
             VectorizationBase.aligntrunc(i, Float32) ==
             VectorizationBase.aligntrunc(i, Int32) ==
@@ -174,13 +197,16 @@ include("testsetup.jl")
             VectorizationBase.aligntrunc(i, Int64) ==
             W64 * div(i, W64)
     end
-    for i ∈ 1+VectorizationBase.register_size():2VectorizationBase.register_size()
+    for i ∈
+        1+VectorizationBase.register_size():2VectorizationBase.register_size()
       @test VectorizationBase.aligntrunc(i, W64) ==
             VectorizationBase.aligntrunc(i, Float64) ==
             VectorizationBase.aligntrunc(i, Int64) ==
             W64 * div(i, W64)
     end
-    for i ∈ (1:VectorizationBase.register_size()) .+ 29VectorizationBase.register_size()
+    for i ∈
+        (1:VectorizationBase.register_size()) .+
+        29VectorizationBase.register_size()
       @test VectorizationBase.aligntrunc(i, W64) ==
             VectorizationBase.aligntrunc(i, Float64) ==
             VectorizationBase.aligntrunc(i, Int64) ==
@@ -199,12 +225,14 @@ include("testsetup.jl")
     @test EVLMask{8,UInt8}(0xff, 8) === mask(Val(8), 0)
     @test EVLMask{8,UInt8}(0xff, 8) === mask(Val(8), 8)
     @test EVLMask{8,UInt8}(0xff, 8) === mask(Val(8), 16)
-    @test EVLMask{8,UInt8}(0xff, 8) === mask(Val(8), VectorizationBase.StaticInt(0))
+    @test EVLMask{8,UInt8}(0xff, 8) ===
+          mask(Val(8), VectorizationBase.StaticInt(0))
     @test EVLMask{16,UInt16}(0xffff, 16) === mask(Val(16), 0)
     @test EVLMask{16,UInt16}(0xffff, 16) === mask(Val(16), 16)
     @test EVLMask{16,UInt16}(0xffff, 16) === mask(Val(16), 32)
     @test EVLMask{12,UInt16}(0x01ff, 9) === mask(Val(12), 117)
-    @test VectorizationBase.data(mask(Val(128), 253)) == 0x1fffffffffffffffffffffffffffffff
+    @test VectorizationBase.data(mask(Val(128), 253)) ==
+          0x1fffffffffffffffffffffffffffffff
     @test mask(Val(128), 253) ===
           EVLMask{128,UInt128}(0x1fffffffffffffffffffffffffffffff, 125)
     @test EVLMask{1}(true, 1) === true
@@ -242,19 +270,21 @@ include("testsetup.jl")
       w ->
         bitstring(VectorizationBase.mask(Val(8), w)) ==
         reduce(*, (8 - i < w ? "1" : "0" for i = 1:8)),
-      1:8,
+      1:8
     )
     @test all(
       w ->
         bitstring(VectorizationBase.mask(Val(16), w)) ==
         reduce(*, (16 - i < w ? "1" : "0" for i = 1:16)),
-      1:16,
+      1:16
     )
     @test all(
       w ->
-        VectorizationBase.mask(Float64, w) ===
-        VectorizationBase.mask(@inferred(VectorizationBase.pick_vector_width(Float64)), w),
-      1:W64,
+        VectorizationBase.mask(Float64, w) === VectorizationBase.mask(
+          @inferred(VectorizationBase.pick_vector_width(Float64)),
+          w
+        ),
+      1:W64
     )
 
     @test VectorizationBase.vbroadcast(Val(8), true) ===
@@ -272,32 +302,38 @@ include("testsetup.jl")
     @test !VectorizationBase.vany(Mask{4}(0xf0))
 
     @test VectorizationBase.vall(
-      Mask{8}(0xfc) + Mask{8}(0xcf) == Vec(0x01, 0x01, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02),
+      Mask{8}(0xfc) + Mask{8}(0xcf) ==
+      Vec(0x01, 0x01, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02)
     )
     @test VectorizationBase.vall(
-      Mask{4}(0xfc) + Mask{4}(0xcf) == Vec(0x01, 0x01, 0x02, 0x02),
+      Mask{4}(0xfc) + Mask{4}(0xcf) == Vec(0x01, 0x01, 0x02, 0x02)
     )
     @test VectorizationBase.vall(
       Mask{8}(0xcf) + EVLMask{8}(0x1f, 5) ==
-      Vec(0x02, 0x02, 0x02, 0x02, 0x01, 0x00, 0x01, 0x01),
+      Vec(0x02, 0x02, 0x02, 0x02, 0x01, 0x00, 0x01, 0x01)
     )
 
-
     @test VectorizationBase.vall(Mask{8}(0xec) != Mask{8}(0x13))
-    @test VectorizationBase.vall((!Mask{8}(0xac) & Mask{8}(0xac)) == Mask{8}(0x00))
+    @test VectorizationBase.vall(
+      (!Mask{8}(0xac) & Mask{8}(0xac)) == Mask{8}(0x00)
+    )
     @test !VectorizationBase.vany((!Mask{8}(0xac) & Mask{8}(0xac)))
-    @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)) == Mask{8}(0xff))
+    @test VectorizationBase.vall(
+      (!Mask{8}(0xac) | Mask{8}(0xac)) == Mask{8}(0xff)
+    )
     @test VectorizationBase.vall((!Mask{8}(0xac) | Mask{8}(0xac)))
 
     @test VectorizationBase.vall(
       VectorizationBase.splitint(0xb53a5d6426a9d29d, Int8) ==
-      Vec{8,Int8}(-99, -46, -87, 38, 100, 93, 58, -75),
+      Vec{8,Int8}(-99, -46, -87, 38, 100, 93, 58, -75)
     )
     # other splitint tests for completeness sake
-    @test VectorizationBase.splitint(0xb53a5d6426a9d29d, Int64) === 0xb53a5d6426a9d29d
+    @test VectorizationBase.splitint(0xb53a5d6426a9d29d, Int64) ===
+          0xb53a5d6426a9d29d
     @test VectorizationBase.splitint(0xff, UInt16) === 0x00ff
     @test !VectorizationBase.vany(
-      VectorizationBase.splitint(0x47766b9a9509d175acd77ff497236795, Int8) != Vec{16,Int8}(
+      VectorizationBase.splitint(0x47766b9a9509d175acd77ff497236795, Int8) !=
+      Vec{16,Int8}(
         -107,
         103,
         35,
@@ -313,8 +349,8 @@ include("testsetup.jl")
         -102,
         107,
         118,
-        71,
-      ),
+        71
+      )
     )
 
     @test (EVLMask{8}(0x1f, 5) | EVLMask{8}(0x03, 3)) === EVLMask{8}(0x1f, 5)
@@ -360,7 +396,7 @@ include("testsetup.jl")
           VectorizationBase.ifelse(
             convert(Bool, Mask{8}(0xec)),
             vbroadcast(Val(8), true),
-            vbroadcast(Val(8), false),
+            vbroadcast(Val(8), false)
           )
 
     @test (MM{8}(2) ∈ 3:8) === Mask{8}(0x7e)
@@ -369,19 +405,27 @@ include("testsetup.jl")
     fbitvector2 = falses(20)
     mu = VectorizationBase.VecUnroll((Mask{4}(0x0f), Mask{4}(0x0f)))
     GC.@preserve fbitvector1 fbitvector2 begin
-      vstore!(stridedpointer(fbitvector1), mu, (VectorizationBase.MM(StaticInt{8}(), 1),))
+      vstore!(
+        stridedpointer(fbitvector1),
+        mu,
+        (VectorizationBase.MM(StaticInt{8}(), 1),)
+      )
       vstore!(
         stridedpointer(fbitvector2),
         mu,
         (VectorizationBase.MM(StaticInt{8}(), 1),),
-        Mask{8}(0x7e),
+        Mask{8}(0x7e)
       )
-      vstore!(stridedpointer(fbitvector1), mu, Unroll{1,4,2,1,4,zero(UInt),1}((9,)))
+      vstore!(
+        stridedpointer(fbitvector1),
+        mu,
+        Unroll{1,4,2,1,4,zero(UInt),1}((9,))
+      )
       vstore!(
         stridedpointer(fbitvector2),
         mu,
         Unroll{1,4,2,1,4,2 % UInt,1}((9,)),
-        Mask{4}(0x03),
+        Mask{4}(0x03)
       )
     end
     @test all(fbitvector1[1:16])
@@ -417,7 +461,6 @@ include("testsetup.jl")
   # @test VectorizationBase.size_loads(A,2, Val(8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__, :((() ->    17)()), 8)) == eval(VectorizationBase.num_vector_load_expr(@__MODULE__,    17, 8)) == divrem(size(A,2), 8)
   # end
 
-
   println("vector_width.jl")
   @time @testset "vector_width.jl" begin
     for T ∈ (Float32, Float64)
@@ -432,14 +475,21 @@ include("testsetup.jl")
             @inferred(VectorizationBase.register_size(T)) ===
             @inferred(VectorizationBase.simd_integer_register_size())
     end
-    @test VectorizationBase.static_sizeof(BigFloat) === VectorizationBase.static_sizeof(Int)
+    @test VectorizationBase.static_sizeof(BigFloat) ===
+          VectorizationBase.static_sizeof(Int)
     @test VectorizationBase.static_sizeof(Float32) ===
           VectorizationBase.static_sizeof(Int32) ===
           VectorizationBase.StaticInt(4)
     @test @inferred(VectorizationBase.pick_vector_width(Float16)) ===
           @inferred(VectorizationBase.pick_vector_width(Float32))
     @test @inferred(
-      VectorizationBase.pick_vector_width(Float64, Int32, Float64, Float32, Float64)
+      VectorizationBase.pick_vector_width(
+        Float64,
+        Int32,
+        Float64,
+        Float32,
+        Float64
+      )
     ) * VectorizationBase.static_sizeof(Float64) ===
           @inferred(VectorizationBase.register_size())
     @test @inferred(VectorizationBase.pick_vector_width(Float64, Int32)) *
@@ -458,11 +508,17 @@ include("testsetup.jl")
       i ->
         !any(VectorizationBase._ispow2, 1+(1<<(i-1)):(1<<i)-1) &&
           VectorizationBase._ispow2(1 << i),
-      2:9,
+      2:9
     )
-    @test all(i -> VectorizationBase.intlog2(1 << i) == i, 0:(Int == Int64 ? 53 : 30))
+    @test all(
+      i -> VectorizationBase.intlog2(1 << i) == i,
+      0:(Int == Int64 ? 53 : 30)
+    )
     FTypes = (Float32, Float64)
-    Wv = ntuple(i -> @inferred(VectorizationBase.register_size()) >> (i + 1), Val(2))
+    Wv = ntuple(
+      i -> @inferred(VectorizationBase.register_size()) >> (i + 1),
+      Val(2)
+    )
     for (T, N) in zip(FTypes, Wv)
       W = @inferred(VectorizationBase.pick_vector_width(T))
       # @test Vec{Int(W),T} == VectorizationBase.pick_vector(W, T) == VectorizationBase.pick_vector(T)
@@ -483,7 +539,8 @@ include("testsetup.jl")
               VectorizationBase.pick_vector_width(Val(Int(W)), T) ===
               VectorizationBase.pick_vector_width(W, T)
         for n = W+1:2W
-          W3, Wshift3 = VectorizationBase.pick_vector_width_shift(StaticInt(n), T)
+          W3, Wshift3 =
+            VectorizationBase.pick_vector_width_shift(StaticInt(n), T)
           @test W2 << 1 ==
                 W3 ==
                 1 << (Wshift2 + 1) ==
@@ -502,7 +559,6 @@ include("testsetup.jl")
       l, u = (1 << j) + 1, 1 << (j + 1)
       @test all(i -> VectorizationBase.nextpow2(i) == u, l:u)
     end
-
   end
 
   println("Memory")
@@ -512,10 +568,10 @@ include("testsetup.jl")
     @test VectorizationBase.offsetprecalc(stridedpointer(C), Val((5, 5))) ===
           VectorizationBase.offsetprecalc(
       VectorizationBase.offsetprecalc(stridedpointer(C), Val((5, 5))),
-      Val((3, 3)),
+      Val((3, 3))
     )
     @test VectorizationBase.bytestrides(
-      VectorizationBase.offsetprecalc(stridedpointer(C), Val((5, 5))),
+      VectorizationBase.offsetprecalc(stridedpointer(C), Val((5, 5)))
     ) === VectorizationBase.bytestrides(stridedpointer(C))
     @test VectorizationBase.bytestrides(C) ===
           VectorizationBase.bytestrides(stridedpointer(C))
@@ -523,7 +579,9 @@ include("testsetup.jl")
     @test tovector(mtest) == v1
     @test [vload(stridedpointer(C), (1 + w, 2 + w, 3)) for w ∈ 1:W64] == getindex.(Ref(C), 1 .+ (1:W64), 2 .+ (1:W64), 3)
     vstore!(stridedpointer(C), !mtest, ((MM{16})(17), 3, 4))
-    @test .!v1 == C[17:32, 3, 4] == tovector(vload(stridedpointer(C), ((MM{16})(17), 3, 4)))
+    @test .!v1 ==
+          C[17:32, 3, 4] ==
+          tovector(vload(stridedpointer(C), ((MM{16})(17), 3, 4)))
 
     dims = (41, 42, 43) .* 3
     # dims = (41,42,43);
@@ -538,7 +596,7 @@ include("testsetup.jl")
       MM{W64}(2),
       MM{W64,2}(3),
       MM{W64,-1}(W64 + 2),
-      Vec(ntuple(i -> 2i + 1, Val(W64))...),#,
+      Vec(ntuple(i -> 2i + 1, Val(W64))...)#,
       # VectorizationBase.LazyMulAdd{2,-1}(MM{W64}(3))#, VectorizationBase.LazyMulAdd{2,-2}(Vec(ntuple(i -> 2i + 1, Val(W64))...))
     )
     println("LazyMulAdd Loads/Stores")
@@ -609,26 +667,33 @@ include("testsetup.jl")
           GC.@preserve B begin
             if AU == AV
               vstore!(
-                VectorizationBase.offsetprecalc(stridedpointer(B), Val((5, 5, 5))),
+                VectorizationBase.offsetprecalc(
+                  stridedpointer(B),
+                  Val((5, 5, 5))
+                ),
                 VectorizationBase.VecUnroll((v1, v2, v3)),
-                VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)),
+                VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k))
               )
               vu = @inferred(
                 vload(
                   stridedpointer(B),
-                  VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((i, j, k)),
+                  VectorizationBase.Unroll{AU,W64,3,AV,W64,zero(UInt)}((
+                    i,
+                    j,
+                    k
+                  ))
                 )
               )
             else
               vstore!(
                 stridedpointer(B),
                 VectorizationBase.VecUnroll((v1, v2, v3)),
-                VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)),
+                VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))
               )
               vu = @inferred(
                 vload(
                   stridedpointer(B),
-                  VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k)),
+                  VectorizationBase.Unroll{AU,1,3,AV,W64,zero(UInt)}((i, j, k))
                 )
               )
             end
@@ -661,7 +726,6 @@ include("testsetup.jl")
           @test x1 == tovector(VectorizationBase.data(vu)[1])
           @test x2 == tovector(VectorizationBase.data(vu)[2])
           @test x3 == tovector(VectorizationBase.data(vu)[3])
-
         end
         v1 = randnvec()
         v2 = randnvec()
@@ -673,7 +737,7 @@ include("testsetup.jl")
             VectorizationBase.vsum,
             stridedpointer(B),
             VectorizationBase.VecUnroll((v1, v2, v3, v4, v5)),
-            VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k)),
+            VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k))
           )
         end
         ir = 0:(AU == 1 ? 4 : 0)
@@ -693,7 +757,7 @@ include("testsetup.jl")
         VectorizationBase.False(),
         VectorizationBase.False(),
         VectorizationBase.False(),
-        VectorizationBase.register_size(),
+        VectorizationBase.register_size()
       )
       i += 1
     end
@@ -706,7 +770,7 @@ include("testsetup.jl")
         VectorizationBase.False(),
         VectorizationBase.False(),
         VectorizationBase.False(),
-        VectorizationBase.register_size(),
+        VectorizationBase.register_size()
       )
       i += 1
     end
@@ -718,7 +782,7 @@ include("testsetup.jl")
         VectorizationBase.False(),
         VectorizationBase.False(),
         VectorizationBase.False(),
-        VectorizationBase.register_size(),
+        VectorizationBase.register_size()
       )
       i += 1
     end
@@ -731,29 +795,35 @@ include("testsetup.jl")
         VectorizationBase.False(),
         VectorizationBase.False(),
         VectorizationBase.False(),
-        VectorizationBase.register_size(),
+        VectorizationBase.register_size()
       )
       i += 1
     end
     @test x == 1:100
 
-
-    let ind4 = VectorizationBase.Unroll{1,Int(W64),4,1,Int(W64),zero(UInt)}((1,)),
+    let ind4 =
+        VectorizationBase.Unroll{1,Int(W64),4,1,Int(W64),zero(UInt)}((1,)),
       xf64 = rand(100),
       xf16 = rand(Float16, 32)
       # indu = VectorizationBase.VecUnroll((MM{W64}(1,), MM{W64}(1+W64,), MM{W64}(1+2W64,), MM{W64}(1+3W64,)))
       GC.@preserve xf64 begin
         vxtu = @inferred(vload(stridedpointer(xf64), ind4))
-        @test vxtu isa VectorizationBase.VecUnroll{3,Int(W64),Float64,Vec{Int(W64),Float64}}
+        @test vxtu isa VectorizationBase.VecUnroll{
+          3,
+          Int(W64),
+          Float64,
+          Vec{Int(W64),Float64}
+        }
         vxtutv = tovector(vxtu)
         vxtutvmult = 3.5 .* vxtutv
         @inferred(vstore!(stridedpointer(xf64), 3.5 * vxtu, ind4))
-        @test tovector(@inferred(vload(stridedpointer(xf64), ind4))) == vxtutvmult
+        @test tovector(@inferred(vload(stridedpointer(xf64), ind4))) ==
+              vxtutvmult
         mbig = Mask{4W64}(rand(UInt32)) # TODO: update if any arches support >512 bit vectors
         mbigtv = tovector(mbig)
 
         ubig = VectorizationBase.VecUnroll(
-          VectorizationBase.splitvectortotuple(StaticInt(4), W64S, mbig),
+          VectorizationBase.splitvectortotuple(StaticInt(4), W64S, mbig)
         )
         # @test tovector(@inferred(vload(stridedpointer(xf64), indu, ubig))) == ifelse.(mbigtv, vxtutvmult, 0.0)
         @test tovector(@inferred(vload(stridedpointer(xf64), ind4, ubig))) ==
@@ -765,8 +835,12 @@ include("testsetup.jl")
               ifelse.(mbigtv, -77 .* vxtutv, vxtutvmult)
 
         vxf16 = @inferred(vload(stridedpointer(xf16), ind4))
-        @test vxf16 isa
-              VectorizationBase.VecUnroll{3,Int(W64),Float16,Vec{Int(W64),Float16}}
+        @test vxf16 isa VectorizationBase.VecUnroll{
+          3,
+          Int(W64),
+          Float16,
+          Vec{Int(W64),Float16}
+        }
         @test tovector(vxf16) == view(xf16, 1:(4*W64))
       end
     end
@@ -775,10 +849,16 @@ include("testsetup.jl")
     sp = stridedpointer(colormat)
     GC.@preserve colors begin
       @test tovector(
-        @inferred(vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1, 9))))
+        @inferred(
+          vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1, 9)))
+        )
       ) == vec(colormat[:, 9:16]')
-      vu = @inferred(vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1, 41))))
-      @inferred(vstore!(sp, vu, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1, 1))))
+      vu = @inferred(
+        vload(sp, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1, 41)))
+      )
+      @inferred(
+        vstore!(sp, vu, VectorizationBase.Unroll{1,1,3,2,8,zero(UInt)}((1, 1)))
+      )
     end
     @test vec(colormat[:, 41:48]) == vec(colormat[:, 1:8])
   end
@@ -793,26 +873,35 @@ include("testsetup.jl")
       A::AT
     end
     ArrayInterface.is_forwarding_wrapper(::Type{<:SizedWrapper}) = true
-    SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} = SizedWrapper{M,N,T,AT}(A)
+    SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} =
+      SizedWrapper{M,N,T,AT}(A)
     Base.size(::SizedWrapper{M,N}) where {M,N} = (M, N)
-    VectorizationBase.size(::SizedWrapper{M,N}) where {M,N} = (StaticInt(M), StaticInt(N))
+    VectorizationBase.size(::SizedWrapper{M,N}) where {M,N} =
+      (StaticInt(M), StaticInt(N))
     Base.getindex(A::SizedWrapper, i...) = getindex(parent(A), i...)
     Base.parent(dw::SizedWrapper) = dw.A
     VectorizationBase.ArrayInterface.parent_type(
-      ::Type{SizedWrapper{M,N,T,AT}},
+      ::Type{SizedWrapper{M,N,T,AT}}
     ) where {M,N,T,AT} = AT
     VectorizationBase.memory_reference(dw::SizedWrapper) =
       VectorizationBase.memory_reference(parent(dw))
     VectorizationBase.contiguous_axis(::Type{A}) where {A<:SizedWrapper} =
-      VectorizationBase.contiguous_axis(VectorizationBase.ArrayInterface.parent_type(A))
+      VectorizationBase.contiguous_axis(
+        VectorizationBase.ArrayInterface.parent_type(A)
+      )
     VectorizationBase.contiguous_batch_size(dw::SizedWrapper) =
       VectorizationBase.contiguous_batch_size(parent(dw))
     VectorizationBase.stride_rank(::Type{A}) where {A<:SizedWrapper} =
-      VectorizationBase.stride_rank(VectorizationBase.ArrayInterface.parent_type(A))
-    VectorizationBase.offsets(dw::SizedWrapper) = VectorizationBase.offsets(parent(dw))
+      VectorizationBase.stride_rank(
+        VectorizationBase.ArrayInterface.parent_type(A)
+      )
+    VectorizationBase.offsets(dw::SizedWrapper) =
+      VectorizationBase.offsets(parent(dw))
     VectorizationBase.val_dense_dims(dw::SizedWrapper{T,N}) where {T,N} =
       VectorizationBase.val_dense_dims(parent(dw))
-    VectorizationBase.ArrayInterface.is_forwarding_wrapper(::Type{<:SizedWrapper}) = true
+    VectorizationBase.ArrayInterface.is_forwarding_wrapper(
+      ::Type{<:SizedWrapper}
+    ) = true
     function VectorizationBase.strides(dw::SizedWrapper{M,N,T}) where {M,N,T}
       x1 = StaticInt(1)
       if VectorizationBase.val_stride_rank(dw) === Val((1, 2))
@@ -829,19 +918,20 @@ include("testsetup.jl")
         Bt = bi ? B : (similar(B')')
         Ct = ci ? C : (similar(C')')
         spdw = VectorizationBase.DensePointerWrapper{(true, true)}(
-          VectorizationBase.stridedpointer(At),
+          VectorizationBase.stridedpointer(At)
         )
         gsp, pres = @inferred(
           VectorizationBase.grouped_strided_pointer(
             (spdw, Bt, Ct),
-            Val{(((1, 1), (3, 1)), ((1, 2), (2, 1)), ((2, 2), (3, 2)))}(),
+            Val{(((1, 1), (3, 1)), ((1, 2), (2, 1)), ((2, 2), (3, 2)))}()
           )
         )
         if ai === ci
           @test sizeof(gsp.strides) == 2sizeof(Int)
         end
         # Test to confirm that redundant strides are not stored in the grouped strided pointer
-        @test sizeof(gsp) == sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
+        @test sizeof(gsp) ==
+              sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
         @test sizeof(gsp.offsets) == 0
         pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
         @test pA === stridedpointer(At)
@@ -851,10 +941,11 @@ include("testsetup.jl")
         gsp2, pres2 = @inferred(
           VectorizationBase.grouped_strided_pointer(
             (At, Btsw, Ct),
-            Val{(((1, 1), (3, 1)), ((1, 2), (2, 1)), ((2, 2), (3, 2)))}(),
+            Val{(((1, 1), (3, 1)), ((1, 2), (2, 1)), ((2, 2), (3, 2)))}()
           )
         )
-        @test sizeof(gsp2) == sizeof(Int) * (5 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
+        @test sizeof(gsp2) ==
+              sizeof(Int) * (5 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
 
         pA2, pB2, pC2 = @inferred(VectorizationBase.stridedpointers(gsp2))
         @test pointer(pA2) == pointer(At)
@@ -870,7 +961,10 @@ include("testsetup.jl")
     data_in = view(data_in_large, :, 1, :, :, 1)
     tmp1 = Array{Float64}(undef, 4, 4, 4)
     sp_data_in, sp_tmp1 = VectorizationBase.stridedpointers(
-      VectorizationBase.grouped_strided_pointer((data_in, tmp1), Val((((1, 1), (2, 1)),)))[1],
+      VectorizationBase.grouped_strided_pointer(
+        (data_in, tmp1),
+        Val((((1, 1), (2, 1)),))
+      )[1]
     )
     @test sp_data_in === stridedpointer(data_in)
     @test sp_tmp1 === stridedpointer(tmp1)
@@ -883,16 +977,24 @@ include("testsetup.jl")
       A = rand(W, W)
       B = similar(A)
       GC.@preserve A B begin
-        vut =
-          @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1, 1))))
+        vut = @inferred(
+          vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1, 1)))
+        )
         vu = @inferred(VectorizationBase.transpose_vecunroll(vut))
         @test vu === @inferred(
-          vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W,1,W}((1, 1)))
+          vload(
+            stridedpointer(A'),
+            VectorizationBase.Unroll{2,1,W,1,W}((1, 1))
+          )
         )
         @test vu === @inferred(
           vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W,2,W}((1, 1)))
         )
-        vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W,1,W}((1, 1)))
+        vstore!(
+          stridedpointer(B),
+          vu,
+          VectorizationBase.Unroll{2,1,W,1,W}((1, 1))
+        )
       end
       @test A == B'
       W >>= 1
@@ -902,16 +1004,24 @@ include("testsetup.jl")
       A = rand(Float32, W, W)
       B = similar(A)
       GC.@preserve A B begin
-        vut =
-          @inferred(vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1, 1))))
+        vut = @inferred(
+          vload(stridedpointer(A), VectorizationBase.Unroll{2,1,W,1,W}((1, 1)))
+        )
         vu = @inferred(VectorizationBase.transpose_vecunroll(vut))
         @test vu === @inferred(
-          vload(stridedpointer(A'), VectorizationBase.Unroll{2,1,W,1,W}((1, 1)))
+          vload(
+            stridedpointer(A'),
+            VectorizationBase.Unroll{2,1,W,1,W}((1, 1))
+          )
         )
         @test vu === @inferred(
           vload(stridedpointer(A), VectorizationBase.Unroll{1,1,W,2,W}((1, 1)))
         )
-        vstore!(stridedpointer(B), vu, VectorizationBase.Unroll{2,1,W,1,W}((1, 1)))
+        vstore!(
+          stridedpointer(B),
+          vu,
+          VectorizationBase.Unroll{2,1,W,1,W}((1, 1))
+        )
       end
       @test A == B'
       W >>= 1
@@ -929,7 +1039,7 @@ include("testsetup.jl")
         VectorizationBase.VecUnroll((
           Vec(ntuple(_ -> (randn(T)), W)...),
           Vec(ntuple(_ -> (randn(T)), W)...),
-          Vec(ntuple(_ -> (randn(T)), W)...),
+          Vec(ntuple(_ -> (randn(T)), W)...)
         ))
       end
       x = tovector(v)
@@ -945,7 +1055,7 @@ include("testsetup.jl")
         abs2,
         Base.FastMath.abs2_fast,
         Base.FastMath.sub_fast,
-        sign,
+        sign
       ]
         # @show T, f
         @test tovector(@inferred(f(v))) == map(f, x)
@@ -956,7 +1066,7 @@ include("testsetup.jl")
         (VectorizationBase.vabs, abs),
         (VectorizationBase.vround, round),
         (VectorizationBase.vsub, -),
-        (VectorizationBase.vsub_fast, Base.FastMath.sub_fast),
+        (VectorizationBase.vsub_fast, Base.FastMath.sub_fast)
       ]
         for i ∈ -5:5
           @test vf(i) == bf(i)
@@ -995,11 +1105,12 @@ include("testsetup.jl")
       # for now, I'll use `4eps(T)` if the systems don't have AVX512, but should check to set a stricter bound.
       # also put `sqrt ∘ abs` in here
       let rtol =
-          eps(T) * (Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f))) ? 1 : 4) # more accuracte
+          eps(T) *
+          (Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f))) ? 1 : 4) # more accuracte
         @test isapprox(
           tovector(@inferred(Base.FastMath.inv_fast(v))),
           map(Base.FastMath.inv_fast, x),
-          rtol = rtol,
+          rtol = rtol
         )
         let f = sqrt ∘ abs
           if T === Float32
@@ -1014,32 +1125,35 @@ include("testsetup.jl")
         @test tovector(@inferred(f(Int64, v))) == map(y -> f(Int64, y), x)
       end
       invtol =
-        Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f))) ? 2^-14 : 1.5 * 2^-12 # moreaccurate with AVX512
+        Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f))) ? 2^-14 :
+        1.5 * 2^-12 # moreaccurate with AVX512
       @test isapprox(
         tovector(@inferred(VectorizationBase.inv_approx(v))),
         map(VectorizationBase.inv_approx, x),
-        rtol = invtol,
+        rtol = invtol
       )
     end
 
-    int = Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ? Int : Int32
+    int =
+      Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ? Int : Int32
     int2 = Bool(VectorizationBase.has_feature(Val(:x86_64_avx2))) ? Int : Int32
     vi =
       VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> rand(int), Val(W64))...),
         Vec(ntuple(_ -> rand(int), Val(W64))...),
-        Vec(ntuple(_ -> rand(int), Val(W64))...),
+        Vec(ntuple(_ -> rand(int), Val(W64))...)
       )) % int2
     xi = tovector(vi)
     for f ∈ [-, abs, inv, floor, ceil, trunc, round, sqrt ∘ abs, sign]
       @test tovector(@inferred(f(vi))) == map(f, xi)
     end
     let rtol =
-        eps(Float64) * (Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f))) ? 1 : 4) # more accuracte
+        eps(Float64) *
+        (Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f))) ? 1 : 4) # more accuracte
       @test isapprox(
         tovector(@inferred(Base.FastMath.inv_fast(vi))),
         map(Base.FastMath.inv_fast, xi),
-        rtol = rtol,
+        rtol = rtol
       )
     end
     # vpos = VectorizationBase.VecUnroll((
@@ -1051,8 +1165,9 @@ include("testsetup.jl")
     #     @test tovector(f(vpos)) == map(f, tovector(vpos))
     # end
 
-    @test getindex([2,4,6,8],Vec(1,2,3,4)) === Vec(2,4,6,8)
-    @test searchsortedlast([1, 2, 4, 5, 5, 7], Vec(4,5,3,0)) === Vec(3,5,2,0)
+    @test getindex([2, 4, 6, 8], Vec(1, 2, 3, 4)) === Vec(2, 4, 6, 8)
+    @test searchsortedlast([1, 2, 4, 5, 5, 7], Vec(4, 5, 3, 0)) ===
+          Vec(3, 5, 2, 0)
   end
   println("Binary Functions")
   @time @testset "Binary Functions" begin
@@ -1069,7 +1184,7 @@ include("testsetup.jl")
       (VectorizationBase.vmul_fast, Base.FastMath.mul_fast, true),
       (VectorizationBase.vmul_nsw, *, false),#(VectorizationBase.vmul_nuw,*,false),(VectorizationBase.vmul_nw,*,false),
       (VectorizationBase.vrem, %, false),
-      (VectorizationBase.vrem_fast, %, false),
+      (VectorizationBase.vrem_fast, %, false)
     ]
       for i ∈ -10:10, j ∈ -6:6
         ((j == 0) && (bf === %)) && continue
@@ -1102,12 +1217,13 @@ include("testsetup.jl")
               Float32(1.0f2i) ÷ Float32(1.0f2j)
         vr64_ref = 1e-2 * (1e2i % 1e2j)
         @test VectorizationBase.vrem(i, j) ≈ vr64_ref atol = 1e-16 rtol = 1e-13
-        @test VectorizationBase.vrem_fast(i, j) ≈ vr64_ref atol = 1e-16 rtol = 1e-13
+        @test VectorizationBase.vrem_fast(i, j) ≈ vr64_ref atol = 1e-16 rtol =
+          1e-13
         vr32_ref = 1.0f-2 * (Float32(1.0f2i) % Float32(1.0f2j))
-        @test VectorizationBase.vrem(Float32(i), Float32(j)) ≈ vr32_ref atol = 1.0f-7 rtol =
-          2.0f-5
-        @test VectorizationBase.vrem_fast(Float32(i), Float32(j)) ≈ vr32_ref atol = 1.0f-7 rtol =
-          2.0f-5
+        @test VectorizationBase.vrem(Float32(i), Float32(j)) ≈ vr32_ref atol =
+          1.0f-7 rtol = 2.0f-5
+        @test VectorizationBase.vrem_fast(Float32(i), Float32(j)) ≈ vr32_ref atol =
+          1.0f-7 rtol = 2.0f-5
       end
     end
     let WI = Int(VectorizationBase.pick_vector_width(Int64))
@@ -1118,7 +1234,7 @@ include("testsetup.jl")
           Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
           Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
           Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
-          Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI))),
+          Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI)))
         ))
         srange =
           one(I2):(Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ?
@@ -1127,7 +1243,7 @@ include("testsetup.jl")
           Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
           Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
           Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
-          Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
+          Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI)))
         ))
         i = rand(srange)
         j = rand(I1)
@@ -1135,13 +1251,13 @@ include("testsetup.jl")
           MM{WI}(I1(7)),
           MM{WI}(I1(1)),
           MM{WI}(I1(13)),
-          MM{WI}(I1(32 % last(srange))),
+          MM{WI}(I1(32 % last(srange)))
         ))
         m2 = VectorizationBase.VecUnroll((
           MM{WI,2}(I2(3)),
           MM{WI,2}(I2(8)),
           MM{WI,2}(I2(39 % last(srange))),
-          MM{WI,2}(I2(17)),
+          MM{WI,2}(I2(17))
         ))
         @test typeof(m1 + I1(11)) === typeof(m1)
         @test typeof(m2 + I2(11)) === typeof(m2)
@@ -1172,7 +1288,7 @@ include("testsetup.jl")
           maxi,
           mini,
           maxi_fast,
-          mini_fast,
+          mini_fast
         ]
           # for f ∈ [+, -, *, div, ÷, /, rem, %, <<, >>, >>>, ⊻, &, |, fld, mod, VectorizationBase.rotate_left, VectorizationBase.rotate_right, copysign, max, min]
           # @show f, I1, I2
@@ -1181,66 +1297,104 @@ include("testsetup.jl")
           # end
           check_within_limits(
             tovector(@inferred(f(vi1, vi2))),
-            trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(xi1, I3), size_trunc_int.(xi2, I3)),
+              I3
+            )
           )
           check_within_limits(
             tovector(@inferred(f(j, vi2))),
-            trunc_int.(f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(j, I3), size_trunc_int.(xi2, I3)),
+              I3
+            )
           )
           check_within_limits(
             tovector(@inferred(f(vi1, i))),
-            trunc_int.(f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(xi1, I3), size_trunc_int.(i, I3)),
+              I3
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m1, i))),
-            trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(i, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(xi3, I3), size_trunc_int.(i, I3)),
+              I3
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m1, vi2))),
-            trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi2, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi2, I3)),
+              I3
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m1, m2))),
-            trunc_int.(f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi4, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(xi3, I3), size_trunc_int.(xi4, I3)),
+              I3
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m1, m1))),
-            trunc_int.(f.(size_trunc_int.(xi3, I1), size_trunc_int.(xi3, I1)), I1),
+            trunc_int.(
+              f.(size_trunc_int.(xi3, I1), size_trunc_int.(xi3, I1)),
+              I1
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m2, i))),
-            trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(i, I3)), I2),
+            trunc_int.(
+              f.(size_trunc_int.(xi4, I3), size_trunc_int.(i, I3)),
+              I2
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m2, vi2))),
-            trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi2, I3)), I2),
+            trunc_int.(
+              f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi2, I3)),
+              I2
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m2, m2))),
-            trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi4, I3)), I2),
+            trunc_int.(
+              f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi4, I3)),
+              I2
+            )
           )
           check_within_limits(
             tovector(@inferred(f(m2, m1))),
-            trunc_int.(f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi3, I3)), I3),
+            trunc_int.(
+              f.(size_trunc_int.(xi4, I3), size_trunc_int.(xi3, I3)),
+              I3
+            )
           )
           if !(
-            (f === VectorizationBase.rotate_left) || (f === VectorizationBase.rotate_right)
+            (f === VectorizationBase.rotate_left) ||
+            (f === VectorizationBase.rotate_right)
           )
-            check_within_limits(tovector(@inferred(f(j, m1))), trunc_int.(f.(j, xi3), I1))
+            check_within_limits(
+              tovector(@inferred(f(j, m1))),
+              trunc_int.(f.(j, xi3), I1)
+            )
             # @show 12
             # check_within_limits(tovector(@inferred(f(j, m2))), trunc_int.(f.(size_trunc_int.(j, I1), size_trunc_int.(xi4, I1)), I1));
           end
         end
-        @test tovector(@inferred((vi1 % 17)^(i % 15))) ≈ Float64.(xi1 .% 17) .^ (i % 15)
+        @test tovector(@inferred((vi1 % 17)^(i % 15))) ≈
+              Float64.(xi1 .% 17) .^ (i % 15)
         @test @inferred(
           VectorizationBase.vall(
-            @inferred(1 - MM{WI}(1)) == (1 - Vec(ntuple(identity, Val(WI))...)),
+            @inferred(1 - MM{WI}(1)) == (1 - Vec(ntuple(identity, Val(WI))...))
           )
         )
       end
       vf1 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI))),
-        Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI))),
+        Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
       ))
       vf2 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(WI)))
       @test vf2 * 1 // 2 === vf2 * 0.5 === vf2 / 2
@@ -1262,7 +1416,7 @@ include("testsetup.jl")
         Base.FastMath.min_fast,
         Base.FastMath.div_fast,
         Base.FastMath.rem_fast,
-        Base.FastMath.hypot_fast,
+        Base.FastMath.hypot_fast
       ]
         # @show f
         @test tovector(@inferred(f(vf1, vf2))) ≈ f.(xf1, xf22)
@@ -1276,65 +1430,83 @@ include("testsetup.jl")
         Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
         Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
         Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
-        Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
+        Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI)))
       ))
       vones, vi2f, vtwos = promote(1.0, vi2, 2.0f0) # promotes a binary function, right? Even when used with three args?
       @test vones === VectorizationBase.VecUnroll((
         vbroadcast(Val(WI), 1.0),
         vbroadcast(Val(WI), 1.0),
         vbroadcast(Val(WI), 1.0),
-        vbroadcast(Val(WI), 1.0),
+        vbroadcast(Val(WI), 1.0)
       ))
       @test vtwos === VectorizationBase.VecUnroll((
         vbroadcast(Val(WI), 2.0),
         vbroadcast(Val(WI), 2.0),
         vbroadcast(Val(WI), 2.0),
-        vbroadcast(Val(WI), 2.0),
+        vbroadcast(Val(WI), 2.0)
       ))
       @test VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2))
       W32 = StaticInt(WI) * StaticInt(2)
       vf2 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
-        Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32)),
+        Vec(ntuple(_ -> Core.VecElement(randn(Float32)), W32))
       ))
       vones32, v2f32, vtwos32 = promote(1.0, vf2, 2.0f0) # promotes a binary function, right? Even when used with three args?
-      if VectorizationBase.simd_integer_register_size() == VectorizationBase.register_size()
+      if VectorizationBase.simd_integer_register_size() ==
+         VectorizationBase.register_size()
         @test vones32 ===
               VectorizationBase.VecUnroll((
                 vbroadcast(W32, 1.0f0),
-                vbroadcast(W32, 1.0f0),
+                vbroadcast(W32, 1.0f0)
               )) ===
               VectorizationBase.VecUnroll((
                 vbroadcast(W32, Float16(1)),
-                vbroadcast(W32, Float16(1)),
+                vbroadcast(W32, Float16(1))
               ))
         @test vtwos32 ===
               VectorizationBase.VecUnroll((
                 vbroadcast(W32, 2.0f0),
-                vbroadcast(W32, 2.0f0),
+                vbroadcast(W32, 2.0f0)
               )) ===
               VectorizationBase.VecUnroll((
                 vbroadcast(W32, Float16(2)),
-                vbroadcast(W32, Float16(2)),
+                vbroadcast(W32, Float16(2))
               ))
         @test vf2 === v2f32
       else
-        @test vones32 ===
-              VectorizationBase.VecUnroll((vbroadcast(W32, 1.0), vbroadcast(W32, 1.0)))
-        @test vtwos32 ===
-              VectorizationBase.VecUnroll((vbroadcast(W32, 2.0), vbroadcast(W32, 2.0)))
+        @test vones32 === VectorizationBase.VecUnroll((
+          vbroadcast(W32, 1.0),
+          vbroadcast(W32, 1.0)
+        ))
+        @test vtwos32 === VectorizationBase.VecUnroll((
+          vbroadcast(W32, 2.0),
+          vbroadcast(W32, 2.0)
+        ))
         @test convert(Float64, vf2) === v2f32
       end
       vtwosf16 = convert(Float16, vtwos32)
-      @test vtwosf16 isa
-            VectorizationBase.VecUnroll{1,Int(W32),Float16,Vec{Int(W32),Float16}}
+      @test vtwosf16 isa VectorizationBase.VecUnroll{
+        1,
+        Int(W32),
+        Float16,
+        Vec{Int(W32),Float16}
+      }
       vtwosf32 = convert(Float32, vtwos32)
-      @test vtwosf32 isa
-            VectorizationBase.VecUnroll{1,Int(W32),Float32,Vec{Int(W32),Float32}}
+      @test vtwosf32 isa VectorizationBase.VecUnroll{
+        1,
+        Int(W32),
+        Float32,
+        Vec{Int(W32),Float32}
+      }
       @test promote(vtwosf16, vtwosf16) === (vtwosf32, vtwosf32)
       @test vtwosf16 + vtwosf16 === vtwosf32 + vtwosf32
       i = rand(1:31)
-      m1 = VectorizationBase.VecUnroll((MM{WI}(7), MM{WI}(1), MM{WI}(13), MM{WI}(18)))
+      m1 = VectorizationBase.VecUnroll((
+        MM{WI}(7),
+        MM{WI}(1),
+        MM{WI}(13),
+        MM{WI}(18)
+      ))
       @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
       @test tovector(mod(m1, 1:i)) == mod1.(tovector(m1), i)
 
@@ -1348,10 +1520,10 @@ include("testsetup.jl")
     if VectorizationBase.simd_integer_register_size() ≥ 16
       @test VecUnroll((
         Vec(ntuple(Int32, Val(4))...),
-        Vec(ntuple(Int32 ∘ Base.Fix2(+, 4), Val(4))...),
+        Vec(ntuple(Int32 ∘ Base.Fix2(+, 4), Val(4))...)
       )) << Vec(0x01, 0x02, 0x03, 0x04) === VecUnroll((
         Vec(map(Int32, (2, 8, 24, 64))...),
-        Vec(map(Int32, (10, 24, 56, 128))...),
+        Vec(map(Int32, (10, 24, 56, 128))...)
       ))
     end
 
@@ -1368,11 +1540,12 @@ include("testsetup.jl")
           VectorizationBase.vor(true, false) ==
           true
     @test VectorizationBase.vor(false, false) == false
-    @test VectorizationBase.vxor(false, true) == VectorizationBase.vxor(true, false) == true
+    @test VectorizationBase.vxor(false, true) ==
+          VectorizationBase.vxor(true, false) ==
+          true
     @test VectorizationBase.vxor(false, false) ==
           VectorizationBase.vxor(true, true) ==
           false
-
   end
   println("Ternary Functions")
   @time @testset "Ternary Functions" begin
@@ -1380,18 +1553,21 @@ include("testsetup.jl")
       v1, v2, v3, m = let W = @inferred(VectorizationBase.pick_vector_width(T))
         v1 = VectorizationBase.VecUnroll((
           Vec(ntuple(_ -> randn(T), W)...),
-          Vec(ntuple(_ -> randn(T), W)...),
+          Vec(ntuple(_ -> randn(T), W)...)
         ))
         v2 = VectorizationBase.VecUnroll((
           Vec(ntuple(_ -> randn(T), W)...),
-          Vec(ntuple(_ -> randn(T), W)...),
+          Vec(ntuple(_ -> randn(T), W)...)
         ))
         v3 = VectorizationBase.VecUnroll((
           Vec(ntuple(_ -> randn(T), W)...),
-          Vec(ntuple(_ -> randn(T), W)...),
+          Vec(ntuple(_ -> randn(T), W)...)
         ))
         _W = Int(@inferred(VectorizationBase.pick_vector_width(T)))
-        m = VectorizationBase.VecUnroll((Mask{_W}(rand(UInt16)), Mask{_W}(rand(UInt16))))
+        m = VectorizationBase.VecUnroll((
+          Mask{_W}(rand(UInt16)),
+          Mask{_W}(rand(UInt16))
+        ))
         v1, v2, v3, m
       end
       x1 = tovector(v1)
@@ -1419,7 +1595,7 @@ include("testsetup.jl")
         VectorizationBase.vfmadd231,
         VectorizationBase.vfnmadd231,
         VectorizationBase.vfmsub231,
-        VectorizationBase.vfnmsub231,
+        VectorizationBase.vfnmsub231
       ]
         @test tovector(@inferred(f(v1, v2, v3))) ≈ map(f, x1, x2, x3)
         @test tovector(@inferred(f(v1, v2, a64))) ≈ f.(x1, x2, a)
@@ -1437,12 +1613,15 @@ include("testsetup.jl")
               ifelse.(mv, f.(x1, a, x3), x3)
         @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, v3))) ≈
               ifelse.(mv, f.(a, x2, x3), x3)
-        @test tovector(@inferred(VectorizationBase.ifelse(f, m, v1, a64, b64))) ≈
-              ifelse.(mv, f.(x1, a, b), b)
-        @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, v2, b64))) ≈
-              ifelse.(mv, f.(a, x2, b), b)
-        @test tovector(@inferred(VectorizationBase.ifelse(f, m, a64, b64, v3))) ≈
-              ifelse.(mv, f.(a, b, x3), x3)
+        @test tovector(
+          @inferred(VectorizationBase.ifelse(f, m, v1, a64, b64))
+        ) ≈ ifelse.(mv, f.(x1, a, b), b)
+        @test tovector(
+          @inferred(VectorizationBase.ifelse(f, m, a64, v2, b64))
+        ) ≈ ifelse.(mv, f.(a, x2, b), b)
+        @test tovector(
+          @inferred(VectorizationBase.ifelse(f, m, a64, b64, v3))
+        ) ≈ ifelse.(mv, f.(a, b, x3), x3)
       end
       @test tovector(@inferred(VectorizationBase.vfmaddsub(v1, v2, v3))) ≈
             muladd.(x1, x2, x3 .* ifelse.(iseven.(eachindex(x1)), 1, -1))
@@ -1453,19 +1632,21 @@ include("testsetup.jl")
       vi64 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> rand(Int64), Val(WI))...),
         Vec(ntuple(_ -> rand(Int64), Val(WI))...),
-        Vec(ntuple(_ -> rand(Int64), Val(WI))...),
+        Vec(ntuple(_ -> rand(Int64), Val(WI))...)
       ))
       vi32 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> rand(Int32), Val(WI))...),
         Vec(ntuple(_ -> rand(Int32), Val(WI))...),
-        Vec(ntuple(_ -> rand(Int32), Val(WI))...),
+        Vec(ntuple(_ -> rand(Int32), Val(WI))...)
       ))
       xi64 = tovector(vi64)
       xi32 = tovector(vi32)
-      @test tovector(@inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))) ==
-            ifelse.(xi64 .> xi32, xi64, xi32)
-      @test tovector(@inferred(VectorizationBase.ifelse(vi64 < vi32, vi64, vi32))) ==
-            ifelse.(xi64 .< xi32, xi64, xi32)
+      @test tovector(
+        @inferred(VectorizationBase.ifelse(vi64 > vi32, vi64, vi32))
+      ) == ifelse.(xi64 .> xi32, xi64, xi32)
+      @test tovector(
+        @inferred(VectorizationBase.ifelse(vi64 < vi32, vi64, vi32))
+      ) == ifelse.(xi64 .< xi32, xi64, xi32)
       @test tovector(@inferred(VectorizationBase.ifelse(true, vi64, vi32))) ==
             ifelse.(true, xi64, xi32)
       @test tovector(@inferred(VectorizationBase.ifelse(false, vi64, vi32))) ==
@@ -1473,17 +1654,17 @@ include("testsetup.jl")
       vu64_1 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
         Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
-        Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+        Vec(ntuple(_ -> rand(UInt64), Val(WI))...)
       ))
       vu64_2 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
         Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
-        Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+        Vec(ntuple(_ -> rand(UInt64), Val(WI))...)
       ))
       vu64_3 = VectorizationBase.VecUnroll((
         Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
         Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
-        Vec(ntuple(_ -> rand(UInt64), Val(WI))...),
+        Vec(ntuple(_ -> rand(UInt64), Val(WI))...)
       ))
       xu1 = tovector(vu64_1)
       xu2 = tovector(vu64_2)
@@ -1496,9 +1677,10 @@ include("testsetup.jl")
         VectorizationBase.vfmadd,
         VectorizationBase.vfnmadd,
         VectorizationBase.vfmsub,
-        VectorizationBase.vfnmsub,
+        VectorizationBase.vfnmsub
       ]
-        @test tovector(@inferred(f(vu64_1, vu64_2, vu64_3))) == f.(xu1, xu2, xu3)
+        @test tovector(@inferred(f(vu64_1, vu64_2, vu64_3))) ==
+              f.(xu1, xu2, xu3)
       end
     end
   end
@@ -1538,7 +1720,7 @@ include("testsetup.jl")
         0.9999589021219005,
         0.9999779095030014,
         0.9999883513426328,
-        0.9999939742388483,
+        0.9999939742388483
       ]
 
       if Bool(VectorizationBase.has_feature(Val(:x86_64_avx512f)))
@@ -1564,83 +1746,113 @@ include("testsetup.jl")
     v1 = Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
     vu1 = VectorizationBase.VecUnroll((
       v1,
-      Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64))),
+      Vec(ntuple(_ -> Core.VecElement(randn()), Val(W64)))
     ))
     v2 = Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))
     vu2 = VectorizationBase.VecUnroll((
       v2,
-      Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64))),
+      Vec(ntuple(_ -> Core.VecElement(rand(-100:100)), Val(W64)))
     ))
     @test @inferred(VectorizationBase.vsum(2.3, v1)) ≈
           @inferred(VectorizationBase.vsum(v1)) + 2.3 ≈
-          @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))) ≈
-          @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1)))
-    @test @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(vu1))) + 2.3 ≈
+          @inferred(
+            VectorizationBase.vsum(VectorizationBase.addscalar(v1, 2.3))
+          ) ≈
+          @inferred(
+            VectorizationBase.vsum(VectorizationBase.addscalar(2.3, v1))
+          )
+    @test @inferred(
+            VectorizationBase.vsum(VectorizationBase.collapse_add(vu1))
+          ) + 2.3 ≈
           @inferred(
             VectorizationBase.vsum(
-              VectorizationBase.collapse_add(VectorizationBase.addscalar(vu1, 2.3)),
+              VectorizationBase.collapse_add(
+                VectorizationBase.addscalar(vu1, 2.3)
+              )
             )
           ) ≈
           @inferred(
             VectorizationBase.vsum(
-              VectorizationBase.collapse_add(VectorizationBase.addscalar(2.3, vu1)),
+              VectorizationBase.collapse_add(
+                VectorizationBase.addscalar(2.3, vu1)
+              )
             )
           )
     @test @inferred(VectorizationBase.vsum(v2)) + 3 ==
-          @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))) ==
+          @inferred(
+            VectorizationBase.vsum(VectorizationBase.addscalar(v2, 3))
+          ) ==
           @inferred(VectorizationBase.vsum(VectorizationBase.addscalar(3, v2)))
-    @test @inferred(VectorizationBase.vsum(VectorizationBase.collapse_add(vu2))) + 3 ==
+    @test @inferred(
+            VectorizationBase.vsum(VectorizationBase.collapse_add(vu2))
+          ) + 3 ==
           @inferred(
             VectorizationBase.vsum(
-              VectorizationBase.collapse_add(VectorizationBase.addscalar(vu2, 3)),
+              VectorizationBase.collapse_add(
+                VectorizationBase.addscalar(vu2, 3)
+              )
             )
           ) ==
           @inferred(
             VectorizationBase.vsum(
-              VectorizationBase.collapse_add(VectorizationBase.addscalar(3, vu2)),
+              VectorizationBase.collapse_add(
+                VectorizationBase.addscalar(3, vu2)
+              )
             )
           )
     @test @inferred(VectorizationBase.vprod(v1)) * 2.3 ≈
-          @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))) ≈
-          @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1)))
+          @inferred(
+            VectorizationBase.vprod(VectorizationBase.mulscalar(v1, 2.3))
+          ) ≈
+          @inferred(
+            VectorizationBase.vprod(VectorizationBase.mulscalar(2.3, v1))
+          )
     @test @inferred(VectorizationBase.vprod(v2)) * 3 ==
           @inferred(VectorizationBase.vprod(VectorizationBase.mulscalar(3, v2)))
-    @test @inferred(VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2)))
+    @test @inferred(
+      VectorizationBase.vall(v1 + v2 == VectorizationBase.addscalar(v1, v2))
+    )
     @test 4.0 == @inferred(VectorizationBase.addscalar(2.0, 2.0))
-
 
     v3 = Vec(ntuple(Base.Fix2(-, 1), W64)...)
     vu3 = VectorizationBase.VecUnroll((v3, v3 - 1))
     v4 = Vec(ntuple(Base.Fix2(-, 1.0), W64)...)
     v5 = Vec(ntuple(Base.Fix2(-, 1.0f0), W32)...)
-    @test @inferred(VectorizationBase.vmaximum(v3)) ===
-          @inferred(VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, W64 - 2)))
+    @test @inferred(VectorizationBase.vmaximum(v3)) === @inferred(
+      VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3, W64 - 2))
+    )
     @test @inferred(VectorizationBase.vmaximum(v3 % UInt)) === @inferred(
-      VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, (W64 - 2) % UInt))
+      VectorizationBase.vmaximum(
+        VectorizationBase.maxscalar(v3 % UInt, (W64 - 2) % UInt)
+      )
     )
     @test @inferred(VectorizationBase.vmaximum(v4)) === @inferred(
-      VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, prevfloat(W64 - 1.0)))
+      VectorizationBase.vmaximum(
+        VectorizationBase.maxscalar(v4, prevfloat(W64 - 1.0))
+      )
     )
     @test @inferred(
-      VectorizationBase.vmaximum(VectorizationBase.maxscalar(v4, nextfloat(W64 - 1.0)))
+      VectorizationBase.vmaximum(
+        VectorizationBase.maxscalar(v4, nextfloat(W64 - 1.0))
+      )
     ) == nextfloat(W64 - 1.0)
     @test @inferred(VectorizationBase.vmaximum(v5)) ===
           @inferred(
             VectorizationBase.vmaximum(
-              VectorizationBase.maxscalar(v5, prevfloat(W32 - 1.0f0)),
+              VectorizationBase.maxscalar(v5, prevfloat(W32 - 1.0f0))
             )
           ) ===
           VectorizationBase.vmaximum(
-            VectorizationBase.maxscalar(prevfloat(W32 - 1.0f0), v5),
+            VectorizationBase.maxscalar(prevfloat(W32 - 1.0f0), v5)
           )
     @test @inferred(
             VectorizationBase.vmaximum(
-              VectorizationBase.maxscalar(v5, nextfloat(W32 - 1.0f0)),
+              VectorizationBase.maxscalar(v5, nextfloat(W32 - 1.0f0))
             )
           ) ==
           @inferred(
             VectorizationBase.vmaximum(
-              VectorizationBase.maxscalar(nextfloat(W32 - 1.0f0), v5),
+              VectorizationBase.maxscalar(nextfloat(W32 - 1.0f0), v5)
             )
           ) ==
           nextfloat(W32 - 1.0f0)
@@ -1648,27 +1860,33 @@ include("testsetup.jl")
     @test VectorizationBase.maxscalar(v3, 2)(1) == 2
     @test (VectorizationBase.maxscalar(v3, 2) ≠ v3) === Mask{W64}(0x01)
     @test VectorizationBase.maxscalar(v3, -1) === v3
-    @test VectorizationBase.vmaximum(VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)) ===
-          -1 % UInt
+    @test VectorizationBase.vmaximum(
+      VectorizationBase.maxscalar(v3 % UInt, -1 % UInt)
+    ) === -1 % UInt
     @test VectorizationBase.maxscalar(v4, 1e-16) ===
           VectorizationBase.insertelement(v4, 1e-16, 0)
     @test VectorizationBase.maxscalar(v4, -1e-16) === v4
-    @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(vu3)) == W64 - 1
+    @test VectorizationBase.vmaximum(VectorizationBase.collapse_max(vu3)) ==
+          W64 - 1
     @test VectorizationBase.vmaximum(
-      VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3, W64 - 2)),
+      VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3, W64 - 2))
     ) == W64 - 1
     @test VectorizationBase.vmaximum(
-      VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3, W64)),
+      VectorizationBase.collapse_max(VectorizationBase.maxscalar(vu3, W64))
     ) == W64
     @test VectorizationBase.vminimum(VectorizationBase.collapse_min(vu3)) == -1
     @test VectorizationBase.vminimum(
-      VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3, 0)),
+      VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3, 0))
     ) == -1
     @test VectorizationBase.vminimum(
-            VectorizationBase.collapse_min(VectorizationBase.minscalar(vu3, -2)),
+            VectorizationBase.collapse_min(
+              VectorizationBase.minscalar(vu3, -2)
+            )
           ) ==
           VectorizationBase.vminimum(
-            VectorizationBase.collapse_min(VectorizationBase.minscalar(-2, vu3)),
+            VectorizationBase.collapse_min(
+              VectorizationBase.minscalar(-2, vu3)
+            )
           ) ==
           -2
   end
@@ -1699,35 +1917,42 @@ include("testsetup.jl")
           oneunit(VectorizationBase.Vec{2W64,UInt64})
 
     @test VectorizationBase.vall(
-      VectorizationBase.vbroadcast(W64S, pointer(A)) == vbroadcast(W64S, first(A)),
+      VectorizationBase.vbroadcast(W64S, pointer(A)) ==
+      vbroadcast(W64S, first(A))
     )
-    @test VectorizationBase.vbroadcast(W64S, pointer(A, 2)) === Vec{W64}(A[2]) === Vec(A[2])
+    @test VectorizationBase.vbroadcast(W64S, pointer(A, 2)) ===
+          Vec{W64}(A[2]) ===
+          Vec(A[2])
 
     @test zero(
       VectorizationBase.VecUnroll((
         VectorizationBase.vbroadcast(W64S, pointer(A)),
-        VectorizationBase.vbroadcast(W64S, pointer(A, 2)),
-      )),
+        VectorizationBase.vbroadcast(W64S, pointer(A, 2))
+      ))
     ) === VectorizationBase.VecUnroll((
       VectorizationBase.vzero(W64S, Float64),
-      VectorizationBase.vzero(),
+      VectorizationBase.vzero()
     ))
 
     @test VectorizationBase.VecUnroll{2,W64,Float64}(first(A)) ===
           VectorizationBase.VecUnroll{2,W64,Float64}(
-            VectorizationBase.vbroadcast(W64S, pointer(A)),
+            VectorizationBase.vbroadcast(W64S, pointer(A))
           ) ===
           VectorizationBase.VecUnroll((
             VectorizationBase.vbroadcast(W64S, pointer(A)),
             VectorizationBase.vbroadcast(W64S, pointer(A)),
-            VectorizationBase.vbroadcast(W64S, pointer(A)),
+            VectorizationBase.vbroadcast(W64S, pointer(A))
           )) ===
-          VectorizationBase.VecUnroll{2}(VectorizationBase.vbroadcast(W64S, pointer(A)))
+          VectorizationBase.VecUnroll{2}(
+            VectorizationBase.vbroadcast(W64S, pointer(A))
+          )
   end
   println("CartesianVIndex")
   @time @testset "CartesianVIndex" begin
     @test VectorizationBase.maybestaticfirst(CartesianIndices(A)) ===
-          VectorizationBase.CartesianVIndex(ntuple(_ -> VectorizationBase.One(), ndims(A)))
+          VectorizationBase.CartesianVIndex(
+      ntuple(_ -> VectorizationBase.One(), ndims(A))
+    )
     @test VectorizationBase.maybestaticlast(CartesianIndices(A)) ===
           VectorizationBase.CartesianVIndex(size(A))
     @test VectorizationBase.CartesianVIndex((
@@ -1736,7 +1961,7 @@ include("testsetup.jl")
       VectorizationBase.CartesianVIndex((StaticInt(4), StaticInt(7))),
       CartesianIndex(12, 14),
       StaticInt(2),
-      1,
+      1
     )) === VectorizationBase.CartesianVIndex((
       StaticInt(1),
       2,
@@ -1745,7 +1970,7 @@ include("testsetup.jl")
       12,
       14,
       StaticInt(2),
-      1,
+      1
     ))
     @test Tuple(
       VectorizationBase.CartesianVIndex((
@@ -1754,8 +1979,8 @@ include("testsetup.jl")
         VectorizationBase.CartesianVIndex((StaticInt(4), StaticInt(7))),
         CartesianIndex(12, 14),
         StaticInt(2),
-        1,
-      )),
+        1
+      ))
     ) === (StaticInt(1), 2, StaticInt(4), StaticInt(7), 12, 14, StaticInt(2), 1)
     @test length(
       VectorizationBase.CartesianVIndex((
@@ -1764,8 +1989,8 @@ include("testsetup.jl")
         VectorizationBase.CartesianVIndex((StaticInt(4), StaticInt(7))),
         CartesianIndex(12, 14),
         StaticInt(2),
-        1,
-      )),
+        1
+      ))
     ) === 8
     @test VectorizationBase.static_length(
       VectorizationBase.CartesianVIndex((
@@ -1774,18 +1999,21 @@ include("testsetup.jl")
         VectorizationBase.CartesianVIndex((StaticInt(4), StaticInt(7))),
         CartesianIndex(12, 14),
         StaticInt(2),
-        1,
-      )),
+        1
+      ))
     ) === StaticInt{8}()
     @test VectorizationBase.CartesianVIndex((StaticInt(-4), StaticInt(7))):VectorizationBase.CartesianVIndex((
       StaticInt(14),
-      StaticInt(73),
-    )) === CartesianIndices((StaticInt(-4):StaticInt(14), StaticInt(7):StaticInt(73)))
+      StaticInt(73)
+    )) === CartesianIndices((
+      StaticInt(-4):StaticInt(14),
+      StaticInt(7):StaticInt(73)
+    ))
     @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(
-      CartesianIndices(A),
+      CartesianIndices(A)
     ) == CartesianIndices(A)
     @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(
-      CartesianIndices(A),
+      CartesianIndices(A)
     ) === CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
   end
   println("Promotion")
@@ -1794,34 +2022,36 @@ include("testsetup.jl")
       Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
       Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
       Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-      Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
+      Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64)))
     ))
     vones, vi2f, vtwos = @inferred(promote(1.0, vi2, 2.0f0)) # promotes a binary function, right? Even when used with three args?
     @test vones === VectorizationBase.VecUnroll((
       vbroadcast(Val(W64), 1.0),
       vbroadcast(Val(W64), 1.0),
       vbroadcast(Val(W64), 1.0),
-      vbroadcast(Val(W64), 1.0),
+      vbroadcast(Val(W64), 1.0)
     ))
     @test vtwos === VectorizationBase.VecUnroll((
       vbroadcast(Val(W64), 2.0),
       vbroadcast(Val(W64), 2.0),
       vbroadcast(Val(W64), 2.0),
-      vbroadcast(Val(W64), 2.0),
+      vbroadcast(Val(W64), 2.0)
     ))
-    @test @inferred(VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2)))
+    @test @inferred(
+      VectorizationBase.vall(VectorizationBase.collapse_and(vi2f == vi2))
+    )
     vf2 = VectorizationBase.VecUnroll((
       Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
-      Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32))),
+      Vec(ntuple(_ -> Core.VecElement(randn(Float32)), StaticInt(W32)))
     ))
     vones32, v2f32, vtwos32 = @inferred(promote(1.0, vf2, 2.0f0)) # promotes a binary function, right? Even when used with three args?
     @test vones32 === VectorizationBase.VecUnroll((
       vbroadcast(StaticInt(W32), 1.0f0),
-      vbroadcast(StaticInt(W32), 1.0f0),
+      vbroadcast(StaticInt(W32), 1.0f0)
     ))
     @test vtwos32 === VectorizationBase.VecUnroll((
       vbroadcast(StaticInt(W32), 2.0f0),
-      vbroadcast(StaticInt(W32), 2.0f0),
+      vbroadcast(StaticInt(W32), 2.0f0)
     ))
     @test vf2 === v2f32
     @test isequal(tovector(@inferred(bswap(vf2))), map(bswap, tovector(vf2)))
@@ -1831,14 +2061,14 @@ include("testsetup.jl")
         MM{W64}(rand(Int)),
         MM{W64}(rand(Int)),
         MM{W64}(rand(Int)),
-        MM{W64}(rand(Int)),
+        MM{W64}(rand(Int))
       ))
     else
       VectorizationBase.VecUnroll((
         MM{W64}(rand(Int32)),
         MM{W64}(rand(Int32)),
         MM{W64}(rand(Int32)),
-        MM{W64}(rand(Int32)),
+        MM{W64}(rand(Int32))
       ))
     end
     @test tovector(@inferred(vm > vi2)) == (tovector(vm) .> tovector(vi2))
@@ -1846,11 +2076,11 @@ include("testsetup.jl")
     m = VecUnroll((Mask{W64}(rand(UInt)), Mask{W64}(rand(UInt))))
     v64f = VecUnroll((
       Vec(ntuple(_ -> randn(), Val{W64}())...),
-      Vec(ntuple(_ -> randn(), Val{W64}())...),
+      Vec(ntuple(_ -> randn(), Val{W64}())...)
     ))
     v32i = VecUnroll((
       Vec(ntuple(_ -> rand(Int32(-100):Int32(100)), Val{W64}())...),
-      Vec(ntuple(_ -> rand(Int32(-100):Int32(100)), Val{W64}())...),
+      Vec(ntuple(_ -> rand(Int32(-100):Int32(100)), Val{W64}())...)
     ))
     mtv = tovector(m)
     v64ftv = tovector(v64f)
@@ -1882,15 +2112,23 @@ include("testsetup.jl")
     vx = convert(Vec{16,Int64}, 1)
     @test typeof(vx) === typeof(zero(vx)) === Vec{16,Int64}
 
-    vxf32 =
-      Vec(ntuple(_ -> randn(Float32), VectorizationBase.pick_vector_width(Float32))...)
+    vxf32 = Vec(
+      ntuple(
+        _ -> randn(Float32),
+        VectorizationBase.pick_vector_width(Float32)
+      )...
+    )
     xf32, yf32 = promote(vxf32, 1.0)
     @test xf32 === vxf32
-    @test yf32 === vbroadcast(VectorizationBase.pick_vector_width(Float32), 1.0f0)
-    vxi32 = Vec(ntuple(_ -> rand(Int32), VectorizationBase.pick_vector_width(Int32))...)
+    @test yf32 ===
+          vbroadcast(VectorizationBase.pick_vector_width(Float32), 1.0f0)
+    vxi32 = Vec(
+      ntuple(_ -> rand(Int32), VectorizationBase.pick_vector_width(Int32))...
+    )
     xi32, yi32 = promote(vxi32, one(Int64))
     @test xi32 === vxi32
-    @test yi32 === vbroadcast(VectorizationBase.pick_vector_width(Int32), one(Int32))
+    @test yi32 ===
+          vbroadcast(VectorizationBase.pick_vector_width(Int32), one(Int32))
     @test ntoh(vxi32) === Vec(map(ntoh, Tuple(vxi32))...)
 
     @test VecUnroll((1.0, 2.0, 3.0)) * VecUnroll((1.0f0, 2.0f0, 3.0f0)) ===
@@ -1922,9 +2160,15 @@ include("testsetup.jl")
     vu = VectorizationBase.VecUnroll((vx, randnvec(W64)))
     vm = MM{16}(24)
     for f ∈ [+, Base.FastMath.add_fast]
-      @test f(vx, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vx) === vx
-      @test f(vu, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vu) === vu
-      @test f(vm, VectorizationBase.Zero()) === f(VectorizationBase.Zero(), vm) === vm
+      @test f(vx, VectorizationBase.Zero()) ===
+            f(VectorizationBase.Zero(), vx) ===
+            vx
+      @test f(vu, VectorizationBase.Zero()) ===
+            f(VectorizationBase.Zero(), vu) ===
+            vu
+      @test f(vm, VectorizationBase.Zero()) ===
+            f(VectorizationBase.Zero(), vm) ===
+            vm
     end
     for f ∈ [-, Base.FastMath.sub_fast]
       @test f(vx, VectorizationBase.Zero()) === vx
@@ -1944,12 +2188,23 @@ include("testsetup.jl")
       @test f(vm, VectorizationBase.Zero()) ===
             f(VectorizationBase.Zero(), vm) ===
             VectorizationBase.Zero()
-      @test f(vx, VectorizationBase.One()) === f(VectorizationBase.One(), vx) === vx
-      @test f(vu, VectorizationBase.One()) === f(VectorizationBase.One(), vu) === vu
-      @test f(vm, VectorizationBase.One()) === f(VectorizationBase.One(), vm) === vm
+      @test f(vx, VectorizationBase.One()) ===
+            f(VectorizationBase.One(), vx) ===
+            vx
+      @test f(vu, VectorizationBase.One()) ===
+            f(VectorizationBase.One(), vu) ===
+            vu
+      @test f(vm, VectorizationBase.One()) ===
+            f(VectorizationBase.One(), vm) ===
+            vm
     end
     vnan = NaN * vx
-    for f ∈ [fma, muladd, VectorizationBase.vfma_fast, VectorizationBase.vmuladd_fast]
+    for f ∈ [
+      fma,
+      muladd,
+      VectorizationBase.vfma_fast,
+      VectorizationBase.vmuladd_fast
+    ]
       @test f(vnan, VectorizationBase.Zero(), vx) === vx
       @test f(VectorizationBase.Zero(), vnan, vx) === vx
     end
@@ -2002,8 +2257,9 @@ include("testsetup.jl")
     vx = Vec(
       ntuple(
         _ -> rand(),
-        VectorizationBase.StaticInt(3) * VectorizationBase.pick_vector_width(Float64),
-      )...,
+        VectorizationBase.StaticInt(3) *
+        VectorizationBase.pick_vector_width(Float64)
+      )...
     )
     check_within_limits(tovector(@inferred(vlog(vx))), log.(tovector(vx)))
   end
@@ -2011,13 +2267,15 @@ include("testsetup.jl")
   println("Saturated add")
   @time @testset "Saturated add" begin
     @test VectorizationBase.saturated_add(0xf0, 0xf0) === 0xff
-    @test VectorizationBase.saturated_add(2_000_000_000 % Int32, 1_000_000_000 % Int32) ===
-          typemax(Int32)
+    @test VectorizationBase.saturated_add(
+      2_000_000_000 % Int32,
+      1_000_000_000 % Int32
+    ) === typemax(Int32)
     v = Vec(
       ntuple(
         _ -> rand(typemax(UInt)>>1+one(UInt):typemax(UInt)),
-        VectorizationBase.pick_vector_width(UInt),
-      )...,
+        VectorizationBase.pick_vector_width(UInt)
+      )...
     )
     @test VectorizationBase.saturated_add(v, v) ===
           vbroadcast(VectorizationBase.pick_vector_width(UInt), typemax(UInt))
@@ -2027,33 +2285,38 @@ include("testsetup.jl")
   using SpecialFunctions
   @time @testset "Special Functions" begin
     for T ∈ [Float32, Float64]
-      min_non_denormal =
-        nextfloat(abs(reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))))
+      min_non_denormal = nextfloat(
+        abs(
+          reinterpret(T, typemax(Base.uinttype(T)) & (~Base.exponent_mask(T)))
+        )
+      )
       l2mnd = log2(min_non_denormal)
-      xx = collect(range(T(0.8) * l2mnd, T(0.8) * abs(l2mnd), length = 2^21))
+      xx = collect(range(T(0.8) * l2mnd, T(0.8) * abs(l2mnd); length = 2^21))
       test_acc(exp2, exp2, T, xx, 3)
 
       lemnd = log(min_non_denormal)
-      xx .= range(T(0.8) * lemnd, T(0.8) * abs(lemnd), length = 2^21)
+      xx .= range(T(0.8) * lemnd, T(0.8) * abs(lemnd); length = 2^21)
       test_acc(exp, exp, T, xx, 3)
 
       l10mnd = log10(min_non_denormal)
-      xx .= range(T(0.8) * l10mnd, T(0.8) * abs(l10mnd), length = 2^21)
+      xx .= range(T(0.8) * l10mnd, T(0.8) * abs(l10mnd); length = 2^21)
       test_acc(exp10, exp10, T, xx, 3)
 
       if T === Float32
-        xx .= range(-4.0f0, 4.0f0, length = 2^21)
+        xx .= range(-4.0f0, 4.0f0; length = 2^21)
         erftol = 3
       else
-        xx .= range(-6.0, 6.0, length = 2^21)
+        xx .= range(-6.0, 6.0; length = 2^21)
         erftol = 7
       end
       test_acc(VectorizationBase.verf, erf, T, xx, erftol)
       # xx .= exp2.(range(T(0.8)*l2mnd, T(0.8)*abs(l2mnd), length = 2^20));
       # test_acc(VectorizationBase.vlog2, log2, T, xx, 7)
     end
-    @test exp(VecUnroll((1.1, 2.3))) === VecUnroll((3.0041660239464334, 9.97418245481472))
-    @test exp(VecUnroll((1, 2))) === VecUnroll((2.7182818284590455, 7.3890560989306495))
+    @test exp(VecUnroll((1.1, 2.3))) ===
+          VecUnroll((3.0041660239464334, 9.97418245481472))
+    @test exp(VecUnroll((1, 2))) ===
+          VecUnroll((2.7182818284590455, 7.3890560989306495))
   end
 
   # fix the stackoverflow error in `vmax_fast`, `vmax`, `vmin` and `vmin_fast` for floating types
@@ -2069,13 +2332,23 @@ include("testsetup.jl")
   end
 
   @time @testset "vmax/vmin Bool" begin
-    t, f = Vec{4,Bool}(true, true, false, false), Vec{4,Bool}(true, false, true, false)
-    @test VectorizationBase.vmax_fast(t, f) === @fastmath(max(t, f)) === Vec{4,Bool}(true, true, true, false)
-    @test VectorizationBase.vmin_fast(t, f) === @fastmath(min(t, f)) ===Vec{4,Bool}(true, false, false, false)
-    @test VectorizationBase.vmax(t, f) === max(t, f) === Vec{4,Bool}(true, true, true, false)
-    @test VectorizationBase.vmin(t, f) === min(t, f) === Vec{4,Bool}(true, false, false, false)
+    t, f = Vec{4,Bool}(true, true, false, false),
+    Vec{4,Bool}(true, false, true, false)
+    @test VectorizationBase.vmax_fast(t, f) ===
+          @fastmath(max(t, f)) ===
+          Vec{4,Bool}(true, true, true, false)
+    @test VectorizationBase.vmin_fast(t, f) ===
+          @fastmath(min(t, f)) ===
+          Vec{4,Bool}(true, false, false, false)
+    @test VectorizationBase.vmax(t, f) ===
+          max(t, f) ===
+          Vec{4,Bool}(true, true, true, false)
+    @test VectorizationBase.vmin(t, f) ===
+          min(t, f) ===
+          Vec{4,Bool}(true, false, false, false)
 
-    tm = Mask{4}(0xc); fm = Mask{4}(0xa)
+    tm = Mask{4}(0xc)
+    fm = Mask{4}(0xa)
     @test @fastmath(max(tm, fm)) === max(tm, fm) === Mask{4}(0xe)
     @test @fastmath(min(tm, fm)) === min(tm, fm) === Mask{4}(0x8)
   end
@@ -2106,33 +2379,34 @@ include("testsetup.jl")
         vload(
           VectorizationBase.gesp(
             VectorizationBase.stridedpointer(A),
-            (VectorizationBase.NullStep(), VectorizationBase.NullStep()),
+            (VectorizationBase.NullStep(), VectorizationBase.NullStep())
           ),
-          (1, 2),
+          (1, 2)
         )
       ) == A[1, 2]
       @test @inferred(
         vload(
           VectorizationBase.gesp(
             VectorizationBase.stridedpointer(A),
-            (StaticInt(0), VectorizationBase.NullStep()),
+            (StaticInt(0), VectorizationBase.NullStep())
           ),
-          (2, 3),
+          (2, 3)
         )
       ) == A[2, 3]
       @test @inferred(
         vload(
           VectorizationBase.gesp(
             VectorizationBase.stridedpointer(A),
-            (VectorizationBase.NullStep(), StaticInt(0)),
+            (VectorizationBase.NullStep(), StaticInt(0))
           ),
-          (3, 4),
+          (3, 4)
         )
       ) == A[3, 4]
     end
     B = A .> 0.5
     spb = stridedpointer(B)
-    @test VectorizationBase.gesp(spb, (3,)) === VectorizationBase.gesp(spb, (3, 0))
+    @test VectorizationBase.gesp(spb, (3,)) ===
+          VectorizationBase.gesp(spb, (3, 0))
   end
   # end
 end # @testset VectorizationBase

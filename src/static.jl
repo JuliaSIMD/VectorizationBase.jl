@@ -4,7 +4,8 @@
 @inline maybestaticfirst(a) = static_first(a)
 @inline maybestaticlast(a) = static_last(a)
 @inline maybestaticlength(a) = static_length(a)
-@inline maybestaticlength(a::UnitRange{T}) where {T} = last(a) - first(a) + oneunit(T)
+@inline maybestaticlength(a::UnitRange{T}) where {T} =
+  last(a) - first(a) + oneunit(T)
 
 @inline maybestaticrange(r::Base.OneTo{T}) where {T} =
   ArrayInterface.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
@@ -14,11 +15,11 @@
 @inline maybestaticsize(::NTuple{N}, ::Val{1}) where {N} = StaticInt{N}() # should we assert that i == 1?
 @inline maybestaticsize(
   ::LinearAlgebra.Adjoint{T,V},
-  ::Val{1},
+  ::Val{1}
 ) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticsize(
   ::LinearAlgebra.Transpose{T,V},
-  ::Val{1},
+  ::Val{1}
 ) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticsize(A, ::Val{N}) where {N} = ArrayInterface.size(A)[N]
 
@@ -39,7 +40,7 @@ for (f, ff) ∈ [
   (:(Base.:<<), :vshl),
   (:(Base.:÷), :vdiv),
   (:(Base.:%), :vrem),
-  (:(Base.:>>>), :vashr),
+  (:(Base.:>>>), :vashr)
 ]
   @eval begin
     # @inline $f(::StaticInt{M}, ::StaticInt{N}) where {M, N} = StaticInt{$f(M, N)}()
@@ -48,8 +49,10 @@ for (f, ff) ∈ [
       $f(StaticInt{M}(), StaticInt{N}())
     # @inline $f(::StaticInt{M}, x) where {M} = $ff(M, x)
     # @inline $f(x, ::StaticInt{M}) where {M} = $ff(x, M)
-    @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} = $ff(M % T, x)
-    @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} = $ff(x, M % T)
+    @inline $ff(::StaticInt{M}, x::T) where {M,T<:IntegerTypesHW} =
+      $ff(M % T, x)
+    @inline $ff(x::T, ::StaticInt{M}) where {M,T<:IntegerTypesHW} =
+      $ff(x, M % T)
     @inline $ff(::StaticInt{M}, x::T) where {M,T} = $ff(T(M), x)
     @inline $ff(x::T, ::StaticInt{M}) where {M,T} = $ff(x, T(M))
   end

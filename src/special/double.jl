@@ -33,15 +33,22 @@ for (op, f, ff) ∈ [
   ("fsub", :sub_ieee, :(-)),
   ("fmul", :mul_ieee, :(*)),
   ("fdiv", :fdiv_ieee, :(/)),
-  ("frem", :rem_ieee, :(%)),
+  ("frem", :rem_ieee, :(%))
 ]
   @eval begin
-    @generated $f(v1::Vec{W,T}, v2::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
+    @generated $f(
+      v1::Vec{W,T},
+      v2::Vec{W,T}
+    ) where {W,T<:Union{Float32,Float64}} =
       VectorizationBase.binary_op($op, W, T)
     @inline $f(s1::T, s2::T) where {T<:Union{Float32,Float64}} = $ff(s1, s2)
     @inline $f(args::Vararg{Any,K}) where {K} = $f(promote(args...)...)
     @inline $f(a::VecUnroll, b::VecUnroll) = VecUnroll(
-      VectorizationBase.fmap($f, VectorizationBase.data(a), VectorizationBase.data(b)),
+      VectorizationBase.fmap(
+        $f,
+        VectorizationBase.data(a),
+        VectorizationBase.data(b)
+      )
     )
   end
 end
@@ -77,7 +84,7 @@ end
 const vIEEEFloat = Union{
   IEEEFloat,
   Vec{<:Any,<:IEEEFloat},
-  VectorizationBase.VecUnroll{<:Any,<:Any,<:IEEEFloat},
+  VectorizationBase.VecUnroll{<:Any,<:Any,<:IEEEFloat}
 }
 
 struct Double{T<:vIEEEFloat} <: Number
@@ -85,23 +92,25 @@ struct Double{T<:vIEEEFloat} <: Number
   lo::T
 end
 @inline Double(x::T) where {T<:vIEEEFloat} = Double(x, zero(T))
-@inline function Double(x::Vec, y::Vec)
-  Double(Vec(data(x)), Vec(data(y)))
-end
-@inline Base.convert(::Type{Double{V}}, v::Vec) where {W,T,V<:AbstractSIMD{W,T}} =
-  Double(convert(V, v), vzero(V))
-@inline Base.convert(::Type{Double{V}}, v::V) where {V<:AbstractSIMD} = Double(v, vzero(V))
+@inline Double(x::Vec, y::Vec) = Double(Vec(data(x)), Vec(data(y)))
+@inline Base.convert(
+  ::Type{Double{V}},
+  v::Vec
+) where {W,T,V<:AbstractSIMD{W,T}} = Double(convert(V, v), vzero(V))
+@inline Base.convert(::Type{Double{V}}, v::V) where {V<:AbstractSIMD} =
+  Double(v, vzero(V))
 # @inline Base.convert(::Type{Double{V}}, m::Mask) where {V} = m
 # @inline Base.convert(::Type{Double{Mask{W,U}}}, m::Mask{W,U}) where {W,U} = m
-@inline Base.convert(::Type{Double{V}}, d::Double{T}) where {W,T,V<:AbstractSIMD{W,T}} =
+@inline Base.convert(
+  ::Type{Double{V}},
+  d::Double{T}
+) where {W,T,V<:AbstractSIMD{W,T}} =
   Double(vbroadcast(Val{W}(), d.hi), vbroadcast(Val{W}(), d.lo))
 @inline Base.eltype(d::Double) = eltype(d.hi)
 
 (::Type{T})(x::Double{T}) where {T<:vIEEEFloat} = x.hi + x.lo
 
 Base.issubnormal(d::Double) = issubnormal(d.hi) | issubnormal(d.lo)
-
-
 
 @inline Base.eltype(d::Double{T}) where {T<:IEEEFloat} = T
 @inline Base.eltype(d::Double{S}) where {N,T,S<:Union{Vec{N,T},Vec{N,T}}} = T
@@ -112,7 +121,7 @@ Base.issubnormal(d::Double) = issubnormal(d.hi) | issubnormal(d.lo)
 @generated function ifelse(
   m::VecUnroll{N,W,T},
   v1::Double{V1},
-  v2::Double{V2},
+  v2::Double{V2}
 ) where {N,W,T,V1,V2}
   q = Expr(
     :block,
@@ -121,7 +130,7 @@ Base.issubnormal(d::Double) = issubnormal(d.hi) | issubnormal(d.lo)
     :(v1h = v1.hi),
     :(v2h = v2.hi),
     :(v1l = v1.lo),
-    :(v2l = v2.lo),
+    :(v2l = v2.lo)
   )
   if V1 <: VecUnroll
     push!(q.args, :(v1hd = data(v1h)))
@@ -159,19 +168,21 @@ Base.issubnormal(d::Double) = issubnormal(d.hi) | issubnormal(d.lo)
 end
 @inline trunclo(x::Float64) =
   reinterpret(Float64, reinterpret(UInt64, x) & 0xffff_ffff_f800_0000) # clear lower 27 bits (leave upper 26 bits)
-@inline trunclo(x::Float32) = reinterpret(Float32, reinterpret(UInt32, x) & 0xffff_f000) # clear lowest 12 bits (leave upper 12 bits)
+@inline trunclo(x::Float32) =
+  reinterpret(Float32, reinterpret(UInt32, x) & 0xffff_f000) # clear lowest 12 bits (leave upper 12 bits)
 
 # @inline trunclo(x::VecProduct) = trunclo(Vec(data(x)))
 @inline function trunclo(x::AbstractSIMD{N,Float64}) where {N}
   reinterpret(
     Vec{N,Float64},
-    reinterpret(Vec{N,UInt64}, x) & convert(Vec{N,UInt64}, 0xffff_ffff_f800_0000),
+    reinterpret(Vec{N,UInt64}, x) &
+    convert(Vec{N,UInt64}, 0xffff_ffff_f800_0000)
   ) # clear lower 27 bits (leave upper 26 bits)
 end
 @inline function trunclo(x::AbstractSIMD{N,Float32}) where {N}
   reinterpret(
     Vec{N,Float32},
-    reinterpret(Vec{N,UInt32}, x) & convert(Vec{N,UInt32}, 0xffff_f000),
+    reinterpret(Vec{N,UInt32}, x) & convert(Vec{N,UInt32}, 0xffff_f000)
   ) # clear lowest 12 bits (leave upper 12 bits)
 end
 
@@ -188,8 +199,8 @@ end
 @inline Base.flipsign(x::Double{<:vIEEEFloat}, y::vIEEEFloat) =
   Double(flipsign(x.hi, y), flipsign(x.lo, y))
 
-@inline scale(x::Double{<:vIEEEFloat}, s::vIEEEFloat) = Double(s * x.hi, s * x.lo)
-
+@inline scale(x::Double{<:vIEEEFloat}, s::vIEEEFloat) =
+  Double(s * x.hi, s * x.lo)
 
 @inline Base.:(-)(x::Double{T}) where {T<:vIEEEFloat} = Double(-x.hi, -x.lo)
 
@@ -197,13 +208,9 @@ end
   x.hi < y.hi
 end
 
-@inline function Base.:(<)(x::Double{<:vIEEEFloat}, y::Union{Number,Vec})
-  x.hi < y
-end
+@inline Base.:(<)(x::Double{<:vIEEEFloat}, y::Union{Number,Vec}) = x.hi < y
 
-@inline function Base.:(<)(x::Union{Number,Vec}, y::Double{<:vIEEEFloat})
-  x < y.hi
-end
+@inline Base.:(<)(x::Union{Number,Vec}, y::Double{<:vIEEEFloat}) = x < y.hi
 
 # quick-two-sum x+y
 @inline function dadd(x::vIEEEFloat, y::vIEEEFloat) #WARNING |x| >= |y|
@@ -245,7 +252,6 @@ end
   s = x - y
   Double(s, ((x - s) - y))
 end
-
 
 # two-sum x+y  NO BRANCH
 @inline function dadd2(x::vIEEEFloat, y::vIEEEFloat)
@@ -297,8 +303,13 @@ end
 @inline function ifelse(
   b::Mask{N},
   x::Double{T1},
-  y::Double{T2},
-) where {N,T<:Union{Float32,Float64},T1<:Union{T,Vec{N,T}},T2<:Union{T,Vec{N,T}}}
+  y::Double{T2}
+) where {
+  N,
+  T<:Union{Float32,Float64},
+  T1<:Union{T,Vec{N,T}},
+  T2<:Union{T,Vec{N,T}}
+}
   V = Vec{N,T}
   Double(ifelse(b, V(x.hi), V(y.hi)), ifelse(b, V(x.lo), V(y.lo)))
 end
@@ -337,7 +348,12 @@ end
   hy, ly = splitprec(y.hi)
   @ieee begin
     z = x.hi * y.hi
-    Double(z, (((hx * hy - z) + lx * hy + hx * ly) + lx * ly) + x.hi * y.lo + x.lo * y.hi)
+    Double(
+      z,
+      (((hx * hy - z) + lx * hy + hx * ly) + lx * ly) +
+      x.hi * y.lo +
+      x.lo * y.hi
+    )
   end
 end
 @inline dmul(x::vIEEEFloat, y::Double{<:vIEEEFloat}) = dmul(y, x)

@@ -141,13 +141,18 @@ abstract type AbstractSIMDVector{W,T} <: AbstractSIMD{W,T} end
     VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
 
 `VecUnroll` supports optimizations when interleaving instructions across different memory storage schemes.
-`VecUnroll{N,W,T} is typically a tuple of `N+1` `AbstractSIMDVector{W,T}`s. For example, a `VecUnroll{3,8,Float32}`
-is a collection of 4× `Vec{8,Float32}`.
+`VecUnroll{N,W,T} is typically a tuple of `N+1` `AbstractSIMDVector{W,T}`s. For example, a `VecUnroll{3,8,Float32}`is a collection of 4×`Vec{8,Float32}`.
 
 # Examples
 
 ```jldoctest; setup=:(using VectorizationBase)
-julia> rgbs = [(R = Float32(i)/255, G = Float32(i+100)/255, B = Float32(i+200)/255) for i in 0:7:49]
+julia> rgbs = [
+         (
+           R = Float32(i) / 255,
+           G = Float32(i + 100) / 255,
+           B = Float32(i + 200) / 255
+         ) for i = 0:7:49
+       ]
 8-element Vector{NamedTuple{(:R, :G, :B), Tuple{Float32, Float32, Float32}}}:
  (R = 0.0, G = 0.39215687, B = 0.78431374)
  (R = 0.02745098, G = 0.41960785, B = 0.8117647)
@@ -158,7 +163,10 @@ julia> rgbs = [(R = Float32(i)/255, G = Float32(i+100)/255, B = Float32(i+200)/2
  (R = 0.16470589, G = 0.5568628, B = 0.9490196)
  (R = 0.19215687, G = 0.58431375, B = 0.9764706)
 
-julia> ret = vload(stridedpointer(reinterpret(reshape, Float32, rgbs)), Unroll{1,1,3,2,8,zero(UInt),1}((1,1)))
+julia> ret = vload(
+         stridedpointer(reinterpret(reshape, Float32, rgbs)),
+         Unroll{1,1,3,2,8,zero(UInt),1}((1, 1))
+       )
 3 x Vec{8, Float32}
 Vec{8, Float32}<0.0f0, 0.02745098f0, 0.05490196f0, 0.08235294f0, 0.10980392f0, 0.13725491f0, 0.16470589f0, 0.19215687f0>
 Vec{8, Float32}<0.39215687f0, 0.41960785f0, 0.44705883f0, 0.4745098f0, 0.5019608f0, 0.5294118f0, 0.5568628f0, 0.58431375f0>
@@ -167,16 +175,19 @@ Vec{8, Float32}<0.78431374f0, 0.8117647f0, 0.8392157f0, 0.8666667f0, 0.89411765f
 julia> typeof(ret)
 VecUnroll{2, 8, Float32, Vec{8, Float32}}
 ```
+
 While the `R`, `G`, and `B` are interleaved in `rgb`s, they have effectively been split out in `ret`
 (the first contains all 8 `R` values, with `G` and `B` in the second and third, respectively).
 
-To optimize for the user's CPU, in real code it would typically be better to use `Int(pick_vector_width(Float32))`
-in place of `8` (`W`) in the `Unroll` construction.
+To optimize for the user's CPU, in real code it would typically be better to use `Int(pick_vector_width(Float32))`  # # following two definitions are for checking that you aren't accidentally creating `VecUnroll{0}`s.
+in place of `8` (`W`) in the `Unroll` construction.  # @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})::VecUnroll{N,W,T,V}) where {N,W,T,V<:AbstractSIMD{W,T}} = (@assert(N > 0); new{N,W,T,V}(data))
 """
-struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <: AbstractSIMD{W,T}
+struct VecUnroll{N,W,T,V<:Union{NativeTypes,AbstractSIMD{W,T}}} <:
+       AbstractSIMD{W,T}
   data::Tuple{V,Vararg{V,N}}
-  @inline (VecUnroll(data::Tuple{V,Vararg{V,N}})) where {N,W,T,V<:AbstractSIMD{W,T}} =
-    new{N,W,T,V}(data)
+  @inline (VecUnroll(
+    data::Tuple{V,Vararg{V,N}}
+  )) where {N,W,T,V<:AbstractSIMD{W,T}} = new{N,W,T,V}(data)
   @inline (VecUnroll(data::Tuple{T,Vararg{T,N}})) where {N,T<:NativeTypes} =
     new{N,1,T,T}(data)
   # # following two definitions are for checking that you aren't accidentally creating `VecUnroll{0}`s.
@@ -195,12 +206,12 @@ const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 # const NativeTypesV = Union{AbstractSIMD,NativeTypes,StaticInt}
 const IntegerTypesV = Union{AbstractSIMD{<:Any,<:IntegerTypes},IntegerTypesHW}
 
-
 struct Vec{W,T} <: AbstractSIMDVector{W,T}
   data::NTuple{W,Core.VecElement{T}}
-  @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:NativeTypes} = new{W,T}(x)
+  @inline Vec{W,T}(x::NTuple{W,Core.VecElement{T}}) where {W,T<:NativeTypes} =
+    new{W,T}(x)
   @generated function Vec(
-    x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}},
+    x::Tuple{Core.VecElement{T},Vararg{Core.VecElement{T},_W}}
   ) where {_W,T<:NativeTypes}
     W = _W + 1
     # @assert W === pick_vector_width(W, T)# || W === 8
@@ -230,9 +241,9 @@ Base.:*(x::Zero, ::Vec) = x
 @inline _demoteint(::Type{Int64}) = Int32
 @inline _demoteint(::Type{UInt64}) = UInt32
 
-
 # abstract type AbstractMask{W,U<:Union{UnsignedHW,UInt128,UInt256,UInt512,UInt1024}} <: AbstractSIMDVector{W,Bit} end
-abstract type AbstractMask{W,U<:Union{UnsignedHW,UInt128}} <: AbstractSIMDVector{W,Bit} end
+abstract type AbstractMask{W,U<:Union{UnsignedHW,UInt128}} <:
+              AbstractSIMDVector{W,Bit} end
 struct Mask{W,U} <: AbstractMask{W,U}
   u::U
   @inline function Mask{W,U}(u::Unsigned) where {W,U} # ignores U...
@@ -248,7 +259,8 @@ struct EVLMask{W,U} <: AbstractMask{W,U}
     new{W,U2}(u % U2, evl % UInt32)
   end
 end
-const AnyMask{W} = Union{AbstractMask{W},VecUnroll{<:Any,W,Bit,<:AbstractMask{W}}}
+const AnyMask{W} =
+  Union{AbstractMask{W},VecUnroll{<:Any,W,Bit,<:AbstractMask{W}}}
 @inline Mask{W}(u::U) where {W,U<:Unsigned} = Mask{W,U}(u)
 @inline EVLMask{W}(u::U, i) where {W,U<:Unsigned} = EVLMask{W,U}(u, i)
 @inline Mask{1}(b::Bool) = b
@@ -259,12 +271,11 @@ const AnyMask{W} = Union{AbstractMask{W},VecUnroll{<:Any,W,Bit,<:AbstractMask{W}
 
 @inline Base.broadcastable(v::AbstractSIMDVector) = Ref(v)
 
-
 Vec{W,T}(x::Vararg{NativeTypes,W}) where {W,T<:NativeTypes} =
   Vec(ntuple(w -> Core.VecElement{T}(x[w]), Val{W}()))
 Vec{1,T}(x::Union{Float32,Float64}) where {T<:NativeTypes} = T(x)
 Vec{1,T}(
-  x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool},
+  x::Union{Int8,UInt8,Int16,UInt16,Int32,UInt32,Int64,UInt64,Bool}
 ) where {T<:NativeTypes} = T(x)
 
 @inline Base.length(::AbstractSIMDVector{W}) where {W} = W
@@ -275,7 +286,10 @@ Vec{1,T}(
 @inline Base.transpose(v::AbstractSIMDVector) = v # so that things like dot products work.
 
 # Not using getindex/setindex as names to emphasize that these are generally treated as single objects, not collections.
-@generated function extractelement(v::Vec{W,T}, i::I) where {W,I<:IntegerTypesHW,T}
+@generated function extractelement(
+  v::Vec{W,T},
+  i::I
+) where {W,I<:IntegerTypesHW,T}
   typ = LLVM_TYPES[T]
   instrs = """
       %res = extractelement <$W x $typ> %0, i$(8sizeof(I)) %1
@@ -284,18 +298,26 @@ Vec{1,T}(
   call = :($LLVMCALL($instrs, $T, Tuple{_Vec{$W,$T},$I}, data(v), i))
   Expr(:block, Expr(:meta, :inline), call)
 end
-@generated function insertelement(v::Vec{W,T}, x::T, i::I) where {W,I<:IntegerTypesHW,T}
+@generated function insertelement(
+  v::Vec{W,T},
+  x::T,
+  i::I
+) where {W,I<:IntegerTypesHW,T}
   typ = LLVM_TYPES[T]
   instrs = """
       %res = insertelement <$W x $typ> %0, $typ %1, i$(8sizeof(I)) %2
       ret <$W x $typ> %res
   """
-  call = :(Vec($LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T},$T,$I}, data(v), x, i)))
+  call = :(Vec(
+    $LLVMCALL($instrs, _Vec{$W,$T}, Tuple{_Vec{$W,$T},$T,$I}, data(v), x, i)
+  ))
   Expr(:block, Expr(:meta, :inline), call)
 end
-@inline (v::AbstractSIMDVector)(i::IntegerTypesHW) = extractelement(v, i - one(i))
+@inline (v::AbstractSIMDVector)(i::IntegerTypesHW) =
+  extractelement(v, i - one(i))
 @inline (v::AbstractSIMDVector)(i::Integer) = extractelement(v, Int(i) - 1)
-Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) = getfield(vu, :data)[j](i)
+Base.@propagate_inbounds (vu::VecUnroll)(i::Integer, j::Integer) =
+  getfield(vu, :data)[j](i)
 
 @inline Base.Tuple(v::Vec{W}) where {W} = ntuple(v, Val{W}())
 
@@ -345,16 +367,19 @@ The `MM{W,X}` type is used to represent SIMD indexes of width `W` with stride `X
 """
 struct MM{W,X,I<:Union{HWReal,StaticInt}} <: AbstractSIMDVector{W,I}
   i::I
-  @inline MM{W,X}(i::T) where {W,X,T<:Union{HWReal,StaticInt}} = new{W,X::Int,T}(i)
+  @inline MM{W,X}(i::T) where {W,X,T<:Union{HWReal,StaticInt}} =
+    new{W,X::Int,T}(i)
 end
 @inline MM(i::MM{W,X}) where {W,X} = MM{W,X}(getfield(i, :i))
 @inline MM{W}(i::Union{HWReal,StaticInt}) where {W} = MM{W,1}(i)
-@inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} = MM{W,X}(i)
+@inline MM{W}(i::Union{HWReal,StaticInt}, ::StaticInt{X}) where {W,X} =
+  MM{W,X}(i)
 @inline data(i::MM) = getfield(i, :i)
 
 @inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:HWReal} =
   getfield(i, :i) + (X % I) * (j % I)
-@inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:StaticInt} = getfield(i, :i) + X * j
+@inline extractelement(i::MM{W,X,I}, j) where {W,X,I<:StaticInt} =
+  getfield(i, :i) + X * j
 
 Base.propertynames(::AbstractSIMD) = ()
 function Base.getproperty(::AbstractSIMD, ::Symbol)
@@ -374,13 +399,13 @@ If you wish to define a new operation applied to the entire vector, do not defin
 This will often lead to bad code generation -- bad in terms of both performance, and often silently producing incorrect results!
 Instead, implement them in terms of existing functions defined on `::AbstractSIMD`. Please feel free to file an issue if you would like
 clarification, and especially if you think the function may be useful for others and should be included in `VectorizationBase.jl`.
-""",
-    ),
+"""
+    )
   )
 end
 
 """
-  pause()
+pause()
 
 For use in spin-and-wait loops, like spinlocks.
 """
@@ -425,11 +450,10 @@ demoteint(::Type{T}, W) where {T} = False()
 demoteint(::Type{UInt64}, W::StaticInt) = gt(W, pick_vector_width(UInt64))
 demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
 
-
 @generated function simd_vec(
   ::DemoteInt,
   y::_T,
-  x::Vararg{_T,_W},
+  x::Vararg{_T,_W}
 ) where {DemoteInt<:StaticBool,_T,_W}
   W = 1 + _W
   T = DemoteInt === True ? _demoteint(_T) : _T
@@ -440,7 +464,10 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
   instrs = ["%v0 = insertelement <$Wfull x $ty> $init, $ty %0, i32 0"]
   Tup = Expr(:curly, :Tuple, T)
   for w ∈ 1:_W
-    push!(instrs, "%v$w = insertelement <$Wfull x $ty> %v$(w-1), $ty %$w, i32 $w")
+    push!(
+      instrs,
+      "%v$w = insertelement <$Wfull x $ty> %v$(w-1), $ty %$w, i32 $w"
+    )
     push!(Tup.args, T)
   end
   push!(instrs, "ret <$Wfull x $ty> %v$_W")
@@ -466,7 +493,7 @@ function vec_quote(demote, W, Wpow2, offset::Int = 0)
   iszero(offset) && push!(call.args, :y)
   foreach(
     w -> push!(call.args, Expr(:call, getfield, :x, w, false)),
-    max(1, offset):min(W, Wpow2)-1,
+    max(1, offset):min(W, Wpow2)-1
   )
   foreach(w -> push!(call.args, Expr(:call, :zero, :T)), W+1:Wpow2)
   call
@@ -475,7 +502,7 @@ end
   ::StaticInt{_Wpow2},
   ::DemoteInt,
   y::T,
-  x::Vararg{T,_W},
+  x::Vararg{T,_W}
 ) where {DemoteInt<:StaticBool,_Wpow2,_W,T<:NativeTypes}
   W = _W + 1
   demote = DemoteInt === True
@@ -495,7 +522,7 @@ end
 @static if VERSION >= v"1.8.0-beta"
   Base.@assume_effects total @inline function Vec(
     y::T,
-    x::Vararg{T,_W},
+    x::Vararg{T,_W}
   ) where {_W,T<:NativeTypes}
     W = StaticInt{_W}() + One()
     _vec(pick_vector_width(W, T), demoteint(T, W), y, x...)

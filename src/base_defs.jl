@@ -19,7 +19,7 @@ const FASTDICT = Dict{Symbol,Expr}([
   :log => :(SLEEFPirates.log_fast),
   :log2 => :(SLEEFPirates.log2_fast),
   :log10 => :(SLEEFPirates.log10_fast),
-  :(^) => :(Base.FastMath.pow_fast),
+  :(^) => :(Base.FastMath.pow_fast)
 ])
 
 for (op, f) ∈ [
@@ -40,7 +40,7 @@ for (op, f) ∈ [
   (:(Base.sqrt), :vsqrt),
   (:(Base.leading_zeros), :vleading_zeros),
   (:(Base.trailing_zeros), :vtrailing_zeros),
-  (:(Base.count_ones), :vcount_ones),
+  (:(Base.count_ones), :vcount_ones)
 ]
   @eval begin
     @inline $op(a::AbstractSIMD) = $f(a)
@@ -48,7 +48,8 @@ for (op, f) ∈ [
 end
 @inline vfloat(a::Vec{W,Float16}) where {W} = _vfloat16(a, fast_half())
 @inline _vfloat16(a::Vec{W,Float16}, ::True) where {W} = a
-@inline _vfloat16(a::Vec{W,Float16}, ::False) where {W} = convert(Vec{W,Float32}, a)
+@inline _vfloat16(a::Vec{W,Float16}, ::False) where {W} =
+  convert(Vec{W,Float32}, a)
 @inline Base.:(~)(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypesHW} =
   v ⊻ vbroadcast(Val(W), -1 % T)
 @inline Base.FastMath.abs2_fast(v::AbstractSIMD) = vmul_fast(v, v)
@@ -82,37 +83,46 @@ for (op, f, promote) ∈ [
   (:(Base.:(>)), :vgt, :no_promote),
   (:(Base.:(≥)), :vge, :no_promote),
   (:(Base.:(<)), :vlt, :no_promote),
-  (:(Base.:(≤)), :vle, :no_promote),
+  (:(Base.:(≤)), :vle, :no_promote)
 ]
   @eval begin
     # @inline $op(a::AbstractSIMD,b::AbstractSIMD) = ((c,d) = $promote(a,b); $f(c,d))
-    @inline $op(a::AbstractSIMD, b::AbstractSIMD) = ((c, d) = $promote(a, b); $f(c, d))
-    @inline $op(a::NativeTypes, b::AbstractSIMDVector) = ((c, d) = $promote(a, b); $f(c, d))
-    @inline $op(a::AbstractSIMDVector, b::NativeTypes) = ((c, d) = $promote(a, b); $f(c, d))
+    @inline $op(a::AbstractSIMD, b::AbstractSIMD) =
+      ((c, d) = $promote(a, b); $f(c, d))
+    @inline $op(a::NativeTypes, b::AbstractSIMDVector) =
+      ((c, d) = $promote(a, b); $f(c, d))
+    @inline $op(a::AbstractSIMDVector, b::NativeTypes) =
+      ((c, d) = $promote(a, b); $f(c, d))
     @inline $op(a::NativeTypes, b::VecUnroll{N,W}) where {N,W} =
       ((c, d) = $promote(a, b); $f(c, d))
     @inline $op(a::VecUnroll{N,W}, b::NativeTypes) where {N,W} =
       ((c, d) = $promote(a, b); $f(c, d))
     @inline $op(
       a::IntegerTypesHW,
-      b::VecUnroll{N,W,T,MM{W,X,T}},
-    ) where {N,W,T<:IntegerTypesHW,X} = VecUnroll(fmap($op, a, getfield(b, :data)))
+      b::VecUnroll{N,W,T,MM{W,X,T}}
+    ) where {N,W,T<:IntegerTypesHW,X} =
+      VecUnroll(fmap($op, a, getfield(b, :data)))
     @inline $op(
       a::VecUnroll{N,W,T,MM{W,X,T}},
-      b::IntegerTypesHW,
-    ) where {N,W,T<:IntegerTypesHW,X} = VecUnroll(fmap($op, getfield(a, :data), b))
+      b::IntegerTypesHW
+    ) where {N,W,T<:IntegerTypesHW,X} =
+      VecUnroll(fmap($op, getfield(a, :data), b))
   end
 end
 for op ∈ [:(Base.:(*)), :(Base.FastMath.mul_fast)]
   @eval begin
     @inline $op(
       m::AbstractSIMD{W,B1},
-      v::AbstractSIMD{W,B2},
+      v::AbstractSIMD{W,B2}
     ) where {W,B1<:Union{Bool,Bit},B2<:Union{Bool,Bit}} = m & v
-    @inline $op(m::AbstractSIMD{W,B}, v::AbstractSIMD{W}) where {W,B<:Union{Bool,Bit}} =
-      ifelse(m, v, zero(v))
-    @inline $op(v::AbstractSIMD{W}, m::AbstractSIMD{W,B}) where {W,B<:Union{Bool,Bit}} =
-      ifelse(m, v, zero(v))
+    @inline $op(
+      m::AbstractSIMD{W,B},
+      v::AbstractSIMD{W}
+    ) where {W,B<:Union{Bool,Bit}} = ifelse(m, v, zero(v))
+    @inline $op(
+      v::AbstractSIMD{W},
+      m::AbstractSIMD{W,B}
+    ) where {W,B<:Union{Bool,Bit}} = ifelse(m, v, zero(v))
   end
 end
 # copysign needs a heavy hand to avoid ambiguities
@@ -122,24 +132,28 @@ end
   VecUnroll(fmap(vcopysign, getfield(a, :data), getfield(b, :data)))
 @inline Base.copysign(a::AbstractSIMDVector, b::VecUnroll) =
   VecUnroll(fmap(vcopysign, a, getfield(b, :data)))
-@inline Base.copysign(a::AbstractSIMDVector, b::AbstractSIMDVector) = vcopysign(a, b)
+@inline Base.copysign(a::AbstractSIMDVector, b::AbstractSIMDVector) =
+  vcopysign(a, b)
 @inline Base.copysign(a::NativeTypes, b::VecUnroll{N,W}) where {N,W} =
   VecUnroll(fmap(vcopysign, vbroadcast(Val{W}(), a), getfield(b, :data)))
 @inline Base.copysign(a::VecUnroll{N,W}, b::Base.HWReal) where {N,W} =
   VecUnroll(fmap(vcopysign, getfield(a, :data), vbroadcast(Val{W}(), b)))
-@inline Base.copysign(a::IntegerTypesHW, b::AbstractSIMDVector) = vcopysign(a, b)
+@inline Base.copysign(a::IntegerTypesHW, b::AbstractSIMDVector) =
+  vcopysign(a, b)
 @inline Base.copysign(a::AbstractSIMDVector, b::Base.HWReal) = vcopysign(a, b)
 for T ∈ [:Rational, :SignedHW, :Float32, :Float64]
   @eval begin
     @inline function Base.copysign(
       a::$T,
-      b::AbstractSIMDVector{W,T},
+      b::AbstractSIMDVector{W,T}
     ) where {W,T<:Union{Float32,Float64,SignedHW}}
       v1, v2 = promote(a, b)
       vcopysign(v1, v2)
     end
-    @inline Base.copysign(a::$T, b::AbstractSIMDVector{W,T}) where {W,T<:UnsignedHW} =
-      vbroadcast(Val{W}(), abs(a))
+    @inline Base.copysign(
+      a::$T,
+      b::AbstractSIMDVector{W,T}
+    ) where {W,T<:UnsignedHW} = vbroadcast(Val{W}(), abs(a))
     @inline Base.copysign(a::$T, b::VecUnroll) =
       VecUnroll(fmap(copysign, a, getfield(b, :data)))
   end
@@ -150,7 +164,7 @@ for (op, f) ∈ [
   (:(Base.:-), :vsub),
   (:(Base.FastMath.sub_fast), :vsub_fast),
   (:(Base.:*), :vmul),
-  (:(Base.FastMath.mul_fast), :vmul_fast),
+  (:(Base.FastMath.mul_fast), :vmul_fast)
 ]
   @eval begin
     @inline $op(m::MM, j::NativeTypes) = ($f(m, j))
@@ -164,7 +178,7 @@ for (op, c) ∈ [(:(>), :(&)), (:(≥), :(&)), (:(<), :(|)), (:(≤), :(|))]
   @eval begin
     @inline function Base.$op(
       v1::AbstractSIMD{W,I},
-      v2::AbstractSIMD{W,U},
+      v2::AbstractSIMD{W,U}
     ) where {W,I<:Signed,U<:Unsigned}
       m1 = $op(v1, zero(I))
       m2 = $op(v1 % U, v2)
@@ -179,12 +193,15 @@ for (f, vf) ∈ [
   (:unsafe_trunc, :vtrunc),
   (:round, :vround),
   (:floor, :vfloor),
-  (:ceil, :vceil),
+  (:ceil, :vceil)
 ]
   @eval begin
-    @inline Base.$f(::Type{T}, x::NativeTypes) where {T<:AbstractSIMD} = $vf(T, x)
-    @inline Base.$f(::Type{T}, v::AbstractSIMD) where {T<:NativeTypes} = $vf(T, v)
-    @inline Base.$f(::Type{T}, v::AbstractSIMD) where {T<:AbstractSIMD} = $vf(T, v)
+    @inline Base.$f(::Type{T}, x::NativeTypes) where {T<:AbstractSIMD} =
+      $vf(T, x)
+    @inline Base.$f(::Type{T}, v::AbstractSIMD) where {T<:NativeTypes} =
+      $vf(T, v)
+    @inline Base.$f(::Type{T}, v::AbstractSIMD) where {T<:AbstractSIMD} =
+      $vf(T, v)
   end
 end
 for (f, vf) ∈ [(:(Base.rem), :vrem), (:(Base.FastMath.rem_fast), :vrem_fast)]
@@ -198,37 +215,37 @@ end
 # These are defined here on `Base` functions to avoid `promote`
 @inline function Base.:(<<)(
   v1::AbstractSIMD{W,T1},
-  v2::AbstractSIMD{W,T2},
+  v2::AbstractSIMD{W,T2}
 ) where {W,T1<:SignedHW,T2<:UnsignedHW}
   convert(T1, vshl(convert(T2, v1), v2))
 end
 @inline function Base.:(<<)(
   v1::AbstractSIMD{W,T1},
-  v2::AbstractSIMD{W,T2},
+  v2::AbstractSIMD{W,T2}
 ) where {W,T1<:UnsignedHW,T2<:SignedHW}
   convert(T1, vshl(convert(T2, v1), v2))
 end
 @inline function Base.:(>>)(
   v1::AbstractSIMD{W,T1},
-  v2::AbstractSIMD{W,T2},
+  v2::AbstractSIMD{W,T2}
 ) where {W,T1<:SignedHW,T2<:UnsignedHW}
   vashr(v1, (v2 % T1))
 end
 @inline function Base.:(>>)(
   v1::AbstractSIMD{W,T1},
-  v2::AbstractSIMD{W,T2},
+  v2::AbstractSIMD{W,T2}
 ) where {W,T1<:UnsignedHW,T2<:SignedHW}
   vashr(v1, (v2 % T1))
 end
 @inline function Base.:(>>>)(
   v1::AbstractSIMD{W,T1},
-  v2::AbstractSIMD{W,T2},
+  v2::AbstractSIMD{W,T2}
 ) where {W,T1<:SignedHW,T2<:UnsignedHW}
   convert(T1, vlshr(convert(T2, v1), v2))
 end
 @inline function Base.:(>>>)(
   v1::AbstractSIMD{W,T1},
-  v2::AbstractSIMD{W,T2},
+  v2::AbstractSIMD{W,T2}
 ) where {W,T1<:UnsignedHW,T2<:SignedHW}
   convert(T2, vlshr(v1, convert(T1, v2)))
 end
@@ -240,7 +257,7 @@ end
 for (op, f, promotef) ∈ [
   (:(Base.fma), :vfma, :promote),
   (:(Base.muladd), :vmuladd, :promote),
-  (:(IfElse.ifelse), :vifelse, :promote_except_first),
+  (:(IfElse.ifelse), :vifelse, :promote_except_first)
 ]
   AT = f === :vifelse ? :Bool : :NativeTypes
   @eval begin
@@ -278,16 +295,17 @@ end
 @inline IfElse.ifelse(
   f::F,
   m::AbstractSIMD{W,B},
-  args::Vararg{NativeTypesV,K},
+  args::Vararg{NativeTypesV,K}
 ) where {W,K,B<:Union{Bool,Bit},F<:Function} = vifelse(f, m, args...)
-@inline IfElse.ifelse(m::Bool, a::V, b::V) where {W,V<:AbstractSIMD{W}} = m ? a : b#vifelse(max_mask(StaticInt{W}()) & m, a, b)
+@inline IfElse.ifelse(m::Bool, a::V, b::V) where {W,V<:AbstractSIMD{W}} =
+  m ? a : b#vifelse(max_mask(StaticInt{W}()) & m, a, b)
 for (f, add, mul) ∈ [
   (:fma, :(+), :(*)),
   (:muladd, :(+), :(*)),
   (:vfma, :(+), :(*)),
   (:vmuladd, :(+), :(*)),
   (:vfma_fast, :(Base.FastMath.add_fast), :(Base.FastMath.mul_fast)),
-  (:vmuladd_fast, :(Base.FastMath.add_fast), :(Base.FastMath.mul_fast)),
+  (:vmuladd_fast, :(Base.FastMath.add_fast), :(Base.FastMath.mul_fast))
 ]
   if (f !== :fma) && (f !== :muladd)
     @eval begin
@@ -321,7 +339,8 @@ for (f, add, mul) ∈ [
     @inline $f(a::NativeTypesV, b::One, c::Zero) = a
     @inline $f(a::One, b::One, c::Zero) = One()
 
-    @inline $f(a::AnyMask, b::NativeTypes, c::NativeTypes) = vifelse(a, $add(b, c), c)
+    @inline $f(a::AnyMask, b::NativeTypes, c::NativeTypes) =
+      vifelse(a, $add(b, c), c)
     @inline $f(a::AnyMask, b::NativeTypes, c::AbstractSIMD{W}) where {W} =
       vifelse(a, $add(b, c), c)
     @inline $f(a::AnyMask, b::AbstractSIMD{W}, c::NativeTypes) where {W} =
@@ -329,7 +348,8 @@ for (f, add, mul) ∈ [
     @inline $f(a::AnyMask, b::AbstractSIMD{W}, c::AbstractSIMD{W}) where {W} =
       vifelse(a, $add(b, c), c)
 
-    @inline $f(b::NativeTypes, a::AnyMask, c::NativeTypes) = vifelse(a, $add(b, c), c)
+    @inline $f(b::NativeTypes, a::AnyMask, c::NativeTypes) =
+      vifelse(a, $add(b, c), c)
     @inline $f(b::NativeTypes, a::AnyMask, c::AbstractSIMD{W}) where {W} =
       vifelse(a, $add(b, c), c)
     @inline $f(b::AbstractSIMD{W}, a::AnyMask, c::NativeTypes) where {W} =
@@ -337,7 +357,8 @@ for (f, add, mul) ∈ [
     @inline $f(b::AbstractSIMD{W}, a::AnyMask, c::AbstractSIMD{W}) where {W} =
       vifelse(a, $add(b, c), c)
 
-    @inline $f(a::AnyMask, b::AnyMask, c::NativeTypes) = vifelse(a & b, c + one(c), c)
+    @inline $f(a::AnyMask, b::AnyMask, c::NativeTypes) =
+      vifelse(a & b, c + one(c), c)
     @inline $f(a::AnyMask, b::AnyMask, c::AbstractSIMD{W}) where {W} =
       vifelse(a & b, c + one(c), c)
   end
@@ -345,9 +366,11 @@ end
 for f ∈ [:(Base.:(+)), :(Base.FastMath.add_fast)]
   @eval begin
     @inline $f(a::AnyMask, b::NativeTypes) = vifelse(a, $f(b, one(b)), b)
-    @inline $f(a::AnyMask, b::AbstractSIMD{W}) where {W} = vifelse(a, $f(b, one(b)), b)
+    @inline $f(a::AnyMask, b::AbstractSIMD{W}) where {W} =
+      vifelse(a, $f(b, one(b)), b)
     @inline $f(a::NativeTypes, b::AnyMask) = vifelse(b, $f(a, one(a)), a)
-    @inline $f(a::AbstractSIMD{W}, b::AnyMask) where {W} = vifelse(b, $f(a, one(a)), a)
+    @inline $f(a::AbstractSIMD{W}, b::AnyMask) where {W} =
+      vifelse(b, $f(a, one(a)), a)
     @inline $f(a::AnyMask, b::AnyMask) = vadd_fast(a, b)
   end
 end
@@ -360,7 +383,8 @@ for (vf, f) ∈ [(:vnot, :(!)), (:vnot, :(~))]
 end
 
 for f ∈ [:typemin, :typemax, :floatmin, :floatmax]
-  @eval @inline Base.$f(::Type{V}) where {W,T,V<:AbstractSIMD{W,T}} = convert(V, $f(T))
+  @eval @inline Base.$f(::Type{V}) where {W,T,V<:AbstractSIMD{W,T}} =
+    convert(V, $f(T))
 end
 
 for T ∈ keys(JULIA_TYPE_SIZE)

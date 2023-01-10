@@ -8,10 +8,10 @@ makedocs(;
   sitename = "VectorizationBase.jl",
   format = Documenter.HTML(;
     prettyurls = get(ENV, "CI", "false") == "true",
-    canonical = "https://JuliaSIMD.github.io/VectorizationBase.jl",
+    canonical = "https://JuliaSIMD.github.io/VectorizationBase.jl"
   ),
   pages = ["Home" => "index.md"],
-  strict = false,
+  strict = false
 )
 
 deploydocs(; repo = "github.com/JuliaSIMD/VectorizationBase.jl")

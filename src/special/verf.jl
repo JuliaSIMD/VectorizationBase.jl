@@ -29,10 +29,10 @@
 
 @inline integer(v::AbstractSIMD{W,Float64}) where {W} =
   _integer(v, has_feature(Val(:x86_64_avx512dq)))
-@inline _integer(v::AbstractSIMD{W,Float64}, ::True) where {W} = vconvert(Int64, v)
-@inline _integer(v::AbstractSIMD{W,Float64}, ::False) where {W} = vconvert(Int32, v)
-
-
+@inline _integer(v::AbstractSIMD{W,Float64}, ::True) where {W} =
+  vconvert(Int64, v)
+@inline _integer(v::AbstractSIMD{W,Float64}, ::False) where {W} =
+  vconvert(Int32, v)
 
 @inline function erf_kernel_l9(x::Union{Float64,AbstractSIMD{<:Any,Float64}})
   y = vfmadd(x, 6.49254556481904e-5, 0.00120339380863079)
@@ -47,7 +47,7 @@
   res + vfnmadd(
     8.13035732583580548119176214095147680242299108680658322550212199643608432312984e-16,
     x,
-    2.679870718713541577762315771546743935213688171443421284936882991116060314650674e-15,
+    2.679870718713541577762315771546743935213688171443421284936882991116060314650674e-15
   )
   # Base.FastMath.div_fast(w * y, z)
 end
@@ -61,7 +61,6 @@ end
 # ncinit = BigFloat[1.12837916709551, 0.135894887627278, 0.0403259488531795, 0.00120339380863079, 6.49254556481904e-5];
 # dcinit = BigFloat[1.0, 0.453767041780003, 0.0869936222615386, 0.00849717371168693, 0.000364915280629351];
 # N,D,E,X = ratfn_minimax(erftestsmall, [big"1e-70", big"0.65"^2], 4, 4, (w,x)->BigFloat(1), ncinit, dcinit); @show(E); N
-
 
 vscalef(b::Bool, x, y, z) = b ? (x * (2^y)) : z
 @inline function erf_v56f_kernel(v3f, v4f)
@@ -170,7 +169,6 @@ end
 # (1.0 - erf(2.3) / v56f(2.3)) = v97f
 # (1.0 - erf(2.3) / v56f(2.3)) = v90f / v96f
 # rational polynomial, degree 5 / degree 6
-
 
 @inline function verf(v0f::Union{Float32,AbstractSIMD{<:Any,Float32}})
   v3f = abs(v0f)
