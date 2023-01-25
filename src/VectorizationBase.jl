@@ -1,5 +1,8 @@
 module VectorizationBase
-
+if isdefined(Base, :Experimental) &&
+   isdefined(Base.Experimental, Symbol("@max_methods"))
+  @eval Base.Experimental.@max_methods 1
+end
 import ArrayInterface, LinearAlgebra, Libdl, IfElse, LayoutPointers
 using ArrayInterface:
   contiguous_axis,
