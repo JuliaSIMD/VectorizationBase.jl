@@ -13,15 +13,17 @@ Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SIMDTypes = "94e857df-77ce-4151-89e5-788b33177be4"
 Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
+StaticArrayInterface = "0d7ed370-da01-4f52-bd93-41d350b8b718"
 
 [compat]
-ArrayInterface = "6.0.1"
+ArrayInterface = "7"
 CPUSummary = "0.1.1 - 0.1.8, 0.1.11, 0.2"
 HostCPUFeatures = "0.1"
 IfElse = "0.1"
 LayoutPointers = "0.1"
 SIMDTypes = "0.1"
 Static = "0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8"
+StaticArrayInterface = "1"
 julia = "1.6"
 
 [extras]

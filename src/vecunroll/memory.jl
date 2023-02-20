@@ -481,7 +481,7 @@ end
 
 # @inline staticunrolledvectorstride(_, __) = nothing
 # @inline staticunrolledvectorstride(::StaticInt{M}, ::StaticInt{X}) where {M,X} = StaticInt{M}() * StaticInt{X}()
-# @inline staticunrolledvectorstride(sp::AbstractStridedPointer, ::Unroll{AU,F,UN,AV,W,M,X}) where {AU,F,UN,AV,W,M,X} = staticunrolledvectorstride(strides(ptr)[AV], StaticInt{X}())
+# @inline staticunrolledvectorstride(sp::AbstractStridedPointer, ::Unroll{AU,F,UN,AV,W,M,X}) where {AU,F,UN,AV,W,M,X} = staticunrolledvectorstride(static_strides(ptr)[AV], StaticInt{X}())
 
 @generated function staticunrolledvectorstride(
   sptr::T,
@@ -773,7 +773,7 @@ end
     li,
     A(),
     StaticInt{RS}(),
-    staticunrolledvectorstride(strides(ptr), u)
+    staticunrolledvectorstride(static_strides(ptr), u)
   )
 end
 @inline function _vload(
@@ -791,7 +791,7 @@ end
     m,
     A(),
     StaticInt{RS}(),
-    staticunrolledvectorstride(strides(ptr), u)
+    staticunrolledvectorstride(static_strides(ptr), u)
   )
 end
 @inline function _vload(
@@ -809,7 +809,7 @@ end
     m,
     A(),
     StaticInt{RS}(),
-    staticunrolledvectorstride(strides(ptr), u)
+    staticunrolledvectorstride(static_strides(ptr), u)
   )
 end
 @inline function _vload(
@@ -1808,7 +1808,7 @@ end
     S(),
     NT(),
     StaticInt{RS}(),
-    staticunrolledvectorstride(strides(sptr), u)
+    staticunrolledvectorstride(static_strides(sptr), u)
   )
 end
 @inline function _vstore!(
@@ -1832,7 +1832,7 @@ end
     S(),
     NT(),
     StaticInt{RS}(),
-    staticunrolledvectorstride(strides(sptr), u)
+    staticunrolledvectorstride(static_strides(sptr), u)
   )
 end
 @inline function _vstore!(
@@ -2098,7 +2098,7 @@ end
     S(),
     NT(),
     StaticInt{RS}(),
-    staticunrolledvectorstride(strides(sptr), u)
+    staticunrolledvectorstride(static_strides(sptr), u)
   )
 end
 for M ∈ [:Bool, :AbstractMask]
@@ -2161,7 +2161,7 @@ for M ∈ [:Bool, :AbstractMask]
         S(),
         NT(),
         StaticInt{RS}(),
-        staticunrolledvectorstride(strides(sptr), u)
+        staticunrolledvectorstride(static_strides(sptr), u)
       )
     end
   end

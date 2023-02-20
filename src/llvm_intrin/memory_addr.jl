@@ -438,18 +438,13 @@ end
 @inline increment_ptr(ptr::AbstractStridedPointer) = pointer(ptr)
 @inline function increment_ptr(ptr::AbstractStridedPointer, i::Tuple)
   ioffset = _offset_index(i, offsets(ptr))
-  p, li = tdot(ptr, ioffset, strides(ptr))
+  p, li = tdot(ptr, ioffset, static_strides(ptr))
   _gep(p, li, Zero())
 end
-# @inline function increment_ptr(ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,Zero}}, i::Tuple) where {T,N,C,B,R,X}
-#   p, li = tdot(ptr, i, strides(ptr))
-#   _gep(p, li, Zero())
-# end
 @inline increment_ptr(p::StridedBitPointer) = offsets(p)
 @inline bmap(::F, ::Tuple{}, y::Tuple{}) where {F} = ()
 @inline bmap(::F, ::Tuple{}, y::Tuple) where {F} = ()
 @inline bmap(::F, x::Tuple{X,Vararg{Any,K}}, ::Tuple{}) where {F,X,K} = x
-#  (first(x), bmap(f, Base.tail(x), ())...)
 @inline bmap(
   f::F,
   x::Tuple{X,Vararg{Any,KX}},
@@ -472,7 +467,7 @@ end
 ) where {N,C,B,R}
   stridedpointer(
     pointer(ptr),
-    ArrayInterface.StrideIndex{N,R,C}(strides(ptr), offs),
+    ArrayInterface.StrideIndex{N,R,C}(static_strides(ptr), offs),
     StaticInt{B}()
   )
 end
@@ -489,7 +484,10 @@ end
 ) where {N,C,B,R,K}
   stridedpointer(
     pointer(ptr),
-    ArrayInterface.StrideIndex{N,R,C}(strides(ptr), increment_ptr(ptr, i)),
+    ArrayInterface.StrideIndex{N,R,C}(
+      static_strides(ptr),
+      increment_ptr(ptr, i)
+    ),
     StaticInt{B}()
   )
 end

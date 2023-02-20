@@ -21,7 +21,8 @@
   ::LinearAlgebra.Transpose{T,V},
   ::Val{1}
 ) where {T,V<:AbstractVector{T}} = One()
-@inline maybestaticsize(A, ::Val{N}) where {N} = ArrayInterface.size(A)[N]
+@inline maybestaticsize(A, ::Val{N}) where {N} =
+  ArrayInterface.static_size(A)[N]
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.
 for (f, ff) ∈ [

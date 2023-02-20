@@ -42,7 +42,8 @@ using LayoutPointers: nopromote_axis_indicator
 )
 
 @inline offset_index(ptr, i) = _offset_index(i, offsets(ptr))
-@inline linear_index(ptr, i) = tdot(ptr, offset_index(ptr, i), strides(ptr))
+@inline linear_index(ptr, i) =
+  tdot(ptr, offset_index(ptr, i), static_strides(ptr))
 
 # Fast compile path?
 @inline function _vload(
@@ -70,7 +71,7 @@ end
   ::A,
   ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,RS}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   __vload(p, li, A(), StaticInt{RS}())
 end
 @inline function _vload(
@@ -80,7 +81,7 @@ end
   ::A,
   ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,RS}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   __vload(p, li, m, A(), StaticInt{RS}())
 end
 # Ambiguity: 1-dimensional + 1-dim index -> Cartesian (offset) indexing
@@ -169,7 +170,7 @@ end
   ::NT,
   ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   __vstore!(p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
@@ -182,7 +183,7 @@ end
   ::NT,
   ::StaticInt{RS}
 ) where {T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   __vstore!(p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
@@ -248,7 +249,7 @@ end
   ::NT,
   ::StaticInt{RS}
 ) where {F,T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   __vstore!(f, p, v, li, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
@@ -262,7 +263,7 @@ end
   ::NT,
   ::StaticInt{RS}
 ) where {F,T,I,A<:StaticBool,S<:StaticBool,NT<:StaticBool,RS}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   __vstore!(f, p, v, li, m, A(), S(), NT(), StaticInt{RS}())
 end
 @inline function _vstore!(
@@ -297,7 +298,7 @@ end
   ptr::AbstractStridedPointer{T,N,C,B,R,X,NTuple{N,StaticInt{0}}},
   i::Tuple{Vararg{Any,N}}
 ) where {T,N,C,B,R,X}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   gep(p, li)
 end
 @inline function gep(
@@ -308,7 +309,7 @@ end
   gep(p, li)
 end
 @inline function gep(ptr::AbstractStridedPointer{T}, i::Tuple{I}) where {T,I}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   gep(p, li)
 end
 @inline function gep(
@@ -322,7 +323,7 @@ end
   ptr::AbstractStridedPointer{T,1,C,B,R,X,Tuple{StaticInt{0}}},
   i::Tuple{I}
 ) where {T,I,C,B,R,X}
-  p, li = tdot(ptr, i, strides(ptr))
+  p, li = tdot(ptr, i, static_strides(ptr))
   gep(p, li)
 end
 
@@ -335,13 +336,13 @@ end
 # s += A[i,i]
 # end
 # first access is at zero-based index
-# (first(6:16) - ArrayInterface.offsets(a)[1]) * ArrayInterface.strides(A)[1] + (first(6:16) - ArrayInterface.offsets(a)[2]) * ArrayInterface.strides(A)[2]
+# (first(6:16) - ArrayInterface.offsets(a)[1]) * ArrayInterface.static_strides(A)[1] + (first(6:16) - ArrayInterface.offsets(a)[2]) * ArrayInterface.static_strides(A)[2]
 # equal to
 #  (6 - 6)*1 + (6 - 5)*10 = 10
 # i.e., the 1-based index 11.
 # So now we want to adjust the offsets and pointer's value
-# so that indexing it with a single `i` (after summing strides) is correct.
-# Moving to 0-based indexing is easiest for combining strides. So we gep by 0 on these inds.
+# so that indexing it with a single `i` (after summing static_strides() is correct.
+# Moving to 0-based indexing is easiest for combining static_strides(. So we gep by 0 on these inds.
 # E.g., gep(stridedpointer(A), (0,0))
 # ptr += (0 - 6)*1 + (0 - 5)*10 = -56
 # new stride = 1 + 10 = 11
@@ -392,7 +393,7 @@ function double_index_quote(C, B, R::NTuple{N,Int}, I1::Int, I2::Int) where {N}
   Expr(
     :block,
     Expr(:meta, :inline),
-    :(strd = strides(ptr)),
+    :(strd = static_strides(ptr)),
     :(offs = offsets(ptr)),
     newptr
   )
@@ -604,4 +605,5 @@ for (op, f, cmp) ∈ [
     @inline $f(a, b, c) = $f(a, b)
   end
 end
-@inline linearize(p::StridedBitPointer) = -sum(map(*, strides(p), offsets(p)))
+@inline linearize(p::StridedBitPointer) =
+  -sum(map(*, static_strides(p), offsets(p)))

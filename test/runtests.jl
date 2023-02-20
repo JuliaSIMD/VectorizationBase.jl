@@ -1,4 +1,4 @@
-import InteractiveUtils, Aqua, ArrayInterface, ArrayInterfaceOffsetArrays
+import InteractiveUtils, Aqua, ArrayInterface
 InteractiveUtils.versioninfo(stdout; verbose = true)
 
 include("testsetup.jl")
@@ -876,7 +876,7 @@ include("testsetup.jl")
     SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} =
       SizedWrapper{M,N,T,AT}(A)
     Base.size(::SizedWrapper{M,N}) where {M,N} = (M, N)
-    VectorizationBase.size(::SizedWrapper{M,N}) where {M,N} =
+    VectorizationBase.static_size(::SizedWrapper{M,N}) where {M,N} =
       (StaticInt(M), StaticInt(N))
     Base.getindex(A::SizedWrapper, i...) = getindex(parent(A), i...)
     Base.parent(dw::SizedWrapper) = dw.A
@@ -902,7 +902,7 @@ include("testsetup.jl")
     VectorizationBase.ArrayInterface.is_forwarding_wrapper(
       ::Type{<:SizedWrapper}
     ) = true
-    function VectorizationBase.strides(dw::SizedWrapper{M,N,T}) where {M,N,T}
+    function VectorizationBase.static_strides(dw::SizedWrapper{M,N,T}) where {M,N,T}
       x1 = StaticInt(1)
       if VectorizationBase.val_stride_rank(dw) === Val((1, 2))
         return x1, x1 * StaticInt{M}()
