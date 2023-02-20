@@ -3,8 +3,9 @@ if isdefined(Base, :Experimental) &&
    isdefined(Base.Experimental, Symbol("@max_methods"))
   @eval Base.Experimental.@max_methods 1
 end
-import ArrayInterface, LinearAlgebra, Libdl, IfElse, LayoutPointers
-using ArrayInterface:
+import StaticArrayInterface, LinearAlgebra, Libdl, IfElse, LayoutPointers
+const ArrayInterface = StaticArrayInterface
+using StaticArrayInterface:
   contiguous_axis,
   contiguous_axis_indicator,
   contiguous_batch_size,
@@ -15,7 +16,8 @@ using ArrayInterface:
   known_length,
   known_first,
   known_last,
-  strides,
+  static_size,
+  static_strides,
   offsets,
   static_first,
   static_last,

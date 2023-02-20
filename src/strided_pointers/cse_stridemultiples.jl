@@ -24,8 +24,9 @@ end
 # @inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
 @inline ArrayInterface.offsets(p::OffsetPrecalc) = offsets(getfield(p, :ptr))
 
-@inline Base.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
-@inline ArrayInterface.strides(p::OffsetPrecalc) = strides(getfield(p, :ptr))
+@inline Base.strides(p::OffsetPrecalc) = static_strides(getfield(p, :ptr))
+@inline ArrayInterface.static_strides(p::OffsetPrecalc) =
+  static_strides(getfield(p, :ptr))
 
 @inline function LayoutPointers.similar_no_offset(sptr::OffsetPrecalc, ptr::Ptr)
   OffsetPrecalc(
@@ -128,7 +129,7 @@ function precalc_quote_from_descript(
   end
   q = Expr(:block, Expr(:meta, :inline))
   if anydynamicprecals
-    push!(q.args, :(pstride = strides(p)))
+    push!(q.args, :(pstride = static_strides(p)))
     push!(q.args, pstrideextracts)
   end
   if anyprecalcs
