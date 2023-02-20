@@ -16,6 +16,7 @@ using StaticArrayInterface:
   known_length,
   known_first,
   known_last,
+  static_size,
   static_strides,
   offsets,
   static_first,
