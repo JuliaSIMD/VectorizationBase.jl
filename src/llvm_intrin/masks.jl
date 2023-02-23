@@ -303,6 +303,7 @@ end
 # @inline Base.:(~)(m::Mask) = !m
 
 @inline Base.count_ones(m::AbstractMask) = count_ones(getfield(m, :u))
+@inline vcount_ones(m::AbstractMask) = count_ones(getfield(m, :u))
 @inline vadd(m::AbstractMask, i::IntegerTypesHW) = i + count_ones(m)
 @inline vadd(i::IntegerTypesHW, m::AbstractMask) = i + count_ones(m)
 
