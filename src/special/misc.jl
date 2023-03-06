@@ -230,7 +230,7 @@ end
   lo::T,
   hi::T,
   o::Base.Ordering
-) where {W,I,T<:Integer}
+) where {W,I,T<:Union{Integer,AbstractSIMDVector{W,<:Integer}}}
   u = convert(T, typeof(x)(1))
   lo = lo - u
   hi = hi + u
@@ -252,4 +252,13 @@ end
   o::Base.Ordering
 ) where {T<:Integer}
   VecUnroll(fmap(searchsortedlast, v, data(x), lo, hi, o))
+end
+@inline function Base.searchsortedlast(
+  v::Array,
+  x::VecUnroll,
+  lo::VecUnroll,
+  hi::VecUnroll,
+  o::Base.Ordering
+)
+  VecUnroll(fmap(searchsortedlast, v, data(x), data(lo), data(hi), o))
 end
