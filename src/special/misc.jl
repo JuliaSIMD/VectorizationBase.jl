@@ -224,25 +224,29 @@ end
   lo::AbstractSIMDVector{W,I},
   hi::AbstractSIMDVector{W,I}
 ) where {W,I<:Integer} = lo + ((hi - lo) >>> 0x01)
-@inline function Base.searchsortedlast(
-  v::Array,
-  x::AbstractSIMDVector{W,I},
-  lo::T,
-  hi::T,
-  o::Base.Ordering
-) where {W,I,T<:Union{Integer,AbstractSIMDVector{W,<:Integer}}}
-  u = convert(T, typeof(x)(1))
-  lo = lo - u
-  hi = hi + u
-  st = lo < hi - u
-  @inbounds while vany(st)
-    m = Base.Sort.midpoint(lo, hi)
-    b = Base.Order.lt(o, x, v[m]) & st
-    hi = ifelse(b, m, hi)
-    lo = ifelse(b, lo, m)
-    st = lo < hi - u
+for TType in [:Integer, :(AbstractSIMDVector{W,<:Integer})]
+  @eval begin
+    @inline function Base.searchsortedlast(
+      v::Array,
+      x::AbstractSIMDVector{W,I},
+      lo::T,
+      hi::T,
+      o::Base.Ordering
+    ) where {W,I,T<:$TType}
+      u = convert(T, typeof(x)(1))
+      lo = lo - u
+      hi = hi + u
+      st = lo < hi - u
+      @inbounds while vany(st)
+        m = Base.Sort.midpoint(lo, hi)
+        b = Base.Order.lt(o, x, v[m]) & st
+        hi = ifelse(b, m, hi)
+        lo = ifelse(b, lo, m)
+        st = lo < hi - u
+      end
+      return lo
+    end
   end
-  return lo
 end
 @inline function Base.searchsortedlast(
   v::Array,
