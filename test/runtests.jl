@@ -1168,6 +1168,11 @@ include("testsetup.jl")
     @test getindex([2, 4, 6, 8], Vec(1, 2, 3, 4)) === Vec(2, 4, 6, 8)
     @test searchsortedlast([1, 2, 4, 5, 5, 7], Vec(4, 5, 3, 0)) ===
           Vec(3, 5, 2, 0)
+    @test searchsortedlast(
+      [1, 2, 4, 5, 5, 7], Vec(4, 5, 3, 0),
+      Vec(2, 2, 1, 1), Vec(4, 6, 3, 6),
+      Base.Order.Forward
+    ) === Vec(3, 5, 2, 0)
   end
   println("Binary Functions")
   @time @testset "Binary Functions" begin
