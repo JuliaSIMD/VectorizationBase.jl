@@ -542,6 +542,7 @@ end
 #     )
 # end
 
+@inline tomask(m::VecUnroll) = VecUnroll(fmap(tomask, data(m)))
 @inline tomask(m::Unsigned) = Mask{sizeof(m)}(m)
 @inline tomask(m::Mask) = m
 @generated function tomask(v::Vec{W,Bool}) where {W}
