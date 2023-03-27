@@ -110,6 +110,15 @@ end
   ::StaticInt{RS},
   ::True
 ) where {W,RS} = vbroadcast_expr(W, "half", :Float16, 2, RS)
+@inline function _vbroadcast(
+  ::StaticInt{W},
+  s::Bool,
+  ::StaticInt{RS}
+) where {W,RS}
+  t = Mask(max_mask(StaticInt{W}()))
+  f = Mask(zero_mask(StaticInt{W}()))
+  Core.ifelse(s, t, f)
+end
 @generated function _vbroadcast(
   ::StaticInt{W},
   s::_T,

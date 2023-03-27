@@ -1124,3 +1124,4 @@ end
 @inline Base.min(x::AbstractMask, y::AbstractMask) = x & y
 @inline Base.FastMath.max_fast(x::AbstractMask, y::AbstractMask) = x | y
 @inline Base.FastMath.min_fast(x::AbstractMask, y::AbstractMask) = x & y
+@inline zero_mask(::Type{T}) where {T} = zero_mask(zero(T))
