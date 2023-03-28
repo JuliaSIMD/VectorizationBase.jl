@@ -263,14 +263,44 @@ end
 @inline zero_mask(::NativeTypes) = false
 @inline max_mask(::NativeTypes) = true
 
+@generated function sext(
+  ::Type{Vec{W,I}},
+  m::AbstractMask{W,U}
+) where {W,I<:IntegerTypesHW,U<:Union{UInt8,UInt16,UInt32,UInt64}}
+  bits = 8sizeof(I)
+  instrs = String[]
+  truncate_mask!(instrs, '0', W, 0)
+  push!(
+    instrs,
+    "%res = sext <$W x i1> %mask.0 to <$W x i$(bits)>\nret <$W x i$(bits)> %res"
+  )
+  gf = Expr(:call, GlobalRef(Core, :getfield), :m, 1, false)
+  llvmc = Expr(
+    :call,
+    GlobalRef(Base, :llvmcall),
+    join(instrs, "\n"),
+    :(_Vec{$W,$I}),
+    :(Tuple{$U}),
+    gf
+  )
+  Expr(:block, Expr(:meta, :inline), Expr(:call, :Vec, llvmc))
+end
+
+@inline function vany(m::AbstractMask)
+  _vany(m, has_feature(Val(:x86_64_avx512f)))
+end
+@inline function _vany(m::Mask{8}, ::False)
+  x = reinterpret(Float32, sext(Vec{8, Int32}, m))
+  ccall("llvm.x86.avx.vtestz.ps.256", llvmcall, Int32, (_Vec{8, Float32}, _Vec{8, Float32}), data(x), data(x)) == 0
+end
 for (U, W) in [(UInt8, 8), (UInt16, 16), (UInt32, 32), (UInt64, 64)]
   z = zero(U)
   tm = typemax(U)
-  @eval @inline vany(m::AbstractMask{$W,$U}) = getfield(m, :u) != $z
+  @eval @inline _vany(m::AbstractMask{$W,$U}, ::B) where B = getfield(m, :u) != $z
   @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $tm
 end
 # TODO: use vector reduction intrsincs
-@inline function vany(m::AbstractMask{W}) where {W}
+@inline function _vany(m::AbstractMask{W}, ::B) where {W, B}
   mm = getfield(max_mask(Val{W}()), :u)
   mu = getfield(m, :u)
   (mu & mm) !== zero(mu)
