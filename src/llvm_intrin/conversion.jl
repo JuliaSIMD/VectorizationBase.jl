@@ -183,6 +183,8 @@ end
 @inline vconvert(::Type{Vec{W,T}}, v::Vec{W,T}) where {W,T} = v
 @inline vconvert(::Type{Vec{W,T}}, s::NativeTypes) where {W,T} =
   vbroadcast(Val{W}(), T(s))
+@inline vconvert(::Type{Vec{W,Bool}}, s::Bool) where {W} =
+  vconvert(Vec{W,Bool}, vbroadcast(Val{W}(), s))
 @inline vconvert(
   ::Type{Vec{W,T}},
   s::IntegerTypesHW
