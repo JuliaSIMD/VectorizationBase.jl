@@ -31,13 +31,14 @@ function truncate_mask!(instrs, input, W, suffix, reverse_load::Bool = false)
   push!(instrs, str)
   decl
 end
-function zext_mask!(instrs, input, W, suffix)
+function zext_mask!(instrs, input, W, suffix, sext::Bool = false)
   mtyp_input = "i$(max(8,nextpow2(W)))"
   mtyp_trunc = "i$(W)"
   str = if mtyp_input == mtyp_trunc
     "%res.$(suffix) = bitcast <$W x i1> %$input to $mtyp_input"
   else
-    "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc\n%res.$(suffix) = zext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input"
+    ext = sext ? "sext" : "zext"
+    "%restrunc.$(suffix) = bitcast <$W x i1> %$input to $mtyp_trunc\n%res.$(suffix) = $ext $mtyp_trunc %restrunc.$(suffix) to $mtyp_input"
   end
   push!(instrs, str)
 end
@@ -109,7 +110,7 @@ end
 @generated function vconvert(
   ::Type{Vec{W,I}},
   m::AbstractMask{W,U}
-) where {W,I<:IntegerTypesHW,U<:Union{UInt8,UInt16,UInt32,UInt64}}
+) where {W,I<:Union{IntegerTypesHW,Bool},U<:Union{UInt8,UInt16,UInt32,UInt64}}
   bits = 8sizeof(I)
   instrs = String[]
   truncate_mask!(instrs, '0', W, 0)
@@ -818,8 +819,13 @@ end
 
 @inline vifelse(m::Vec{W,Bool}, s1::T, s2::T) where {W,T<:NativeTypes} =
   vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
-@inline vifelse(m::AbstractMask{W}, s1::T, s2::T) where {W,T<:NativeTypes} =
+@inline function vifelse(
+  m::AbstractMask{W},
+  s1::T,
+  s2::T
+) where {W,T<:NativeTypes}
   vifelse(m, Vec{W,T}(s1), Vec{W,T}(s2))
+end
 @inline vifelse(m::AbstractMask{W,U}, s1, s2) where {W,U} =
   ((x1, x2) = promote(s1, s2); vifelse(m, x1, x2))
 @inline vifelse(
