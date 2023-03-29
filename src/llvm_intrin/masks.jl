@@ -287,7 +287,7 @@ end
 end
 
 @inline function vany(m::AbstractMask)
-  _vany(m, has_feature(Val(:x86_64_avx512f)))
+  _vany(m, has_feature(Val(:x86_64_avx512f)) | (!has_feature(Val(:x86_64_avx))))
 end
 @inline function _vany(m::Mask{8}, ::False)
   x = reinterpret(Float32, sext(Vec{8, Int32}, m))
