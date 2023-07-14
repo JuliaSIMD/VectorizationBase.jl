@@ -254,16 +254,18 @@ end
 @inline unrolldata(x::VecUnroll) = getfield(x, :data)
 @inline function IfElse.ifelse(
   m::VecUnroll{<:Any,<:Any,Bit,<:AbstractMask},
-  x::Real,
-  y::Real
+  a::Real,
+  b::Real
 )
+  x, y = promote(a, b)
   VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
 end
 @inline function IfElse.ifelse(
   m::VecUnroll{<:Any,<:Any,Bool,Bool},
-  x::Real,
-  y::Real
+  a::Real,
+  b::Real
 )
+  x, y = promote(a, b)
   VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
 end
 
