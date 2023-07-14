@@ -255,7 +255,7 @@ end
   x::Real,
   y::Real
 )
-  fmap(ifelse, data(m), data(x), data(y))
+  VecUnroll(fmap(ifelse, data(m), data(x), data(y)))
 end
 
 @inline function promote_except_first(a, b, c)
@@ -278,11 +278,7 @@ end
   y, z = promote(b, c)
   vifelse(tomask(a), y, z)
 end
-@inline function IfElse.ifelse(
-  a::AbstractMask,
-  b::AbstractSIMD,
-  c::NativeTypes
-)
+@inline function IfElse.ifelse(a::AbstractMask, b::AbstractSIMD, c::NativeTypes)
   y, z = promote(b, c)
   vifelse(a, y, z)
 end
@@ -294,11 +290,7 @@ end
   y, z = promote(b, c)
   vifelse(tomask(a), y, z)
 end
-@inline function IfElse.ifelse(
-  a::AbstractMask,
-  b::NativeTypes,
-  c::AbstractSIMD
-)
+@inline function IfElse.ifelse(a::AbstractMask, b::NativeTypes, c::AbstractSIMD)
   y, z = promote(b, c)
   vifelse(a, y, z)
 end
@@ -314,11 +306,7 @@ end
   y, z = promote(b, c)
   vifelse(a, y, z)
 end
-@inline function IfElse.ifelse(
-  a::AbstractMask,
-  b::NativeTypes,
-  c::NativeTypes
-)
+@inline function IfElse.ifelse(a::AbstractMask, b::NativeTypes, c::NativeTypes)
   y, z = promote(b, c)
   vifelse(a, y, z)
 end
@@ -339,8 +327,7 @@ end
   vifelse(a, y, z)
 end
 
-for (op, f) ∈
-    [(:(Base.fma), :vfma), (:(Base.muladd), :vmuladd)]
+for (op, f) ∈ [(:(Base.fma), :vfma), (:(Base.muladd), :vmuladd)]
   @eval begin
     @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
       x, y, z = promote(a, b, c)

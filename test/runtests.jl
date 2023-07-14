@@ -392,11 +392,14 @@ include("testsetup.jl")
     end
     @test convert(Bool, Mask{8}(0xec)) ===
           Vec(false, false, true, true, false, true, true, true) ===
-          convert(Bool, VectorizationBase.ifelse(
-            convert(Bool, Mask{8}(0xec)),
-            vbroadcast(Val(8), true),
-            vbroadcast(Val(8), false)
-          ))
+          convert(
+            Bool,
+            VectorizationBase.ifelse(
+              convert(Bool, Mask{8}(0xec)),
+              vbroadcast(Val(8), true),
+              vbroadcast(Val(8), false)
+            )
+          )
 
     @test (MM{8}(2) ∈ 3:8) === Mask{8}(0x7e)
 
