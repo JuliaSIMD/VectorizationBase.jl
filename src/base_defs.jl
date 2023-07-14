@@ -250,12 +250,21 @@ end
   convert(T2, vlshr(v1, convert(T1, v2)))
 end
 
+@inline unrolldata(x) = x
+@inline unrolldata(x::VecUnroll) = getfield(x, :data)
 @inline function IfElse.ifelse(
   m::VecUnroll{<:Any,<:Any,Bit,<:AbstractMask},
   x::Real,
   y::Real
 )
-  VecUnroll(fmap(ifelse, data(m), data(x), data(y)))
+  VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
+end
+@inline function IfElse.ifelse(
+  m::VecUnroll{<:Any,<:Any,Bool,Bool},
+  x::Real,
+  y::Real
+)
+  VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
 end
 
 @inline function promote_except_first(a, b, c)
