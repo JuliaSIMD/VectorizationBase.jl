@@ -203,9 +203,23 @@ end
   Vec(MM{W,X}(floattype(Val{W}())(getfield(i, :i) % pick_integer(Val{W}(), I))))
 @inline vfdiv(i::MM, j::T) where {T<:Real} = float(i) / j
 @inline vfdiv(j::T, i::MM) where {T<:Real} = j / float(i)
+
 @inline vfdiv_fast(i::MM, j::MM) = vfdiv_fast(float(i), float(j))
 @inline vfdiv_fast(i::MM, j::T) where {T<:Real} = vfdiv_fast(float(i), j)
 @inline vfdiv_fast(j::T, i::MM) where {T<:Real} = vfdiv_fast(j, float(i))
+
+@inline vfdiv(x::AbstractSIMDVector{W}, y::VectorizationBase.MM{W}) where {W} =
+  x / float(y)
+@inline vfdiv(y::VectorizationBase.MM{W}, x::AbstractSIMDVector{W}) where {W} =
+  float(y) / x
+@inline vfdiv_fast(
+  x::AbstractSIMDVector{W},
+  y::VectorizationBase.MM{W}
+) where {W} = vfiv_fast(x, float(y))
+@inline vfdiv_fast(
+  y::VectorizationBase.MM{W},
+  x::AbstractSIMDVector{W}
+) where {W} = vfdiv_fast(float(y), x)
 
 @inline vfdiv(i::MM, j::VecUnroll{N,W,T,V}) where {N,W,T,V} = float(i) / j
 @inline vfdiv(j::VecUnroll{N,W,T,V}, i::MM) where {N,W,T,V} = j / float(i)
