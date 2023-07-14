@@ -271,6 +271,14 @@ end
   vifelse(a, y, z)
 end
 @inline function IfElse.ifelse(
+  a::Vec{<:Any,Bool},
+  b::AbstractSIMD,
+  c::AbstractSIMD
+)
+  y, z = promote(b, c)
+  vifelse(tomask(a), y, z)
+end
+@inline function IfElse.ifelse(
   a::AbstractMask,
   b::AbstractSIMD,
   c::NativeTypes
@@ -279,12 +287,28 @@ end
   vifelse(a, y, z)
 end
 @inline function IfElse.ifelse(
+  a::Vec{<:Any,Bool},
+  b::AbstractSIMD,
+  c::NativeTypes
+)
+  y, z = promote(b, c)
+  vifelse(tomask(a), y, z)
+end
+@inline function IfElse.ifelse(
   a::AbstractMask,
   b::NativeTypes,
   c::AbstractSIMD
 )
   y, z = promote(b, c)
   vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(
+  a::Vec{<:Any,Bool},
+  b::NativeTypes,
+  c::AbstractSIMD
+)
+  y, z = promote(b, c)
+  vifelse(tomask(a), y, z)
 end
 @inline function IfElse.ifelse(a::Bool, b::AbstractSIMD, c::AbstractSIMD)
   y, z = promote(b, c)
@@ -297,6 +321,14 @@ end
 )
   y, z = promote(b, c)
   vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(
+  a::Vec{<:Any,Bool},
+  b::NativeTypes,
+  c::NativeTypes
+)
+  y, z = promote(b, c)
+  vifelse(tomask(a), y, z)
 end
 @inline function IfElse.ifelse(a::Bool, b::AbstractSIMD, c::NativeTypes)
   y, z = promote(b, c)
