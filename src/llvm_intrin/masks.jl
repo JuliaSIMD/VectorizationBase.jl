@@ -291,17 +291,25 @@ end
   _vany(m, has_feature(Val(:x86_64_avx512f)) | (!has_feature(Val(:x86_64_avx))))
 end
 @inline function _vany(m::Mask{8}, ::False)
-  x = reinterpret(Float32, sext(Vec{8, Int32}, m))
-  ccall("llvm.x86.avx.vtestz.ps.256", llvmcall, Int32, (_Vec{8, Float32}, _Vec{8, Float32}), data(x), data(x)) == 0
+  x = reinterpret(Float32, sext(Vec{8,Int32}, m))
+  ccall(
+    "llvm.x86.avx.vtestz.ps.256",
+    llvmcall,
+    Int32,
+    (_Vec{8,Float32}, _Vec{8,Float32}),
+    data(x),
+    data(x)
+  ) == 0
 end
 for (U, W) in [(UInt8, 8), (UInt16, 16), (UInt32, 32), (UInt64, 64)]
   z = zero(U)
   tm = typemax(U)
-  @eval @inline _vany(m::AbstractMask{$W,$U}, ::B) where B = getfield(m, :u) != $z
+  @eval @inline _vany(m::AbstractMask{$W,$U}, ::B) where {B} =
+    getfield(m, :u) != $z
   @eval @inline vall(m::AbstractMask{$W,$U}) = getfield(m, :u) == $tm
 end
 # TODO: use vector reduction intrsincs
-@inline function _vany(m::AbstractMask{W}, ::B) where {W, B}
+@inline function _vany(m::AbstractMask{W}, ::B) where {W,B}
   mm = getfield(max_mask(Val{W}()), :u)
   mu = getfield(m, :u)
   (mu & mm) !== zero(mu)

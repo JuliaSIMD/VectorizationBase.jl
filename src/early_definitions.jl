@@ -68,7 +68,8 @@ end
   signorunsign(I, issigned(T))
 end
 
-mask_type_symbol(W) = if W <= 8
+mask_type_symbol(W) =
+  if W <= 8
     return :UInt8
   elseif W <= 16
     return :UInt16
@@ -85,7 +86,8 @@ mask_type_symbol(W) = if W <= 8
     # else#if W <= 1024
     #   return :UInt1024
   end
-mask_type(W) = if W <= 8
+mask_type(W) =
+  if W <= 8
     return UInt8
   elseif W <= 16
     return UInt16

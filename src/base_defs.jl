@@ -250,43 +250,92 @@ end
   convert(T2, vlshr(v1, convert(T1, v2)))
 end
 
+@inline function IfElse.ifelse(
+  m::VecUnroll{<:Any,<:Any,Bit,<:AbstractMask},
+  x::Real,
+  y::Real
+)
+  fmap(ifelse, data(m), data(x), data(y))
+end
+
 @inline function promote_except_first(a, b, c)
   d, e = promote(b, c)
   a, d, e
 end
-for (op, f, promotef) ∈ [
-  (:(Base.fma), :vfma, :promote),
-  (:(Base.muladd), :vmuladd, :promote),
-  (:(IfElse.ifelse), :vifelse, :promote_except_first)
-]
-  AT = f === :vifelse ? :Bool : :NativeTypes
+@inline function IfElse.ifelse(
+  a::AbstractMask,
+  b::AbstractSIMD,
+  c::AbstractSIMD
+)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(
+  a::AbstractMask,
+  b::AbstractSIMD,
+  c::NativeTypes
+)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(
+  a::AbstractMask,
+  b::NativeTypes,
+  c::AbstractSIMD
+)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(a::Bool, b::AbstractSIMD, c::AbstractSIMD)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(
+  a::AbstractMask,
+  b::NativeTypes,
+  c::NativeTypes
+)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(a::Bool, b::AbstractSIMD, c::NativeTypes)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+@inline function IfElse.ifelse(a::Bool, b::NativeTypes, c::AbstractSIMD)
+  y, z = promote(b, c)
+  vifelse(a, y, z)
+end
+
+for (op, f) ∈
+    [(:(Base.fma), :vfma), (:(Base.muladd), :vmuladd)]
   @eval begin
     @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::AbstractSIMD)
-      x, y, z = $promotef(a, b, c)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
     @inline function $op(a::AbstractSIMD, b::AbstractSIMD, c::NativeTypes)
-      x, y, z = $promotef(a, b, c)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
     @inline function $op(a::AbstractSIMD, b::NativeTypes, c::AbstractSIMD)
-      x, y, z = $promotef(a, b, c)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
-    @inline function $op(a::$AT, b::AbstractSIMD, c::AbstractSIMD)
-      x, y, z = $promotef(a, b, c)
+    @inline function $op(a::NativeTypes, b::AbstractSIMD, c::AbstractSIMD)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
     @inline function $op(a::AbstractSIMD, b::NativeTypes, c::NativeTypes)
-      x, y, z = $promotef(a, b, c)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
-    @inline function $op(a::$AT, b::AbstractSIMD, c::NativeTypes)
-      x, y, z = $promotef(a, b, c)
+    @inline function $op(a::NativeTypes, b::AbstractSIMD, c::NativeTypes)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
-    @inline function $op(a::$AT, b::NativeTypes, c::AbstractSIMD)
-      x, y, z = $promotef(a, b, c)
+    @inline function $op(a::NativeTypes, b::NativeTypes, c::AbstractSIMD)
+      x, y, z = promote(a, b, c)
       $f(x, y, z)
     end
   end

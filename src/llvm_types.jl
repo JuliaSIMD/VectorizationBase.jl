@@ -119,14 +119,16 @@ const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])::String
 vtype(W, T::Symbol) = vtype(W, get(LLVM_TYPES_SYM, T, T))::String
-push_julia_type!(x, W, T) = if W ≤ 1
+push_julia_type!(x, W, T) =
+  if W ≤ 1
     push!(x, T)
     nothing
   else
     push!(x, Expr(:curly, :_Vec, W, T))
     nothing
   end
-append_julia_type!(x, Ws, Ts) = for i ∈ eachindex(Ws)
+append_julia_type!(x, Ws, Ts) =
+  for i ∈ eachindex(Ws)
     push_julia_type!(x, Ws[i], Ts[i])
   end
 
