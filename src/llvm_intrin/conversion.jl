@@ -47,17 +47,24 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   end
   @inline function _vconvert(
     ::Type{Vec{W,F}},
-    v::AbstractSIMD{W,I},
+    v::AbstractSIMD{W,UInt64},
     ::False
-  ) where {W,F,I<:Union{Int64,UInt64}}
+  ) where {W,F}
     v32 = reinterpret_half(v)
     vl = extractlower(v32)
     vu = extractupper(v32)
-    vfmadd_fast(
-      F(4.294967296e9),
-      _vconvert(Vec{W,F}, vl, True()),
-      _vconvert(Vec{W,F}, vu % UInt32, True())
-    )
+    x = _vconvert(Vec{W,F}, vu % UInt32, True())
+    vfmadd_fast(F(4.294967296e9), _vconvert(Vec{W,F}, vl, True()), x)
+  end
+  @inline function _vconvert(
+    ::Type{Vec{W,F}},
+    v::AbstractSIMD{W,Int64},
+    ::False
+  ) where {W,F}
+    neg = v < 0
+    pos = ifelse(neg, -v, v) 
+    posf = _vconvert(Vec{W,F}, UInt64(pos), False())
+    ifelse(neg, -posf, posf)
   end
   @inline function vconvert(
     ::Type{Vec{W,F}},
