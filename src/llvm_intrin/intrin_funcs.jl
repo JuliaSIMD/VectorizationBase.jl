@@ -1,8 +1,9 @@
 
-@generated function saturated_add(x::I, y::I) where {I<:IntegerTypesHW}
+@generated function saturated(::F, x::I, y::I) where {I<:IntegerTypesHW,F}
   typ = "i$(8sizeof(I))"
   s = I <: Signed ? 's' : 'u'
-  f = "@llvm.$(s)add.sat.$typ"
+  op = F === typeof(+) ? "add" : "sub"
+  f = "@llvm.$(s)$(op).sat.$typ"
   decl = "declare $typ $f($typ, $typ)"
   instrs = """
       %res = call $typ $f($typ %0, $typ %1)
@@ -18,11 +19,12 @@
     [:x, :y]
   )
 end
-@generated function saturated_add(x::Vec{W,I}, y::Vec{W,I}) where {W,I}
+@generated function saturated(::F, x::Vec{W,I}, y::Vec{W,I}) where {W,I,F}
   typ = "i$(8sizeof(I))"
   vtyp = "<$W x $(typ)>"
   s = I <: Signed ? 's' : 'u'
-  f = "@llvm.$(s)add.sat.$(suffix(W,typ))"
+  op = F === typeof(+) ? "add" : "sub"
+  f = "@llvm.$(s)$(op).sat.$(suffix(W,typ))"
   decl = "declare $vtyp $f($vtyp, $vtyp)"
   instrs = """
       %res = call $vtyp $f($vtyp %0, $vtyp %1)
@@ -38,6 +40,8 @@ end
     [:(data(x)), :(data(y))]
   )
 end
+@inline saturated_add(x, y) = saturated(+, x, y)
+@inline saturated_sub(x, y) = saturated(-, x, y)
 
 @eval @inline function assume(b::Bool)
   $(llvmcall_expr(
