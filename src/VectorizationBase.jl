@@ -91,6 +91,15 @@ using LayoutPointers:
 using Static
 using Static: One, Zero, eq, ne, lt, le, gt, ge
 
+@inline function promote(x::X, y::Y) where {X,Y}
+  T = promote_type(X, Y)
+  convert(T, x), convert(T, y)
+end
+@inline function promote(x::X, y::Y, z::Z) where {X,Y,Z}
+  T = promote_type(promote_type(X, Y), Z)
+  convert(T, x), convert(T, y), convert(T, z)
+end
+
 asbool(::Type{True}) = true
 asbool(::Type{False}) = false
 # TODO: see if `@inline` is good enough.
