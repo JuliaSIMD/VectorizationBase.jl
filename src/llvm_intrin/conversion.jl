@@ -229,7 +229,9 @@ end
 ### `vconvert(::Type{<:NativeTypes}, x)` methods. These forward to `vconvert(::Type{Vec{W,T}}, x)`
 @inline vconvert(::Type{T}, s::T) where {T<:NativeTypes} = s
 @inline vconvert(::Type{T}, s::T) where {T<:IntegerTypesHW} = s
-@inline vconvert(::Type{T}, s::NativeTypes) where {T<:NativeTypes} = s
+@inline vconvert(::Type{T}, s::Union{Float16,Float32,Float64}) where {T<:IntegerTypesHW} = Base.fptosi(T, Base.trunc_llvm(s))
+@inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
+@inline vconvert(::Type{T}, s::Union{Float16,Float32,Float64}) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
 @inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:IntegerTypesHW} = s % T
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,T}) where {T<:NativeTypes,W} = v
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,S}) where {T<:NativeTypes,S,W} =
