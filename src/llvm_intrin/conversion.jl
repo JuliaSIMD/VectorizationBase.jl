@@ -69,13 +69,13 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{Vec{W,F}},
     v::Vec{W,T}
-  ) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+  )::Vec{W,F} where {W,F<:FloatingTypes,T<:IntegerTypesHW}
     _vconvert(Vec{W,F}, v, True())
   end
   @inline function vconvert(
     ::Type{Vec{W,F}},
     v::Vec{W,T}
-  ) where {W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::Vec{W,F} where {W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -85,7 +85,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{F},
     v::VecUnroll{N,W,T,Vec{W,T}}
-  ) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::VecUnroll{N,W,F,Vec{W,F}} where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -95,7 +95,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{Vec{W,F}},
     v::VecUnroll{N,W,T,Vec{W,T}}
-  ) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::VecUnroll{N,W,F,Vec{W,F}} where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -105,7 +105,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{VecUnroll{N,W,F,Vec{W,F}}},
     v::VecUnroll{N,W,T,Vec{W,T}}
-  ) where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::VecUnroll{N,W,F,Vec{W,F}} where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -116,7 +116,7 @@ else
   @generated function vconvert(
     ::Type{Vec{W,F}},
     v::Vec{W,T}
-  ) where {W,F<:FloatingTypes,T<:IntegerTypesHW}
+  )::Vec{W,F} where {W,F<:FloatingTypes,T<:IntegerTypesHW}
     convert_func(T <: Signed ? "sitofp" : "uitofp", F, W, T)
   end
 end
