@@ -550,6 +550,15 @@ end
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} =
   ArrayInterface.reduce_tup(f, data(vu))
 
+if VERSION >= v"1.7.0" && hasfield(Method, :recursion_relation)
+  dont_limit = Returns(true)
+  for f in (vconvert, _vconvert)
+    for m in methods(f)
+      m.recursion_relation = dont_limit
+    end
+  end
+end
+
 include("precompile.jl")
 _precompile_()
 
