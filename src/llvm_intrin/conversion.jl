@@ -70,7 +70,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     ::Type{Vec{W,F}},
     v::Vec{W,T}
   )::Vec{W,F} where {W,F<:FloatingTypes,T<:IntegerTypesHW}
-    _vconvert(Vec{W,F}, v, True())
+    _vconvert(Vec{W,F}, v, True())::Vec{W,F}
   end
   @inline function vconvert(
     ::Type{Vec{W,F}},
@@ -80,7 +80,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
       Vec{W,F},
       v,
       has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2)))
-    )
+    )::Vec{W,F}
   end
   @inline function vconvert(
     ::Type{F},
@@ -90,7 +90,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
       Vec{W,F},
       v,
       has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2)))
-    )
+    )::VecUnroll{N,W,F,Vec{W,F}}
   end
   @inline function vconvert(
     ::Type{Vec{W,F}},
@@ -100,7 +100,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
       Vec{W,F},
       v,
       has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2)))
-    )
+    )::VecUnroll{N,W,F,Vec{W,F}}
   end
   @inline function vconvert(
     ::Type{VecUnroll{N,W,F,Vec{W,F}}},
@@ -110,7 +110,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
       Vec{W,F},
       v,
       has_feature(Val(:x86_64_avx512dq)) | (!has_feature(Val(:x86_64_avx2)))
-    )
+    )::VecUnroll{N,W,F,Vec{W,F}}
   end
 else
   @generated function vconvert(
@@ -232,6 +232,7 @@ end
 @inline vconvert(::Type{T}, s::Union{Float16,Float32,Float64}) where {T<:IntegerTypesHW} = Base.fptosi(T, Base.trunc_llvm(s))
 @inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
 @inline vconvert(::Type{T}, s::Union{Float16,Float32,Float64}) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
+@inline vconvert(::Type{T}, s::T) where {T<:Union{Float16,Float32,Float64}} = s
 @inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:IntegerTypesHW} = s % T
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,T}) where {T<:NativeTypes,W} = v
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,S}) where {T<:NativeTypes,S,W} =
