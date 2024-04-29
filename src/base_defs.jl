@@ -261,7 +261,7 @@ end
   VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
 end
 @inline function IfElse.ifelse(
-  m::VecUnroll{<:Any,<:Any,Bool,Bool},
+  m::VecUnroll{<:Any,<:Any,Bool},
   a::Real,
   b::Real
 )
