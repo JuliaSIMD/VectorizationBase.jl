@@ -167,7 +167,8 @@ end
   vtyp = "<$W x $typ>"
   alignment = Base.datatype_alignment(T)
   instrs = """
-      %ie = insertelement $vtyp undef, ptr %0, i32 0
+      %res = load $typ, ptr %ptr, align $alignment
+      %ie = insertelement $vtyp undef, $typ %res, i32 0
       %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
       ret $vtyp %v
   """

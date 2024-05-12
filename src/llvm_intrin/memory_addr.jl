@@ -126,7 +126,7 @@ function offset_ptr(
   rs::Int
 )
   sizeof_T = JULIA_TYPE_SIZE[T_sym]
-  i = 1
+  i = 0
   Morig = M
   isbit = T_sym === :Bit
   if isbit
@@ -166,11 +166,10 @@ function offset_ptr(
   end
   # after this block, we will have a index_gep_typ pointer
   if iszero(O)
-    #=push!(
+    push!(
       instrs,
-      "%ptr.$(i) = load $(index_gep_typ)*, ptr %0"
+      "%ptr.$(i) = load ptr, ptr %0"
     )
-    =#
     i += 1
   else # !iszero(O)
     if !iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
@@ -819,11 +818,11 @@ function vload_quote_llvmcall_core(
   end
   if grv
     loadinstr =
-      "ptr @llvm.masked.gather." *
+      "$vtyp @llvm.masked.gather." *
       suffix(W, T_sym) *
       '.' *
       ptr_suffix(W, T_sym)
-    decl *= "declare $loadinstr(ptr, i32, <$W x i1>, ptr)"
+    decl *= "declare $loadinstr(ptr, i32, <$W x i1>, $vtyp)"
     m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
     passthrough = mask ? "zeroinitializer" : "undef"
     push!(
@@ -833,19 +832,19 @@ function vload_quote_llvmcall_core(
     )
   elseif mask
     suff = suffix(W, T_sym)
-    loadinstr = "ptr @llvm.masked.load." * suff * ".p0" * suff
-    decl *= "declare $loadinstr(ptr, i32, <$W x i1>, ptr)"
+    loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
+    decl *= "declare $loadinstr(ptr, i32, <$W x i1>, $vtyp)"
     push!(
       instrs,
       "%res = call $loadinstr(ptr %ptr.0, i32 $alignment, <$W x i1> %mask.0, ptr zeroinitializer)" *
       LOAD_SCOPE_TBAA_FLAGS
     )
   else
-    #= push!(
+    push!(
       instrs,
-      "%res = load $(vtyp)*, ptr %ptr.$(i-1), align $alignment" *
+      "%res = load $vtyp, ptr %ptr.$(i-1), align $alignment" *
       LOAD_SCOPE_TBAA_FLAGS
-    )=#
+    )
   end
   if isbit
     lret = string('i', max(8, nextpow2(W)))
@@ -881,7 +880,7 @@ function vload_quote_llvmcall_core(
         instrs,
         "%resreversed = shufflevector ptr, ptr undef, <$W x i32> $reversemask"
       )
-      push!(instrs, "ret ptr %resreversed")
+      push!(instrs, "ret $vtyp %resreversed")
     else
       push!(instrs, "ret $vtyp %res")
     end
@@ -1243,7 +1242,7 @@ function vstore_quote(
     reversemask = '<' * join(map(x -> string("i32 ", W - x), 1:W), ", ") * '>'
     push!(
       instrs,
-      "%argreversed = shufflevector ptr %1, ptr undef, <$W x i32> $reversemask"
+      "%argreversed = shufflevector $vtyp %1, ptr undef, <$W x i32> $reversemask"
     )
     argtostore = "%argreversed"
   else
@@ -1255,21 +1254,21 @@ function vstore_quote(
       suffix(W, T_sym) *
       '.' *
       ptr_suffix(W, T_sym)
-    decl *= "declare $storeinstr(ptr, ptr, i32, <$W x i1>)"
+    decl *= "declare $storeinstr($vtyp, ptr, i32, <$W x i1>)"
     m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
     push!(
       instrs,
-      "call $storeinstr(ptr $(argtostore), ptr %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" *
+      "call $storeinstr($vtyp $(argtostore), ptr %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" *
       metadata
     )
     # push!(instrs, "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
   elseif mask
     suff = suffix(W, T_sym)
     storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
-    decl *= "declare $storeinstr(ptr, ptr, i32, <$W x i1>)"
+    decl *= "declare $storeinstr($vtyp, ptr, i32, <$W x i1>)"
     push!(
       instrs,
-      "call $storeinstr(ptr $(argtostore), ptr %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" *
+      "call $storeinstr($vtyp $(argtostore), ptr %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" *
       metadata
     )
   elseif nontemporal
@@ -2281,15 +2280,15 @@ end
   mask::AbstractMask{W,U}
 ) where {W,T<:NativeTypes,U<:Unsigned}
   typ = LLVM_TYPES[T]
-  #vtyp = "<$W x $typ>"
+  vtyp = "<$W x $typ>"
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
   instrs = String[]
   truncate_mask!(instrs, '2', W, 0)
-  decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))(ptr, ptr, <$W x i1>)"
+  decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, ptr, <$W x i1>)"
   push!(
     instrs,
-    "call void @llvm.masked.compressstore.$(suffix(W,T))(ptr %ptr.0, ptr %ptr.1, <$W x i1> %mask.0)\nret void"
+    "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, ptr %ptr.0, <$W x i1> %mask.0)\nret void"
   )
 
   llvmcall_expr(
