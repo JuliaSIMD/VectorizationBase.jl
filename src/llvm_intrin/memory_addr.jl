@@ -166,10 +166,10 @@ function offset_ptr(
   end
   # after this block, we will have a index_gep_typ pointer
   if iszero(O)
-    push!(
+    #=push!(
       instrs,
       "%ptr.$(i) = load ptr, ptr %0"
-    )
+    )=#
     i += 1
   else # !iszero(O)
     if !iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
@@ -1242,7 +1242,7 @@ function vstore_quote(
     reversemask = '<' * join(map(x -> string("i32 ", W - x), 1:W), ", ") * '>'
     push!(
       instrs,
-      "%argreversed = shufflevector $vtyp %1, ptr undef, <$W x i32> $reversemask"
+      "%argreversed = shufflevector $vtyp %1, $vtyp undef, <$W x i32> $reversemask"
     )
     argtostore = "%argreversed"
   else
@@ -1298,7 +1298,7 @@ function vstore_quote(
   else
     Expr(:curly, :Tuple, ptrtyp, T_sym)
   end
-  largs = String["ptr"]
+  largs = String[vtyp]
   arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
   if dynamic_index
     push!(arg_syms, :(data(i)))
@@ -2228,7 +2228,7 @@ end
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.start(i64, ptr nocapture)"
-  instrs = "\ncall void @llvm.lifetime.start(i64 $L, ptr %ptr.0)\nret void"
+  instrs = "\ncall void @llvm.lifetime.start(i64 $L, ptr %0)\nret void"
   llvmcall_expr(
     decl,
     instrs,
@@ -2244,7 +2244,7 @@ end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.end(i64, ptr nocapture)"
-  instrs = "\ncall void @llvm.lifetime.end(i64 $L, ptr %ptr.0)\nret void"
+  instrs = "\ncall void @llvm.lifetime.end(i64 $L, ptr %0)\nret void"
   llvmcall_expr(
     decl,
     instrs,
