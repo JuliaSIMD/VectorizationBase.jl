@@ -2314,7 +2314,7 @@ end
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
   instrs = String[]
-  push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $typ*")
+  push!(instrs, "%ptr = bitcast i8* %0 to $typ*")
   if mtyp_input == mtyp_trunc
     push!(instrs, "%mask = bitcast $mtyp_input %1 to <$W x i1>")
   else
