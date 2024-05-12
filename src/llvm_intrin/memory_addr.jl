@@ -192,14 +192,14 @@ function offset_ptr(
     if forgep && iszero(M) && (iszero(X) || isone(X))
       push!(
         instrs,
-        "%ptr.$(i) = ptr %ptr.$(i-1)"
+        "%ptr.$(i) = load ptr, ptr %ptr.$(i-1)"
       )
       i += 1
       return instrs, i
     elseif offset_gep_typ != index_gep_typ
       push!(
         instrs,
-        "%ptr.$(i) = ptr %ptr.$(i-1)"
+        "%ptr.$(i) = load ptr, ptr %ptr.$(i-1)"
       )
       i += 1
     end
@@ -224,13 +224,13 @@ function offset_ptr(
     if forgep
       push!(
         instrs,
-        "%ptr.$(i) = <$W x ptr> %ptr.$(i-1)"
+        "%ptr.$(i) = load ptr, <$W x ptr> %ptr.$(i-1)"
       )
       i += 1
     elseif index_gep_typ != vtyp
       push!(
         instrs,
-        "%ptr.$(i) = <$W x ptr> %ptr.$(i-1)"
+        "%ptr.$(i) = load ptr, <$W x ptr> %ptr.$(i-1)"
       )
       i += 1
     end
@@ -291,13 +291,11 @@ function offset_ptr(
     vityp = "i$(8vibytes)"
     vi = join((X * w for w ∈ 0:W-1), ", $vityp ")
     if typ !== index_gep_typ
-      #=
       push!(
         instrs,
-        "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(typ)*"
+        "%ptr.$(i) = load ptr, ptr %ptr.$(i-1)"
       )
       i += 1
-      =#
     end
     push!(
       instrs,
@@ -307,7 +305,7 @@ function offset_ptr(
     if forgep
       push!(
         instrs,
-        "%ptr.$(i) = <$W x ptr> %ptr.$(i-1)"
+        "%ptr.$(i) = load ptr, <$W x ptr> %ptr.$(i-1)"
       )
       i += 1
     end
@@ -316,13 +314,13 @@ function offset_ptr(
   if forgep # if forgep, just return now
     push!(
       instrs,
-      "%ptr.$(i) = ptr %ptr.$(i-1)"
+      "%ptr.$(i) = load ptr, ptr %ptr.$(i-1)"
     )
     i += 1
   elseif index_gep_typ != vtyp
     push!(
       instrs,
-      "%ptr.$(i) = ptr %ptr.$(i-1)"
+      "%ptr.$(i) = load ptr, ptr %ptr.$(i-1)"
     )
     i += 1
   end
@@ -2300,7 +2298,7 @@ end
     :Cvoid,
     :(Tuple{_Vec{$W,$T},Ptr{$T},$U}),
     "void",
-    [vtyp, "ptr"],
+    [vtyp, "ptr", "i$(8sizeof(U))"],
     [:(data(v)), :ptr, :(data(mask))],
     false,
     true
