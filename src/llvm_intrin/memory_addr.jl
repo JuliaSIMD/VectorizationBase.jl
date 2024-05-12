@@ -2228,7 +2228,7 @@ end
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.start(i64, ptr nocapture)"
-  instrs = "\ncall void @llvm.lifetime.start(i64 $L, ptr %0)\nret void"
+  instrs = "\ncall void @llvm.lifetime.start(i64 $L, ptr %ptr.0)\nret void"
   llvmcall_expr(
     decl,
     instrs,
@@ -2244,7 +2244,7 @@ end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.end(i64, ptr nocapture)"
-  instrs = "\ncall void @llvm.lifetime.end(i64 $L, ptr %0)\nret void"
+  instrs = "\ncall void @llvm.lifetime.end(i64 $L, ptr %ptr.0)\nret void"
   llvmcall_expr(
     decl,
     instrs,
