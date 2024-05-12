@@ -2322,7 +2322,7 @@ end
     push!(instrs, "%masktrunc = trunc $mtyp_input %1 to $mtyp_trunc")
     push!(instrs, "%mask = bitcast $mtyp_trunc %masktrunc to <$W x i1>")
   end
-  decl = "declare ptr @llvm.masked.expandload.$(suffix(W,T))(ptr, <$W x i1>, ptr)"
+  decl = "declare ptr @llvm.masked.expandload.$(suffix(W,T))(ptr, <$W x i1>, $vtyp)"
   push!(
     instrs,
     "%res = call ptr @llvm.masked.expandload.$(suffix(W,T))(ptr %ptr.0, <$W x i1> %mask, ptr zeroinitializer)\nret $vtyp %res"
