@@ -186,7 +186,7 @@ function offset_ptr(
     i += 1
     push!(
       instrs,
-      "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), ptr %ptr.$(i-1), i32 $(offset)"
+      "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ)*, ptr %ptr.$(i-1), i32 $(offset)"
     )
     i += 1
     if forgep && iszero(M) && (iszero(X) || isone(X))
@@ -218,7 +218,7 @@ function offset_ptr(
     end
     push!(
       instrs,
-      "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), ptr %ptr.$(i-1), <$W x i$(ibits)> %$(indname)"
+      "%ptr.$(i) = getelementptr inbounds $(index_gep_typ)*, ptr %ptr.$(i-1), <$W x i$(ibits)> %$(indname)"
     )
     i += 1
     if forgep
@@ -320,7 +320,7 @@ function offset_ptr(
   elseif index_gep_typ != vtyp
     push!(
       instrs,
-      "%ptr.$(i) = load $vtyp*, ptr %ptr.$(i-1)"
+      "%ptr.$(i) = load $(vtyp)*, ptr %ptr.$(i-1)"
     )
     i += 1
   end
