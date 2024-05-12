@@ -166,13 +166,11 @@ function offset_ptr(
   end
   # after this block, we will have a index_gep_typ pointer
   if iszero(O)
-    #=
     push!(
       instrs,
-      "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(index_gep_typ)*"
+      "%ptr.$(i) = load ptr, ptr %0"
     )
     i += 1
-    =#
   else # !iszero(O)
     if !iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
       offset_gep_typ = "i8"
@@ -181,35 +179,29 @@ function offset_ptr(
       offset_gep_typ = index_gep_typ
       offset = O >> tz
     end
-    #=
     push!(
       instrs,
-      "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"
+      "%ptr.$(i) = load ptr, ptr %0"
     )
     i += 1
-    =#
     push!(
       instrs,
       "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), ptr %ptr.$(i-1), i32 $(offset)"
     )
     i += 1
     if forgep && iszero(M) && (iszero(X) || isone(X))
-      #=
       push!(
         instrs,
-        "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"
+        "%ptr.$(i) = ptr %ptr.$(i-1)"
       )
       i += 1
-      =#
       return instrs, i
     elseif offset_gep_typ != index_gep_typ
-      #=
       push!(
         instrs,
-        "%ptr.$(i) = bitcast $(offset_gep_typ)* %ptr.$(i-1) to $(index_gep_typ)*"
+        "%ptr.$(i) = ptr %ptr.$(i-1)"
       )
       i += 1
-      =#
     end
   end
   # will do final type conversion
@@ -230,21 +222,17 @@ function offset_ptr(
     )
     i += 1
     if forgep
-      #=
       push!(
         instrs,
-        "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
+        "%ptr.$(i) = <$W x ptr> %ptr.$(i-1)"
       )
       i += 1
-      =#
     elseif index_gep_typ != vtyp
-      #=
       push!(
         instrs,
-        "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $typ*>"
+        "%ptr.$(i) = <$W x ptr> %ptr.$(i-1)"
       )
       i += 1
-      =#
     end
     return instrs, i
   end
@@ -317,32 +305,26 @@ function offset_ptr(
     )
     i += 1
     if forgep
-      #=
       push!(
         instrs,
-        "%ptr.$(i) = ptrtoint <$W x $typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
+        "%ptr.$(i) = <$W x ptr> %ptr.$(i-1)"
       )
       i += 1
-      =#
     end
     return instrs, i
   end
   if forgep # if forgep, just return now
-    #=
     push!(
       instrs,
-      "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"
+      "%ptr.$(i) = ptr %ptr.$(i-1)"
     )
     i += 1
-    =#
   elseif index_gep_typ != vtyp
-    #=
     push!(
       instrs,
-      "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(vtyp)*"
+      "%ptr.$(i) = ptr %ptr.$(i-1)"
     )
     i += 1
-    =#
   end
   instrs, i
 end
@@ -2190,10 +2172,10 @@ end
       "Prefetch intrinsic requires a read/write argument of 0, 1, but received $R."
     )
   )
-  decl = "declare void @llvm.prefetch(i8*, i32, i32, i32)"
+  decl = "declare void @llvm.prefetch(ptr, i32, i32, i32)"
   instrs = """
-      %addr = ptr %0
-      call void @llvm.prefetch(i8* %addr, i32 $R, i32 $L, i32 1)
+      %addr = load ptr, ptr %0
+      call void @llvm.prefetch(ptr %addr, i32 $R, i32 $L, i32 1)
       ret void
   """
   llvmcall_expr(
@@ -2249,7 +2231,7 @@ end
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.start(i64, ptr nocapture)"
-  instrs = "%ptr = ptr %0\ncall void @llvm.lifetime.start(i64 $L, ptr %ptr)\nret void"
+  instrs = "%ptr = load ptr, ptr %0\ncall void @llvm.lifetime.start(i64 $L, ptr %ptr)\nret void"
   llvmcall_expr(
     decl,
     instrs,
@@ -2265,7 +2247,7 @@ end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.end(i64, ptr nocapture)"
-  instrs = "%ptr = ptr %0\ncall void @llvm.lifetime.end(i64 $L, ptr %ptr)\nret void"
+  instrs = "%ptr = load ptr, ptr %0\ncall void @llvm.lifetime.end(i64 $L, ptr %ptr)\nret void"
   llvmcall_expr(
     decl,
     instrs,
@@ -2304,7 +2286,7 @@ end
   vtyp = "<$W x $typ>"
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
-  instrs = String["%ptr = ptr %1"]
+  instrs = String["%ptr = load ptr, ptr %1"]
   truncate_mask!(instrs, '2', W, 0)
   decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, ptr, <$W x i1>)"
   push!(
@@ -2318,7 +2300,7 @@ end
     :Cvoid,
     :(Tuple{_Vec{$W,$T},Ptr{$T},$U}),
     "void",
-    [vtyp, "ptr", "i$(8sizeof(U))"],
+    [vtyp, "ptr"],
     [:(data(v)), :ptr, :(data(mask))],
     false,
     true
@@ -2335,7 +2317,7 @@ end
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
   instrs = String[]
-  push!(instrs, "%ptr = ptr %0")
+  push!(instrs, "%ptr = load ptr, ptr %0")
   if mtyp_input == mtyp_trunc
     push!(instrs, "%mask = bitcast $mtyp_input %1 to <$W x i1>")
   else
@@ -2353,7 +2335,7 @@ end
     :(_Vec{$W,$T}),
     :(Tuple{Ptr{$T},$U}),
     vtyp,
-    ["ptr", "i$(8sizeof(U))"],
+    ["ptr"],
     [:ptr, :(data(mask))],
     false,
     true
