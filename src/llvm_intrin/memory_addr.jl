@@ -168,7 +168,7 @@ function offset_ptr(
   if iszero(O)
     push!(
       instrs,
-      "%ptr.$(i) = load %0"
+      "%ptr.$(i) = load $(index_gep_typ)*, ptr %0"
     )
     i += 1
   else # !iszero(O)
@@ -181,7 +181,7 @@ function offset_ptr(
     end
     push!(
       instrs,
-      "%ptr.$(i) = load %0"
+      "%ptr.$(i) = load $(offset_gep_typ)*, ptr %0"
     )
     i += 1
     push!(
@@ -192,14 +192,14 @@ function offset_ptr(
     if forgep && iszero(M) && (iszero(X) || isone(X))
       push!(
         instrs,
-        "%ptr.$(i) = load %ptr.$(i-1)"
+        "%ptr.$(i) = load $(index_gep_typ)*, ptr %ptr.$(i-1)"
       )
       i += 1
       return instrs, i
     elseif offset_gep_typ != index_gep_typ
       push!(
         instrs,
-        "%ptr.$(i) = load %ptr.$(i-1)"
+        "%ptr.$(i) = load $(index_gep_typ)*, ptr %ptr.$(i-1)"
       )
       i += 1
     end
@@ -224,13 +224,13 @@ function offset_ptr(
     if forgep
       push!(
         instrs,
-        "%ptr.$(i) = load %ptr.$(i-1)"
+        "%ptr.$(i) = load <$W x ptr>, ptr %ptr.$(i-1)"
       )
       i += 1
     elseif index_gep_typ != vtyp
       push!(
         instrs,
-        "%ptr.$(i) = load %ptr.$(i-1)"
+        "%ptr.$(i) = load <$W x ptr>, ptr %ptr.$(i-1)"
       )
       i += 1
     end
@@ -278,7 +278,7 @@ function offset_ptr(
     end
     push!(
       instrs,
-      "%ptr.$(i) = getelementptr inbounds $(index_gep_typ), ptr %ptr.$(i-1), i$(ibits) %$(indname)"
+      "%ptr.$(i) = getelementptr inbounds $(index_gep_typ)*, ptr %ptr.$(i-1), i$(ibits) %$(indname)"
     )
     i += 1
   end
@@ -293,19 +293,19 @@ function offset_ptr(
     if typ !== index_gep_typ
       push!(
         instrs,
-        "%ptr.$(i) = load %ptr.$(i-1)"
+        "%ptr.$(i) = load $(typ)*, ptr %ptr.$(i-1)"
       )
       i += 1
     end
     push!(
       instrs,
-      "%ptr.$(i) = getelementptr inbounds $(typ), ptr %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"
+      "%ptr.$(i) = getelementptr inbounds $(typ)*, ptr %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"
     )
     i += 1
     if forgep
       push!(
         instrs,
-        "%ptr.$(i) = load %ptr.$(i-1)"
+        "%ptr.$(i) = load <$W x ptr>, ptr, %ptr.$(i-1)"
       )
       i += 1
     end
@@ -314,13 +314,13 @@ function offset_ptr(
   if forgep # if forgep, just return now
     push!(
       instrs,
-      "%ptr.$(i) = load %ptr.$(i-1)"
+      "%ptr.$(i) = load $(vtyp)*, %ptr.$(i-1)"
     )
     i += 1
   elseif index_gep_typ != vtyp
     push!(
       instrs,
-      "%ptr.$(i) = load %ptr.$(i-1)"
+      "%ptr.$(i) = load $vtyp*, ptr %ptr.$(i-1)"
     )
     i += 1
   end
@@ -2172,7 +2172,7 @@ end
   )
   decl = "declare void @llvm.prefetch(ptr, i32, i32, i32)"
   instrs = """
-      %addr = load %0
+      %addr = load i8*, ptr %0
       call void @llvm.prefetch(ptr %addr, i32 $R, i32 $L, i32 1)
       ret void
   """
@@ -2229,7 +2229,7 @@ end
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.start(i64, ptr nocapture)"
-  instrs = "%ptr = load %0\ncall void @llvm.lifetime.start(i64 $L, ptr %ptr)\nret void"
+  instrs = "%ptr = load $ptyp*, ptr %0\ncall void @llvm.lifetime.start(i64 $L, ptr %ptr)\nret void"
   llvmcall_expr(
     decl,
     instrs,
@@ -2245,7 +2245,7 @@ end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
   decl = "declare void @llvm.lifetime.end(i64, ptr nocapture)"
-  instrs = "%ptr = load %0\ncall void @llvm.lifetime.end(i64 $L, ptr %ptr)\nret void"
+  instrs = "%ptr = load $ptyp*, ptr %0\ncall void @llvm.lifetime.end(i64 $L, ptr %ptr)\nret void"
   llvmcall_expr(
     decl,
     instrs,
@@ -2284,7 +2284,7 @@ end
   vtyp = "<$W x $typ>"
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
-  instrs = String["%ptr = load %1"]
+  instrs = String["%ptr = load $typ*, ptr %1"]
   truncate_mask!(instrs, '2', W, 0)
   decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, ptr, <$W x i1>)"
   push!(
@@ -2315,7 +2315,7 @@ end
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
   instrs = String[]
-  push!(instrs, "%ptr = load %0")
+  push!(instrs, "%ptr = load $typ*, ptr %0")
   if mtyp_input == mtyp_trunc
     push!(instrs, "%mask = bitcast $mtyp_input %1 to <$W x i1>")
   else
