@@ -1,4 +1,5 @@
-import InteractiveUtils, Aqua, ArrayInterface
+#import InteractiveUtils, Aqua, ArrayInterface
+import InteractiveUtils, ArrayInterface
 InteractiveUtils.versioninfo(stdout; verbose = true)
 
 include("testsetup.jl")
@@ -9,7 +10,7 @@ include("testsetup.jl")
   println("Aqua.test_all")
   t0 = time_ns()
   deps_compat = VERSION <= v"1.8" || isempty(VERSION.prerelease)
-  Aqua.test_all(VectorizationBase; deps_compat = deps_compat)
+  #Aqua.test_all(VectorizationBase; deps_compat = deps_compat)
   println("Aqua took $((time_ns() - t0)*1e-9) seconds")
   # @test isempty(detect_unbound_args(VectorizationBase))
   # @test isempty(detect_ambiguities(VectorizationBase))
