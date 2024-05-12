@@ -164,10 +164,10 @@ end
 ) where {W,T}
   isone(W) && return Expr(:block, Expr(:meta, :inline), :(vload(ptr)))
   typ = LLVM_TYPES[T]
-  vtyp = #="<$W x $typ>"=# "ptr"
+  vtyp = "<$W x $typ>"
   alignment = Base.datatype_alignment(T)
   instrs = """
-      %ie = insertelement $vtyp undef, $typ %ptr.0, i32 0
+      %ie = insertelement $vtyp undef, ptr %0, i32 0
       %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
       ret $vtyp %v
   """
