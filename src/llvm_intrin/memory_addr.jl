@@ -1230,7 +1230,7 @@ function vstore_quote(
   dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
   typ = LLVM_TYPES_SYM[T_sym]
-  #=lret = =#vtyp = vtype(W, typ)
+  lret = vtyp = vtype(W, typ)
   if mask
     if reverse_store
       decl *= truncate_mask!(instrs, '2' + dynamic_index, W, 0, true) * "\n"
@@ -1298,7 +1298,7 @@ function vstore_quote(
   else
     Expr(:curly, :Tuple, ptrtyp, T_sym)
   end
-  largs = String[vtyp]
+  largs = String["ptr", vtyp]
   arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
   if dynamic_index
     push!(arg_syms, :(data(i)))
@@ -2235,7 +2235,7 @@ end
     :Cvoid,
     :(Tuple{Ptr{$T}}),
     "void",
-    ["ptr"],
+	["ptr", "i$(8sizeof(U))"],
     [:ptr],
     false,
     true
@@ -2297,7 +2297,7 @@ end
     :Cvoid,
     :(Tuple{_Vec{$W,$T},Ptr{$T},$U}),
     "void",
-    ["ptr"],
+	[vtyp, "ptr", "i$(8sizeof(U))"],
     [:(data(v)), :ptr, :(data(mask))],
     false,
     true
