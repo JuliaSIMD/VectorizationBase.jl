@@ -258,9 +258,9 @@ LogBINV(::Val{10}, ::Type{Float32}) = 3.321928f0
 LogBU(::Val{2}, ::Type{Float32}) = -1.0f0
 LogBU(::Val{ℯ}, ::Type{Float32}) = -0.6931472f0
 LogBU(::Val{10}, ::Type{Float32}) = -0.30103f0
-LogBL(base::Val{2}, ::Type{Float32}) = 0.0f0
-LogBL(base::Val{ℯ}, ::Type{Float32}) = 1.9046542f-9
-LogBL(base::Val{10}, ::Type{Float32}) = 1.4320989f-8
+LogBL(::Val{2}, ::Type{Float32}) = 0.0f0
+LogBL(::Val{ℯ}, ::Type{Float32}) = 1.9046542f-9
+LogBL(::Val{10}, ::Type{Float32}) = 1.4320989f-8
 
 const FloatType64 = Union{Float64,AbstractSIMD{<:Any,Float64}}
 const FloatType32 = Union{Float32,AbstractSIMD{<:Any,Float32}}
@@ -547,7 +547,9 @@ end
   # Because of the larger polynomial, this implementation works better on systems with 2 FMA units.
 
   @inline function vexp2(x::AbstractSIMD{8,Float64}, ::True)
-    r = vsreduce(16.0x, Val(0)) * 0.0625
+    # M = 64 >> 4 = 4
+    # r = x - round(2^M * x)*2^-M
+    r = vsreduce(x, Val(64))
     N_float = x - r
     expr = expm1b_kernel_16(Val(2), r)
     inds = convert(UInt64, vsreduce(N_float, Val(1)) * 16.0)
@@ -635,18 +637,77 @@ end
     ::Val{B}
   ) where {B}
     N_float = vfmadd(x, LogBINV(Val{B}(), Float32), MAGIC_ROUND_CONST(Float32))
-    N = reinterpret(UInt32, N_float)
     N_float = (N_float - MAGIC_ROUND_CONST(Float32))
-
-    r = fast_fma(N_float, LogBU(Val{B}(), Float32), x, fma_fast())
-    r = fast_fma(N_float, LogBL(Val{B}(), Float32), r, fma_fast())
-
+    r = fma(N_float, LogBU(Val{B}(), Float32), x)
+    r = fma(N_float, LogBL(Val{B}(), Float32), r)
     small_part = expb_kernel(Val{B}(), r)
-    res = vscalef(small_part, N_float)
-    # twopk = N << 0x00000017
-    # res = reinterpret(Float32, twopk + small_part)
-    return res
+    return vscalef(small_part, N_float)
   end
+  @inline function vexp2(x::AbstractSIMD{<:Any,Float32}, ::True)
+    r = vsreduce(x, Val(0))
+    N_float = x - r
+
+    small_part = expb_kernel(Val{2}(), r)
+    return vscalef(small_part, N_float)
+  end
+
+  # @inline function vexp_test(x::AbstractSIMD{16,Float32})#, ::True)
+  #   xb = x * LogBINV(Val{ℯ}(), Float32)
+  #   # rs = xb - round(xb)
+  #   rs = vsreduce(xb, Val(0))
+  #   N_float = xb - rs
+
+  #   # rs = x*log2(ℯ) - N_float
+  #   # r = fma(x, Float32(log2(ℯ)), - N_float)
+
+  #   # rs = x*(l2_hi + l2_lo) - N_float
+  #   # rs = x*l2_hi - N_float + x*l2_lo
+  #   # r = fma(x, 1.925963f-8, rs)
+  #   # small_part = expb_kernel(Val{2}(), r)
+  #   # B = ℯ
+  #   # r = fma(N_float, LogBU(Val{B}(), Float32), x)
+  #   # r = fma(N_float, LogBL(Val{B}(), Float32), r)
+  #   # small_part = expb_kernel(Val{B}(), r)
+
+  #   rv2 = fma(1.442695f0, x, -N_float)
+  #   rv2 = fma(1.925963f-8, x, rv2)
+  #   small_part = expb_kernel(Val{2}(), rv2)
+
+  #   # @show rs r rs / r rv2
+
+  #   # xb = x * log2(ℯ	)
+  #   # rs = xb - N_float
+  #   # rs = x * log2(ℯ) - N_float
+  #   # vs, desierd:
+  #   # r = x - N_float * log(2)
+  #   # r = x - N_float / log2(ℯ) 
+  #   # r = rs / log2(ℯ) 
+  #   # r = 0.6931471805599453f0 * rs 
+
+  #   # small_part = expb_kernel(Val{2}(), r)
+  #   return vscalef(small_part, N_float)
+  # end
+  # @inline vexp_test(x::AbstractSIMD{16}) = vexp_test(Float32(x))
+  # @inline vexp_test(x::Vec{8}) = shufflevector(
+  #   vexp_test(
+  #     shufflevector(
+  #       x,
+  #       x,
+  #       Val((0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
+  #     )
+  #   ),
+  #   Val((0, 1, 2, 3, 4, 5, 6, 7))
+  # )
+  # @inline vexp_test(x::Vec{4}) = shufflevector(
+  #   vexp_test(shufflevector(x, x, Val((0, 1, 2, 3, 4, 5, 6, 7)))),
+  #   Val((0, 1, 2, 3))
+  # )
+  # @inline vexp_test(x::Vec{2}) = shufflevector(
+  #   vexp_test(shufflevector(x, x, Val((0, 1, 2, 3)))),
+  #   Val((0, 1))
+  # )
+  # @inline vexp_test(x::VecUnroll) = VecUnroll(fmap(vexp_test, data(x)))
+  # @inline vexp_test(x::Float32) = vexp_test(Vec(x))(1)
 
 else# if !((Sys.ARCH === :x86_64) | (Sys.ARCH === :i686))
   const target_trunc = identity
