@@ -86,7 +86,7 @@ const STORE_SCOPE_FLAGS = ", !noalias !3";
 # !9 = !{!"jtbaa"}
 # """;
 # const TBAA_FLAGS = ", !tbaa !4";
-const TBAA_STR = TBAA_FLAGS = ""
+const TBAA_STR = const TBAA_FLAGS = ""
 # const TBAA_STR = """
 # !4 = !{!"jtbaa", !5, i64 0}
 # !5 = !{!"jtbaa"}
