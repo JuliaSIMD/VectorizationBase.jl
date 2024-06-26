@@ -750,6 +750,8 @@ end
 #         W += W
 #     end
 # end
+@inline vsum(x::T) where {T<:NativeTypes} = x
+@inline vprod(x::T) where {T<:NativeTypes} = x
 @inline vsum(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
   vsum(-zero(T), v)
 @inline vprod(v::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
