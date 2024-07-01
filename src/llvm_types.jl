@@ -114,8 +114,6 @@ function _get_alignment(W::Int, sym::Symbol)::Int
   end
 end
 
-const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
-
 vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])::String
 vtype(W, T::Symbol) = vtype(W, get(LLVM_TYPES_SYM, T, T))::String
