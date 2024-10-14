@@ -494,9 +494,21 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
   end
   meta = Expr(:meta, :inline)
   if VERSION >= v"1.8.0-beta"
-    purity = Expr(:purity, true, true, true, true, false)
+    purity = Expr(:purity,
+       #= consistent =# true,
+       #= effect_free =# true,
+       #= nothrow =# true,
+       #= terminates_globally =# true,
+       #= terminates_locally =# false)
     if VERSION >= v"1.11"
-      push!(purity.args, false, false, false, false, false, false)
+      push!(purity.args,
+        #= notaskstate =# true,
+        #= inaccessiblememonly =# true,
+        #= noub =# true,
+        #= noub_if_noinbounds =# false,
+        #= consistent_overlay =# false,
+        #= nortcall =# true,
+      )
     end
     push!(meta.args, purity)
   end
