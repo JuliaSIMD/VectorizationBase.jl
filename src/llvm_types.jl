@@ -279,6 +279,7 @@ end
         Expr(:purity, true, true, true, true, false)
       end
       VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
+      VERSION >= v"1.11" && push!(purity.args, false, false, false, false, false)
       Expr(:meta, purity, :inline)
     else
       Expr(:meta, :inline)

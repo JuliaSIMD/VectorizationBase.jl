@@ -494,7 +494,11 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
   end
   meta = Expr(:meta, :inline)
   if VERSION >= v"1.8.0-beta"
-    push!(meta.args, Expr(:purity, true, true, true, true, false))
+    purity = Expr(:purity, true, true, true, true, false)
+    if VERSION >= v"1.11"
+      push!(purity.args, false, false, false, false, false, false)
+    end
+    push!(meta.args, purity)
   end
   quote
     $meta
