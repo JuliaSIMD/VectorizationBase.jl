@@ -279,6 +279,13 @@ end
         Expr(:purity, true, true, true, true, false)
       end
       VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
+      VERSION >= v"1.11" && push!(purity.args,
+        #= inaccessiblememonly =# true,
+        #= noub =# true,
+        #= noub_if_noinbounds =# false,
+        #= consistent_overlay =# false,
+        #= nortcall =# true,
+      )
       Expr(:meta, purity, :inline)
     else
       Expr(:meta, :inline)
