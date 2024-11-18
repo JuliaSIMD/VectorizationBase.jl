@@ -273,19 +273,33 @@ end
     end
     callonly && return call
     meta = if VERSION ≥ v"1.8.0-beta"
-      purity = if touchesmemory
-        Expr(:purity, false, false, true, true, false)
+      if VERSION >= v"1.12.0-DEV.1406"
+        purity = Base.form_purity_expr(Base.EffectsOverride(;
+          consistent=!touchesmemory,
+          effect_free=!touchesmemory,
+          nothrow=true,
+          terminates_globally=true,
+          terminates_locally=true,
+          notaskstate=true,
+          inaccessiblememonly=true,
+          noub=true,
+          nortcall=true,
+        ))
       else
-        Expr(:purity, true, true, true, true, false)
+        purity = if touchesmemory
+          Expr(:purity, false, false, true, true, false)
+        else
+          Expr(:purity, true, true, true, true, false)
+        end
+        VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
+        VERSION >= v"1.11" && push!(purity.args,
+          #= inaccessiblememonly =# true,
+          #= noub =# true,
+          #= noub_if_noinbounds =# false,
+          #= consistent_overlay =# false,
+          #= nortcall =# true,
+        )
       end
-      VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
-      VERSION >= v"1.11" && push!(purity.args,
-        #= inaccessiblememonly =# true,
-        #= noub =# true,
-        #= noub_if_noinbounds =# false,
-        #= consistent_overlay =# false,
-        #= nortcall =# true,
-      )
       Expr(:meta, purity, :inline)
     else
       Expr(:meta, :inline)
