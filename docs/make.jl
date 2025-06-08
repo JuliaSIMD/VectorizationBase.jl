@@ -1,6 +1,8 @@
 using VectorizationBase
 using Documenter
 
+DocMeta.setdocmeta!(VectorizationBase, :DocTestSetup, :(using VectorizationBase); recursive=true)
+
 makedocs(;
   modules = [VectorizationBase],
   authors = "Chris Elrod",
@@ -11,7 +13,6 @@ makedocs(;
     canonical = "https://JuliaSIMD.github.io/VectorizationBase.jl"
   ),
   pages = ["Home" => "index.md"],
-  strict = false
 )
 
 deploydocs(; repo = "github.com/JuliaSIMD/VectorizationBase.jl")
