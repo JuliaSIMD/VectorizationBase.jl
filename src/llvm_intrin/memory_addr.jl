@@ -2170,10 +2170,9 @@ end
       "Prefetch intrinsic requires a read/write argument of 0, 1, but received $R."
     )
   )
-  decl = "declare void @llvm.prefetch(i8*, i32, i32, i32)"
+  decl = "declare void @llvm.prefetch(ptr, i32, i32, i32)"
   instrs = """
-      %addr = inttoptr $JULIAPOINTERTYPE %0 to i8*
-      call void @llvm.prefetch(i8* %addr, i32 $R, i32 $L, i32 1)
+      call void @llvm.prefetch(ptr %0, i32 $R, i32 $L, i32 1)
       ret void
   """
   llvmcall_expr(
