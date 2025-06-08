@@ -2284,12 +2284,13 @@ end
   vtyp = "<$W x $typ>"
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
-  instrs = String["%ptr = inttoptr $JULIAPOINTERTYPE %1 to $typ*"]
+  instrs = String[]
+  # push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %1 to $typ*")
   truncate_mask!(instrs, '2', W, 0)
-  decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, $typ*, <$W x i1>)"
+  decl = "declare void @llvm.masked.compressstore.$(suffix(W,T))($vtyp, ptr, <$W x i1>)"
   push!(
     instrs,
-    "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, $typ* %ptr, <$W x i1> %mask.0)\nret void"
+    "call void @llvm.masked.compressstore.$(suffix(W,T))($vtyp %0, ptr %1, <$W x i1> %mask.0)\nret void"
   )
   llvmcall_expr(
     decl,
