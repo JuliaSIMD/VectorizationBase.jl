@@ -2228,8 +2228,8 @@ end
 
 @generated function lifetime_start!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
-  decl = "declare void @llvm.lifetime.start(i64, $ptyp* nocapture)"
-  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.start(i64 $L, $ptyp* %ptr)\nret void"
+  decl = "declare void @llvm.lifetime.start(i64, ptr nocapture)"
+  instrs = "call void @llvm.lifetime.start(i64 $L, ptr %0)\nret void"
   llvmcall_expr(
     decl,
     instrs,
