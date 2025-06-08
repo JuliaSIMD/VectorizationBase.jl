@@ -822,27 +822,27 @@ function vload_quote_llvmcall_core(
       suffix(W, T_sym) *
       '.' *
       ptr_suffix(W, T_sym)
-    decl *= "declare $loadinstr(<$W x $typ*>, i32, <$W x i1>, $vtyp)"
+    decl *= "declare $loadinstr(<$W x ptr>, i32, <$W x i1>, $vtyp)"
     m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
     passthrough = mask ? "zeroinitializer" : "undef"
     push!(
       instrs,
-      "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" *
+      "%res = call $loadinstr(<$W x ptr> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" *
       LOAD_SCOPE_TBAA_FLAGS
     )
   elseif mask
     suff = suffix(W, T_sym)
     loadinstr = "$vtyp @llvm.masked.load." * suff * ".p0" * suff
-    decl *= "declare $loadinstr($vtyp*, i32, <$W x i1>, $vtyp)"
+    decl *= "declare $loadinstr(ptr, i32, <$W x i1>, $vtyp)"
     push!(
       instrs,
-      "%res = call $loadinstr($vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" *
+      "%res = call $loadinstr(ptr %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0, $vtyp zeroinitializer)" *
       LOAD_SCOPE_TBAA_FLAGS
     )
   else
     push!(
       instrs,
-      "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" *
+      "%res = load $vtyp, ptr %ptr.$(i-1), align $alignment" *
       LOAD_SCOPE_TBAA_FLAGS
     )
   end
@@ -886,7 +886,7 @@ function vload_quote_llvmcall_core(
     end
   end
   args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
-  largs = String[JULIAPOINTERTYPE]
+  largs = String["ptr"]
   arg_syms = Union{Symbol,Expr}[:ptr]
   if dynamic_index
     push!(arg_syms, :(data(i)))
