@@ -199,7 +199,7 @@ function offset_ptr(
     elseif offset_gep_typ != index_gep_typ
       push!(
         instrs,
-        "%ptr.$(i) = bitcast $(offset_gep_typ)* %ptr.$(i-1) to $(index_gep_typ)*"
+        "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"  # do-nothing
       )
       i += 1
     end
@@ -230,7 +230,7 @@ function offset_ptr(
     elseif index_gep_typ != vtyp
       push!(
         instrs,
-        "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $typ*>"
+        "%ptr.$(i) = bitcast <$W x ptr> %ptr.$(i-1) to <$W x ptr>"  # do-nothing
       )
       i += 1
     end
@@ -293,7 +293,7 @@ function offset_ptr(
     if typ !== index_gep_typ
       push!(
         instrs,
-        "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(typ)*"
+        "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"  # do-nothing
       )
       i += 1
     end
@@ -320,7 +320,7 @@ function offset_ptr(
   elseif index_gep_typ != vtyp
     push!(
       instrs,
-      "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(vtyp)*"
+      "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"  # do-nothing
     )
     i += 1
   end
