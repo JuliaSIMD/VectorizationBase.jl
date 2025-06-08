@@ -192,7 +192,7 @@ function offset_ptr(
     if forgep && iszero(M) && (iszero(X) || isone(X))
       push!(
         instrs,
-        "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"
+        "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"  # do-nothiong
       )
       i += 1
       return instrs, i
@@ -224,7 +224,7 @@ function offset_ptr(
     if forgep
       push!(
         instrs,
-        "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
+        "%ptr.$(i) = bitcast <$W x ptr> %ptr.$(i-1) to <$W x ptr>"  # do-nothing
       )
       i += 1
     elseif index_gep_typ != vtyp
@@ -305,7 +305,7 @@ function offset_ptr(
     if forgep
       push!(
         instrs,
-        "%ptr.$(i) = ptrtoint <$W x $typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
+        "%ptr.$(i) = bitcast <$W x ptr> %ptr.$(i-1) to <$W x ptr>"  # do-nothing
       )
       i += 1
     end
@@ -314,7 +314,7 @@ function offset_ptr(
   if forgep # if forgep, just return now
     push!(
       instrs,
-      "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"
+      "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"  # do-nothing
     )
     i += 1
   elseif index_gep_typ != vtyp
