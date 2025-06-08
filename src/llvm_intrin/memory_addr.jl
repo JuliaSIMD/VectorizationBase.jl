@@ -2244,8 +2244,8 @@ end
 end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
   ptyp = LLVM_TYPES[T]
-  decl = "declare void @llvm.lifetime.end(i64, $ptyp* nocapture)"
-  instrs = "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $ptyp*\ncall void @llvm.lifetime.end(i64 $L, $ptyp* %ptr)\nret void"
+  decl = "declare void @llvm.lifetime.end(i64, ptr nocapture)"
+  instrs = "call void @llvm.lifetime.end(i64 $L, ptr %0)\nret void"
   llvmcall_expr(
     decl,
     instrs,
