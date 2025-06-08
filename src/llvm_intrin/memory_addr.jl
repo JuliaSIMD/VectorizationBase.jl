@@ -1254,33 +1254,33 @@ function vstore_quote(
       suffix(W, T_sym) *
       '.' *
       ptr_suffix(W, T_sym)
-    decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
+    decl *= "declare $storeinstr($vtyp, <$W x ptr>, i32, <$W x i1>)"
     m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
     push!(
       instrs,
-      "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" *
+      "call $storeinstr($vtyp $(argtostore), <$W x ptr> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" *
       metadata
     )
-    # push!(instrs, "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
+    # push!(instrs, "call $storeinstr($vtyp $(argtostore), <$W x ptr> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
   elseif mask
     suff = suffix(W, T_sym)
     storeinstr = "void @llvm.masked.store." * suff * ".p0" * suff
-    decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
+    decl *= "declare $storeinstr($vtyp, ptr, i32, <$W x i1>)"
     push!(
       instrs,
-      "call $storeinstr($vtyp $(argtostore), $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" *
+      "call $storeinstr($vtyp $(argtostore), ptr %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" *
       metadata
     )
   elseif nontemporal
     push!(
       instrs,
-      "store $vtyp $(argtostore), $vtyp* %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}" *
+      "store $vtyp $(argtostore), ptr %ptr.$(i-1), align $alignment, !nontemporal !{i32 1}" *
       metadata
     )
   else
     push!(
       instrs,
-      "store $vtyp $(argtostore), $vtyp* %ptr.$(i-1), align $alignment" *
+      "store $vtyp $(argtostore), ptr %ptr.$(i-1), align $alignment" *
       metadata
     )
   end
@@ -1298,7 +1298,7 @@ function vstore_quote(
   else
     Expr(:curly, :Tuple, ptrtyp, T_sym)
   end
-  largs = String[JULIAPOINTERTYPE, vtyp]
+  largs = String["ptr", vtyp]
   arg_syms = Union{Symbol,Expr}[:ptr, Expr(:call, :data, :v)]
   if dynamic_index
     push!(arg_syms, :(data(i)))
