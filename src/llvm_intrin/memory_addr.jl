@@ -2310,21 +2310,20 @@ end
 ) where {W,T<:NativeTypes,U<:Unsigned}
   typ = LLVM_TYPES[T]
   vtyp = "<$W x $typ>"
-  vptrtyp = "<$W x $typ*>"
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
   instrs = String[]
-  push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $typ*")
+  # push!(instrs, "%ptr = inttoptr $JULIAPOINTERTYPE %0 to $typ*")
   if mtyp_input == mtyp_trunc
     push!(instrs, "%mask = bitcast $mtyp_input %1 to <$W x i1>")
   else
     push!(instrs, "%masktrunc = trunc $mtyp_input %1 to $mtyp_trunc")
     push!(instrs, "%mask = bitcast $mtyp_trunc %masktrunc to <$W x i1>")
   end
-  decl = "declare $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ*, <$W x i1>, $vtyp)"
+  decl = "declare $vtyp @llvm.masked.expandload.$(suffix(W,T))(ptr, <$W x i1>, $vtyp)"
   push!(
     instrs,
-    "%res = call $vtyp @llvm.masked.expandload.$(suffix(W,T))($typ* %ptr, <$W x i1> %mask, $vtyp zeroinitializer)\nret $vtyp %res"
+    "%res = call $vtyp @llvm.masked.expandload.$(suffix(W,T))(ptr %0, <$W x i1> %mask, $vtyp zeroinitializer)\nret $vtyp %res"
   )
   llvmcall_expr(
     decl,
