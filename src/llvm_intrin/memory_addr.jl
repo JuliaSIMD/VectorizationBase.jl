@@ -373,14 +373,14 @@ function gep_quote(
   # ::Type{T}, ind_type::Symbol, indargname = '1', ibytes::Int, W::Int = 1, X::Int = 1, M::Int = 1, O::Int = 0, forgep::Bool = false
   instrs, i = offset_ptr(T_sym, ind_type, '1', ibits, W, X, M, O, true, rs)
   ret = Expr(:curly, :Ptr, T_sym)
-  lret = JULIAPOINTERTYPE
+  lret = "ptr"
   if gep_returns_vector(W, X, M, ind_type)
     ret = Expr(:curly, :_Vec, W, ret)
     lret = "<$W x $lret>"
   end
 
   args = Expr(:curly, :Tuple, Expr(:curly, :Ptr, T_sym))
-  largs = String[JULIAPOINTERTYPE]
+  largs = String["ptr"]
   arg_syms = Union{Symbol,Expr}[:ptr]
 
   if !(iszero(M) || ind_type === :StaticInt)
