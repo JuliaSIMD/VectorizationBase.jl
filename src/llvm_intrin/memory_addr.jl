@@ -168,7 +168,7 @@ function offset_ptr(
   if iszero(O)
     push!(
       instrs,
-      "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(index_gep_typ)*"
+      "%ptr.$(i) = bitcast ptr %0 to ptr"  # do-nothing
     )
     i += 1
   else # !iszero(O)
@@ -181,7 +181,7 @@ function offset_ptr(
     end
     push!(
       instrs,
-      "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"
+      "%ptr.$(i) = bitcast ptr %0 to ptr"  # do-nothing
     )
     i += 1
     push!(
