@@ -167,9 +167,15 @@ end
   ptyp = JULIAPOINTERTYPE
   vtyp = "<$W x $typ>"
   alignment = Base.datatype_alignment(T)
-  instrs = """
-      %ptr = inttoptr $ptyp %0 to $typ*
-      %res = load $typ, $typ* %ptr, align $alignment
+  instrs = @static if USE_OPAQUE_PTR
+    "%res = load $typ, ptr %0, align $alignment"
+  else
+    """
+    %ptr = inttoptr $ptyp %0 to $typ*
+    %res = load $typ, $typ* %ptr, align $alignment
+    """
+  end
+  instrs *= """
       %ie = insertelement $vtyp undef, $typ %res, i32 0
       %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
       ret $vtyp %v
