@@ -114,6 +114,14 @@ function _get_alignment(W::Int, sym::Symbol)::Int
   end
 end
 
+"""
+use opaque pointer
+
+Ref:
+- Switch LLVM codegen of Ptr{T} to an actual pointer type.
+  https://github.com/JuliaLang/julia/pull/53687
+"""
+const USE_OPAQUE_PTR = VERSION >= v"1.12-DEV"
 const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
 
 vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
