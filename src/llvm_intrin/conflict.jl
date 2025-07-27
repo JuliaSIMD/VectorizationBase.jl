@@ -1,4 +1,3 @@
-
 function conflictquote(W::Int = 16, bits::Int = 32)
   @assert bits == 32 || bits == 64
   s = bits == 32 ? 'd' : 'q'

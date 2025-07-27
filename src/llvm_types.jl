@@ -114,7 +114,7 @@ function _get_alignment(W::Int, sym::Symbol)::Int
   end
 end
 
-const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
+const JULIAPOINTERTYPE = "ptr"
 
 vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])::String
@@ -132,11 +132,12 @@ append_julia_type!(x, Ws, Ts) =
     push_julia_type!(x, Ws[i], Ts[i])
   end
 
-ptr_suffix(T) = "p0" * suffix(T)
-ptr_suffix(W, T) = suffix(W, ptr_suffix(T))
+# TODO determine if ptr_suffix is needed
+ptr_suffix(T) = "p0"
+ptr_suffix(W, T) = suffix(W, ptr_suffix(T)) # keeping this for now
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
 suffix(W::Int, T) = suffix(W, suffix(T))
-suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
+suffix(::Type{Ptr{T}}) where {T} = "p0"
 suffix_jlsym(W::Int, s::Symbol) = suffix(W, suffix(s))
 function suffix(T::Symbol)::String
   if T === :Float64
@@ -169,6 +170,7 @@ end
 function llvmconst(W::Int, v::String)::String
   '<' * join((v for _ in Base.OneTo(W)), ", ") * '>'
 end
+
 # function llvmtypedconst(T, val)
 #     typ = LLVM_TYPES[T]
 #     iszero(val) && return "$typ zeroinitializer"
@@ -177,6 +179,7 @@ end
 # function llvmtypedconst(::Type{Bool}, val)
 #     Bool(val) ? "i1 1" : "i1 zeroinitializer"
 # end
+
 function _llvmcall_expr(ff, WR, R, argt)
   if WR ≤ 1
     Expr(:call, :ccall, ff, :llvmcall, R, argt)

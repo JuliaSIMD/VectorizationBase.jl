@@ -1,6 +1,5 @@
 #TODO: Document interface to support static size
-# Define maybestaticsize, maybestaticlength, and maybestaticfirstindex
-
+# Define maybestaticsize, maybestaticlength, and maybestaticfirstindex 
 @inline maybestaticfirst(a) = static_first(a)
 @inline maybestaticlast(a) = static_last(a)
 @inline maybestaticlength(a) = static_length(a)

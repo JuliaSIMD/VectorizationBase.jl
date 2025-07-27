@@ -34,6 +34,7 @@ end
     getfield(sptr, :precalc)
   )
 end
+
 @inline function LayoutPointers.similar_with_offset(
   sptr::OffsetPrecalc,
   ptr::Ptr,

@@ -1,4 +1,3 @@
-
 @generated function addscalar(v::Vec{W,T}, s::T) where {W,T<:IntegerTypesHW}
   typ = "i$(8sizeof(T))"
   vtyp = "<$W x $typ>"

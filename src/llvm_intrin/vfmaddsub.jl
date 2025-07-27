@@ -1,4 +1,3 @@
-
 @inline function vfmaddsub(
   x::AbstractSIMD{W},
   y::AbstractSIMD{W},

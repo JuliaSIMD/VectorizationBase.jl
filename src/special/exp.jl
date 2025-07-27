@@ -1,4 +1,3 @@
-
 # `_vscalef` for architectures without `vscalef`.
 # magic rounding constant: 1.5*2^52 Adding, then subtracting it from a float rounds it to an Int.
 MAGIC_ROUND_CONST(::Type{Float64}) = 6.755399441055744e15

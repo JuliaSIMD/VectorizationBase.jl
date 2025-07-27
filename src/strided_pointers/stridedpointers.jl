@@ -1,4 +1,3 @@
-
 @inline vstore!(ptr::AbstractStridedPointer{T}, v::Number) where {T<:Number} =
   __vstore!(
     pointer(ptr),
@@ -568,7 +567,7 @@ BenchmarkTools.Trial:
 
 function llvmptr_comp_quote(cmp, Tsym)
   pt = Expr(:curly, GlobalRef(Core, :LLVMPtr), Tsym, 0)
-  instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
+  instrs = "%cmpi1 = icmp $cmp ptr %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
   Expr(
     :block,
     Expr(:meta, :inline),

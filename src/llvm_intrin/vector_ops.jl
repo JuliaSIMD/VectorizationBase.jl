@@ -1,4 +1,3 @@
-
 function shufflevector_instrs(
   W::Int,
   @nospecialize(T),

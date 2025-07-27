@@ -1,4 +1,3 @@
-
 @inline vzero(::Val{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @inline vzero(::StaticInt{1}, ::Type{T}) where {T<:NativeTypes} = zero(T)
 @inline _vzero(::StaticInt{W}, ::Type{Float16}, ::StaticInt{RS}) where {W,RS} =
@@ -164,12 +163,10 @@ end
 ) where {W,T}
   isone(W) && return Expr(:block, Expr(:meta, :inline), :(vload(ptr)))
   typ = LLVM_TYPES[T]
-  ptyp = JULIAPOINTERTYPE
   vtyp = "<$W x $typ>"
   alignment = Base.datatype_alignment(T)
   instrs = """
-      %ptr = inttoptr $ptyp %0 to $typ*
-      %res = load $typ, $typ* %ptr, align $alignment
+      %res = load $typ, ptr %0, align $alignment
       %ie = insertelement $vtyp undef, $typ %res, i32 0
       %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
       ret $vtyp %v

@@ -1,4 +1,3 @@
-
 # log2(x) =  vgetexp(x) + log2(vgetmant8(x))
 @inline function vlog_v1(
   x1::VectorizationBase.AbstractSIMD{W,Float64}

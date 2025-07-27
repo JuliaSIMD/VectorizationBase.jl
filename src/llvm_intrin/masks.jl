@@ -1,4 +1,3 @@
-#
 # We use these definitions because when we have other SIMD operations with masks
 # LLVM optimizes the masks better.
 function truncate_mask!(instrs, input, W, suffix, reverse_load::Bool = false)

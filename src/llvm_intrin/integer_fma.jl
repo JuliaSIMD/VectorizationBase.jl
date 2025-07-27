@@ -1,4 +1,3 @@
-
 # This is experimental, as few arches support it, and I can't think of many uses other than floating point RNGs.
 
 @inline __ifmalo(v1, v2, v3) =
