@@ -2520,11 +2520,6 @@ end
 ) where {W,T<:NativeTypes,U<:Unsigned}
   typ = LLVM_TYPES[T]
   vtyp = "<$W x $typ>"
-  @static if USE_OPAQUE_PTR
-    vptrtyp = "<$W x ptr>"
-  else
-    vptrtyp = "<$W x $typ*>"
-  end
   mtyp_input = LLVM_TYPES[U]
   mtyp_trunc = "i$W"
   instrs = String[]
