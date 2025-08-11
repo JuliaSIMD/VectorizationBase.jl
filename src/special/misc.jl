@@ -87,7 +87,7 @@ end
   pow_by_square(x, StaticInt(N))
 # @inline relu(x) = (y = zero(x); ifelse(x > y, x, y))
 @inline relu(x) = (y = zero(x); ifelse(x < y, y, x))
-@inline leakyrelu(x, a = 0.01) = (y = zero(x); ifelse(x < y, x*a, x))
+@inline leakyrelu(x, a = 0.01) = (y = zero(x); a = convert(typeof(x), a); ifelse(x < y, x*a, x))
 
 Base.sign(v::AbstractSIMD) = ifelse(v > 0, one(v), -one(v))
 
