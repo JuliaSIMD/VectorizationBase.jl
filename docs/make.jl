@@ -11,7 +11,6 @@ makedocs(;
     canonical = "https://JuliaSIMD.github.io/VectorizationBase.jl"
   ),
   pages = ["Home" => "index.md"],
-  strict = false
 )
 
 deploydocs(; repo = "github.com/JuliaSIMD/VectorizationBase.jl")

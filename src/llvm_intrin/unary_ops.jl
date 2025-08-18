@@ -1,4 +1,3 @@
-
 function sub_quote(W::Int, T::Symbol, fast::Bool)::Expr
   vtyp = vtype(W, T)
   instrs = "%res = fneg $(fast_flags(fast)) $vtyp %0\nret $vtyp %res"

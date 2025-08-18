@@ -244,7 +244,7 @@ for TType in [:Integer, :(AbstractSIMDVector{W,<:Integer})]
         lo = ifelse(b, lo, m)
         st = lo < hi - u
       end
-      return lo
+      return convert(typeof(x), lo)
     end
   end
 end

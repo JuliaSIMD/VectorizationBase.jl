@@ -1,4 +1,3 @@
-
 # Overloadable method, e.g to insert OffsetPrecalc's precalculated stride multiples
 @inline tdot(ptr::AbstractStridedPointer, ::Tuple{}, ::Tuple{}) =
   (pointer(ptr), Zero())

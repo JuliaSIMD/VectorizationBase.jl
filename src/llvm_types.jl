@@ -114,7 +114,19 @@ function _get_alignment(W::Int, sym::Symbol)::Int
   end
 end
 
-const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
+"""
+use opaque pointer
+Ref:
+- Switch LLVM codegen of Ptr{T} to an actual pointer type.
+  https://github.com/JuliaLang/julia/pull/53687
+"""
+const USE_OPAQUE_PTR = VERSION >= v"1.12-DEV"
+
+@static if !USE_OPAQUE_PTR
+  const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
+else 
+  const JULIAPOINTERTYPE = "ptr"
+end
 
 vtype(W, typ::String) = (isone(abs(W)) ? typ : "<$W x $typ>")::String
 vtype(W, T::DataType) = vtype(W, LLVM_TYPES[T])::String
@@ -132,11 +144,8 @@ append_julia_type!(x, Ws, Ts) =
     push_julia_type!(x, Ws[i], Ts[i])
   end
 
-ptr_suffix(T) = "p0" * suffix(T)
 ptr_suffix(W, T) = suffix(W, ptr_suffix(T))
 suffix(W::Int, s::String) = W == -1 ? s : 'v' * string(W) * s
-suffix(W::Int, T) = suffix(W, suffix(T))
-suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
 suffix_jlsym(W::Int, s::Symbol) = suffix(W, suffix(s))
 function suffix(T::Symbol)::String
   if T === :Float64
@@ -148,6 +157,14 @@ function suffix(T::Symbol)::String
   end
 end
 suffix(@nospecialize(T))::String = suffix(JULIA_TYPES[T])
+@static if !USE_OPAQUE_PTR
+  ptr_suffix(T) = "p0" * suffix(T)
+  suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
+else 
+  ptr_suffix(T) = "p0"
+  suffix(::Type{Ptr{T}}) where {T} = "p0"
+end 
+suffix(W::Int, T) = suffix(W, suffix(T))
 
 # Type-dependent LLVM constants
 function llvmconst(T, val)::String
@@ -169,6 +186,7 @@ end
 function llvmconst(W::Int, v::String)::String
   '<' * join((v for _ in Base.OneTo(W)), ", ") * '>'
 end
+
 # function llvmtypedconst(T, val)
 #     typ = LLVM_TYPES[T]
 #     iszero(val) && return "$typ zeroinitializer"
@@ -177,6 +195,7 @@ end
 # function llvmtypedconst(::Type{Bool}, val)
 #     Bool(val) ? "i1 1" : "i1 zeroinitializer"
 # end
+
 function _llvmcall_expr(ff, WR, R, argt)
   if WR ≤ 1
     Expr(:call, :ccall, ff, :llvmcall, R, argt)

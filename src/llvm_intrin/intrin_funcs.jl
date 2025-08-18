@@ -1,4 +1,3 @@
-
 @generated function saturated(::F, x::I, y::I) where {I<:IntegerTypesHW,F}
   typ = "i$(8sizeof(I))"
   s = I <: Signed ? 's' : 'u'

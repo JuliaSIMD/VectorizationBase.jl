@@ -1,4 +1,3 @@
-
 # nextpow2(W) = vshl(one(W), vsub_fast(8sizeof(W), leading_zeros(vsub_fast(W, one(W)))))
 
 # @inline _pick_vector(::StaticInt{W}, ::Type{T}) where {W,T} = Vec{W,T}

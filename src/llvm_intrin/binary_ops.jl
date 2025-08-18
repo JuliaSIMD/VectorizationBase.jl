@@ -1,4 +1,3 @@
-
 function binary_op(op, W, @nospecialize(T))
   ty = LLVM_TYPES[T]
   if isone(W)

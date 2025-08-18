@@ -1,4 +1,3 @@
-
 @inline _maybefirst(x) = x
 @inline _maybefirst(x::VecUnroll) = first(data(x))
 @inline _maybetail(x) = x

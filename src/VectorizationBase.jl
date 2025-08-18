@@ -62,6 +62,20 @@ using HostCPUFeatures:
   nextpow2,
   fast_half
 
+import Base:
+  Float16,
+  Float32,
+  Float64,
+  Int8,
+  Int16,
+  Int32,
+  Int64,
+  UInt8,
+  UInt16,
+  UInt32,
+  UInt64,
+  Bool 
+
 using SIMDTypes:
   Bit,
   FloatingTypes,
@@ -167,7 +181,7 @@ julia> rgbs = [
            B = Float32(i + 200) / 255
          ) for i = 0:7:49
        ]
-8-element Vector{NamedTuple{(:R, :G, :B), Tuple{Float32, Float32, Float32}}}:
+8-element Vector{@NamedTuple{R::Float32, G::Float32, B::Float32}}:
  (R = 0.0, G = 0.39215687, B = 0.78431374)
  (R = 0.02745098, G = 0.41960785, B = 0.8117647)
  (R = 0.05490196, G = 0.44705883, B = 0.8392157)
