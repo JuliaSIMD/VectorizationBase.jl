@@ -1071,6 +1071,7 @@ include("testsetup.jl")
         trunc,
         round,
         VectorizationBase.relu,
+        VectorizationBase.leakyrelu,
         abs2,
         Base.FastMath.abs2_fast,
         Base.FastMath.sub_fast,
