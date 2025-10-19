@@ -7,7 +7,7 @@
   last(a) - first(a) + oneunit(T)
 
 @inline maybestaticrange(r::Base.OneTo{T}) where {T} =
-  ArrayInterface.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
+  Static.OptionallyStaticUnitRange(StaticInt{1}(), last(r))
 @inline maybestaticrange(r::UnitRange) = r
 @inline maybestaticrange(r) = maybestaticfirst(r):maybestaticlast(r)
 
@@ -21,7 +21,7 @@
   ::Val{1}
 ) where {T,V<:AbstractVector{T}} = One()
 @inline maybestaticsize(A, ::Val{N}) where {N} =
-  ArrayInterface.static_size(A)[N]
+  StaticArrayInterface.static_size(A)[N]
 
 # These have versions that may allow for more optimizations, so we override base methods with a single `StaticInt` argument.
 for (f, ff) ∈ [

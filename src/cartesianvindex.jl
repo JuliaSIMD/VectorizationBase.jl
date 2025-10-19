@@ -8,7 +8,7 @@ struct CartesianVIndex{N,T<:Tuple{Vararg{Union{Int,StaticInt,NullStep},N}}} <:
   ) where {N,T<:Tuple{Vararg{Union{Int,StaticInt,NullStep},N}}} = new{N,T}(I)
 end
 Base.length(::CartesianVIndex{N}) where {N} = N
-ArrayInterface.known_length(::Type{<:CartesianVIndex{N}}) where {N} = N
+StaticArrayInterface.known_length(::Type{<:CartesianVIndex{N}}) where {N} = N
 Base.Tuple(i::CartesianVIndex) = getfield(i, :I)
 function Base.:(:)(I::CartesianVIndex{N}, J::CartesianVIndex{N}) where {N}
   CartesianIndices(map((i, j) -> i:j, getfield(I, :I), getfield(J, :I)))

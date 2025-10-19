@@ -372,7 +372,7 @@ end
 @inline vzero(::EVLMask{W,U}) where {W,U} = EVLMask{W}(zero(U), 0x00000000)
 @inline Base.zero(::Type{M}) where {W,M<:AbstractMask{W}} = vzero(M)
 @inline zero_mask(::Union{Val{W},StaticInt{W}}) where {W} =
-  EVLMask{W}(zero(VectorizationBase.mask_type(Val{W}())), 0x00000000)
+  EVLMask{W}(zero(mask_type(Val{W}())), 0x00000000)
 
 @generated function max_mask(::Union{Val{W},StaticInt{W}}) where {W}
   U = mask_type(W)

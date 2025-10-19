@@ -1,27 +1,3 @@
-const FASTDICT = Dict{Symbol,Expr}([
-  :(+) => :(Base.FastMath.add_fast),
-  :(-) => :(Base.FastMath.sub_fast),
-  :(*) => :(Base.FastMath.mul_fast),
-  :(/) => :(Base.FastMath.div_fast),
-  :(÷) => :(VectorizationBase.vdiv_fast), # VectorizationBase.vdiv == integer, VectorizationBase.vfdiv == float
-  :(%) => :(Base.FastMath.rem_fast),
-  :abs2 => :(Base.FastMath.abs2_fast),
-  :inv => :(Base.FastMath.inv_fast), # this is slower in most benchmarks
-  :hypot => :(Base.FastMath.hypot_fast),
-  :max => :(Base.FastMath.max_fast),
-  :min => :(Base.FastMath.min_fast),
-  :muladd => :(VectorizationBase.vmuladd_fast),
-  :fma => :(VectorizationBase.vfma_fast),
-  :vfmadd => :(VectorizationBase.vfmadd_fast),
-  :vfnmadd => :(VectorizationBase.vfnmadd_fast),
-  :vfmsub => :(VectorizationBase.vfmsub_fast),
-  :vfnmsub => :(VectorizationBase.vfnmsub_fast),
-  :log => :(SLEEFPirates.log_fast),
-  :log2 => :(SLEEFPirates.log2_fast),
-  :log10 => :(SLEEFPirates.log10_fast),
-  :(^) => :(Base.FastMath.pow_fast)
-])
-
 for (op, f) ∈ [
   (:(Base.:-), :vsub),
   (:(Base.FastMath.sub_fast), :vsub_fast),
@@ -260,11 +236,7 @@ end
   x, y = promote(a, b)
   VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
 end
-@inline function IfElse.ifelse(
-  m::VecUnroll{<:Any,<:Any,Bool},
-  a::Real,
-  b::Real
-)
+@inline function IfElse.ifelse(m::VecUnroll{<:Any,<:Any,Bool}, a::Real, b::Real)
   x, y = promote(a, b)
   VecUnroll(fmap(ifelse, getfield(m, :data), unrolldata(x), unrolldata(y)))
 end

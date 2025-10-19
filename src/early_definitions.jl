@@ -56,7 +56,7 @@ end
 end
 
 @inline integer_preference(::StaticInt{B}) where {B} =
-  ifelse(ArrayInterface.ge(StaticInt{B}(), StaticInt{8}()), Int, Int32)
+  ifelse(ge(StaticInt{B}(), StaticInt{8}()), Int, Int32)
 
 @inline pick_integer(::Union{StaticInt{W},Val{W}}) where {W} =
   integer_preference(simd_integer_register_size() ÷ StaticInt{W}())

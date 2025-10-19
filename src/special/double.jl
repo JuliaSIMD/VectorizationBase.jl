@@ -27,7 +27,7 @@
 
 #     - [SLEEF](https://github.com/shibatch/SLEEF) [public domain] Author Naoki Shibata
 
-using Base.Math: IEEEFloat
+using Base: IEEEFloat
 for (op, f, ff) ∈ [
   ("fadd", :add_ieee, :(+)),
   ("fsub", :sub_ieee, :(-)),
@@ -39,17 +39,11 @@ for (op, f, ff) ∈ [
     @generated $f(
       v1::Vec{W,T},
       v2::Vec{W,T}
-    ) where {W,T<:Union{Float32,Float64}} =
-      VectorizationBase.binary_op($op, W, T)
+    ) where {W,T<:Union{Float32,Float64}} = binary_op($op, W, T)
     @inline $f(s1::T, s2::T) where {T<:Union{Float32,Float64}} = $ff(s1, s2)
     @inline $f(args::Vararg{Any,K}) where {K} = $f(promote(args...)...)
-    @inline $f(a::VecUnroll, b::VecUnroll) = VecUnroll(
-      VectorizationBase.fmap(
-        $f,
-        VectorizationBase.data(a),
-        VectorizationBase.data(b)
-      )
-    )
+    @inline $f(a::VecUnroll, b::VecUnroll) =
+      VecUnroll(fmap($f, data(a), data(b)))
   end
 end
 @inline add_ieee(a, b, c) = add_ieee(add_ieee(a, b), c)
@@ -62,15 +56,15 @@ function sub_ieee!(ex)
     if _f isa Symbol
       f::Symbol = _f
       if f === :(+)
-        ex.args[1] = :(VectorizationBase.add_ieee)
+        ex.args[1] = :($(VectorizationBase).add_ieee)
       elseif f === :(-)
-        ex.args[1] = :(VectorizationBase.sub_ieee)
+        ex.args[1] = :($(VectorizationBase).sub_ieee)
       elseif f === :(*)
-        ex.args[1] = :(VectorizationBase.mul_ieee)
+        ex.args[1] = :($(VectorizationBase).mul_ieee)
       elseif f === :(/)
-        ex.args[1] = :(VectorizationBase.fdiv_ieee)
+        ex.args[1] = :($(VectorizationBase).fdiv_ieee)
       elseif f === :(%)
-        ex.args[1] = :(VectorizationBase.rem_ieee)
+        ex.args[1] = :($(VectorizationBase).rem_ieee)
       end
     end
   end
@@ -81,11 +75,8 @@ macro ieee(ex)
   sub_ieee!(ex)
 end
 
-const vIEEEFloat = Union{
-  IEEEFloat,
-  Vec{<:Any,<:IEEEFloat},
-  VectorizationBase.VecUnroll{<:Any,<:Any,<:IEEEFloat}
-}
+const vIEEEFloat =
+  Union{IEEEFloat,Vec{<:Any,<:IEEEFloat},VecUnroll{<:Any,<:Any,<:IEEEFloat}}
 
 struct Double{T<:vIEEEFloat} <: Number
   hi::T
@@ -143,7 +134,7 @@ Base.issubnormal(d::Double) = issubnormal(d.hi) | issubnormal(d.lo)
   th = Expr(:tuple)
   tl = Expr(:tuple)
   gf = GlobalRef(Core, :getfield)
-  for n ∈ 1:N+1
+  for n ∈ 1:(N+1)
     ifelseₕ = Expr(:call, :ifelse, Expr(:call, gf, :md, n, false))
     ifelseₗ = Expr(:call, :ifelse, Expr(:call, gf, :md, n, false))
     if V1 <: VecUnroll

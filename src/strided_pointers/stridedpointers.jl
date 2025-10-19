@@ -8,8 +8,6 @@
     register_size()
   )
 
-using LayoutPointers: nopromote_axis_indicator
-
 @inline _vload(
   ptr::AbstractStridedPointer{T,0},
   i::Tuple{},
@@ -112,7 +110,7 @@ end
   ::StaticInt{RS}
 ) where {T,Nm1,I<:VecUnroll{Nm1},A<:StaticBool,RS}
   t = Expr(:tuple)
-  for n = 1:Nm1+1
+  for n = 1:(Nm1+1)
     push!(
       t.args,
       :(_vload(
@@ -572,7 +570,7 @@ function llvmptr_comp_quote(cmp, Tsym)
   else
     instrs = "%cmpi1 = icmp $cmp i8* %0, %1\n%cmpi8 = zext i1 %cmpi1 to i8\nret i8 %cmpi8"
   end
-    Expr(
+  Expr(
     :block,
     Expr(:meta, :inline),
     :($(Base.llvmcall)($instrs, Bool, Tuple{$pt,$pt}, p1, p2))

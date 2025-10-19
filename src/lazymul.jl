@@ -432,8 +432,7 @@ end
   if iszero(r)
     quote
       $(Expr(:meta, :inline))
-      p,
-      VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
+      p, LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
     end
   else
     quote
@@ -451,8 +450,7 @@ end
   if iszero(r)
     quote
       $(Expr(:meta, :inline))
-      p,
-      VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
+      p, LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
     end
   else
     quote
@@ -479,7 +477,7 @@ end
   if iszero(r)
     quote
       $(Expr(:meta, :inline))
-      VectorizationBase.LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
+      LazyMulAdd{$N,$(I * M)}(MM{$W,$d}(getfield(b, :data)))
     end
   else
     quote
@@ -509,7 +507,7 @@ end
   if iszero(r)
     quote
       $(Expr(:meta, :inline))
-      VectorizationBase.LazyMulAdd{$N,$(I * M)}(-MM{$W,$d}(getfield(b, :data)))
+      LazyMulAdd{$N,$(I * M)}(-MM{$W,$d}(getfield(b, :data)))
     end
   else
     quote

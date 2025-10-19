@@ -62,7 +62,7 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
     ::False
   ) where {W,F}
     neg = v < 0
-    pos = ifelse(neg, -v, v) 
+    pos = ifelse(neg, -v, v)
     posf = _vconvert(Vec{W,F}, UInt64(pos), False())
     ifelse(neg, -posf, posf)
   end
@@ -85,7 +85,12 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{F},
     v::VecUnroll{N,W,T,Vec{W,T}}
-  )::VecUnroll{N,W,F,Vec{W,F}} where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::VecUnroll{
+    N,
+    W,
+    F,
+    Vec{W,F}
+  } where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -95,7 +100,12 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{Vec{W,F}},
     v::VecUnroll{N,W,T,Vec{W,T}}
-  )::VecUnroll{N,W,F,Vec{W,F}} where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::VecUnroll{
+    N,
+    W,
+    F,
+    Vec{W,F}
+  } where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -105,7 +115,12 @@ if (Sys.ARCH === :x86_64) || (Sys.ARCH === :i686)
   @inline function vconvert(
     ::Type{VecUnroll{N,W,F,Vec{W,F}}},
     v::VecUnroll{N,W,T,Vec{W,T}}
-  )::VecUnroll{N,W,F,Vec{W,F}} where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
+  )::VecUnroll{
+    N,
+    W,
+    F,
+    Vec{W,F}
+  } where {N,W,F<:FloatingTypes,T<:Union{UInt64,Int64}}
     _vconvert(
       Vec{W,F},
       v,
@@ -165,13 +180,13 @@ end
 @inline vconvert(::Type{M}, v::Vec{W,Bool}) where {W,U,M<:AbstractMask{W,U}} =
   tomask(v)
 @inline vconvert(
-  ::Type{<:VectorizationBase.AbstractMask{W,U} where {U}},
+  ::Type{<:AbstractMask{W,U} where {U}},
   v::Vec{W,Bool}
-) where {W} = VectorizationBase.tomask(v)
+) where {W} = tomask(v)
 @inline vconvert(
-  ::Type{<:VectorizationBase.AbstractMask{L,U} where {L,U}},
+  ::Type{<:AbstractMask{L,U} where {L,U}},
   v::Vec{W,Bool}
-) where {W} = VectorizationBase.tomask(v)
+) where {W} = tomask(v)
 # @inline vconvert(::Type{Mask}, v::Vec{W,Bool}) where {W} = tomask(v)
 # @generated function vconvert(::Type{<:AbstractMask{W}}, v::Vec{W,Bool}) where {W}
 #     instrs = String[]
@@ -229,9 +244,18 @@ end
 ### `vconvert(::Type{<:NativeTypes}, x)` methods. These forward to `vconvert(::Type{Vec{W,T}}, x)`
 @inline vconvert(::Type{T}, s::T) where {T<:NativeTypes} = s
 @inline vconvert(::Type{T}, s::T) where {T<:IntegerTypesHW} = s
-@inline vconvert(::Type{T}, s::Union{Float16,Float32,Float64}) where {T<:IntegerTypesHW} = Base.fptosi(T, Base.trunc_llvm(s))
-@inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
-@inline vconvert(::Type{T}, s::Union{Float16,Float32,Float64}) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
+@inline vconvert(
+  ::Type{T},
+  s::Union{Float16,Float32,Float64}
+) where {T<:IntegerTypesHW} = Base.fptosi(T, Base.trunc_llvm(s))
+@inline vconvert(
+  ::Type{T},
+  s::IntegerTypesHW
+) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
+@inline vconvert(
+  ::Type{T},
+  s::Union{Float16,Float32,Float64}
+) where {T<:Union{Float16,Float32,Float64}} = convert(T, s)::T
 @inline vconvert(::Type{T}, s::T) where {T<:Union{Float16,Float32,Float64}} = s
 @inline vconvert(::Type{T}, s::IntegerTypesHW) where {T<:IntegerTypesHW} = s % T
 @inline vconvert(::Type{T}, v::AbstractSIMD{W,T}) where {T<:NativeTypes,W} = v

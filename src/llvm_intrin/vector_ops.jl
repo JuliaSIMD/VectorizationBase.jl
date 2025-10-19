@@ -17,11 +17,10 @@ function shufflevector_instrs(
   mask::String = '<' * join(I, ", ")::String * '>'
   if ((W2 == 0) | (W2 == W))
     v2 = W2 == 0 ? "undef" : "%1"
-    M,
+    M, """
+        %res = shufflevector $vtyp1 %0, $vtyp1 $v2, $vtyp3 $mask
+        ret $vtypr %res
     """
-     %res = shufflevector $vtyp1 %0, $vtyp1 $v2, $vtyp3 $mask
-     ret $vtypr %res
- """
   else
     vtyp0 = "<$W2 x $typ>"
     maskpad =
@@ -31,12 +30,11 @@ function shufflevector_instrs(
         ", "
       ) *
       '>'
-    M,
+    M, """
+        %pad = shufflevector $vtyp0 %1, $vtyp0 undef, <$W x i32> $maskpad
+        %res = shufflevector $vtyp1 %0, $vtyp1 %pad, $vtyp3 $mask
+        ret $vtypr %res    
     """
-     %pad = shufflevector $vtyp0 %1, $vtyp0 undef, <$W x i32> $maskpad
-     %res = shufflevector $vtyp1 %0, $vtyp1 %pad, $vtyp3 $mask
-     ret $vtypr %res    
- """
   end
 end
 function tupletostringvector(@nospecialize(x::NTuple{N,Int})) where {N}
@@ -94,7 +92,7 @@ end
   typ = LLVM_TYPES[T]
   mask =
     '<' *
-    join(map(x -> string("i32 ", x ≥ L ? "undef" : string(x)), 0:W-1), ", ") *
+    join(map(x -> string("i32 ", x ≥ L ? "undef" : string(x)), 0:(W-1)), ", ") *
     '>'
   instrs = """
       %res = shufflevector <$L x $typ> %0, <$L x $typ> undef, <$W x i32> $mask
@@ -144,10 +142,10 @@ end
     )
   )
   mask = Vector{String}(undef, 2W1)
-  for w ∈ 0:W1+W2-1
+  for w ∈ 0:(W1+W2-1)
     mask[w+1] = string("i32 ", w)
   end
-  for w ∈ W1+W2:2W1-1
+  for w ∈ (W1+W2):(2W1-1)
     mask[w+1] = "i32 undef"
   end
   M, instrs = shufflevector_instrs(W1, T, mask, W2)
@@ -194,8 +192,8 @@ function transpose_vecunroll_quote(W)
   log2W = intlog2(W)
   q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
   N = W # N vectors of length W
-  vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
-  vectors2 = [Symbol(:v_, n + N) for n ∈ 0:N-1]
+  vectors1 = [Symbol(:v_, n) for n ∈ 0:(N-1)]
+  vectors2 = [Symbol(:v_, n + N) for n ∈ 0:(N-1)]
   # z = Expr(:call, Expr(:curly, Expr(:(.), :VectorizationBase, QuoteNode(:MM)), W), 0)
   # for n ∈ 1:N
   #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
@@ -209,10 +207,10 @@ function transpose_vecunroll_quote(W)
   Nhalf = N >>> 1
   vecstride = 1
   partition_stride = 2
-  for nsplits = 0:log2W-1
+  for nsplits = 0:(log2W-1)
     shuffle0 = transposeshuffle(nsplits, W, false)
     shuffle1 = transposeshuffle(nsplits, W, true)
-    for partition ∈ 0:(W>>>(nsplits+1))-1
+    for partition ∈ 0:((W>>>(nsplits+1))-1)
       for _n1 ∈ 1:vecstride
         n1 = partition * partition_stride + _n1
         n2 = n1 + vecstride
@@ -243,7 +241,7 @@ function transpose_vecunroll_quote(W)
 end
 function subset_tup(W, o)
   t = Expr(:tuple)
-  for w ∈ o:W-1+o
+  for w ∈ o:(W-1+o)
     push!(t.args, w)
   end
   Expr(:call, Expr(:curly, :Val, t))
@@ -258,8 +256,8 @@ function transpose_vecunroll_quote_W_larger(N, W)
   log2N = intlog2(N)
   q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
   # N = W # N vectors of length W
-  vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
-  vectors2 = [Symbol(:v_, n + N) for n ∈ 0:N-1]
+  vectors1 = [Symbol(:v_, n) for n ∈ 0:(N-1)]
+  vectors2 = [Symbol(:v_, n + N) for n ∈ 0:(N-1)]
   # z = Expr(:call, Expr(:curly, Expr(:(.), :VectorizationBase, QuoteNode(:MM)), W), 0)
   # for n ∈ 1:N
   #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
@@ -273,10 +271,10 @@ function transpose_vecunroll_quote_W_larger(N, W)
   Nhalf = N >>> 1
   vecstride = 1
   partition_stride = 2
-  for nsplits = 0:log2N-1
+  for nsplits = 0:(log2N-1)
     shuffle0 = transposeshuffle(nsplits, W, false)
     shuffle1 = transposeshuffle(nsplits, W, true)
-    for partition ∈ 0:(N>>>(nsplits+1))-1
+    for partition ∈ 0:((N>>>(nsplits+1))-1)
       for _n1 ∈ 1:vecstride
         n1 = partition * partition_stride + _n1
         n2 = n1 + vecstride
@@ -322,13 +320,13 @@ function transpose_vecunroll_quote_W_smaller(N, W)
   log2N = intlog2(N)
   q = Expr(:block, Expr(:meta, :inline), :(vud = data(vu)))
   # N = W # N vectors of length W
-  vectors1 = [Symbol(:v_, n) for n ∈ 0:N-1]
-  vectors2 = [Symbol(:v_, n + N) for n ∈ 0:N-1]
+  vectors1 = [Symbol(:v_, n) for n ∈ 0:(N-1)]
+  vectors2 = [Symbol(:v_, n + N) for n ∈ 0:(N-1)]
   # z = Expr(:call, Expr(:curly, Expr(:(.), :VectorizationBase, QuoteNode(:MM)), W), 0)
   # for n ∈ 1:N
   #     push!(q.args, Expr(:(=), vectors1[n], Expr(:call, Expr(:(.), :VectorizationBase, QuoteNode(:vload)), :ptrA, Expr(:tuple, z, n-1))))
   # end
-  vectors3 = [Symbol(:vpiece_, w) for w ∈ 0:W-1]
+  vectors3 = [Symbol(:vpiece_, w) for w ∈ 0:(W-1)]
   for w ∈ 1:W
     push!(
       q.args,
@@ -345,7 +343,7 @@ function transpose_vecunroll_quote_W_smaller(N, W)
   Wratio = Wratio_init
   while Wratio > 1
     Wratioh = Wratio >>> 1
-    for w ∈ 0:(Wratioh)-1
+    for w ∈ 0:((Wratioh)-1)
       i = (2N) * w
       j = i + N
       for n ∈ 1:N
@@ -364,10 +362,10 @@ function transpose_vecunroll_quote_W_smaller(N, W)
   Nhalf = N >>> 1
   vecstride = 1
   partition_stride = 2
-  for nsplits = 0:log2N-1
+  for nsplits = 0:(log2N-1)
     shuffle0 = transposeshuffle(nsplits, W, false)
     shuffle1 = transposeshuffle(nsplits, W, true)
-    for partition ∈ 0:(N>>>(nsplits+1))-1
+    for partition ∈ 0:((N>>>(nsplits+1))-1)
       for _n1 ∈ 1:vecstride
         n1 = partition * partition_stride + _n1
         n2 = n1 + vecstride
@@ -445,7 +443,7 @@ end
 end
 @generated function vec_to_vecunroll(v::AbstractSIMDVector{W}) where {W}
   t = Expr(:tuple)
-  for w ∈ 0:W-1
+  for w ∈ 0:(W-1)
     push!(t.args, :(extractelement(v, $w)))
   end
   Expr(:block, Expr(:meta, :inline), :(VecUnroll($t)))
@@ -498,14 +496,14 @@ end
 
 @generated function uppervector(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
-  for i ∈ W>>>1:W-1
+  for i ∈ (W>>>1):(W-1)
     push!(s.args, i)
   end
   shuffleexpr(s)
 end
 @generated function lowervector(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
-  for i ∈ 0:(W>>>1)-1
+  for i ∈ 0:((W>>>1)-1)
     push!(s.args, i)
   end
   shuffleexpr(s)
@@ -514,14 +512,14 @@ end
 
 @generated function extractupper(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
-  for i ∈ 0:(W>>>1)-1
+  for i ∈ 0:((W>>>1)-1)
     push!(s.args, 2i)
   end
   shuffleexpr(s)
 end
 @generated function extractlower(vx::AbstractSIMD{W}) where {W}
   s = Expr(:tuple)
-  for i ∈ 0:(W>>>1)-1
+  for i ∈ 0:((W>>>1)-1)
     push!(s.args, 2i + 1)
   end
   shuffleexpr(s)

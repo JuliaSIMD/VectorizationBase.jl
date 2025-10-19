@@ -10,7 +10,7 @@ makedocs(;
     prettyurls = get(ENV, "CI", "false") == "true",
     canonical = "https://JuliaSIMD.github.io/VectorizationBase.jl"
   ),
-  pages = ["Home" => "index.md"],
+  pages = ["Home" => "index.md"]
 )
 
 deploydocs(; repo = "github.com/JuliaSIMD/VectorizationBase.jl")

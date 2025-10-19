@@ -405,10 +405,9 @@ end
   const TABLE_EXP_64_1 =
     Vec(ntuple(j -> Core.VecElement(Float64(2.0^(big(j + 7) / 16))), Val(8)))
 
-  @inline target_trunc(v, ::VectorizationBase.True) = v
-  @inline target_trunc(v, ::VectorizationBase.False) = v % UInt32
-  @inline target_trunc(v) =
-    target_trunc(v, VectorizationBase.has_feature(Val(:x86_64_avx512dq)))
+  @inline target_trunc(v, ::True) = v
+  @inline target_trunc(v, ::False) = v % UInt32
+  @inline target_trunc(v) = target_trunc(v, has_feature(Val(:x86_64_avx512dq)))
 
   # @inline function vexp2_v1(x::AbstractSIMD{8,Float64})
   #     x16 = x
@@ -618,10 +617,7 @@ end
     r = fma(N_float, LogBo256L(Val{B}(), Float64), r)
     # @show (N & 0x000000ff) % Int
     # @show N N & 0x000000ff
-    js = vload(
-      VectorizationBase.zero_offsets(stridedpointer(J_TABLE)),
-      (N & 0x000000ff,)
-    )
+    js = vload(zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
     # k = N >>> 0x00000008
     # small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
     small_part = vfmadd(js, expm1b_kernel(Val{B}(), r), js)
@@ -784,10 +780,7 @@ end
   r = fast_fma(N_float, LogBo256U(Val{B}(), Float64), x, fma_fast())
   r = fast_fma(N_float, LogBo256L(Val{B}(), Float64), r, fma_fast())
   # @show (N & 0x000000ff) % Int
-  js = vload(
-    VectorizationBase.zero_offsets(stridedpointer(J_TABLE)),
-    (N & 0x000000ff,)
-  )
+  js = vload(zero_offsets(stridedpointer(J_TABLE)), (N & 0x000000ff,))
   k = N >>> 0x00000008
   small_part = reinterpret(UInt64, vfmadd(js, expm1b_kernel(Val{B}(), r), js))
   # return reinterpret(Float64, small_part), r, k, N_float, js

@@ -115,8 +115,8 @@ function test_acc(
     reference = map(f2 ∘ big, xx)
     comp = similar(xx)
     i = 0
-    spc = VectorizationBase.zstridedpointer(comp)
-    spx = VectorizationBase.zstridedpointer(xx)
+    spc = LayoutPointers.zstridedpointer(comp)
+    spx = LayoutPointers.zstridedpointer(xx)
     GC.@preserve xx comp begin
       while i < length(xx)
         vstore!(spc, f1(vload(spx, (MM{W}(i),))), (MM{W}(i),))

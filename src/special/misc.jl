@@ -220,7 +220,7 @@ end
   vload(stridedpointer(A), (i, j...))
 end
 
-@inline Base.Sort.midpoint(
+@inline Base.midpoint(
   lo::AbstractSIMDVector{W,I},
   hi::AbstractSIMDVector{W,I}
 ) where {W,I<:Integer} = lo + ((hi - lo) >>> 0x01)
@@ -238,7 +238,7 @@ for TType in [:Integer, :(AbstractSIMDVector{W,<:Integer})]
       hi = hi + u
       st = lo < hi - u
       @inbounds while vany(st)
-        m = Base.Sort.midpoint(lo, hi)
+        m = Base.midpoint(lo, hi)
         b = Base.Order.lt(o, x, v[m]) & st
         hi = ifelse(b, m, hi)
         lo = ifelse(b, lo, m)

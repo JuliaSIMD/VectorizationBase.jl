@@ -156,9 +156,10 @@ for (op, f) ∈ [
   ("nearbyint", :vround)#,("roundeven",:roundeven)
 ]
   # @eval @generated Base.$f(v1::Vec{W,T}) where {W, T <: Union{Float32,Float64}} = llvmcall_expr($op, W, T, (W,), (T,), "nsz arcp contract afn reassoc")
-  @eval @generated $f(v1::Vec{W,T}) where {W,T<:Union{Float32,Float64}} =
-    (TS = T === Float32 ? :Float32 : :Float64;
-    build_llvmcall_expr($op, W, TS, [W], [TS], "fast"))
+  @eval @generated $f(v1::Vec{W,T}) where {W,T<:Union{Float32,Float64}} = (
+    TS = T === Float32 ? :Float32 : :Float64;
+    build_llvmcall_expr($op, W, TS, [W], [TS], "fast")
+  )
 end
 @inline vsqrt(v::AbstractSIMD{W,T}) where {W,T<:IntegerTypes} = vsqrt(float(v))
 @inline vsqrt(v::FloatingTypes) = Base.sqrt_llvm_fast(v)
@@ -459,16 +460,16 @@ end
 @inline vfma_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) =
   muladd(a, b, c)
 @inline vmuladd_fast(a::Float32, b::Float32, c::Float32) =
-  Base.FastMath.add_float_fast(Base.FastMath.mul_float_fast(a, b), c)
+  Core.Intrinsics.add_float_fast(Core.Intrinsics.mul_float_fast(a, b), c)
 @inline vmuladd_fast(a::Float64, b::Float64, c::Float64) =
-  Base.FastMath.add_float_fast(Base.FastMath.mul_float_fast(a, b), c)
+  Core.Intrinsics.add_float_fast(Core.Intrinsics.mul_float_fast(a, b), c)
 @inline vmuladd_fast(a::NativeTypes, b::NativeTypes, c::NativeTypes) =
-  Base.FastMath.add_fast(Base.FastMath.mul_fast(a, b), c)
+  Core.Intrinsics.add_fast(Core.Intrinsics.mul_fast(a, b), c)
 @inline vfma(a, b, c) = fma(a, b, c)
 @inline vmuladd(a, b, c) = muladd(a, b, c)
 @inline vfma_fast(a, b, c) = fma(a, b, c)
 @inline vmuladd_fast(a, b, c) =
-  Base.FastMath.add_fast(Base.FastMath.mul_fast(a, b), c)
+  Core.Intrinsics.add_fast(Core.Intrinsics.mul_fast(a, b), c)
 for f ∈ [:vfma, :vmuladd, :vfma_fast, :vmuladd_fast]
   @eval @inline function $f(
     v1::AbstractSIMD{W,T},
@@ -604,7 +605,7 @@ function collapse_mirror_expr(N, op, final)
     2final
   end
   while N > _final
-    for n ∈ 1:N>>>1
+    for n ∈ 1:(N>>>1)
       push!(q.args, Expr(:(=), cmp[n], Expr(:call, op, s[n], s[n+(N>>>1)])))
       push!(
         q.args,
@@ -623,7 +624,7 @@ function collapse_mirror_expr(N, op, final)
     N >>>= 1
   end
   if final ≠ 1
-    for n ∈ final+1:N
+    for n ∈ (final+1):N
       push!(q.args, Expr(:(=), cmp[n-final], Expr(:call, op, s[n-final], s[n])))
       push!(
         q.args,
@@ -741,8 +742,7 @@ for (op, f, S) ∈ [
 end
 if Sys.ARCH == :aarch64 # TODO: maybe the default definition will stop segfaulting some day?
   for I ∈ (:Int64, :UInt64), (f, op) ∈ ((:vmaximum, :max), (:vminimum, :min))
-    @eval @inline $f(v::Vec{W,$I}) where {W} =
-      ArrayInterface.reduce_tup($op, Tuple(v))
+    @eval @inline $f(v::Vec{W,$I}) where {W} = Static.reduce_tup($op, Tuple(v))
   end
 end
 
