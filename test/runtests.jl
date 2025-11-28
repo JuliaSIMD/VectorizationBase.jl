@@ -889,26 +889,26 @@ include("testsetup.jl")
     # This tests the _vstore_unroll! methods that were added for W=1
     A = zeros(5, 5)
     GC.@preserve A begin
-      sp = stridedpointer(A)
+      sp = @inferred stridedpointer(A)
       # Create a nested VecUnroll with W=1 (scalars instead of Vec{1,T})
-      inner_vu1 = VectorizationBase.VecUnroll((1.0, 2.0, 3.0, 4.0, 5.0))
-      inner_vu2 = VectorizationBase.VecUnroll((6.0, 7.0, 8.0, 9.0, 10.0))
-      inner_vu3 = VectorizationBase.VecUnroll((11.0, 12.0, 13.0, 14.0, 15.0))
-      inner_vu4 = VectorizationBase.VecUnroll((16.0, 17.0, 18.0, 19.0, 20.0))
-      inner_vu5 = VectorizationBase.VecUnroll((21.0, 22.0, 23.0, 24.0, 25.0))
-      outer_vu = VectorizationBase.VecUnroll((inner_vu1, inner_vu2, inner_vu3, inner_vu4, inner_vu5))
+      inner_vu1 = @inferred VectorizationBase.VecUnroll((1.0, 2.0, 3.0, 4.0, 5.0))
+      inner_vu2 = @inferred VectorizationBase.VecUnroll((6.0, 7.0, 8.0, 9.0, 10.0))
+      inner_vu3 = @inferred VectorizationBase.VecUnroll((11.0, 12.0, 13.0, 14.0, 15.0))
+      inner_vu4 = @inferred VectorizationBase.VecUnroll((16.0, 17.0, 18.0, 19.0, 20.0))
+      inner_vu5 = @inferred VectorizationBase.VecUnroll((21.0, 22.0, 23.0, 24.0, 25.0))
+      outer_vu = @inferred VectorizationBase.VecUnroll((inner_vu1, inner_vu2, inner_vu3, inner_vu4, inner_vu5))
 
       # Verify the type structure: VecUnroll{4, 1, Float64, VecUnroll{4, 1, Float64, Float64}}
       @test outer_vu isa VectorizationBase.VecUnroll{4,1,Float64,<:VectorizationBase.VecUnroll{4,1,Float64,Float64}}
 
       # Create nested Unroll index for _vstore_unroll!
       # The Unroll type parameters are: AU (axis of unroll), F (step), N (count), AV (axis of vectorization), W (vector width), M (mask), X (extra)
-      inner_unroll = VectorizationBase.Unroll{2,1,5,1,1,UInt(0),1}(StaticInt(0))
-      outer_unroll = VectorizationBase.Unroll{1,1,5,1,1,UInt(0),1}(inner_unroll)
+      inner_unroll = @inferred VectorizationBase.Unroll{2,1,5,1,1,UInt(0),1}(StaticInt(0))
+      outer_unroll = @inferred VectorizationBase.Unroll{1,1,5,1,1,UInt(0),1}(inner_unroll)
 
       # Call _vstore_unroll! directly - this is what was failing in Issue #543
       # We use similar_no_offset to get a pointer suitable for _vstore_unroll!
-      sptr = VectorizationBase.similar_no_offset(sp, pointer(A))
+      sptr = @inferred VectorizationBase.similar_no_offset(sp, pointer(A))
       VectorizationBase._vstore_unroll!(sptr, outer_vu, outer_unroll,
         VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(),
         VectorizationBase.register_size(), StaticInt(8))
@@ -922,13 +922,13 @@ include("testsetup.jl")
     for n in [3, 4, 5, 6, 7, 8]
       B = zeros(n, n)
       GC.@preserve B begin
-        sp = stridedpointer(B)
+        sp = @inferred stridedpointer(B)
         # Create nested VecUnroll with n elements
         inner_vus = ntuple(i -> VectorizationBase.VecUnroll(ntuple(j -> Float64((i-1)*n + j), n)), n)
-        outer_vu = VectorizationBase.VecUnroll(inner_vus)
+        outer_vu = @inferred VectorizationBase.VecUnroll(inner_vus)
 
-        inner_unroll = VectorizationBase.Unroll{2,1,n,1,1,UInt(0),1}(StaticInt(0))
-        outer_unroll = VectorizationBase.Unroll{1,1,n,1,1,UInt(0),1}(inner_unroll)
+        inner_unroll = @inferred VectorizationBase.Unroll{2,1,n,1,1,UInt(0),1}(StaticInt(0))
+        outer_unroll = @inferred VectorizationBase.Unroll{1,1,n,1,1,UInt(0),1}(inner_unroll)
 
         sptr = VectorizationBase.similar_no_offset(sp, pointer(B))
         VectorizationBase._vstore_unroll!(sptr, outer_vu, outer_unroll,
