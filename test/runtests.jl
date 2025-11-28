@@ -12,7 +12,7 @@ include("testsetup.jl")
 
   # TODO - Will need a code refactor to properly address these type piracies.
   #        Either:
-  #        1. Create type wrappers in VectorizationBase 
+  #        1. Create type wrappers in VectorizationBase
   #        2. Implement overloading upstream
   #        3. Use package extensions (still buggy in current Julia LTS v1.10.10)
 
@@ -878,6 +878,67 @@ include("testsetup.jl")
       )
     end
     @test vec(colormat[:, 41:48]) == vec(colormat[:, 1:8])
+  end
+
+  # Test for W=1 nested VecUnroll store operations
+  # (fix for https://github.com/JuliaSIMD/LoopVectorization.jl/issues/543)
+  # When W=1, VecUnroll stores T directly instead of Vec{1,T}
+  println("W=1 Nested VecUnroll Store")
+  @time @testset "W=1 Nested VecUnroll Store" begin
+    # Test nested unroll with W=1 (scalar width)
+    # This tests the _vstore_unroll! methods that were added for W=1
+    A = zeros(5, 5)
+    GC.@preserve A begin
+      sp = @inferred stridedpointer(A)
+      # Create a nested VecUnroll with W=1 (scalars instead of Vec{1,T})
+      inner_vu1 = @inferred VectorizationBase.VecUnroll((1.0, 2.0, 3.0, 4.0, 5.0))
+      inner_vu2 = @inferred VectorizationBase.VecUnroll((6.0, 7.0, 8.0, 9.0, 10.0))
+      inner_vu3 = @inferred VectorizationBase.VecUnroll((11.0, 12.0, 13.0, 14.0, 15.0))
+      inner_vu4 = @inferred VectorizationBase.VecUnroll((16.0, 17.0, 18.0, 19.0, 20.0))
+      inner_vu5 = @inferred VectorizationBase.VecUnroll((21.0, 22.0, 23.0, 24.0, 25.0))
+      outer_vu = @inferred VectorizationBase.VecUnroll((inner_vu1, inner_vu2, inner_vu3, inner_vu4, inner_vu5))
+
+      # Verify the type structure: VecUnroll{4, 1, Float64, VecUnroll{4, 1, Float64, Float64}}
+      @test outer_vu isa VectorizationBase.VecUnroll{4,1,Float64,<:VectorizationBase.VecUnroll{4,1,Float64,Float64}}
+
+      # Create nested Unroll index for _vstore_unroll!
+      # The Unroll type parameters are: AU (axis of unroll), F (step), N (count), AV (axis of vectorization), W (vector width), M (mask), X (extra)
+      inner_unroll = @inferred VectorizationBase.Unroll{2,1,5,1,1,UInt(0),1}(StaticInt(0))
+      outer_unroll = @inferred VectorizationBase.Unroll{1,1,5,1,1,UInt(0),1}(inner_unroll)
+
+      # Call _vstore_unroll! directly - this is what was failing in Issue #543
+      # We use similar_no_offset to get a pointer suitable for _vstore_unroll!
+      sptr = @inferred VectorizationBase.similar_no_offset(sp, pointer(A))
+      VectorizationBase._vstore_unroll!(sptr, outer_vu, outer_unroll,
+        VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(),
+        VectorizationBase.register_size(), StaticInt(8))
+
+      # Verify the stored values - the layout is transposed due to unroll ordering
+      expected = reshape(1.0:25.0, 5, 5)'
+      @test A == expected
+    end
+
+    # Test with different array sizes to ensure robustness
+    for n in [3, 4, 5, 6, 7, 8]
+      B = zeros(n, n)
+      GC.@preserve B begin
+        sp = @inferred stridedpointer(B)
+        # Create nested VecUnroll with n elements
+        inner_vus = ntuple(i -> VectorizationBase.VecUnroll(ntuple(j -> Float64((i-1)*n + j), n)), n)
+        outer_vu = @inferred VectorizationBase.VecUnroll(inner_vus)
+
+        inner_unroll = @inferred VectorizationBase.Unroll{2,1,n,1,1,UInt(0),1}(StaticInt(0))
+        outer_unroll = @inferred VectorizationBase.Unroll{1,1,n,1,1,UInt(0),1}(inner_unroll)
+
+        sptr = VectorizationBase.similar_no_offset(sp, pointer(B))
+        VectorizationBase._vstore_unroll!(sptr, outer_vu, outer_unroll,
+          VectorizationBase.False(), VectorizationBase.False(), VectorizationBase.False(),
+          VectorizationBase.register_size(), StaticInt(8))
+
+        expected = reshape(1.0:Float64(n*n), n, n)'
+        @test B == expected
+      end
+    end
   end
 
   println("Grouped Strided Pointers")

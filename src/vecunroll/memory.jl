@@ -2753,6 +2753,184 @@ end
   )
 end
 
+# W=1 specializations: when W=1, VecUnroll stores T directly instead of Vec{1,T}
+@generated function _vstore_unroll!(
+  sptr::AbstractStridedPointer{T,D,C},
+  v::VecUnroll{<:Any,1,T,<:VecUnroll{<:Any,1,T,T}},
+  u::UU,
+  ::A,
+  ::S,
+  ::NT,
+  ::StaticInt{RS},
+  ::StaticInt{SVUS}
+) where {
+  T,
+  A<:StaticBool,
+  S<:StaticBool,
+  NT<:StaticBool,
+  RS,
+  D,
+  C,
+  SVUS,
+  UU<:NestedUnroll{1}
+}
+  AUO, FO, NO, AV, _W, MO, X, U = unroll_params(UU)
+  AUI, FI, NI, AV, _W, MI, X, I = unroll_params(U)
+  vstore_double_unroll_quote(
+    D,
+    NO,
+    NI,
+    AUO,
+    FO,
+    AV,
+    1,
+    MO,
+    X,
+    C,
+    AUI,
+    FI,
+    MI,
+    false,
+    A === True,
+    S === True,
+    NT === True,
+    RS,
+    SVUS
+  )
+end
+@generated function _vstore_unroll!(
+  sptr::AbstractStridedPointer{T,D,C},
+  v::VecUnroll{<:Any,1,T,<:VecUnroll{<:Any,1,T,T}},
+  u::UU,
+  ::A,
+  ::S,
+  ::NT,
+  ::StaticInt{RS},
+  ::Nothing
+) where {
+  T,
+  A<:StaticBool,
+  S<:StaticBool,
+  NT<:StaticBool,
+  RS,
+  D,
+  C,
+  UU<:NestedUnroll{1}
+}
+  AUO, FO, NO, AV, _W, MO, X, U = unroll_params(UU)
+  AUI, FI, NI, AV, _W, MI, X, I = unroll_params(U)
+  vstore_double_unroll_quote(
+    D,
+    NO,
+    NI,
+    AUO,
+    FO,
+    AV,
+    1,
+    MO,
+    X,
+    C,
+    AUI,
+    FI,
+    MI,
+    false,
+    A === True,
+    S === True,
+    NT === True,
+    RS,
+    typemax(Int)
+  )
+end
+@generated function _vstore_unroll!(
+  sptr::AbstractStridedPointer{T,D,C},
+  v::VecUnroll{<:Any,1,T,<:VecUnroll{<:Any,1,T,T}},
+  u::UU,
+  m::AbstractMask{1},
+  ::A,
+  ::S,
+  ::NT,
+  ::StaticInt{RS},
+  ::StaticInt{SVUS}
+) where {
+  T,
+  A<:StaticBool,
+  S<:StaticBool,
+  NT<:StaticBool,
+  RS,
+  D,
+  C,
+  SVUS,
+  UU<:NestedUnroll{1}
+}
+  AUO, FO, NO, AV, _W, MO, X, U = unroll_params(UU)
+  AUI, FI, NI, AV, _W, MI, X, I = unroll_params(U)
+  vstore_double_unroll_quote(
+    D,
+    NO,
+    NI,
+    AUO,
+    FO,
+    AV,
+    1,
+    MO,
+    X,
+    C,
+    AUI,
+    FI,
+    MI,
+    true,
+    A === True,
+    S === True,
+    NT === True,
+    RS,
+    SVUS
+  )
+end
+@generated function _vstore_unroll!(
+  sptr::AbstractStridedPointer{T,D,C},
+  v::VecUnroll{<:Any,1,T,<:VecUnroll{<:Any,1,T,T}},
+  u::UU,
+  m::AbstractMask{1},
+  ::A,
+  ::S,
+  ::NT,
+  ::StaticInt{RS},
+  ::Nothing
+) where {
+  T,
+  A<:StaticBool,
+  S<:StaticBool,
+  NT<:StaticBool,
+  RS,
+  D,
+  C,
+  UU<:NestedUnroll{1}
+}
+  AUO, FO, NO, AV, _W, MO, X, U = unroll_params(UU)
+  AUI, FI, NI, AV, _W, MI, X, I = unroll_params(U)
+  vstore_double_unroll_quote(
+    D,
+    NO,
+    NI,
+    AUO,
+    FO,
+    AV,
+    1,
+    MO,
+    X,
+    C,
+    AUI,
+    FI,
+    MI,
+    true,
+    A === True,
+    S === True,
+    NT === True,
+    RS,
+    typemax(Int)
+  )
+end
+
 function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, rs::Int, mask::Bool)
   N = Nm1 + 1
   N * Wsplit == W || throw(
