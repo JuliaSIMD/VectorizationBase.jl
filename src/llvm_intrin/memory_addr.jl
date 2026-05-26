@@ -990,9 +990,16 @@ function vload_quote_llvmcall_core(
           LOAD_SCOPE_TBAA_FLAGS
         )
       else
+        # `%ptr.$(i-1)` was typed as `<W x i1>*` (or similar) by `offset_ptr`;
+        # bitcast to `wide_typ*` before issuing the wide integer load so the
+        # non-opaque-pointer LLVM IR (Julia ≤ 1.10) typechecks.
         push!(
           instrs,
-          "%bitrawres = load $wide_typ, $wide_typ* %ptr.$(i-1), align 1" *
+          "%ptr.bit$(i-1) = bitcast $vtyp* %ptr.$(i-1) to $wide_typ*"
+        )
+        push!(
+          instrs,
+          "%bitrawres = load $wide_typ, $wide_typ* %ptr.bit$(i-1), align 1" *
           LOAD_SCOPE_TBAA_FLAGS
         )
       end
