@@ -23,7 +23,7 @@ function unrolled_indicies(
   end
   inds = Vector{Expr}(undef, N)
   inds[1] = baseind
-  for n = 1:N-1
+  for n = 1:(N-1)
     ind = copy(baseind)
     i = Expr(:call, Expr(:curly, :StaticInt, n * F))
     if AU == AV && W > 1
@@ -180,7 +180,7 @@ function _shuffle_load_quote(
     return nothing
     if X > 0
       mask_expr = :(mask(StaticInt{$W}(), 0, vmul_nw($UN, getfield(sm, :evl))))
-      for n ∈ 1:UN-1
+      for n ∈ 1:(UN-1)
         mask_expr = :(vcat(
           $mask_expr,
           mask(StaticInt{$W}(), $(n * W), vmul_nw($UN, getfield(sm, :evl)))
@@ -197,7 +197,7 @@ function _shuffle_load_quote(
         Val{-1}()
       ))
       mask_expr = :(($vrange + $(UN * W)) ≤ vmul_nw($UN, getfield(sm, :evl)))
-      for n ∈ UN-1:-1:1
+      for n ∈ (UN-1):-1:1
         mask_expr = :(vcat(
           $mask_expr,
           ($vrange + $(n * W)) ≤ vmul_nw($UN, getfield(sm, :evl))
@@ -208,8 +208,8 @@ function _shuffle_load_quote(
   end
   push!(q.args, :(v = $vloadexpr))
   vut = Expr(:tuple)
-  Wrange = X > 0 ? (0:1:W-1) : (W-1:-1:0)
-  for n ∈ 0:UN-1
+  Wrange = X > 0 ? (0:1:(W-1)) : ((W-1):-1:0)
+  for n ∈ 0:(UN-1)
     shufftup = Expr(:tuple)
     for w ∈ Wrange
       push!(shufftup.args, n + UN * w)
@@ -1001,8 +1001,8 @@ function _shuffle_store_quote(
     Wtemp = Wnext
   end
   shufftup = Expr(:tuple)
-  for w ∈ ((X > 0) ? (0:1:W-1) : (W-1:-1:0))
-    for n ∈ 0:UN-1
+  for w ∈ ((X > 0) ? (0:1:(W-1)) : ((W-1):-1:0))
+    for n ∈ 0:(UN-1)
       push!(shufftup.args, W * n + w)
     end
   end
@@ -1117,7 +1117,7 @@ function vstore_transpose_quote(
       for nn ∈ 1:npartial
         push!(t.args, vds[i+nn])
       end
-      for nn ∈ npartial+1:n
+      for nn ∈ (npartial+1):n
         # if W == 1
         #     push!(t.args, :(zero($Tsym)))
         # else
@@ -2252,7 +2252,7 @@ function vload_double_unroll_quote(
     unroll = :(Unroll{$AUO,$FO,$NO,$AV,$W,$MO,$X}(Zero()))
     # tupvec = Vector{Expr}(undef, NI)
     vds = Vector{Symbol}(undef, NI)
-    for ui ∈ 0:NI-1
+    for ui ∈ 0:(NI-1)
       if ui == 0
         loadq = :(_vload_unroll(gptr, $unroll)) # VecUnroll($tup)
       else
@@ -2286,7 +2286,7 @@ function vload_double_unroll_quote(
   else # we loop over `UO+1` and do the loads
     unroll = :(Unroll{$AUI,$FI,$NI,$AV,$W,$MI,$X}(Zero()))
     tup = Expr(:tuple)
-    for uo ∈ 0:NO-1
+    for uo ∈ 0:(NO-1)
       if uo == 0
         loadq = :(_vload_unroll(gptr, $unroll))
       else
@@ -2473,7 +2473,7 @@ function vstore_double_unroll_quote(
       push!(q.args, :($vdt = getfield(getfield(vd, $t, false), 1)))
     end
     # tupvec = Vector{Expr}(undef, NI)
-    for ui ∈ 0:NI-1
+    for ui ∈ 0:(NI-1)
       tup = Expr(:tuple)
       # tup = ui == 0 ? Expr(:tuple) : tupvec[ui+1]
       for t ∈ 1:NO
@@ -2501,7 +2501,7 @@ function vstore_double_unroll_quote(
     end
   else # we loop over `UO+1` and do the stores
     unroll = :(Unroll{$AUI,$FI,$NI,$AV,$W,$MI,$X}(Zero()))
-    for uo ∈ 0:NO-1
+    for uo ∈ 0:(NO-1)
       if uo == 0
         storeq = :(_vstore_unroll!(gptr, getfield(vd, 1, false), $unroll))
       else
@@ -2753,6 +2753,73 @@ end
   )
 end
 
+# Doubly-unrolled scalar (W=1) case. The inner `VecUnroll` holds raw scalars
+# rather than `Vec{1,T}` because `VecUnroll` unwraps width-1 vectors at
+# construction. The generated methods above all match
+# `VecUnroll{<:Any,W,T,<:VecUnroll{<:Any,W,T,Vec{W,T}}}`, so the W=1 nested
+# scalar case falls through. Forward to the existing single-unroll handler at
+# each outer index.
+@generated function _vstore_unroll!(
+  sptr::AbstractStridedPointer{T,D,C},
+  v::VecUnroll{NO_m1,1,T,<:VecUnroll{NI_m1,1,T,T}},
+  u::Unroll{AUO,FO,NO,AV,1,MO,X,<:Unroll{AUI,FI,NI,AV,1,MI,X}},
+  ::A,
+  ::S,
+  ::NT,
+  ::StaticInt{RS},
+  ::SVUS
+) where {
+  T,
+  D,
+  C,
+  NO_m1,
+  NI_m1,
+  AUO,
+  FO,
+  NO,
+  AUI,
+  FI,
+  NI,
+  AV,
+  MO,
+  MI,
+  X,
+  A<:StaticBool,
+  S<:StaticBool,
+  NT<:StaticBool,
+  RS,
+  SVUS
+}
+  q = Expr(
+    :block,
+    Expr(:meta, :inline),
+    :(vd = getfield(v, :data)),
+    :(id = getfield(getfield(u, :i), :i)),
+    :(gptr = similar_no_offset(sptr, gep(pointer(sptr), id)))
+  )
+  aexpr = Expr(:call, A === True ? :True : :False)
+  sexpr = Expr(:call, S === True ? :True : :False)
+  ntexpr = Expr(:call, NT === True ? :True : :False)
+  rsexpr = Expr(:call, Expr(:curly, :StaticInt, RS))
+  svusexpr = SVUS <: StaticInt ? :($(SVUS())) : :nothing
+  inner_unroll = :(Unroll{$AUI,$FI,$NI,$AV,1,$MI,$X}(Zero()))
+  for uo = 0:(NO-1)
+    if uo == 0
+      storeq = :(_vstore_unroll!(gptr, getfield(vd, 1, false), $inner_unroll))
+    else
+      inds = sparse_index_tuple(D, AUO, uo * FO)
+      storeq = :(_vstore_unroll!(
+        gesp(gptr, $inds),
+        getfield(vd, $(uo + 1), false),
+        $inner_unroll
+      ))
+    end
+    push!(storeq.args, aexpr, sexpr, ntexpr, rsexpr, svusexpr)
+    push!(q.args, storeq)
+  end
+  q
+end
+
 function vstore_unroll_i_quote(Nm1, Wsplit, W, A, S, NT, rs::Int, mask::Bool)
   N = Nm1 + 1
   N * Wsplit == W || throw(
@@ -2993,10 +3060,10 @@ function transposeshuffle(split, W, offset::Bool)
   S = 1 << split
   i = offset ? S : 0
   while w < W
-    for s ∈ 0:S-1
+    for s ∈ 0:(S-1)
       push!(tup.args, w + s + i)
     end
-    for s ∈ 0:S-1
+    for s ∈ 0:(S-1)
       # push!(tup.args, w + W + s)
       push!(tup.args, w + W + s + i)
     end
@@ -3030,7 +3097,7 @@ function horizontal_reduce_store_expr(
     push!(q.args, :(gptr = gesp(ptr, $gf(u, :i))))
     push!(q.args, :(bptr = pointer(gptr)))
     extractblock = Expr(:block)
-    vectors = [Symbol(:v_, n) for n ∈ 0:N-1]
+    vectors = [Symbol(:v_, n) for n ∈ 0:(N-1)]
     for n ∈ 1:N
       push!(
         extractblock.args,
@@ -3090,7 +3157,7 @@ function horizontal_reduce_store_expr(
                 v0,
                 Expr(
                   :call,
-                  Expr(:curly, :Val, Expr(:tuple, [w for w ∈ 0:Wh-1]...))
+                  Expr(:curly, :Val, Expr(:tuple, [w for w ∈ 0:(Wh-1)]...))
                 )
               ),
               Expr(
@@ -3099,7 +3166,7 @@ function horizontal_reduce_store_expr(
                 v0,
                 Expr(
                   :call,
-                  Expr(:curly, :Val, Expr(:tuple, [w for w ∈ Wh:Wt-1]...))
+                  Expr(:curly, :Val, Expr(:tuple, [w for w ∈ Wh:(Wt-1)]...))
                 )
               )
             )
@@ -3120,7 +3187,7 @@ function horizontal_reduce_store_expr(
       end
       if mask
         boolmask = Expr(:call, :Vec)
-        for n ∈ ncomp+1:ncomp+minWN
+        for n ∈ (ncomp+1):(ncomp+minWN)
           push!(boolmask.args, Expr(:call, gf, :masktuple, n, false))
         end
         push!(storeexpr.args, Expr(:call, :tomask, boolmask))
@@ -3138,7 +3205,7 @@ function horizontal_reduce_store_expr(
     zeroexpr = Expr(:call, Expr(:curly, :StaticInt, 0))
     ind = Expr(:tuple)
     foreach(_ -> push!(ind.args, zeroexpr), 1:D)
-    for n ∈ N+1:Ntotal
+    for n ∈ (N+1):Ntotal
       (n > N + 1) && (ind = copy(ind)) # copy to avoid overwriting old
       ind.args[AU] = Expr(:call, Expr(:curly, :StaticInt, F * (n - 1)))
       scalar = Expr(:call, reduct, Expr(:call, gf, :v, n, false))
@@ -3346,7 +3413,7 @@ function lazymulunroll_load_quote(M, O, N, maskall, masklast, align, rs)
   alignval = Expr(:call, align ? :True : :False)
   rsexpr = Expr(:call, Expr(:curly, :StaticInt, rs))
   gf = GlobalRef(Core, :getfield)
-  for n = 1:N+1
+  for n = 1:(N+1)
     ind = if (M != 1) | (O != 0)
       :(LazyMulAdd{$M,$O}(u[$n]))
     else
@@ -3489,7 +3556,7 @@ function lazymulunroll_store_quote(
   noaliasval = Expr(:call, noalias ? :True : :False)
   nontemporalval = Expr(:call, nontemporal ? :True : :False)
   rsexpr = Expr(:call, Expr(:curly, :StaticInt, rs))
-  for n = 1:N+1
+  for n = 1:(N+1)
     push!(
       q.args,
       Expr(
@@ -3520,7 +3587,7 @@ end
     v = Base.FastMath.add_fast(s + mm)
   end
   t = Expr(:tuple, :v)
-  for n ∈ 1:N-1
+  for n ∈ 1:(N-1)
     # push!(t.args, :(MM{$W,$W}(Base.FastMath.add_fast(s, $(T(n*W))))))
     push!(
       t.args,
@@ -3548,7 +3615,7 @@ end
   else
     Expr(:tuple, :v)
   end
-  for n ∈ 1:N-1
+  for n ∈ 1:(N-1)
     M >>>= 1
     if M % Bool
       push!(
@@ -3583,7 +3650,7 @@ end
     z = zero(v)
   end
   t = Expr(:tuple, :(ifelse(getfield(m, $1, false), v, z)))
-  for n ∈ 1:N-1
+  for n ∈ 1:(N-1)
     push!(
       t.args,
       :(ifelse(
