@@ -28,6 +28,25 @@ end
   ::Type{LazyMulAdd{M,O,I}},
   a::LazyMulAdd{M,O,I}
 ) where {M,O,I} = a
+# Disambiguate the generic `convert(::Type{T<:Number}, ::LazyMulAdd)` above
+# against Static.jl's `convert(::Type{Static.{True,False,StaticInt{N}}},
+# ::Number)` methods. Aqua flags both as matching `convert(Static.True,
+# ::LazyMulAdd)` etc., since `LazyMulAdd <: Number` and neither method is
+# strictly more specific. Forward to `Static`'s convert on the materialized
+# value so the StaticBool / StaticInt singletons come out, matching what
+# Static.jl produces for any Number input.
+@inline Base.convert(
+  ::Type{Static.True},
+  a::LazyMulAdd{M,O,I}
+) where {M,O,I} = convert(Static.True, _materialize(a))
+@inline Base.convert(
+  ::Type{Static.False},
+  a::LazyMulAdd{M,O,I}
+) where {M,O,I} = convert(Static.False, _materialize(a))
+@inline Base.convert(
+  ::Type{Static.StaticInt{N}},
+  a::LazyMulAdd{M,O,I}
+) where {M,O,I,N} = convert(Static.StaticInt{N}, _materialize(a))
 # @inline Base.convert(::Type{LazyMulAdd{M,O,I}}, a::LazyMulAdd{M}) where {M,O,I} = a
 # @inline Base.convert(::Type{LazyMulAdd{M,T,I}}, a::LazyMulAdd{M,StaticInt{O},I}) where {M,O,I,T} = a
 
