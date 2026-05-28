@@ -117,14 +117,15 @@ end
 """
 use opaque pointer
 Ref:
-- Switch LLVM codegen of Ptr{T} to an actual pointer type.
-  https://github.com/JuliaLang/julia/pull/53687
+
+  - Switch LLVM codegen of Ptr{T} to an actual pointer type.
+    https://github.com/JuliaLang/julia/pull/53687
 """
 const USE_OPAQUE_PTR = VERSION >= v"1.12-DEV"
 
 @static if !USE_OPAQUE_PTR
   const JULIAPOINTERTYPE = 'i' * string(8sizeof(Int))
-else 
+else
   const JULIAPOINTERTYPE = "ptr"
 end
 
@@ -160,10 +161,10 @@ suffix(@nospecialize(T))::String = suffix(JULIA_TYPES[T])
 @static if !USE_OPAQUE_PTR
   ptr_suffix(T) = "p0" * suffix(T)
   suffix(::Type{Ptr{T}}) where {T} = "p0" * suffix(T)
-else 
+else
   ptr_suffix(T) = "p0"
   suffix(::Type{Ptr{T}}) where {T} = "p0"
-end 
+end
 suffix(W::Int, T) = suffix(W, suffix(T))
 
 # Type-dependent LLVM constants
@@ -298,12 +299,13 @@ end
         Expr(:purity, true, true, true, true, false)
       end
       VERSION >= v"1.9.0-DEV.1019" && push!(purity.args, true)
-      VERSION >= v"1.11" && push!(purity.args,
-        #= inaccessiblememonly =# true,
-        #= noub =# true,
-        #= noub_if_noinbounds =# false,
-        #= consistent_overlay =# false,
-        #= nortcall =# true,
+      VERSION >= v"1.11" && push!(
+        purity.args,
+        #= inaccessiblememonly =#true,
+        #= noub =#true,
+        #= noub_if_noinbounds =#false,
+        #= consistent_overlay =#false,
+        #= nortcall =#true
       )
       Expr(:meta, purity, :inline)
     else

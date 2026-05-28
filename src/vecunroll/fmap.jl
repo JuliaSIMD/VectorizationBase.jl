@@ -362,14 +362,14 @@ function collapse_expr(N, op, final)
     2final
   end
   while N > _final
-    for n ∈ 1:N>>>1
+    for n ∈ 1:(N>>>1)
       push!(q.args, Expr(:(=), s[n], Expr(:call, op, s[n], s[n+(N>>>1)])))
     end
     isodd(N) && push!(q.args, Expr(:(=), s[1], Expr(:call, op, s[1], s[N])))
     N >>>= 1
   end
   if final != 1
-    for n ∈ final+1:N
+    for n ∈ (final+1):N
       push!(q.args, Expr(:(=), s[n-final], Expr(:call, op, s[n-final], s[n])))
     end
     t = Expr(:tuple)

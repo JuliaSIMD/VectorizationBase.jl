@@ -144,7 +144,7 @@ end
   v2::AbstractSIMD{W,T}
 ) where {W,T<:FloatingTypes} = trunc(vfdiv_fast(v1, v2))
 @inline vdiv_fast(v1::T, v2::T) where {T<:FloatingTypes} =
-  trunc(Base.FastMath.div_float_fast(v1, v2))
+  trunc(Core.Intrinsics.div_float_fast(v1, v2))
 @inline vdiv_fast(v1::T, v2::T) where {T<:Number} = v1 ÷ v2
 @inline vdiv(v1::T, v2::T) where {T<:Number} = v1 ÷ v2
 @inline vdiv(v1::T, v2::T) where {T<:FloatingTypes} = vdiv_fast(v1, v2)

@@ -5,6 +5,7 @@ version = "0.21.73"
 
 [deps]
 ArrayInterface = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
+BitTwiddlingConvenienceFunctions = "62783981-4cbd-42fc-bca8-16325de8dc4b"
 CPUSummary = "2a0fbf3d-bb9c-48f3-b0a9-814d99fd7ab9"
 HostCPUFeatures = "3e5b6fbb-0976-4d2c-9146-d79de83f2fb0"
 IfElse = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
@@ -17,6 +18,7 @@ StaticArrayInterface = "0d7ed370-da01-4f52-bd93-41d350b8b718"
 
 [compat]
 ArrayInterface = "7"
+BitTwiddlingConvenienceFunctions = "0.1.6"
 CPUSummary = "0.1.1 - 0.1.8, 0.1.11, 0.2"
 HostCPUFeatures = "0.1"
 IfElse = "0.1"

@@ -15,14 +15,14 @@ function tovector(u::VectorizationBase.VecUnroll{_N,W,_T}) where {_N,W,_T}
   x = Vector{T}(undef, N * W)
   for n ∈ 1:N
     v = VectorizationBase.data(u)[n]
-    for w ∈ 0:W-1
+    for w ∈ 0:(W-1)
       x[(i+=1)] = VectorizationBase.extractelement(v, w)
     end
   end
   x
 end
 tovector(v::VectorizationBase.AbstractSIMDVector{W}) where {W} =
-  [VectorizationBase.extractelement(v, w) for w ∈ 0:W-1]
+  [VectorizationBase.extractelement(v, w) for w ∈ 0:(W-1)]
 tovector(v::VectorizationBase.LazyMulAdd) =
   tovector(VectorizationBase._materialize(v))
 tovector(x) = x

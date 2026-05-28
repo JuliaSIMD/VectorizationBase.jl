@@ -22,10 +22,11 @@ end
 @inline offsetprecalc(x::StridedBitPointer, ::Val) = x
 # @inline pointerforcomparison(p::AbstractStridedPointer) = pointer(p)
 # @inline pointerforcomparison(p::AbstractStridedPointer, i) = gep(p, i)
-@inline ArrayInterface.offsets(p::OffsetPrecalc) = offsets(getfield(p, :ptr))
+@inline StaticArrayInterface.offsets(p::OffsetPrecalc) =
+  offsets(getfield(p, :ptr))
 
 @inline Base.strides(p::OffsetPrecalc) = static_strides(getfield(p, :ptr))
-@inline ArrayInterface.static_strides(p::OffsetPrecalc) =
+@inline StaticArrayInterface.static_strides(p::OffsetPrecalc) =
   static_strides(getfield(p, :ptr))
 
 @inline function LayoutPointers.similar_no_offset(sptr::OffsetPrecalc, ptr::Ptr)

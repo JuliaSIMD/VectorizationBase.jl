@@ -6,61 +6,22 @@ end
 import StaticArrayInterface, LinearAlgebra, Libdl, IfElse, LayoutPointers
 const ArrayInterface = StaticArrayInterface
 using StaticArrayInterface:
-  contiguous_axis,
-  contiguous_axis_indicator,
-  contiguous_batch_size,
-  stride_rank,
-  device,
-  CPUPointer,
-  CPUIndex,
-  known_length,
-  known_first,
-  known_last,
-  static_size,
-  static_strides,
-  offsets,
-  static_first,
-  static_last,
-  static_length
+  stride_rank, static_strides, offsets, static_first, static_last, static_length
 import IfElse: ifelse
 
-using CPUSummary:
-  cache_type,
-  num_cache,
-  num_cache_levels,
-  num_cores,
-  num_l1cache,
-  num_l2cache,
-  cache_associativity,
-  num_l3cache,
-  sys_threads,
-  cache_inclusive,
-  num_l4cache,
-  cache_linesize,
-  num_machines,
-  cache_size,
-  num_sockets
+using CPUSummary: cache_linesize
 using HostCPUFeatures:
   register_size,
   static_sizeof,
-  fast_int64_to_double,
   pick_vector_width,
-  pick_vector_width_shift,
-  prevpow2,
   simd_integer_register_size,
   fma_fast,
   smax,
-  smin,
   has_feature,
-  has_opmask_registers,
-  register_count,
-  static_sizeof,
   cpu_name,
   register_size,
-  unwrap,
-  intlog2,
-  nextpow2,
   fast_half
+using BitTwiddlingConvenienceFunctions: intlog2, nextpow2, prevpow2
 
 import Base:
   Float16,
@@ -74,7 +35,7 @@ import Base:
   UInt16,
   UInt32,
   UInt64,
-  Bool 
+  Bool
 
 using SIMDTypes:
   Bit,
@@ -82,28 +43,35 @@ using SIMDTypes:
   SignedHW,
   UnsignedHW,
   IntegerTypesHW,
-  NativeTypesExceptBitandFloat16,
   NativeTypesExceptBit,
   NativeTypesExceptFloat16,
   NativeTypes,
   _Vec
 using LayoutPointers:
   AbstractStridedPointer,
-  StridedPointer,
   StridedBitPointer,
-  memory_reference,
   stridedpointer,
-  zstridedpointer,
   similar_no_offset,
   similar_with_offset,
-  grouped_strided_pointer,
-  stridedpointers,
   bytestrides,
-  DensePointerWrapper,
   zero_offsets
 
-using Static
-using Static: One, Zero, eq, ne, lt, le, gt, ge
+using Static:
+  Static,
+  One,
+  Zero,
+  eq,
+  lt,
+  le,
+  gt,
+  ge,
+  ne,
+  True,
+  False,
+  StaticBool,
+  StaticInt,
+  known,
+  static
 
 @inline function promote(x::X, y::Y) where {X,Y}
   T = promote_type(X, Y)
@@ -363,7 +331,7 @@ function Base.show(io::IO, v::AbstractSIMDVector{W,T}) where {W,T}
   end
   print(io, ">")
 end
-Base.bitstring(m::AbstractMask{W}) where {W} = bitstring(data(m))[end-W+1:end]
+Base.bitstring(m::AbstractMask{W}) where {W} = bitstring(data(m))[(end-W+1):end]
 function Base.show(io::IO, m::AbstractMask{W}) where {W}
   bits = data(m)
   if m isa EVLMask
@@ -371,7 +339,7 @@ function Base.show(io::IO, m::AbstractMask{W}) where {W}
   else
     print(io, "Mask{$W,Bit}<")
   end
-  for w ∈ 0:W-1
+  for w ∈ 0:(W-1)
     print(io, (bits & 0x01) % Int)
     bits >>= 0x01
     w < W - 1 && print(io, ", ")
@@ -381,7 +349,7 @@ end
 function Base.show(io::IO, vu::VecUnroll{N,W,T,V}) where {N,W,T,V}
   println(io, "$(N+1) x $V")
   d = data(vu)
-  for n = 1:N+1
+  for n = 1:(N+1)
     show(io, d[n])
     n > N || println(io)
   end
@@ -508,20 +476,23 @@ demoteint(::Type{Int64}, W::StaticInt) = gt(W, pick_vector_width(Int64))
   end
   meta = Expr(:meta, :inline)
   if VERSION >= v"1.8.0-beta"
-    purity = Expr(:purity,
-       #= consistent =# true,
-       #= effect_free =# true,
-       #= nothrow =# true,
-       #= terminates_globally =# true,
-       #= terminates_locally =# false)
+    purity = Expr(
+      :purity,
+      #= consistent =#true,
+      #= effect_free =#true,
+      #= nothrow =#true,
+      #= terminates_globally =#true,
+      #= terminates_locally =#false
+    )
     if VERSION >= v"1.11"
-      push!(purity.args,
-        #= notaskstate =# true,
-        #= inaccessiblememonly =# true,
-        #= noub =# true,
-        #= noub_if_noinbounds =# false,
-        #= consistent_overlay =# false,
-        #= nortcall =# true,
+      push!(
+        purity.args,
+        #= notaskstate =#true,
+        #= inaccessiblememonly =#true,
+        #= noub =#true,
+        #= noub_if_noinbounds =#false,
+        #= consistent_overlay =#false,
+        #= nortcall =#true
       )
     end
     push!(meta.args, purity)
@@ -537,9 +508,9 @@ function vec_quote(demote, W, Wpow2, offset::Int = 0)
   iszero(offset) && push!(call.args, :y)
   foreach(
     w -> push!(call.args, Expr(:call, getfield, :x, w, false)),
-    max(1, offset):min(W, Wpow2)-1
+    max(1, offset):(min(W, Wpow2)-1)
   )
-  foreach(w -> push!(call.args, Expr(:call, :zero, :T)), W+1:Wpow2)
+  foreach(w -> push!(call.args, Expr(:call, :zero, :T)), (W+1):Wpow2)
   call
 end
 @generated function _vec(
@@ -578,7 +549,7 @@ else
   end
 end
 @inline reduce_to_onevec(f::F, vu::VecUnroll) where {F} =
-  ArrayInterface.reduce_tup(f, data(vu))
+  Static.reduce_tup(f, data(vu))
 
 if VERSION >= v"1.7.0" && hasfield(Method, :recursion_relation)
   dont_limit = Returns(true)

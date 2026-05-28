@@ -7,7 +7,7 @@
   t = Expr(:tuple)
   foreach(
     w -> push!(t.args, Expr(:call, :(Core.VecElement), T(F * w + O))),
-    0:W-1
+    0:(W-1)
   )
   Expr(:block, Expr(:meta, :inline), Expr(:call, :Vec, t))
 end
@@ -48,7 +48,7 @@ F - static multiplicative factor
   iexpr = bytes == sizeof(I) ? :i : Expr(:call, :%, :i, jtypesym)
   typ = "i$(bits)"
   vtyp = vtype(W, typ)
-  rangevec = join(("$typ $(F*w + O)" for w ∈ 0:W-1), ", ")
+  rangevec = join(("$typ $(F*w + O)" for w ∈ 0:(W-1)), ", ")
   instrs = """
       %ie = insertelement $vtyp undef, $typ %0, i32 0
       %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
@@ -81,7 +81,7 @@ end
   )
   typ = LLVM_TYPES[T]
   vtyp = vtype(W, typ)
-  rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:W-1), ", ")
+  rangevec = join(("$typ $(F*w+O).0" for w ∈ 0:(W-1)), ", ")
   instrs = """
       %ie = insertelement $vtyp undef, $typ %0, i32 0
       %v = shufflevector $vtyp %ie, $vtyp undef, <$W x i32> zeroinitializer
@@ -207,18 +207,12 @@ end
 @inline vfdiv_fast(i::MM, j::T) where {T<:Real} = vfdiv_fast(float(i), j)
 @inline vfdiv_fast(j::T, i::MM) where {T<:Real} = vfdiv_fast(j, float(i))
 
-@inline vfdiv(x::AbstractSIMDVector{W}, y::VectorizationBase.MM{W}) where {W} =
-  x / float(y)
-@inline vfdiv(y::VectorizationBase.MM{W}, x::AbstractSIMDVector{W}) where {W} =
-  float(y) / x
-@inline vfdiv_fast(
-  x::AbstractSIMDVector{W},
-  y::VectorizationBase.MM{W}
-) where {W} = vfiv_fast(x, float(y))
-@inline vfdiv_fast(
-  y::VectorizationBase.MM{W},
-  x::AbstractSIMDVector{W}
-) where {W} = vfdiv_fast(float(y), x)
+@inline vfdiv(x::AbstractSIMDVector{W}, y::MM{W}) where {W} = x / float(y)
+@inline vfdiv(y::MM{W}, x::AbstractSIMDVector{W}) where {W} = float(y) / x
+@inline vfdiv_fast(x::AbstractSIMDVector{W}, y::MM{W}) where {W} =
+  vfiv_fast(x, float(y))
+@inline vfdiv_fast(y::MM{W}, x::AbstractSIMDVector{W}) where {W} =
+  vfdiv_fast(float(y), x)
 
 @inline vfdiv(i::MM, j::VecUnroll{N,W,T,V}) where {N,W,T,V} = float(i) / j
 @inline vfdiv(j::VecUnroll{N,W,T,V}, i::MM) where {N,W,T,V} = j / float(i)

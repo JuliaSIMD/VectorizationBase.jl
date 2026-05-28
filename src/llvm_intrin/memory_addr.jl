@@ -168,16 +168,13 @@ function offset_ptr(
   # after this block, we will have a index_gep_typ pointer
   if iszero(O)
     @static if USE_OPAQUE_PTR
-      push!(
-        instrs,
-        "%ptr.$(i) = bitcast $(JULIAPOINTERTYPE) %0 to ptr"
-      )
+      push!(instrs, "%ptr.$(i) = bitcast $(JULIAPOINTERTYPE) %0 to ptr")
     else
       push!(
         instrs,
         "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(index_gep_typ)*"
-        )
-      end
+      )
+    end
     i += 1
   else # !iszero(O)
     if !iszero(O & (tzf - 1)) # then index_gep_typ works for the constant offset
@@ -188,15 +185,12 @@ function offset_ptr(
       offset = O >> tz
     end
     @static if USE_OPAQUE_PTR
-      push!(
-        instrs,
-        "%ptr.$(i) = bitcast $(JULIAPOINTERTYPE) %0 to ptr"
-      )
+      push!(instrs, "%ptr.$(i) = bitcast $(JULIAPOINTERTYPE) %0 to ptr")
     else
       push!(
-      instrs,
-      "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"
-    ) 
+        instrs,
+        "%ptr.$(i) = inttoptr $(JULIAPOINTERTYPE) %0 to $(offset_gep_typ)*"
+      )
     end
     i += 1
     @static if USE_OPAQUE_PTR
@@ -206,9 +200,9 @@ function offset_ptr(
       )
     else
       push!(
-      instrs,
-      "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"
-    )
+        instrs,
+        "%ptr.$(i) = getelementptr inbounds $(offset_gep_typ), $(offset_gep_typ)* %ptr.$(i-1), i32 $(offset)"
+      )
     end
     i += 1
     if forgep && iszero(M) && (iszero(X) || isone(X))
@@ -216,26 +210,23 @@ function offset_ptr(
         push!(
           instrs,
           "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to $(JULIAPOINTERTYPE)"
-          )
+        )
       else
         push!(
-        instrs,
-        "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"
+          instrs,
+          "%ptr.$(i) = ptrtoint $(offset_gep_typ)* %ptr.$(i-1) to $(JULIAPOINTERTYPE)"
         )
-      end  
+      end
       i += 1
       return instrs, i
     elseif offset_gep_typ != index_gep_typ
       @static if USE_OPAQUE_PTR
-        push!(
-          instrs,
-          "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"
-        )
+        push!(instrs, "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr")
       else
         push!(
-        instrs,
-        "%ptr.$(i) = bitcast $(offset_gep_typ)* %ptr.$(i-1) to $(index_gep_typ)*"
-      )
+          instrs,
+          "%ptr.$(i) = bitcast $(offset_gep_typ)* %ptr.$(i-1) to $(index_gep_typ)*"
+        )
       end
       i += 1
     end
@@ -270,12 +261,12 @@ function offset_ptr(
           instrs,
           "%ptr.$(i) = bitcast <$W x ptr> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
         )
-      else 
+      else
         push!(
-        instrs,
-        "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
-      )
-    end 
+          instrs,
+          "%ptr.$(i) = ptrtoint <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
+        )
+      end
       i += 1
     elseif index_gep_typ != vtyp
       @static if USE_OPAQUE_PTR
@@ -288,7 +279,7 @@ function offset_ptr(
           instrs,
           "%ptr.$(i) = bitcast <$W x $index_gep_typ*> %ptr.$(i-1) to <$W x $typ*>"
         )
-      end 
+      end
       i += 1
     end
     return instrs, i
@@ -353,18 +344,15 @@ function offset_ptr(
     # to avoid overflow
     vibytes = max(min(4, rs ÷ W), nextpow2(intlog2(X * W - 1) + 2) >> 3)
     vityp = "i$(8vibytes)"
-    vi = join((X * w for w ∈ 0:W-1), ", $vityp ")
+    vi = join((X * w for w ∈ 0:(W-1)), ", $vityp ")
     if typ !== index_gep_typ
       @static if USE_OPAQUE_PTR
+        push!(instrs, "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr")
+      else
         push!(
           instrs,
-          "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"
+          "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(typ)*"
         )
-      else 
-        push!(
-        instrs,
-        "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(typ)*"
-      )
       end
       i += 1
     end
@@ -375,8 +363,8 @@ function offset_ptr(
       )
     else
       push!(
-      instrs,
-      "%ptr.$(i) = getelementptr inbounds $(typ), $(typ)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"
+        instrs,
+        "%ptr.$(i) = getelementptr inbounds $(typ), $(typ)* %ptr.$(i-1), <$W x $(vityp)> <$vityp $vi>"
       )
     end
     i += 1
@@ -388,8 +376,8 @@ function offset_ptr(
         )
       else
         push!(
-        instrs,
-        "%ptr.$(i) = ptrtoint <$W x $typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
+          instrs,
+          "%ptr.$(i) = ptrtoint <$W x $typ*> %ptr.$(i-1) to <$W x $JULIAPOINTERTYPE>"
         )
       end
       i += 1
@@ -398,11 +386,8 @@ function offset_ptr(
   end
   if forgep # if forgep, just return now
     @static if USE_OPAQUE_PTR
-      push!(
-        instrs,
-        "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to $JULIAPOINTERTYPE"
-      )
-    else 
+      push!(instrs, "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to $JULIAPOINTERTYPE")
+    else
       push!(
         instrs,
         "%ptr.$(i) = ptrtoint $(index_gep_typ)* %ptr.$(i-1) to $JULIAPOINTERTYPE"
@@ -411,14 +396,11 @@ function offset_ptr(
     i += 1
   elseif index_gep_typ != vtyp
     @static if USE_OPAQUE_PTR
-      push!(
-        instrs,
-        "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr"
-      )
+      push!(instrs, "%ptr.$(i) = bitcast ptr %ptr.$(i-1) to ptr")
     else
       push!(
-      instrs,
-      "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(vtyp)*"
+        instrs,
+        "%ptr.$(i) = bitcast $(index_gep_typ)* %ptr.$(i-1) to $(vtyp)*"
       )
     end
     i += 1
@@ -566,7 +548,7 @@ end
 ) where {N,C,B,R}
   stridedpointer(
     pointer(ptr),
-    ArrayInterface.StrideIndex{N,R,C}(static_strides(ptr), offs),
+    StaticArrayInterface.StrideIndex{N,R,C}(static_strides(ptr), offs),
     StaticInt{B}()
   )
 end
@@ -583,7 +565,7 @@ end
 ) where {N,C,B,R,K}
   stridedpointer(
     pointer(ptr),
-    ArrayInterface.StrideIndex{N,R,C}(
+    StaticArrayInterface.StrideIndex{N,R,C}(
       static_strides(ptr),
       increment_ptr(ptr, i)
     ),
@@ -917,12 +899,11 @@ function vload_quote_llvmcall_core(
   end
   if grv
     @static if USE_OPAQUE_PTR
-      loadinstr =
-        "$vtyp @llvm.masked.gather." *
-        suffix(W, T_sym)
+      loadinstr = "$vtyp @llvm.masked.gather." * suffix(W, T_sym)
       decl *= "declare $loadinstr(<$W x ptr>, i32, <$W x i1>, $vtyp)"
     else
-      loadinstr = "$vtyp @llvm.masked.gather." *
+      loadinstr =
+        "$vtyp @llvm.masked.gather." *
         suffix(W, T_sym) *
         '.' *
         ptr_suffix(W, T_sym)
@@ -939,9 +920,9 @@ function vload_quote_llvmcall_core(
       )
     else
       push!(
-      instrs,
-      "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" *
-      LOAD_SCOPE_TBAA_FLAGS
+        instrs,
+        "%res = call $loadinstr(<$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m, $vtyp $passthrough)" *
+        LOAD_SCOPE_TBAA_FLAGS
       )
     end
   elseif mask
@@ -972,9 +953,9 @@ function vload_quote_llvmcall_core(
       )
     else
       push!(
-      instrs,
-      "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" *
-      LOAD_SCOPE_TBAA_FLAGS
+        instrs,
+        "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" *
+        LOAD_SCOPE_TBAA_FLAGS
       )
     end
   end
@@ -1381,10 +1362,8 @@ function vstore_quote(
     argtostore = "%1"
   end
   if grv
-    @static if USE_OPAQUE_PTR    
-      storeinstr =
-      "void @llvm.masked.scatter." *
-      suffix(W, T_sym)
+    @static if USE_OPAQUE_PTR
+      storeinstr = "void @llvm.masked.scatter." * suffix(W, T_sym)
       decl *= "declare $storeinstr($vtyp, <$W x ptr>, i32, <$W x i1>)"
     else
       storeinstr =
@@ -1394,7 +1373,7 @@ function vstore_quote(
         ptr_suffix(W, T_sym)
       decl *= "declare $storeinstr($vtyp, <$W x $typ*>, i32, <$W x i1>)"
     end
-      m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
+    m = mask ? m = "%mask.0" : llvmconst(W, "i1 1")
     @static if USE_OPAQUE_PTR
       push!(
         instrs,
@@ -1403,9 +1382,9 @@ function vstore_quote(
       )
     else
       push!(
-      instrs,
-      "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" *
-      metadata
+        instrs,
+        "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)" *
+        metadata
       )
     end
     # push!(instrs, "call $storeinstr($vtyp $(argtostore), <$W x $typ*> %ptr.$(i-1), i32 $alignment, <$W x i1> $m)")
@@ -1422,7 +1401,7 @@ function vstore_quote(
     else
       storeinstr = "void @llvm.masked.store." * suff
       decl *= "declare $storeinstr($vtyp, $vtyp*, i32, <$W x i1>)"
-    push!(
+      push!(
         instrs,
         "call $storeinstr($vtyp $(argtostore), $vtyp* %ptr.$(i-1), i32 $alignment, <$W x i1> %mask.0)" *
         metadata
@@ -2357,7 +2336,7 @@ end
       ret void
     """
   end
-  
+
   llvmcall_expr(
     decl,
     instrs,
@@ -2433,7 +2412,7 @@ end
   )
 end
 @generated function lifetime_end!(ptr::Ptr{T}, ::Val{L}) where {L,T}
-  @static if USE_OPAQUE_PTR  
+  @static if USE_OPAQUE_PTR
     decl = "declare void @llvm.lifetime.end(i64, ptr nocapture)"
     instrs = """
       call void @llvm.lifetime.end(i64 $L, ptr %0)
@@ -2601,13 +2580,11 @@ end
     Expr(
       :block,
       Expr(:meta, :inline),
-      :(
-        unsafe_store!(
-          Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p) + convert(Int, i),
-          Base.pointer_from_objref(v)
-        );
-        return nothing
-      )
+      :(unsafe_store!(
+        Base.unsafe_convert(Ptr{Ptr{Cvoid}}, p) + convert(Int, i),
+        Base.pointer_from_objref(v)
+      );
+      return nothing)
     )
   end
 end

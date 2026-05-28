@@ -227,7 +227,7 @@ maybethrow(::False) = nothing
   ::Type{V2}
 ) where {Nm1,Wsplit,T,V1,T2,W,V2<:AbstractSIMDVector{W,T2}}
   maybethrow(
-    ArrayInterface.ne(
+    ne(
       StaticInt{Nm1}() * StaticInt{Wsplit}() + StaticInt{Wsplit}(),
       StaticInt{W}()
     )
@@ -240,7 +240,7 @@ end
   ::Type{V2}
 ) where {Nm1,Wsplit,T,V1,W,V2<:AbstractMask{W}}
   maybethrow(
-    ArrayInterface.ne(
+    ne(
       StaticInt{Nm1}() * StaticInt{Wsplit}() + StaticInt{Wsplit}(),
       StaticInt{W}()
     )

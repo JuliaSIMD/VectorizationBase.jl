@@ -1,4 +1,5 @@
-import InteractiveUtils, Aqua, ArrayInterface
+import InteractiveUtils, Aqua, ArrayInterface, ExplicitImports
+import HostCPUFeatures, LayoutPointers, Static, StaticArrayInterface
 InteractiveUtils.versioninfo(stdout; verbose = true)
 
 include("testsetup.jl")
@@ -17,17 +18,56 @@ include("testsetup.jl")
   #        3. Use package extensions (still buggy in current Julia LTS v1.10.10)
 
   pirated_types = [
-            VectorizationBase.FastRange,
-            VectorizationBase.AbstractStridedPointer,
-            VectorizationBase.StridedBitPointer,
-            VectorizationBase.StaticInt,
-            VectorizationBase.AbstractSIMD,
-            VectorizationBase.Bit,
-        ]
-  Aqua.test_all(VectorizationBase; deps_compat = deps_compat, piracies=(treat_as_own = pirated_types,))
+    VectorizationBase.FastRange,
+    VectorizationBase.AbstractStridedPointer,
+    VectorizationBase.StridedBitPointer,
+    VectorizationBase.StaticInt,
+    VectorizationBase.AbstractSIMD,
+    VectorizationBase.Bit
+  ]
+  Aqua.test_all(
+    VectorizationBase;
+    deps_compat = deps_compat,
+    piracies = (treat_as_own = pirated_types,)
+  )
   println("Aqua took $((time_ns() - t0)*1e-9) seconds")
   # @test isempty(detect_unbound_args(VectorizationBase))
   # @test isempty(detect_ambiguities(VectorizationBase))
+
+  @testset "ExplicitImports" begin
+    # No implicit imports (`using XY`)
+    @test ExplicitImports.check_no_implicit_imports(VectorizationBase) ===
+          nothing
+
+    # All explicit imports (`using XY: Z`) are loaded via their owners
+    @test ExplicitImports.check_all_explicit_imports_via_owners(
+      VectorizationBase
+    ) === nothing
+
+    # No explicit imports (`using XY: Z`) of non-public names
+    @test_broken ExplicitImports.check_all_explicit_imports_are_public(
+      VectorizationBase
+    ) === nothing
+
+    # No explicit imports (`using XY: Z`) that are not used
+    @test ExplicitImports.check_no_stale_explicit_imports(VectorizationBase) ===
+          nothing
+
+    # Nothing is accessed via modules other than its owner
+    @test ExplicitImports.check_all_qualified_accesses_via_owners(
+      VectorizationBase
+    ) === nothing
+
+    # No accesses of non-public names
+    @test_broken ExplicitImports.check_all_qualified_accesses_are_public(
+      VectorizationBase
+    ) === nothing
+
+    # No self-qualified accesses
+    @test ExplicitImports.check_no_self_qualified_accesses(
+      VectorizationBase
+    ) === nothing
+  end
 
   W = Int(@inferred(VectorizationBase.pick_vector_width(Float64)))
   Sys.WORD_SIZE == 64 &&
@@ -100,12 +140,14 @@ include("testsetup.jl")
       @test VectorizationBase.align(i) == VectorizationBase.register_size()
     end
     for i ∈
-        1+VectorizationBase.register_size():2VectorizationBase.register_size()
+        (1+VectorizationBase.register_size()):2VectorizationBase.register_size()
+
       @test VectorizationBase.align(i) == 2VectorizationBase.register_size()
     end
     for i ∈
         (1:VectorizationBase.register_size()) .+
         9VectorizationBase.register_size()
+
       @test VectorizationBase.align(i) == 10VectorizationBase.register_size()
     end
     for i ∈ 1:VectorizationBase.register_size()
@@ -113,13 +155,15 @@ include("testsetup.jl")
             reinterpret(Ptr{Cvoid}, Int(VectorizationBase.register_size()))
     end
     for i ∈
-        1+VectorizationBase.register_size():2VectorizationBase.register_size()
+        (1+VectorizationBase.register_size()):2VectorizationBase.register_size()
+
       @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) ==
             reinterpret(Ptr{Cvoid}, 2Int(VectorizationBase.register_size()))
     end
     for i ∈
         (1:VectorizationBase.register_size()) .+
         19VectorizationBase.register_size()
+
       @test VectorizationBase.align(reinterpret(Ptr{Cvoid}, i)) ==
             reinterpret(Ptr{Cvoid}, 20Int(VectorizationBase.register_size()))
     end
@@ -130,7 +174,8 @@ include("testsetup.jl")
             W32 * cld(i, W32)
     end
     for i ∈
-        1+VectorizationBase.register_size():2VectorizationBase.register_size()
+        (1+VectorizationBase.register_size()):2VectorizationBase.register_size()
+
       @test VectorizationBase.align(i, W32) ==
             VectorizationBase.align(i, Float32) ==
             VectorizationBase.align(i, Int32) ==
@@ -139,6 +184,7 @@ include("testsetup.jl")
     for i ∈
         (1:VectorizationBase.register_size()) .+
         29VectorizationBase.register_size()
+
       @test VectorizationBase.align(i, W32) ==
             VectorizationBase.align(i, Float32) ==
             VectorizationBase.align(i, Int32) ==
@@ -152,7 +198,8 @@ include("testsetup.jl")
             W64 * cld(i, W64)
     end
     for i ∈
-        1+VectorizationBase.register_size():2VectorizationBase.register_size()
+        (1+VectorizationBase.register_size()):2VectorizationBase.register_size()
+
       @test VectorizationBase.align(i, W64) ==
             VectorizationBase.align(i, Float64) ==
             VectorizationBase.align(i, Int64) ==
@@ -161,6 +208,7 @@ include("testsetup.jl")
     for i ∈
         (1:VectorizationBase.register_size()) .+
         29VectorizationBase.register_size()
+
       @test VectorizationBase.align(i, W64) ==
             VectorizationBase.align(i, Float64) ==
             VectorizationBase.align(i, Int64) ==
@@ -170,16 +218,18 @@ include("testsetup.jl")
     @test reinterpret(Int, VectorizationBase.align(pointer(A))) %
           VectorizationBase.register_size() === 0
 
-    for i ∈ 0:VectorizationBase.register_size()-1
+    for i ∈ 0:(VectorizationBase.register_size()-1)
       @test VectorizationBase.aligntrunc(i) == 0
     end
     for i ∈
-        VectorizationBase.register_size():2VectorizationBase.register_size()-1
+        VectorizationBase.register_size():(2VectorizationBase.register_size()-1)
+
       @test VectorizationBase.aligntrunc(i) == VectorizationBase.register_size()
     end
     for i ∈
-        (0:VectorizationBase.register_size()-1) .+
+        (0:(VectorizationBase.register_size()-1)) .+
         9VectorizationBase.register_size()
+
       @test VectorizationBase.aligntrunc(i) ==
             9VectorizationBase.register_size()
     end
@@ -191,7 +241,8 @@ include("testsetup.jl")
             W32 * div(i, W32)
     end
     for i ∈
-        1+VectorizationBase.register_size():2VectorizationBase.register_size()
+        (1+VectorizationBase.register_size()):2VectorizationBase.register_size()
+
       @test VectorizationBase.aligntrunc(i, W32) ==
             VectorizationBase.aligntrunc(i, Float32) ==
             VectorizationBase.aligntrunc(i, Int32) ==
@@ -200,6 +251,7 @@ include("testsetup.jl")
     for i ∈
         (1:VectorizationBase.register_size()) .+
         29VectorizationBase.register_size()
+
       @test VectorizationBase.aligntrunc(i, W32) ==
             VectorizationBase.aligntrunc(i, Float32) ==
             VectorizationBase.aligntrunc(i, Int32) ==
@@ -213,7 +265,8 @@ include("testsetup.jl")
             W64 * div(i, W64)
     end
     for i ∈
-        1+VectorizationBase.register_size():2VectorizationBase.register_size()
+        (1+VectorizationBase.register_size()):2VectorizationBase.register_size()
+
       @test VectorizationBase.aligntrunc(i, W64) ==
             VectorizationBase.aligntrunc(i, Float64) ==
             VectorizationBase.aligntrunc(i, Int64) ==
@@ -222,6 +275,7 @@ include("testsetup.jl")
     for i ∈
         (1:VectorizationBase.register_size()) .+
         29VectorizationBase.register_size()
+
       @test VectorizationBase.aligntrunc(i, W64) ==
             VectorizationBase.aligntrunc(i, Float64) ==
             VectorizationBase.aligntrunc(i, Int64) ==
@@ -523,13 +577,13 @@ include("testsetup.jl")
     @test all(VectorizationBase._ispow2, 0:1)
     @test all(
       i ->
-        !any(VectorizationBase._ispow2, 1+(1<<(i-1)):(1<<i)-1) &&
-          VectorizationBase._ispow2(1 << i),
+        !any(VectorizationBase._ispow2, (1+(1<<(i-1))):((1<<i)-1)) &&
+        VectorizationBase._ispow2(1 << i),
       2:9
     )
     @test all(
       i -> VectorizationBase.intlog2(1 << i) == i,
-      0:(Int == Int64 ? 53 : 30)
+      0:(Int==Int64 ? 53 : 30)
     )
     FTypes = (Float32, Float64)
     Wv = ntuple(
@@ -546,7 +600,7 @@ include("testsetup.jl")
       while true
         W >>= VectorizationBase.One()
         W == 0 && break
-        W2, Wshift2 = @inferred(VectorizationBase.pick_vector_width_shift(W, T))
+        W2, Wshift2 = @inferred(HostCPUFeatures.pick_vector_width_shift(W, T))
         @test W2 ==
               VectorizationBase.One() << Wshift2 ==
               @inferred(VectorizationBase.pick_vector_width(W, T)) ==
@@ -555,9 +609,8 @@ include("testsetup.jl")
         @test StaticInt(W) ===
               VectorizationBase.pick_vector_width(Val(Int(W)), T) ===
               VectorizationBase.pick_vector_width(W, T)
-        for n = W+1:2W
-          W3, Wshift3 =
-            VectorizationBase.pick_vector_width_shift(StaticInt(n), T)
+        for n = (W+1):2W
+          W3, Wshift3 = HostCPUFeatures.pick_vector_width_shift(StaticInt(n), T)
           @test W2 << 1 ==
                 W3 ==
                 1 << (Wshift2 + 1) ==
@@ -602,7 +655,7 @@ include("testsetup.jl")
 
     dims = (41, 42, 43) .* 3
     # dims = (41,42,43);
-    A = reshape(collect(Float64(0):Float64(prod(dims) - 1)), dims)
+    A = reshape(collect(Float64(0):Float64(prod(dims)-1)), dims)
 
     P = PermutedDimsArray(A, (3, 1, 2))
     O = OffsetArray(P, (-4, -2, -3))
@@ -719,9 +772,9 @@ include("testsetup.jl")
           @test v2 === VectorizationBase.data(vu)[2]
           @test v3 === VectorizationBase.data(vu)[3]
 
-          ir = 0:(AV == 1 ? W64 - 1 : 0)
-          jr = 0:(AV == 2 ? W64 - 1 : 0)
-          kr = 0:(AV == 3 ? W64 - 1 : 0)
+          ir = 0:(AV==1 ? W64-1 : 0)
+          jr = 0:(AV==2 ? W64-1 : 0)
+          kr = 0:(AV==3 ? W64-1 : 0)
           x1 = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
           if AU == 1
             ir = ir .+ length(ir)
@@ -757,9 +810,9 @@ include("testsetup.jl")
             VectorizationBase.Unroll{AU,1,5,0,1,zero(UInt)}((i, j, k))
           )
         end
-        ir = 0:(AU == 1 ? 4 : 0)
-        jr = 0:(AU == 2 ? 4 : 0)
-        kr = 0:(AU == 3 ? 4 : 0)
+        ir = 0:(AU==1 ? 4 : 0)
+        jr = 0:(AU==2 ? 4 : 0)
+        kr = 0:(AU==3 ? 4 : 0)
         xvs = getindex.(Ref(B), i .+ ir, j .+ jr, k .+ kr)
         @test xvs ≈ map(VectorizationBase.vsum, [v1, v2, v3, v4, v5])
       end
@@ -771,9 +824,9 @@ include("testsetup.jl")
         pointer(x),
         j,
         (i * VectorizationBase.static_sizeof(Int)),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
+        Static.False(),
+        Static.False(),
+        Static.False(),
         VectorizationBase.register_size()
       )
       i += 1
@@ -784,9 +837,9 @@ include("testsetup.jl")
         j,
         (VectorizationBase.static_sizeof(Int) * i),
         Mask{1}(0xff),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
+        Static.False(),
+        Static.False(),
+        Static.False(),
         VectorizationBase.register_size()
       )
       i += 1
@@ -796,9 +849,9 @@ include("testsetup.jl")
         pointer(x),
         j,
         VectorizationBase.lazymul(i, VectorizationBase.static_sizeof(Int)),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
+        Static.False(),
+        Static.False(),
+        Static.False(),
         VectorizationBase.register_size()
       )
       i += 1
@@ -809,9 +862,9 @@ include("testsetup.jl")
         j,
         VectorizationBase.lazymul(VectorizationBase.static_sizeof(Int), i),
         Mask{1}(0xff),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
-        VectorizationBase.False(),
+        Static.False(),
+        Static.False(),
+        Static.False(),
         VectorizationBase.register_size()
       )
       i += 1
@@ -893,21 +946,21 @@ include("testsetup.jl")
     SizedWrapper{M,N}(A::AT) where {M,N,T,AT<:AbstractMatrix{T}} =
       SizedWrapper{M,N,T,AT}(A)
     Base.size(::SizedWrapper{M,N}) where {M,N} = (M, N)
-    VectorizationBase.static_size(::SizedWrapper{M,N}) where {M,N} =
+    StaticArrayInterface.static_size(::SizedWrapper{M,N}) where {M,N} =
       (StaticInt(M), StaticInt(N))
     Base.getindex(A::SizedWrapper, i...) = getindex(parent(A), i...)
     Base.parent(dw::SizedWrapper) = dw.A
     VectorizationBase.ArrayInterface.parent_type(
       ::Type{SizedWrapper{M,N,T,AT}}
     ) where {M,N,T,AT} = AT
-    VectorizationBase.memory_reference(dw::SizedWrapper) =
-      VectorizationBase.memory_reference(parent(dw))
-    VectorizationBase.contiguous_axis(::Type{A}) where {A<:SizedWrapper} =
-      VectorizationBase.contiguous_axis(
+    LayoutPointers.memory_reference(dw::SizedWrapper) =
+      LayoutPointers.memory_reference(parent(dw))
+    StaticArrayInterface.contiguous_axis(::Type{A}) where {A<:SizedWrapper} =
+      StaticArrayInterface.contiguous_axis(
         VectorizationBase.ArrayInterface.parent_type(A)
       )
-    VectorizationBase.contiguous_batch_size(dw::SizedWrapper) =
-      VectorizationBase.contiguous_batch_size(parent(dw))
+    StaticArrayInterface.contiguous_batch_size(dw::SizedWrapper) =
+      StaticArrayInterface.contiguous_batch_size(parent(dw))
     VectorizationBase.stride_rank(::Type{A}) where {A<:SizedWrapper} =
       VectorizationBase.stride_rank(
         VectorizationBase.ArrayInterface.parent_type(A)
@@ -936,11 +989,11 @@ include("testsetup.jl")
         At = ai ? A : (similar(A')')
         Bt = bi ? B : (similar(B')')
         Ct = ci ? C : (similar(C')')
-        spdw = VectorizationBase.DensePointerWrapper{(true, true)}(
+        spdw = LayoutPointers.DensePointerWrapper{(true, true)}(
           VectorizationBase.stridedpointer(At)
         )
         gsp, pres = @inferred(
-          VectorizationBase.grouped_strided_pointer(
+          LayoutPointers.grouped_strided_pointer(
             (spdw, Bt, Ct),
             Val{(((1, 1), (3, 1)), ((1, 2), (2, 1)), ((2, 2), (3, 2)))}()
           )
@@ -952,13 +1005,13 @@ include("testsetup.jl")
         @test sizeof(gsp) ==
               sizeof(Int) * (6 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
         @test sizeof(gsp.offsets) == 0
-        pA, pB, pC = @inferred(VectorizationBase.stridedpointers(gsp))
+        pA, pB, pC = @inferred(LayoutPointers.stridedpointers(gsp))
         @test pA === stridedpointer(At)
         @test pB === stridedpointer(Bt)
         @test pC === stridedpointer(Ct)
         Btsw = SizedWrapper{K,N}(Bt)
         gsp2, pres2 = @inferred(
-          VectorizationBase.grouped_strided_pointer(
+          LayoutPointers.grouped_strided_pointer(
             (At, Btsw, Ct),
             Val{(((1, 1), (3, 1)), ((1, 2), (2, 1)), ((2, 2), (3, 2)))}()
           )
@@ -966,7 +1019,7 @@ include("testsetup.jl")
         @test sizeof(gsp2) ==
               sizeof(Int) * (5 - (ai & ci) - ((!ai) & bi) - ((!bi) & (!ci)))
 
-        pA2, pB2, pC2 = @inferred(VectorizationBase.stridedpointers(gsp2))
+        pA2, pB2, pC2 = @inferred(LayoutPointers.stridedpointers(gsp2))
         @test pointer(pA2) == pointer(At)
         @test pointer(pB2) == pointer(Bt)
         @test pointer(pC2) == pointer(Ct)
@@ -977,10 +1030,10 @@ include("testsetup.jl")
     end
 
     data_in_large = Array{Float64}(undef, 4, 4, 4, 4, 1)
-    data_in = view(data_in_large, :, 1, :, :, 1)
+    data_in = view(data_in_large,:,1,:,:,1)
     tmp1 = Array{Float64}(undef, 4, 4, 4)
-    sp_data_in, sp_tmp1 = VectorizationBase.stridedpointers(
-      VectorizationBase.grouped_strided_pointer(
+    sp_data_in, sp_tmp1 = LayoutPointers.stridedpointers(
+      LayoutPointers.grouped_strided_pointer(
         (data_in, tmp1),
         Val((((1, 1), (2, 1)),))
       )[1]
@@ -1263,8 +1316,10 @@ include("testsetup.jl")
           Vec(ntuple(_ -> Core.VecElement(rand(I1)), Val(WI)))
         ))
         srange =
-          one(I2):(Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ?
-                   I2(8sizeof(I1) - 1) : I2(31))
+          one(
+            I2
+          ):(Bool(VectorizationBase.has_feature(Val(:x86_64_avx512dq))) ?
+             I2(8sizeof(I1)-1) : I2(31))
         vi2 = VectorizationBase.VecUnroll((
           Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
           Vec(ntuple(_ -> Core.VecElement(rand(srange)), Val(WI))),
@@ -1453,10 +1508,10 @@ include("testsetup.jl")
       end
 
       vi2 = VectorizationBase.VecUnroll((
-        Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
-        Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
-        Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI))),
-        Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(WI)))
+        Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(WI))),
+        Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(WI))),
+        Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(WI))),
+        Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(WI)))
       ))
       vones, vi2f, vtwos = promote(1.0, vi2, 2.0f0) # promotes a binary function, right? Even when used with three args?
       @test vones === VectorizationBase.VecUnroll((
@@ -1536,9 +1591,9 @@ include("testsetup.jl")
       @test tovector(clamp(m1, 2:i)) == clamp.(tovector(m1), 2, i)
       @test tovector(mod(m1, 1:i)) == mod1.(tovector(m1), i)
 
-      @test VectorizationBase.vdivrem.(1:30, 1:30') == divrem.(1:30, 1:30')
-      @test VectorizationBase.vcld.(1:30, 1:30') == cld.(1:30, 1:30')
-      @test VectorizationBase.vrem.(1:30, 1:30') == rem.(1:30, 1:30')
+      @test VectorizationBase.vdivrem.(1:30, 1:(30')) == divrem.(1:30, 1:(30'))
+      @test VectorizationBase.vcld.(1:30, 1:(30')) == cld.(1:30, 1:(30'))
+      @test VectorizationBase.vrem.(1:30, 1:(30')) == rem.(1:30, 1:(30'))
 
       @test gcd(Vec(42, 64, 0, -37), Vec(18, 96, -38, 0)) === Vec(6, 32, 38, 37)
       @test lcm(Vec(24, 16, 42, 0), Vec(18, 12, 18, 17)) === Vec(72, 48, 126, 0)
@@ -2028,27 +2083,30 @@ include("testsetup.jl")
         1
       ))
     ) === StaticInt{8}()
-    @test VectorizationBase.CartesianVIndex((StaticInt(-4), StaticInt(7))):VectorizationBase.CartesianVIndex((
-      StaticInt(14),
-      StaticInt(73)
-    )) === CartesianIndices((
+    @test VectorizationBase.CartesianVIndex((
+      StaticInt(-4),
+      StaticInt(7)
+    )):VectorizationBase.CartesianVIndex((StaticInt(14), StaticInt(73))) ===
+          CartesianIndices((
       StaticInt(-4):StaticInt(14),
       StaticInt(7):StaticInt(73)
     ))
-    @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(
+    @test VectorizationBase.maybestaticfirst(
       CartesianIndices(A)
-    ) == CartesianIndices(A)
-    @test VectorizationBase.maybestaticfirst(CartesianIndices(A)):VectorizationBase.maybestaticlast(
+    ):VectorizationBase.maybestaticlast(CartesianIndices(A)) ==
+          CartesianIndices(A)
+    @test VectorizationBase.maybestaticfirst(
       CartesianIndices(A)
-    ) === CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
+    ):VectorizationBase.maybestaticlast(CartesianIndices(A)) ===
+          CartesianIndices(map(i -> VectorizationBase.One():i, size(A)))
   end
   println("Promotion")
   @time @testset "Promotion" begin
     vi2 = VectorizationBase.VecUnroll((
-      Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-      Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-      Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64))),
-      Vec(ntuple(_ -> Core.VecElement(rand(1:M-1)), Val(W64)))
+      Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(W64))),
+      Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(W64))),
+      Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(W64))),
+      Vec(ntuple(_ -> Core.VecElement(rand(1:(M-1))), Val(W64)))
     ))
     vones, vi2f, vtwos = @inferred(promote(1.0, vi2, 2.0f0)) # promotes a binary function, right? Even when used with three args?
     @test vones === VectorizationBase.VecUnroll((
@@ -2299,7 +2357,7 @@ include("testsetup.jl")
     ) === typemax(Int32)
     v = Vec(
       ntuple(
-        _ -> rand(typemax(UInt)>>1+one(UInt):typemax(UInt)),
+        _ -> rand((typemax(UInt)>>1+one(UInt)):typemax(UInt)),
         VectorizationBase.pick_vector_width(UInt)
       )...
     )
