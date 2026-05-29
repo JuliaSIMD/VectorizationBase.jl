@@ -11,6 +11,7 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.version == 'pre' || matrix.version == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
@@ -18,12 +19,21 @@ jobs:
           - 'lts'
           - '1'
           - 'pre'
+          - 'nightly'
         os:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
-        arch:
-          - x64
+        include:
+          # Native arch per OS. `macOS-latest` is Apple silicon since the
+          # 2024 GitHub Actions image refresh; forcing `arch: x64` there
+          # would run Julia under Rosetta emulation.
+          - os: ubuntu-latest
+            arch: x64
+          - os: macOS-latest
+            arch: aarch64
+          - os: windows-latest
+            arch: x64
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -43,9 +53,10 @@ jobs:
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v5
         with:
-          file: lcov.info
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
   docs:
     name: Documentation
     runs-on: ubuntu-latest
