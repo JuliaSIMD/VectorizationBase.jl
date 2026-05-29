@@ -907,6 +907,20 @@ function vload_quote_llvmcall_core(
   decl = LOAD_SCOPE_TBAA
   dynamic_index = !(iszero(M) || ind_type === :StaticInt)
 
+  # Detect the dynamic-index bit-load path that uses `ashr index, 3` for byte
+  # addressing in `offset_ptr`. In that path the loaded `<W x i1>` only reads
+  # bits 0..W-1 of the addressed byte, which is wrong whenever the original
+  # index is not a multiple of 8 (e.g. in cleanup unroll loops of LV that step
+  # by W*UN < 8 elements). To handle misalignment, perform a wider integer
+  # load and shift right by `index & 7` before truncating to `i$W`.
+  bit_dyn_misalign_fix =
+    isbit &&
+    dynamic_index &&
+    (ind_type === :Integer) &&
+    !grv &&
+    !mask &&
+    !reverse_load &&
+    W > 1
   vtyp = vtype(W, typ)
   if mask
     if reverse_load
@@ -964,18 +978,69 @@ function vload_quote_llvmcall_core(
       )
     end
   else
-    @static if USE_OPAQUE_PTR
-      push!(
-        instrs,
-        "%res = load $vtyp, ptr %ptr.$(i-1), align $alignment" *
-        LOAD_SCOPE_TBAA_FLAGS
-      )
+    if bit_dyn_misalign_fix
+      # Wide integer load that covers W bits starting at any bit offset 0..7.
+      # Need W+7 bits; round up to a power-of-2 byte width LLVM handles well.
+      wide_bits = max(8, nextpow2(W + 7))
+      wide_typ = "i$(wide_bits)"
+      @static if USE_OPAQUE_PTR
+        push!(
+          instrs,
+          "%bitrawres = load $wide_typ, ptr %ptr.$(i-1), align 1" *
+          LOAD_SCOPE_TBAA_FLAGS
+        )
+      else
+        # `%ptr.$(i-1)` was typed as `<W x i1>*` (or similar) by `offset_ptr`;
+        # bitcast to `wide_typ*` before issuing the wide integer load so the
+        # non-opaque-pointer LLVM IR (Julia ≤ 1.10) typechecks.
+        push!(
+          instrs,
+          "%ptr.bit$(i-1) = bitcast $vtyp* %ptr.$(i-1) to $wide_typ*"
+        )
+        push!(
+          instrs,
+          "%bitrawres = load $wide_typ, $wide_typ* %ptr.bit$(i-1), align 1" *
+          LOAD_SCOPE_TBAA_FLAGS
+        )
+      end
+      # `%1` is the original (dynamic) index in `iibits`; compute `index & 7`
+      # and zero-extend/truncate to `wide_typ` to use as a shift amount.
+      push!(instrs, "%bitoff.raw = and i$(ibits) %1, 7")
+      if ibits < wide_bits
+        push!(
+          instrs,
+          "%bitoff = zext i$(ibits) %bitoff.raw to $wide_typ"
+        )
+      elseif ibits > wide_bits
+        push!(
+          instrs,
+          "%bitoff = trunc i$(ibits) %bitoff.raw to $wide_typ"
+        )
+      else
+        push!(instrs, "%bitoff = bitcast i$(ibits) %bitoff.raw to $wide_typ")
+      end
+      push!(instrs, "%bitshifted = lshr $wide_typ %bitrawres, %bitoff")
+      # Produce `<W x i1>` to keep downstream code identical.
+      if wide_bits > W
+        push!(instrs, "%bittrunc = trunc $wide_typ %bitshifted to i$(W)")
+        push!(instrs, "%res = bitcast i$(W) %bittrunc to <$W x i1>")
+      else
+        push!(instrs, "%res = bitcast $wide_typ %bitshifted to <$W x i1>")
+      end
     else
-      push!(
-      instrs,
-      "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" *
-      LOAD_SCOPE_TBAA_FLAGS
-      )
+      @static if USE_OPAQUE_PTR
+        push!(
+          instrs,
+          "%res = load $vtyp, ptr %ptr.$(i-1), align $alignment" *
+          LOAD_SCOPE_TBAA_FLAGS
+        )
+      else
+        push!(
+        instrs,
+        "%res = load $vtyp, $vtyp* %ptr.$(i-1), align $alignment" *
+        LOAD_SCOPE_TBAA_FLAGS
+        )
+      end
     end
   end
   if isbit
